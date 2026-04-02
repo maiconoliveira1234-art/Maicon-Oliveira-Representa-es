@@ -172,7 +172,10 @@ export function PriceInquiryPage() {
           <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" size={20} />
           <select
             value={selectedFamily}
-            onChange={(e) => setSelectedFamily(e.target.value)}
+            onChange={(e) => {
+              setSelectedFamily(e.target.value);
+              setSearchTerm('');
+            }}
             className="w-full pl-12 pr-4 py-3 bg-white border border-neutral-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all appearance-none"
           >
             <option value="all">Todas as Famílias</option>
@@ -198,31 +201,32 @@ export function PriceInquiryPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
-        <div className="divide-y divide-neutral-100 max-h-[600px] overflow-y-auto">
+      <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden flex-1">
+        <div className="divide-y divide-neutral-100">
           {filteredProdutos.length > 0 ? (
             filteredProdutos.map((produto) => (
               <div
                 key={produto.id}
-                className="flex items-center justify-between p-2 hover:bg-neutral-50 transition-colors group"
+                onClick={() => toggleSelect(produto.id)}
+                className="flex items-center justify-between p-4 hover:bg-neutral-50 transition-colors group cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => toggleSelect(produto.id)}
+                  <div
                     className={cn(
                       "transition-colors",
                       selectedIds.has(produto.id) ? "text-orange-600" : "text-neutral-300"
                     )}
                   >
-                    {selectedIds.has(produto.id) ? <CheckSquare size={20} /> : <Square size={20} />}
-                  </button>
+                    {selectedIds.has(produto.id) ? <CheckSquare size={24} /> : <Square size={24} />}
+                  </div>
                   <div>
-                    <h3 className="font-bold text-neutral-900 text-sm">{produto.produto}</h3>
+                    <h3 className="font-bold text-neutral-900 text-base">{produto.produto}</h3>
+                    <p className="text-[10px] text-neutral-400 font-bold uppercase">{produto.familia}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-[10px] text-neutral-400 uppercase font-bold">Preço Unitário</p>
-                  <p className="text-base font-black text-neutral-900">
+                  <p className="text-xs text-neutral-400 uppercase font-bold">Preço Unitário</p>
+                  <p className="text-lg font-black text-neutral-900">
                     R$ {((produto.custo_und || 0) * (1 - (produto[selectedTable] || 0))).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
