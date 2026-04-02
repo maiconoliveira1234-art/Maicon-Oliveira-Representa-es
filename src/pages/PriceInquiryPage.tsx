@@ -37,14 +37,20 @@ export function PriceInquiryPage() {
   }, []);
 
   const families = useMemo(() => {
-    const fams = new Set(produtos.map(p => p.familia));
+    const fams = new Set(produtos.map(p => p.familia || 'Sem Família'));
     return Array.from(fams).sort();
   }, [produtos]);
 
   const filteredProdutos = useMemo(() => {
+    const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word.length > 0);
+    
     return produtos.filter(p => {
-      const matchesSearch = p.produto.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesFamily = selectedFamily === 'all' || p.familia === selectedFamily;
+      const productName = p.produto || '';
+      const productFamily = p.familia || '';
+      const targetString = `${productName} ${productFamily}`.toLowerCase();
+      
+      const matchesSearch = searchWords.length === 0 || searchWords.every(word => targetString.includes(word));
+      const matchesFamily = selectedFamily === 'all' || productFamily === selectedFamily;
       return matchesSearch && matchesFamily;
     });
   }, [produtos, searchTerm, selectedFamily]);

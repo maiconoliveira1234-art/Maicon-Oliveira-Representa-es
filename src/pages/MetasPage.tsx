@@ -276,10 +276,14 @@ export function MetasPage() {
   };
 
   const sortedAndFilteredData = useMemo(() => {
-    let data = stats.tableData.filter(c => 
-      c.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.cidade?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word.length > 0);
+    
+    let data = stats.tableData.filter(c => {
+      if (searchWords.length === 0) return true;
+      
+      const targetString = `${c.cliente} ${c.cidade || ''}`.toLowerCase();
+      return searchWords.every(word => targetString.includes(word));
+    });
 
     if (sortConfig) {
       data = [...data].sort((a, b) => {

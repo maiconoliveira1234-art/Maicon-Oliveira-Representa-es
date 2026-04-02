@@ -32,8 +32,12 @@ export function ClientsPage() {
   }, []);
 
   const filteredClientes = clientes.filter(c => {
-    const matchesSearch = c.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         c.cidade.toLowerCase().includes(searchTerm.toLowerCase());
+    const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word.length > 0);
+    const clienteName = c.cliente || '';
+    const clienteCidade = c.cidade || '';
+    const targetString = `${clienteName} ${clienteCidade}`.toLowerCase();
+    
+    const matchesSearch = searchWords.length === 0 || searchWords.every(word => targetString.includes(word));
     const matchesStatus = showInactive ? true : c.ativo;
     return matchesSearch && matchesStatus;
   });

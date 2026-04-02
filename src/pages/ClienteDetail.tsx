@@ -9,7 +9,8 @@ import {
   TrendingUp, 
   Calendar,
   ChevronRight,
-  AlertCircle
+  AlertCircle,
+  XCircle
 } from 'lucide-react';
 import { Cliente, HistVenda, EstoqueCliente } from '../types';
 import { supabase } from '../lib/supabase';
@@ -24,23 +25,38 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts';
+import { 
+  subMonths, 
+  startOfMonth, 
+  endOfMonth, 
+  differenceInDays, 
+  parseISO, 
+  format,
+  isWithinInterval
+} from 'date-fns';
 
-import { MOCK_CLIENTES, MOCK_HISTORICO } from '../lib/mockData';
+import { MOCK_CLIENTES, MOCK_HISTORICO, MOCK_PRODUTOS } from '../lib/mockData';
+import { Produto } from '../types';
 
 export function ClienteDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [historico, setHistorico] = useState<HistVenda[]>([]);
+  const [produtos, setProdutos] = useState<Produto[]>([]);
   const [estoque, setEstoque] = useState<EstoqueCliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedOrderDate, setSelectedOrderDate] = useState<string | null>(null);
+  const [showAllHistory, setShowAllHistory] = useState(false);
 
   useEffect(() => {
     async function loadClienteData() {
       if (!id) return;
       try {
         setError(null);
+        
+        // Fetch Clientes
         const { data: clienteData, error: cError } = await supabase
           .from('clientes')
           .select('*')
@@ -67,6 +83,7 @@ export function ClienteDetail() {
           });
         }
 
+        // Fetch Historico
         const { data: histData, error: hError } = await supabase
           .from('hist_vendas')
           .select('*')
@@ -82,6 +99,13 @@ export function ClienteDetail() {
           setHistorico(histData);
         }
 
+        // Fetch Produtos
+        const { data: pData } = await supabase
+          .from('produtos')
+          .select('*');
+        setProdutos(pData && pData.length > 0 ? pData : MOCK_PRODUTOS);
+
+        // Fetch Estoque
         const { data: estData } = await supabase
           .from('estoque_cliente')
           .select('*')
@@ -93,6 +117,7 @@ export function ClienteDetail() {
         console.error('Erro ao carregar dados do cliente:', err);
         setCliente(MOCK_CLIENTES.find(c => c.id === id) || null);
         setHistorico(MOCK_HISTORICO.filter(h => h.cliente_id === id));
+        setProdutos(MOCK_PRODUTOS);
       } finally {
         setLoading(false);
       }
@@ -103,12 +128,103 @@ export function ClienteDetail() {
   if (loading) return <div className="p-8 text-center">Carregando...</div>;
   if (!cliente) return <div className="p-8 text-center">Cliente não encontrado.</div>;
 
+  // Calculations
+  const now = new Date();
+  const startOfCurrentMonth = startOfMonth(now);
+  const endOfCurrentMonth = endOfMonth(now);
+
+  const produtosMap = produtos.reduce((acc, p) => {
+    acc[p.id] = p;
+    return acc;
+  }, {} as Record<string, Produto>);
+
+  // Realizado (Current Month)
+  const realizado = historico
+    .filter(h => {
+      const date = parseISO(h.faturamento);
+      return date >= startOfCurrentMonth && date <= endOfCurrentMonth;
+    })
+    .reduce((acc, h) => {
+      const prod = produtosMap[h.produto_id];
+      return acc + (h.qtd * (prod?.peso_embalagem || 0));
+    }, 0);
+
+  // Média 6m (excluding current month)
+  const sixMonthsAgo = startOfMonth(subMonths(now, 6));
+  const media6m = historico
+    .filter(h => {
+      const date = parseISO(h.faturamento);
+      return date >= sixMonthsAgo && date < startOfCurrentMonth;
+    })
+    .reduce((acc, h) => {
+      const prod = produtosMap[h.produto_id];
+      return acc + (h.qtd * (prod?.peso_embalagem || 0));
+    }, 0) / 6;
+
+  // Média 12m (excluding current month)
+  const twelveMonthsAgo = startOfMonth(subMonths(now, 12));
+  const media12m = historico
+    .filter(h => {
+      const date = parseISO(h.faturamento);
+      return date >= twelveMonthsAgo && date < startOfCurrentMonth;
+    })
+    .reduce((acc, h) => {
+      const prod = produtosMap[h.produto_id];
+      return acc + (h.qtd * (prod?.peso_embalagem || 0));
+    }, 0) / 12;
+
+  // Ciclo de Compra
+  let mediaCiclo = 0;
+  let diasUltima = 0;
+  
+  if (historico.length > 0) {
+    const sortedVendas = [...historico].sort((a, b) => parseISO(b.faturamento).getTime() - parseISO(a.faturamento).getTime());
+    const ultVenda = sortedVendas[0];
+    diasUltima = differenceInDays(now, parseISO(ultVenda.faturamento));
+
+    const oldest = parseISO(sortedVendas[sortedVendas.length - 1].faturamento);
+    const totalDaysSinceFirst = differenceInDays(now, oldest);
+    const uniqueDays = new Set(historico.map(v => format(parseISO(v.faturamento), 'yyyy-MM-dd')));
+    if (uniqueDays.size > 0) {
+      mediaCiclo = Math.round(totalDaysSinceFirst / uniqueDays.size);
+    }
+  }
+
+  const progresso = cliente.meta > 0 ? Math.round((realizado / cliente.meta) * 100) : 0;
+  const statusCiclo = diasUltima <= 28 ? "No Prazo" : "Atrasado";
+
   const chartData = [
-    { name: 'Média 12m', valor: 4500 },
-    { name: 'Média 6m', valor: 5200 },
-    { name: 'Realizado', valor: 3800 },
+    { name: 'Média 12m', valor: media12m },
+    { name: 'Média 6m', valor: media6m },
+    { name: 'Realizado', valor: realizado },
     { name: 'Meta', valor: cliente.meta },
   ];
+
+  const ordersByDate = React.useMemo(() => {
+    const groups: Record<string, HistVenda[]> = {};
+    historico.forEach(h => {
+      const date = h.faturamento;
+      if (!groups[date]) groups[date] = [];
+      groups[date].push(h);
+    });
+    
+    return Object.entries(groups)
+      .map(([date, items]) => ({
+        date,
+        items,
+        total: items.reduce((acc, item) => acc + (item["r$_total"] || 0), 0),
+        totalWeight: items.reduce((acc, item) => {
+          const prod = produtosMap[item.produto_id];
+          return acc + (item.qtd * (prod?.peso_embalagem || 0));
+        }, 0)
+      }))
+      .sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime());
+  }, [historico, produtosMap]);
+
+  const selectedOrder = React.useMemo(() => {
+    if (!selectedOrderDate) return null;
+    return ordersByDate.find(o => o.date === selectedOrderDate);
+  }, [ordersByDate, selectedOrderDate]);
 
   return (
     <div className="space-y-6 pb-24">
@@ -179,11 +295,16 @@ export function ClienteDetail() {
         <div className="mt-4 p-4 bg-neutral-50 rounded-2xl flex justify-between items-center">
           <div>
             <p className="text-[10px] font-bold text-neutral-400 uppercase">Falta para Meta</p>
-            <p className="text-lg font-black text-neutral-800">{formatWeight(Math.max(0, cliente.meta - 3800))}</p>
+            <p className="text-lg font-black text-neutral-800">{formatWeight(Math.max(0, cliente.meta - realizado))}</p>
           </div>
           <div className="text-right">
             <p className="text-[10px] font-bold text-neutral-400 uppercase">Progresso</p>
-            <p className="text-lg font-black text-green-600">76%</p>
+            <p className={cn(
+              "text-lg font-black",
+              progresso >= 100 ? "text-green-600" : "text-orange-600"
+            )}>
+              {progresso}%
+            </p>
           </div>
         </div>
       </section>
@@ -197,17 +318,22 @@ export function ClienteDetail() {
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
             <p className="text-[10px] font-bold text-neutral-400 uppercase">Média</p>
-            <p className="text-xl font-bold text-neutral-800">22</p>
+            <p className="text-xl font-bold text-neutral-800">{mediaCiclo}</p>
             <p className="text-[10px] text-neutral-400">dias</p>
           </div>
           <div className="border-x border-neutral-100">
             <p className="text-[10px] font-bold text-neutral-400 uppercase">Última</p>
-            <p className="text-xl font-bold text-neutral-800">14</p>
+            <p className="text-xl font-bold text-neutral-800">{diasUltima}</p>
             <p className="text-[10px] text-neutral-400">dias atrás</p>
           </div>
           <div>
             <p className="text-[10px] font-bold text-neutral-400 uppercase">Status</p>
-            <p className="text-sm font-bold text-green-600 mt-2 uppercase tracking-tighter">No Prazo</p>
+            <p className={cn(
+              "text-sm font-bold mt-2 uppercase tracking-tighter",
+              statusCiclo === "No Prazo" ? "text-green-600" : "text-red-600"
+            )}>
+              {statusCiclo}
+            </p>
           </div>
         </div>
       </section>
@@ -219,22 +345,112 @@ export function ClienteDetail() {
             <History className="text-orange-600" size={20} />
             Últimos Pedidos
           </h3>
-          <button className="text-orange-600 text-xs font-bold">Ver Tudo</button>
+          <button 
+            onClick={() => setShowAllHistory(true)}
+            className="text-orange-600 text-xs font-bold"
+          >
+            Ver Tudo
+          </button>
         </div>
         
-        {historico.slice(0, 3).map((venda) => (
-          <div key={venda.id} className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm flex justify-between items-center">
+        {ordersByDate.slice(0, 3).map((order) => (
+          <button 
+            key={order.date} 
+            onClick={() => setSelectedOrderDate(order.date)}
+            className="w-full bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm flex justify-between items-center hover:bg-neutral-50 transition-colors text-left"
+          >
             <div>
-              <p className="font-bold text-neutral-900">{venda.produtos}</p>
-              <p className="text-xs text-neutral-400">{new Date(venda.faturamento).toLocaleDateString()}</p>
+              <p className="font-bold text-neutral-900">Pedido em {format(parseISO(order.date), 'dd/MM/yyyy')}</p>
+              <p className="text-xs text-neutral-400">{order.items.length} itens • {formatWeight(order.totalWeight)}</p>
             </div>
-            <div className="text-right">
-              <p className="font-bold text-neutral-900">{formatCurrency(venda["r$_total"])}</p>
-              <p className="text-[10px] font-bold text-neutral-400 uppercase">{venda.qtd} un</p>
+            <div className="text-right flex items-center gap-2">
+              <p className="font-bold text-neutral-900">{formatCurrency(order.total)}</p>
+              <ChevronRight size={16} className="text-neutral-300" />
             </div>
-          </div>
+          </button>
         ))}
       </section>
+
+      {/* Order Detail Modal */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-neutral-100 flex justify-between items-center bg-neutral-50">
+              <div>
+                <h3 className="text-xl font-black text-neutral-900">Detalhes do Pedido</h3>
+                <p className="text-sm text-neutral-500 font-bold">{format(parseISO(selectedOrder.date), 'dd/MM/yyyy')}</p>
+              </div>
+              <button 
+                onClick={() => setSelectedOrderDate(null)}
+                className="p-2 hover:bg-neutral-200 rounded-full transition-colors"
+              >
+                <XCircle size={24} className="text-neutral-400" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {selectedOrder.items.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-start pb-4 border-b border-neutral-50 last:border-0">
+                  <div className="flex-1 pr-4">
+                    <p className="font-bold text-neutral-900 leading-tight">{item.produtos}</p>
+                    <p className="text-xs text-neutral-400 mt-1">
+                      Tabela: {item.tabela} • {item.vendas}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-neutral-900">{formatCurrency(item["r$_total"])}</p>
+                    <p className="text-[10px] font-bold text-neutral-400 uppercase">{item.qtd} un</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-6 bg-orange-50 border-t border-orange-100">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-[10px] font-bold text-orange-400 uppercase">Total do Pedido</p>
+                  <p className="text-2xl font-black text-orange-600">{formatCurrency(selectedOrder.total)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold text-orange-400 uppercase">Peso Total</p>
+                  <p className="text-xl font-black text-neutral-700">{formatWeight(selectedOrder.totalWeight)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full History View */}
+      {showAllHistory && (
+        <div className="fixed inset-0 z-40 bg-neutral-50 flex flex-col">
+          <header className="bg-white p-4 border-b border-neutral-200 flex items-center gap-4 sticky top-0">
+            <button onClick={() => setShowAllHistory(false)} className="p-2 hover:bg-neutral-100 rounded-full">
+              <ArrowLeft size={24} />
+            </button>
+            <h2 className="text-xl font-black text-neutral-900">Histórico Completo</h2>
+          </header>
+          
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {ordersByDate.map((order) => (
+              <button 
+                key={order.date} 
+                onClick={() => setSelectedOrderDate(order.date)}
+                className="w-full bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm flex justify-between items-center text-left"
+              >
+                <div>
+                  <p className="font-bold text-neutral-900">{format(parseISO(order.date), 'dd/MM/yyyy')}</p>
+                  <p className="text-xs text-neutral-400">{order.items.length} itens • {formatWeight(order.totalWeight)}</p>
+                </div>
+                <div className="text-right flex items-center gap-2">
+                  <p className="font-bold text-neutral-900">{formatCurrency(order.total)}</p>
+                  <ChevronRight size={16} className="text-neutral-300" />
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
