@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, ShoppingCart, BarChart3, Settings, FileUp } from 'lucide-react';
+import { LayoutDashboard, Users, Search, BarChart3, Settings, FileUp, ShoppingCart } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -14,7 +14,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 px-2 space-y-4 mt-4">
           <NavItem to="/" icon={<LayoutDashboard size={24} />} label="" />
           <NavItem to="/clientes" icon={<Users size={24} />} label="" />
-          <NavItem to="/pedido/novo" icon={<ShoppingCart size={24} />} label="" />
+          <NavItem to="/consulta-preco" icon={<Search size={24} />} label="" />
           <NavItem to="/metas" icon={<BarChart3 size={24} />} label="" />
           <NavItem to="/import" icon={<FileUp size={24} />} label="" />
         </nav>
@@ -32,7 +32,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 flex justify-around items-center h-16 z-50 px-2">
         <MobileNavItem to="/" icon={<LayoutDashboard size={24} />} label="Início" />
         <MobileNavItem to="/clientes" icon={<Users size={24} />} label="Clientes" />
-        <MobileNavItem to="/pedido/novo" icon={<ShoppingCart size={24} />} label="Pedido" />
+        <MobileNavItem to="/consulta-preco" icon={<Search size={24} />} label="Preços" />
         <MobileNavItem to="/metas" icon={<BarChart3 size={24} />} label="Metas" />
         <MobileNavItem to="/import" icon={<FileUp size={24} />} label="Importar" />
       </nav>

@@ -57,6 +57,7 @@ export type Pedido = {
   data: string;
   peso_total: number;
   valor_total: number;
+  prazo?: string;
 };
 
 export type ItemPedido = {

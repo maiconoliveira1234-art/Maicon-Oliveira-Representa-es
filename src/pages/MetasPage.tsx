@@ -37,8 +37,22 @@ export function MetasPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<{ id: string, success: boolean } | null>(null);
-  const [startDate, setStartDate] = useState<string>(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
-  const [deadlineDate, setDeadlineDate] = useState<string>(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [startDate, setStartDate] = useState<string>(() => {
+    const saved = localStorage.getItem('metas_start_date');
+    return saved || format(startOfMonth(new Date()), 'yyyy-MM-dd');
+  });
+  const [deadlineDate, setDeadlineDate] = useState<string>(() => {
+    const saved = localStorage.getItem('metas_deadline_date');
+    return saved || format(endOfMonth(new Date()), 'yyyy-MM-dd');
+  });
+
+  useEffect(() => {
+    localStorage.setItem('metas_start_date', startDate);
+  }, [startDate]);
+
+  useEffect(() => {
+    localStorage.setItem('metas_deadline_date', deadlineDate);
+  }, [deadlineDate]);
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>({ key: 'cliente', direction: 'asc' });
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
@@ -303,7 +317,7 @@ export function MetasPage() {
   }
 
   return (
-    <div className="space-y-6 pb-20">
+    <div className="flex flex-col h-[calc(100vh-100px)] space-y-6 pb-4">
       <header className="flex items-center gap-4">
         <button onClick={() => navigate(-1)} className="p-2 hover:bg-neutral-100 rounded-full transition-colors">
           <ArrowLeft size={24} />
@@ -315,56 +329,84 @@ export function MetasPage() {
       </header>
 
       {/* Spreadsheet Style Summary Header */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-0 border border-neutral-300 rounded-lg overflow-hidden shadow-sm bg-neutral-800 text-white text-[10px]">
-        <div className="p-1.5 border-r border-b border-neutral-600 flex flex-col items-center justify-center bg-neutral-700">
-          <p className="text-[8px] font-bold uppercase opacity-70">Esperado</p>
-          <p className="text-sm font-black">{stats.esperadoPercent.toFixed(2)}%</p>
-          <div className="w-full h-1 bg-neutral-600 mt-1 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-400" style={{ width: `${Math.min(100, stats.esperadoPercent)}%` }} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-0 border border-neutral-300 rounded-xl overflow-hidden shadow-md bg-neutral-800 text-white">
+        {/* Group 1: Esperado & Atual */}
+        <div className="p-3 border-r border-b lg:border-b-0 border-neutral-600 flex flex-col justify-center gap-2 bg-neutral-700/50">
+          <div className="grid grid-cols-2 gap-3 px-1">
+            <div className="flex flex-col gap-1">
+              <p className="text-[9px] font-bold uppercase opacity-60">Esperado</p>
+              <p className="text-lg font-black text-blue-400 leading-none">{stats.esperadoPercent.toFixed(2)}%</p>
+              <div className="w-full h-1.5 bg-neutral-600 rounded-full overflow-hidden mt-1">
+                <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${Math.min(100, stats.esperadoPercent)}%` }} />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <p className="text-[9px] font-bold uppercase opacity-60">Atual</p>
+              <p className={cn("text-lg font-black leading-none", stats.percentualAtual >= stats.esperadoPercent ? "text-green-400" : "text-orange-400")}>
+                {stats.percentualAtual.toFixed(2)}%
+              </p>
+              <div className="w-full h-1.5 bg-neutral-600 rounded-full overflow-hidden mt-1">
+                <div className={cn("h-full transition-all duration-500", stats.percentualAtual >= stats.esperadoPercent ? "bg-green-500" : "bg-orange-500")} style={{ width: `${Math.min(100, stats.percentualAtual)}%` }} />
+              </div>
+            </div>
           </div>
         </div>
-        <div className="p-1.5 border-r border-b border-neutral-600 flex flex-col items-center justify-center bg-neutral-700">
-          <p className="text-[8px] font-bold uppercase opacity-70">Início</p>
-          <input 
-            type="date" 
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="bg-transparent text-white text-xs font-black outline-none cursor-pointer hover:text-orange-400 transition-colors text-center"
-          />
-        </div>
-        <div className="p-1.5 border-r border-b border-neutral-600 flex flex-col items-center justify-center">
-          <p className="text-[8px] font-bold uppercase opacity-70">Projetado Hoje</p>
-          <p className="text-sm font-black">{formatWeight(stats.projetadoHoje)}</p>
-        </div>
-        <div className="p-1.5 border-r border-b border-neutral-600 flex flex-col items-center justify-center">
-          <p className="text-[8px] font-bold uppercase opacity-70">GAP</p>
-          <p className={cn("text-sm font-black", stats.gapTotal >= 0 ? "text-green-400" : "text-red-400")}>
-            {formatWeight(stats.gapTotal)}
-          </p>
-        </div>
-        <div className="p-1.5 border-r border-b border-neutral-600 flex flex-col items-center justify-center bg-neutral-600">
-          <p className="text-[8px] font-bold uppercase opacity-70">Atual</p>
-          <p className="text-sm font-black">{stats.percentualAtual.toFixed(2)}%</p>
-          <div className="w-full h-1 bg-neutral-500 mt-1 rounded-full overflow-hidden">
-            <div className={cn("h-full", stats.percentualAtual >= stats.esperadoPercent ? "bg-green-400" : "bg-orange-400")} style={{ width: `${Math.min(100, stats.percentualAtual)}%` }} />
+
+        {/* Group 2: Início & Prazo Final */}
+        <div className="p-3 border-r border-b lg:border-b-0 border-neutral-600 flex flex-col justify-center gap-2">
+          <div className="flex justify-between items-center px-2">
+            <div className="text-center flex-1">
+              <p className="text-[9px] font-bold uppercase opacity-60 mb-1">Início</p>
+              <input 
+                type="date" 
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="bg-transparent text-white text-sm font-black outline-none cursor-pointer hover:text-orange-400 transition-colors text-center w-full"
+              />
+            </div>
+            <div className="h-8 w-[1px] bg-neutral-600 mx-2" />
+            <div className="text-center flex-1">
+              <p className="text-[9px] font-bold uppercase opacity-60 mb-1">Prazo Final</p>
+              <input 
+                type="date" 
+                value={deadlineDate}
+                onChange={(e) => setDeadlineDate(e.target.value)}
+                className="bg-transparent text-white text-sm font-black outline-none cursor-pointer hover:text-orange-400 transition-colors text-center w-full"
+              />
+            </div>
           </div>
         </div>
-        <div className="p-1.5 border-r border-b border-neutral-600 flex flex-col items-center justify-center bg-neutral-700">
-          <p className="text-[8px] font-bold uppercase opacity-70">Prazo Final</p>
-          <input 
-            type="date" 
-            value={deadlineDate}
-            onChange={(e) => setDeadlineDate(e.target.value)}
-            className="bg-transparent text-white text-xs font-black outline-none cursor-pointer hover:text-orange-400 transition-colors text-center"
-          />
+
+        {/* Group 3: Projetado Hoje & Vendas */}
+        <div className="p-3 border-r border-b lg:border-b-0 border-neutral-600 flex flex-col justify-center gap-2 bg-neutral-700/50">
+          <div className="flex justify-between items-center px-2">
+            <div className="text-center">
+              <p className="text-[9px] font-bold uppercase opacity-60 mb-1">Projetado Hoje</p>
+              <p className="text-lg font-black text-neutral-300 leading-none">{formatWeight(stats.projetadoHoje)}</p>
+            </div>
+            <div className="h-8 w-[1px] bg-neutral-600 mx-2" />
+            <div className="text-center">
+              <p className="text-[9px] font-bold uppercase opacity-60 mb-1">Vendas</p>
+              <p className="text-lg font-black text-white leading-none">{formatWeight(stats.realizadoTotal)}</p>
+            </div>
+          </div>
         </div>
-        <div className="p-1.5 border-r border-b border-neutral-600 flex flex-col items-center justify-center">
-          <p className="text-[8px] font-bold uppercase opacity-70">Meta</p>
-          <p className="text-sm font-black">{formatWeight(stats.metaTotal)}</p>
-        </div>
-        <div className="p-1.5 border-b border-neutral-600 flex flex-col items-center justify-center">
-          <p className="text-[8px] font-bold uppercase opacity-70">Vendas</p>
-          <p className="text-sm font-black">{formatWeight(stats.realizadoTotal)}</p>
+
+        {/* Group 4: Meta & GAP */}
+        <div className="p-3 border-neutral-600 flex flex-col justify-center gap-2">
+          <div className="flex justify-between items-center px-2">
+            <div className="text-center">
+              <p className="text-[9px] font-bold uppercase opacity-60 mb-1">Meta Total</p>
+              <p className="text-lg font-black text-white leading-none">{formatWeight(stats.metaTotal)}</p>
+            </div>
+            <div className="h-8 w-[1px] bg-neutral-600 mx-2" />
+            <div className="text-center">
+              <p className="text-[9px] font-bold uppercase opacity-60 mb-1">GAP</p>
+              <p className={cn("text-lg font-black leading-none", stats.gapTotal >= 0 ? "text-green-400" : "text-red-400")}>
+                {formatWeight(stats.gapTotal)}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -426,48 +468,48 @@ export function MetasPage() {
       )}
 
       {/* Spreadsheet Table */}
-      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden overflow-y-auto max-h-[calc(100vh-320px)]">
-        <table className="w-full text-left border-collapse min-w-[600px]">
+      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden overflow-y-auto flex-1 h-full min-h-0">
+        <table className="w-full text-left border-collapse min-w-[800px]">
           <thead className="sticky top-0 z-20">
-            <tr className="bg-neutral-50 text-[9px] font-bold uppercase text-neutral-500 border-b border-neutral-200">
+            <tr className="bg-neutral-50 text-[11px] font-bold uppercase text-neutral-500 border-b border-neutral-200">
               <th 
-                className="px-3 py-2 border-r border-neutral-200 sticky left-0 bg-neutral-50 z-30 cursor-pointer hover:bg-neutral-100 transition-colors"
+                className="px-4 py-3 border-r border-neutral-200 sticky left-0 bg-neutral-50 z-30 cursor-pointer hover:bg-neutral-100 transition-colors"
                 onClick={() => handleSort('cliente')}
               >
                 Clientes
               </th>
               <th 
-                className="px-2 py-2 border-r border-neutral-200 text-right cursor-pointer hover:bg-neutral-100 transition-colors"
+                className="px-3 py-3 border-r border-neutral-200 text-right cursor-pointer hover:bg-neutral-100 transition-colors"
                 onClick={() => handleSort('med6')}
               >
                 Med. 6
               </th>
               <th 
-                className="px-2 py-2 border-r border-neutral-200 text-center cursor-pointer hover:bg-neutral-100 transition-colors"
+                className="px-3 py-3 border-r border-neutral-200 text-center cursor-pointer hover:bg-neutral-100 transition-colors"
                 onClick={() => handleSort('medDias')}
               >
                 Méd Dias
               </th>
               <th 
-                className="px-2 py-2 border-r border-neutral-200 text-center cursor-pointer hover:bg-neutral-100 transition-colors"
+                className="px-3 py-3 border-r border-neutral-200 text-center cursor-pointer hover:bg-neutral-100 transition-colors"
                 onClick={() => handleSort('ultPed')}
               >
                 Últ Ped
               </th>
               <th 
-                className="px-2 py-2 border-r border-neutral-200 text-right cursor-pointer hover:bg-neutral-100 transition-colors"
+                className="px-3 py-3 border-r border-neutral-200 text-right cursor-pointer hover:bg-neutral-100 transition-colors"
                 onClick={() => handleSort('gap')}
               >
                 PRÓX PED
               </th>
               <th 
-                className="px-3 py-2 border-r border-neutral-200 text-right bg-orange-50 text-orange-700 cursor-pointer hover:bg-orange-100 transition-colors"
+                className="px-4 py-3 border-r border-neutral-200 text-right cursor-pointer hover:bg-neutral-100 transition-colors"
                 onClick={() => handleSort('meta')}
               >
                 Meta (KG)
               </th>
               <th 
-                className="px-3 py-2 text-right cursor-pointer hover:bg-neutral-100 transition-colors"
+                className="px-4 py-3 text-right cursor-pointer hover:bg-neutral-100 transition-colors"
                 onClick={() => handleSort('vend')}
               >
                 Vend
@@ -477,25 +519,25 @@ export function MetasPage() {
           <tbody className="divide-y divide-neutral-100">
             {sortedAndFilteredData.map((row) => (
               <tr key={row.id} className="hover:bg-neutral-50 transition-colors group">
-                <td className="px-3 py-2 border-r border-neutral-200 font-bold text-neutral-800 text-[11px] sticky left-0 bg-white group-hover:bg-neutral-50 z-10">
+                <td className="px-4 py-3 border-r border-neutral-200 font-bold text-neutral-800 text-[13px] sticky left-0 bg-white group-hover:bg-neutral-50 z-10">
                   {row.cliente}
                 </td>
-                <td className="px-2 py-2 border-r border-neutral-200 text-right text-[11px] text-neutral-600 font-medium">
+                <td className="px-3 py-3 border-r border-neutral-200 text-right text-[13px] text-neutral-600 font-medium">
                   {row.med6.toFixed(1)}
                 </td>
-                <td className="px-2 py-2 border-r border-neutral-200 text-center text-[11px] text-neutral-500">
+                <td className="px-3 py-3 border-r border-neutral-200 text-center text-[13px] text-neutral-500">
                   {row.medDias || '-'}
                 </td>
-                <td className="px-2 py-2 border-r border-neutral-200 text-center text-[11px] text-neutral-500">
+                <td className="px-3 py-3 border-r border-neutral-200 text-center text-[13px] text-neutral-500">
                   {row.ultPed}
                 </td>
                 <td className={cn(
-                  "px-2 py-2 border-r border-neutral-200 text-right text-[11px] font-bold",
+                  "px-3 py-3 border-r border-neutral-200 text-right text-[13px] font-bold",
                   row.gap <= 0 ? "text-green-600" : "text-red-500"
                 )}>
                   {row.gap}
                 </td>
-                <td className="px-2 py-1 border-r border-neutral-200 bg-orange-50/30">
+                <td className="px-3 py-2 border-r border-neutral-200">
                   <div className="relative flex items-center">
                     <input
                       type="number"
@@ -515,26 +557,30 @@ export function MetasPage() {
                           (e.target as HTMLInputElement).blur();
                         }
                       }}
-                      className="w-full bg-transparent text-right pr-6 py-0.5 font-black text-orange-700 outline-none focus:ring-1 focus:ring-orange-500 rounded px-1 text-[11px]"
+                      className="w-full bg-transparent text-right pr-6 py-1 font-bold text-neutral-700 outline-none focus:ring-1 focus:ring-orange-500 rounded px-1 text-[13px]"
                     />
                     <div className="absolute right-1">
                       {savingId === row.id ? (
-                        <Loader2 size={10} className="animate-spin text-orange-500" />
+                        <Loader2 size={12} className="animate-spin text-orange-500" />
                       ) : saveStatus?.id === row.id ? (
                         saveStatus.success ? (
-                          <CheckCircle2 size={10} className="text-green-500" />
+                          <CheckCircle2 size={12} className="text-green-500" />
                         ) : (
-                          <AlertCircle size={10} className="text-red-500" />
+                          <AlertCircle size={12} className="text-red-500" />
                         )
                       ) : (
-                        <Save size={10} className="text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <Save size={12} className="text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                       )}
                     </div>
                   </div>
                 </td>
                 <td className={cn(
-                  "px-3 py-2 text-right text-[11px] font-black",
-                  row.vend === 0 ? "bg-red-900 text-white" : "bg-neutral-50/50 text-neutral-800"
+                  "px-4 py-3 text-right text-[13px] font-black transition-colors duration-300",
+                  row.vend === 0 
+                    ? "bg-red-600 text-white" 
+                    : row.meta > 0 && row.vend >= row.meta 
+                      ? "bg-green-600 text-white"
+                      : "bg-orange-500 text-white"
                 )}>
                   {row.vend.toFixed(1)}
                 </td>
@@ -544,25 +590,6 @@ export function MetasPage() {
         </table>
       </div>
 
-      {/* Legend / Info */}
-      <div className="flex flex-wrap gap-4 text-[10px] text-neutral-400 font-bold uppercase tracking-widest">
-        <div className="flex items-center gap-1">
-          <div className="w-2 h-2 bg-neutral-700 rounded-full"></div>
-          <span>Med. 6: Média KG mensal (últimos 6 meses)</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-2 h-2 bg-neutral-700 rounded-full"></div>
-          <span>Méd Dias: Ciclo médio de compra (dias)</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-2 h-2 bg-neutral-700 rounded-full"></div>
-          <span>Últ Ped: Dias desde o último pedido</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-2 h-2 bg-neutral-700 rounded-full"></div>
-          <span>0%: Atraso (Últ Ped - Méd Dias)</span>
-        </div>
-      </div>
     </div>
   );
 }

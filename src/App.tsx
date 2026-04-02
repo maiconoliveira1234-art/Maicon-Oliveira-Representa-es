@@ -6,6 +6,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
+import { ClientsPage } from './pages/ClientsPage';
+import { PriceInquiryPage } from './pages/PriceInquiryPage';
 import { ClienteDetail } from './pages/ClienteDetail';
 import { OrderPage } from './pages/OrderPage';
 import { StockCountPage } from './pages/StockCountPage';
@@ -18,7 +20,8 @@ export default function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/clientes" element={<Dashboard />} />
+          <Route path="/clientes" element={<ClientsPage />} />
+          <Route path="/consulta-preco" element={<PriceInquiryPage />} />
           <Route path="/cliente/:id" element={<ClienteDetail />} />
           <Route path="/estoque/:clienteId" element={<StockCountPage />} />
           <Route path="/pedido/novo" element={<Navigate to="/" replace />} />

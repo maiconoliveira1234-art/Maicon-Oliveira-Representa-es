@@ -12,7 +12,8 @@ import {
   Minus,
   Save,
   Trash2,
-  Search
+  Search,
+  ChevronDown
 } from 'lucide-react';
 import { Cliente, Produto, ItemPedido, PrecoFaixa } from '../types';
 import { supabase } from '../lib/supabase';
@@ -24,6 +25,7 @@ import {
 } from '../lib/calculations';
 import { cn, formatCurrency, formatWeight } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { getAvailableTerms } from '../lib/paymentTerms';
 
 import { MOCK_CLIENTES, MOCK_PRODUTOS } from '../lib/mockData';
 
@@ -37,6 +39,29 @@ export function OrderPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showProductSelector, setShowProductSelector] = useState(false);
+  const [selectedPrazo, setSelectedPrazo] = useState('À Vista');
+  const [selectedFamily, setSelectedFamily] = useState('Todas');
+
+  const families = useMemo(() => {
+    const uniqueFamilies = Array.from(new Set(produtos.map(p => p.familia).filter(Boolean)));
+    return ['Todas', ...uniqueFamilies.sort()];
+  }, [produtos]);
+
+  const filteredAndSortedProducts = useMemo(() => {
+    return produtos
+      .filter(p => {
+        const matchesSearch = (p.produto?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+        const matchesFamily = selectedFamily === 'Todas' || p.familia === selectedFamily;
+        return matchesSearch && matchesFamily;
+      })
+      .sort((a, b) => {
+        // First sort by family
+        const familyCompare = (a.familia || '').localeCompare(b.familia || '');
+        if (familyCompare !== 0) return familyCompare;
+        // Then sort by product name
+        return (a.produto || '').localeCompare(b.produto || '');
+      });
+  }, [produtos, searchTerm, selectedFamily]);
 
   useEffect(() => {
     async function loadData() {
@@ -117,9 +142,9 @@ export function OrderPage() {
         if (!produto) return;
 
         if (extraQtd > 0) {
-          const desconto = getValorUnitario(produto, faixaPreco);
-          const unitario = produto.custo_total / (produto.quant_embalagem || 1);
-          const valorTotalItem = (produto.custo_total * (1 - (desconto || 0))) * extraQtd;
+          const discount = getValorUnitario(produto, faixaPreco) || 0;
+          const unitario = produto.custo_und * (1 - discount);
+          const valorTotalItem = unitario * extraQtd * (produto.quant_embalagem || 1);
           
           newItens.push({
             produto_id: produtoId,
@@ -149,14 +174,25 @@ export function OrderPage() {
     return itens.reduce((acc, item) => acc + (item.valor_total || 0), 0);
   }, [itens]);
 
+  const availableTerms = useMemo(() => {
+    return getAvailableTerms(valorTotal);
+  }, [valorTotal]);
+
+  // Reset selected term if it's no longer available
+  useEffect(() => {
+    if (!availableTerms.includes(selectedPrazo)) {
+      setSelectedPrazo('À Vista');
+    }
+  }, [availableTerms, selectedPrazo]);
+
   const addItem = (produto: Produto) => {
     const existing = itens.find(i => i.produto_id === produto.id);
     if (existing) {
       updateItem(produto.id, (existing.quantidade || 0) + 1);
     } else {
-      const desconto = getValorUnitario(produto, faixaPreco);
-      const unitario = produto.custo_total / (produto.quant_embalagem || 1);
-      const valorTotalItem = (produto.custo_total * (1 - (desconto || 0)));
+      const discount = getValorUnitario(produto, faixaPreco) || 0;
+      const unitario = produto.custo_und * (1 - discount);
+      const valorTotalItem = unitario * (produto.quant_embalagem || 1);
       
       const novoItem: Partial<ItemPedido> = {
         produto_id: produto.id,
@@ -180,9 +216,9 @@ export function OrderPage() {
         if (item.produto_id === produtoId) {
           const produto = produtos.find(p => p.id === produtoId)!;
           const pesoItem = qtd * produto.peso_embalagem;
-          const desconto = getValorUnitario(produto, faixaPreco);
-          const unitario = produto.custo_total / (produto.quant_embalagem || 1);
-          const valorTotalItem = (produto.custo_total * (1 - (desconto || 0))) * qtd;
+          const discount = getValorUnitario(produto, faixaPreco) || 0;
+          const unitario = produto.custo_und * (1 - discount);
+          const valorTotalItem = unitario * qtd * (produto.quant_embalagem || 1);
           
           return {
             ...item,
@@ -202,9 +238,9 @@ export function OrderPage() {
     setItens(prev => prev.map(item => {
       const produto = produtos.find(p => p.id === item.produto_id);
       if (!produto) return item;
-      const desconto = getValorUnitario(produto, faixaPreco);
-      const unitario = produto.custo_total / (produto.quant_embalagem || 1);
-      const valorTotalItem = (produto.custo_total * (1 - (desconto || 0))) * (item.quantidade || 0);
+      const discount = getValorUnitario(produto, faixaPreco) || 0;
+      const unitario = produto.custo_und * (1 - discount);
+      const valorTotalItem = unitario * (item.quantidade || 0) * (produto.quant_embalagem || 1);
       
       return {
         ...item,
@@ -224,6 +260,7 @@ export function OrderPage() {
           cliente_id: clienteId,
           peso_total: pesoTotal,
           valor_total: valorTotal,
+          prazo: selectedPrazo,
           data: new Date().toISOString().split('T')[0]
         })
         .select()
@@ -282,6 +319,35 @@ export function OrderPage() {
           <p className="text-[10px] uppercase font-bold opacity-80">Valor Total</p>
           <p className="text-xl font-black">{formatCurrency(valorTotal)}</p>
         </div>
+      </div>
+
+      {/* Payment Terms Selection */}
+      <div className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Calendar className="text-orange-600" size={20} />
+          <h3 className="font-bold text-neutral-800">Condição de Pagamento</h3>
+        </div>
+        <div className="relative">
+          <select
+            value={selectedPrazo}
+            onChange={(e) => setSelectedPrazo(e.target.value)}
+            className="w-full pl-4 pr-10 py-3 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all"
+          >
+            {availableTerms.map((prazo) => (
+              <option key={prazo} value={prazo}>
+                {prazo}
+              </option>
+            ))}
+          </select>
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+            <ChevronDown size={20} />
+          </div>
+        </div>
+        {valorTotal < 700 && (
+          <p className="text-[10px] text-neutral-400 font-medium">
+            * Prazos estendidos liberados a partir de R$ 700,00
+          </p>
+        )}
       </div>
 
       {/* Items List */}
@@ -410,38 +476,60 @@ export function OrderPage() {
                 </button>
               </div>
               
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
-                <input 
-                  type="text" 
-                  placeholder="Filtrar produtos..."
-                  className="w-full pl-10 pr-4 py-3 bg-neutral-100 rounded-xl outline-none focus:ring-2 focus:ring-orange-500"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+              <div className="flex flex-col gap-3 mb-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
+                  <input 
+                    type="text" 
+                    placeholder="Filtrar produtos..."
+                    className="w-full pl-10 pr-4 py-3 bg-neutral-100 rounded-xl outline-none focus:ring-2 focus:ring-orange-500"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                
+                <div className="relative">
+                  <select
+                    value={selectedFamily}
+                    onChange={(e) => setSelectedFamily(e.target.value)}
+                    className="w-full pl-4 pr-10 py-3 bg-neutral-100 rounded-xl font-bold text-neutral-700 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all"
+                  >
+                    {families.map((family) => (
+                      <option key={family} value={family}>
+                        Família: {family}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                    <ChevronDown size={20} />
+                  </div>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-2 pr-2">
-                {produtos
-                  .filter(p => (p.produto?.toLowerCase() || '').includes(searchTerm.toLowerCase()))
-                  .map(produto => (
-                    <button
-                      key={produto.id}
-                      onClick={() => addItem(produto)}
-                      className="w-full text-left p-4 rounded-xl border border-neutral-100 hover:bg-orange-50 hover:border-orange-200 transition-all flex justify-between items-center"
-                    >
-                      <div>
-                        <p className="font-bold text-neutral-900">{produto.produto}</p>
-                        <p className="text-xs text-neutral-500">{(produto.peso_embalagem / (produto.quant_embalagem || 1)).toFixed(2)}kg / un</p>
+                {filteredAndSortedProducts.map(produto => (
+                  <button
+                    key={produto.id}
+                    onClick={() => addItem(produto)}
+                    className="w-full text-left p-4 rounded-xl border border-neutral-100 hover:bg-orange-50 hover:border-orange-200 transition-all flex justify-between items-center"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="px-2 py-0.5 bg-neutral-100 text-neutral-500 text-[8px] font-bold rounded uppercase">
+                          {produto.familia}
+                        </span>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-orange-600">
-                          {formatCurrency(produto.custo_total * (1 - (getValorUnitario(produto, faixaPreco) || 0)))}
-                        </p>
-                        <p className="text-[10px] text-neutral-400 font-bold uppercase">Por Caixa</p>
-                      </div>
-                    </button>
-                  ))}
+                      <p className="font-bold text-neutral-900">{produto.produto}</p>
+                      <p className="text-xs text-neutral-500">{(produto.peso_embalagem / (produto.quant_embalagem || 1)).toFixed(2)}kg / un</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-orange-600">
+                        {formatCurrency(produto.custo_und * (1 - (getValorUnitario(produto, faixaPreco) || 0)))}
+                      </p>
+                      <p className="text-[10px] text-neutral-400 font-bold uppercase">Por Unidade</p>
+                    </div>
+                  </button>
+                ))}
               </div>
             </motion.div>
           </motion.div>
