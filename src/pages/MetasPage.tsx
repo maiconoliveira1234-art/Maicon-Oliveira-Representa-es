@@ -49,7 +49,21 @@ export function MetasPage() {
         
         // Load Clientes
         const { data: cData } = await supabase.from('clientes').select('*').order('cliente');
-        setClientes(cData && cData.length > 0 ? cData : MOCK_CLIENTES);
+        
+        // Load Metas
+        const { data: mData } = await supabase.from('metas').select('cliente_id, meta');
+        
+        const metasMap: Record<string, number> = {};
+        if (mData) {
+          mData.forEach(m => metasMap[m.cliente_id] = m.meta);
+        }
+
+        const finalClientes = (cData && cData.length > 0 ? cData : MOCK_CLIENTES).map(c => ({
+          ...c,
+          meta: metasMap[c.id] || 0
+        }));
+
+        setClientes(finalClientes);
 
         // Load Produtos
         const { data: pData } = await supabase.from('produtos').select('*');
@@ -63,7 +77,18 @@ export function MetasPage() {
           .select('*')
           .gte('faturamento', twelveMonthsAgo.toISOString());
         
-        setHistorico(hData && hData.length > 0 ? hData : MOCK_HISTORICO);
+        if (hData) {
+          const uniqueMap = new Map();
+          hData.forEach(h => {
+            const key = `${h.faturamento}-${h.produto_id}-${h.qtd}-${h["r$_total"]}`;
+            if (!uniqueMap.has(key)) {
+              uniqueMap.set(key, h);
+            }
+          });
+          setHistorico(Array.from(uniqueMap.values()) as HistVenda[]);
+        } else {
+          setHistorico(MOCK_HISTORICO);
+        }
       } catch (err) {
         console.error('Erro ao carregar metas:', err);
         setClientes(MOCK_CLIENTES);
@@ -81,14 +106,17 @@ export function MetasPage() {
       setSavingId(clienteId);
       setSaveStatus(null);
 
+      // Use upsert to save to 'metas' table
       const { error } = await supabase
-        .from('clientes')
-        .update({ meta_kg: newMeta })
-        .eq('id', clienteId);
+        .from('metas')
+        .upsert({ 
+          cliente_id: clienteId, 
+          meta: newMeta 
+        }, { onConflict: 'cliente_id' });
 
       if (error) throw error;
 
-      setClientes(prev => prev.map(c => c.id === clienteId ? { ...c, meta_kg: newMeta } : c));
+      setClientes(prev => prev.map(c => c.id === clienteId ? { ...c, meta: newMeta } : c));
       setSaveStatus({ id: clienteId, success: true });
       
       setTimeout(() => setSaveStatus(null), 3000);
@@ -105,15 +133,16 @@ export function MetasPage() {
       setLoading(true);
       const activeIds = stats.tableData.map(c => c.id);
       
+      // Delete from 'metas' table to clear
       const { error } = await supabase
-        .from('clientes')
-        .update({ meta_kg: 0 })
-        .in('id', activeIds);
+        .from('metas')
+        .delete()
+        .in('cliente_id', activeIds);
 
       if (error) throw error;
 
       setClientes(prev => prev.map(c => 
-        activeIds.includes(c.id) ? { ...c, meta_kg: 0 } : c
+        activeIds.includes(c.id) ? { ...c, meta: 0 } : c
       ));
       setShowClearConfirm(false);
     } catch (err) {
@@ -142,7 +171,7 @@ export function MetasPage() {
     });
 
     const activeClientes = clientes.filter(c => c.ativo);
-    const metaTotal = activeClientes.reduce((acc, c) => acc + (c.meta_kg || 0), 0);
+    const metaTotal = activeClientes.reduce((acc, c) => acc + (c.meta || 0), 0);
     
     let realizadoTotal = 0;
     const realizadoPorCliente: Record<string, number> = {};
@@ -165,9 +194,15 @@ export function MetasPage() {
       const clienteVendas = historico.filter(h => h.cliente_id === c.id);
       const sortedVendas = [...clienteVendas].sort((a, b) => parseISO(b.faturamento).getTime() - parseISO(a.faturamento).getTime());
       
-      // Med 6: Average weight per month over last 6 months
-      const sixMonthsAgo = subMonths(now, 6);
-      const last6MonthsVendas = clienteVendas.filter(v => parseISO(v.faturamento) >= sixMonthsAgo);
+      // Med 6: Average weight per month over last 6 completed months (excluding current month)
+      const firstDayOfCurrentMonth = startOfMonth(now);
+      const sixMonthsAgo = startOfMonth(subMonths(now, 6));
+      
+      const last6MonthsVendas = clienteVendas.filter(v => {
+        const date = parseISO(v.faturamento);
+        return date >= sixMonthsAgo && date < firstDayOfCurrentMonth;
+      });
+
       const weightTotal6Meses = last6MonthsVendas.reduce((acc, v) => {
         const prod = produtosMap[v.produto_id];
         return acc + (v.qtd * (prod?.peso_embalagem || 0));
@@ -427,7 +462,7 @@ export function MetasPage() {
               </th>
               <th 
                 className="px-3 py-2 border-r border-neutral-200 text-right bg-orange-50 text-orange-700 cursor-pointer hover:bg-orange-100 transition-colors"
-                onClick={() => handleSort('meta_kg')}
+                onClick={() => handleSort('meta')}
               >
                 Meta (KG)
               </th>
@@ -464,17 +499,17 @@ export function MetasPage() {
                   <div className="relative flex items-center">
                     <input
                       type="number"
-                      defaultValue={row.meta_kg}
+                      defaultValue={row.meta}
                       onBlur={(e) => {
                         const val = parseFloat(e.target.value);
-                        if (!isNaN(val) && val !== row.meta_kg) {
+                        if (!isNaN(val) && val !== row.meta) {
                           handleUpdateMeta(row.id, val);
                         }
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           const val = parseFloat((e.target as HTMLInputElement).value);
-                          if (!isNaN(val) && val !== row.meta_kg) {
+                          if (!isNaN(val) && val !== row.meta) {
                             handleUpdateMeta(row.id, val);
                           }
                           (e.target as HTMLInputElement).blur();

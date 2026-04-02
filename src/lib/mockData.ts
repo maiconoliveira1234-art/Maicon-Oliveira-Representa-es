@@ -7,7 +7,7 @@ export const MOCK_CLIENTES: Cliente[] = [
     dia_visita: 1,
     cidade: 'São Paulo',
     ativo: true,
-    meta_kg: 5000,
+    meta: 5000,
     ultima_compra: '2026-03-15T10:00:00Z',
   },
   {
@@ -16,7 +16,7 @@ export const MOCK_CLIENTES: Cliente[] = [
     dia_visita: 2,
     cidade: 'Campinas',
     ativo: true,
-    meta_kg: 1200,
+    meta: 1200,
     ultima_compra: '2026-02-10T14:30:00Z',
   },
 ];

@@ -42,18 +42,21 @@ export function Dashboard() {
           return;
         }
 
-        if (!data || data.length === 0) {
-          console.warn('Supabase: Nenhuma linha encontrada na tabela "clientes".');
-          if (localData.length === 0) {
-            setClientes(MOCK_CLIENTES);
-          }
-          return;
+        // Fetch Metas
+        const { data: mData } = await supabase.from('metas').select('cliente_id, meta');
+        const metasMap: Record<string, number> = {};
+        if (mData) {
+          mData.forEach(m => metasMap[m.cliente_id] = m.meta);
         }
 
         if (data) {
-          setClientes(data);
+          const finalData = data.map(c => ({
+            ...c,
+            meta: metasMap[c.id] || 0
+          }));
+          setClientes(finalData);
           // Update local cache
-          for (const cliente of data) {
+          for (const cliente of finalData) {
             await saveToLocal('clientes', cliente);
           }
         }
@@ -195,7 +198,7 @@ function ClienteCard({ cliente, onClick }: ClienteCardProps) {
       </div>
       <div className="text-right">
         <p className="text-[10px] text-neutral-400 uppercase font-bold tracking-tighter">Meta Mensal</p>
-        <p className="text-sm font-bold text-neutral-700">{formatWeight(cliente.meta_kg)}</p>
+        <p className="text-sm font-bold text-neutral-700">{formatWeight(cliente.meta)}</p>
       </div>
     </button>
   );

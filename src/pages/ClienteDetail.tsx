@@ -54,7 +54,17 @@ export function ClienteDetail() {
         } else if (!clienteData) {
           setCliente(MOCK_CLIENTES.find(c => c.id === id) || null);
         } else {
-          setCliente(clienteData);
+          // Fetch Meta
+          const { data: mData } = await supabase
+            .from('metas')
+            .select('meta')
+            .eq('cliente_id', id)
+            .single();
+          
+          setCliente({
+            ...clienteData,
+            meta: mData?.meta || 0
+          });
         }
 
         const { data: histData, error: hError } = await supabase
@@ -97,7 +107,7 @@ export function ClienteDetail() {
     { name: 'Média 12m', valor: 4500 },
     { name: 'Média 6m', valor: 5200 },
     { name: 'Realizado', valor: 3800 },
-    { name: 'Meta', valor: cliente.meta_kg },
+    { name: 'Meta', valor: cliente.meta },
   ];
 
   return (
@@ -169,7 +179,7 @@ export function ClienteDetail() {
         <div className="mt-4 p-4 bg-neutral-50 rounded-2xl flex justify-between items-center">
           <div>
             <p className="text-[10px] font-bold text-neutral-400 uppercase">Falta para Meta</p>
-            <p className="text-lg font-black text-neutral-800">{formatWeight(Math.max(0, cliente.meta_kg - 3800))}</p>
+            <p className="text-lg font-black text-neutral-800">{formatWeight(Math.max(0, cliente.meta - 3800))}</p>
           </div>
           <div className="text-right">
             <p className="text-[10px] font-bold text-neutral-400 uppercase">Progresso</p>
