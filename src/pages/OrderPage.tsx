@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { toJpeg } from 'html-to-image';
 import { 
   ArrowLeft, 
   ShoppingCart, 
@@ -13,7 +14,9 @@ import {
   Save,
   Trash2,
   Search,
-  ChevronDown
+  ChevronDown,
+  Share2,
+  X
 } from 'lucide-react';
 import { Cliente, Produto, ItemPedido, PrecoFaixa } from '../types';
 import { supabase } from '../lib/supabase';
@@ -39,7 +42,7 @@ export function OrderPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showProductSelector, setShowProductSelector] = useState(false);
-  const [selectedPrazo, setSelectedPrazo] = useState('À Vista');
+  const [selectedPrazo, setSelectedPrazo] = useState('');
   const [selectedFamily, setSelectedFamily] = useState('Todas');
 
   const families = useMemo(() => {
@@ -164,6 +167,8 @@ export function OrderPage() {
   }, [loading, produtos, location.state, faixaPreco]);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const receiptRef = React.useRef<HTMLDivElement>(null);
 
   const handleClearOrder = () => {
     setItens([]);
@@ -180,8 +185,8 @@ export function OrderPage() {
 
   // Reset selected term if it's no longer available
   useEffect(() => {
-    if (!availableTerms.includes(selectedPrazo)) {
-      setSelectedPrazo('À Vista');
+    if (selectedPrazo && !availableTerms.includes(selectedPrazo)) {
+      setSelectedPrazo('');
     }
   }, [availableTerms, selectedPrazo]);
 
@@ -251,50 +256,75 @@ export function OrderPage() {
   }, [faixaPreco, produtos]);
 
   const handleSave = async () => {
-    if (!clienteId || itens.length === 0) return;
+    if (!clienteId) return;
+
+    if (itens.length === 0) {
+      alert('Por favor, adicione pelo menos um produto ao pedido.');
+      return;
+    }
+
+    if (!selectedPrazo) {
+      alert('Por favor, selecione uma condição de pagamento.');
+      return;
+    }
 
     try {
-      const { data: pedido, error: pError } = await supabase
-        .from('pedidos')
-        .insert({
-          cliente_id: clienteId,
-          peso_total: pesoTotal,
-          valor_total: valorTotal,
-          prazo: selectedPrazo,
-          data: new Date().toISOString().split('T')[0]
-        })
-        .select()
-        .single();
+      setIsGeneratingImage(true);
+      
+      // 1. Generate Image
+      if (receiptRef.current) {
+        // Wait a bit for the DOM to be ready and styles to apply
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const dataUrl = await toJpeg(receiptRef.current, {
+          quality: 0.95,
+          backgroundColor: '#ffffff',
+          cacheBust: true,
+        });
 
-      if (pError) throw pError;
+        // 2. Share via WhatsApp
+        const blob = await (await fetch(dataUrl)).blob();
+        const file = new File([blob], `pedido_${cliente?.cliente?.replace(/\s+/g, '_')}.jpg`, { type: 'image/jpeg' });
 
-      const itensParaSalvar = itens.map(item => ({
-        pedido_id: pedido.id,
-        produto_id: item.produto_id,
-        quantidade: item.quantidade,
-        peso_total: item.peso_total,
-        valor_unitario: item.valor_unitario,
-        valor_total: item.valor_total
-      }));
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: 'Resumo do Pedido',
+              text: `Resumo do pedido - ${cliente?.cliente}`,
+            });
+          } catch (shareErr) {
+            console.error('Error sharing:', shareErr);
+            // Fallback to download if share fails or is cancelled
+            const link = document.createElement('a');
+            link.download = `pedido_${cliente?.cliente}.jpg`;
+            link.href = dataUrl;
+            link.click();
+          }
+        } else {
+          // Fallback for browsers that don't support file sharing
+          const link = document.createElement('a');
+          link.download = `pedido_${cliente?.cliente}.jpg`;
+          link.href = dataUrl;
+          link.click();
+          alert('Imagem do pedido gerada! Como seu navegador não suporta compartilhamento direto de arquivos, o resumo foi baixado. Você pode enviá-lo manualmente pelo WhatsApp.');
+        }
+      }
 
-      const { error: iError } = await supabase
-        .from('itens_pedido')
-        .insert(itensParaSalvar);
-
-      if (iError) throw iError;
-
-      alert('Pedido salvo com sucesso!');
+      alert('Pedido finalizado com sucesso!');
       navigate(`/cliente/${clienteId}`);
     } catch (err) {
-      console.error('Erro ao salvar pedido:', err);
-      alert('Erro ao salvar pedido. Verifique sua conexão.');
+      console.error('Erro ao finalizar pedido:', err);
+      alert('Erro ao finalizar pedido. Tente novamente.');
+    } finally {
+      setIsGeneratingImage(false);
     }
   };
 
   if (loading) return <div className="p-8 text-center">Carregando...</div>;
 
   return (
-    <div className="space-y-6 pb-32">
+    <div className="space-y-6 pb-64">
       <header className="flex items-center gap-4">
         <button onClick={() => navigate(-1)} className="p-2 hover:bg-white rounded-full transition-colors">
           <ArrowLeft size={24} />
@@ -305,49 +335,67 @@ export function OrderPage() {
         </div>
       </header>
 
-      {/* Order Summary Sticky */}
-      <div className="bg-orange-600 text-white p-4 rounded-2xl shadow-xl flex justify-between items-center sticky top-4 z-40">
-        <div>
-          <p className="text-[10px] uppercase font-bold opacity-80">Peso Total</p>
-          <p className="text-xl font-black">{formatWeight(pesoTotal)}</p>
-        </div>
-        <div className="text-center">
-          <p className="text-[10px] uppercase font-bold opacity-80">Faixa</p>
-          <p className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">{faixaPreco}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-[10px] uppercase font-bold opacity-80">Valor Total</p>
-          <p className="text-xl font-black">{formatCurrency(valorTotal)}</p>
-        </div>
-      </div>
+      {/* Hidden Receipt for Image Generation */}
+      <div className="fixed -left-[9999px] top-0">
+        <div 
+          ref={receiptRef}
+          className="w-[400px] bg-white p-8 space-y-6"
+        >
+          <div className="text-center border-b-2 border-neutral-100 pb-6">
+            <h1 className="text-2xl font-black text-neutral-900 uppercase tracking-tighter">Resumo do Pedido</h1>
+            <p className="text-neutral-500 font-bold mt-1">{new Date().toLocaleDateString('pt-BR')} - {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+          </div>
 
-      {/* Payment Terms Selection */}
-      <div className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Calendar className="text-orange-600" size={20} />
-          <h3 className="font-bold text-neutral-800">Condição de Pagamento</h3>
-        </div>
-        <div className="relative">
-          <select
-            value={selectedPrazo}
-            onChange={(e) => setSelectedPrazo(e.target.value)}
-            className="w-full pl-4 pr-10 py-3 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all"
-          >
-            {availableTerms.map((prazo) => (
-              <option key={prazo} value={prazo}>
-                {prazo}
-              </option>
-            ))}
-          </select>
-          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
-            <ChevronDown size={20} />
+          <div className="space-y-1">
+            <p className="text-[10px] font-black text-neutral-400 uppercase">Cliente</p>
+            <p className="text-lg font-black text-neutral-900 leading-tight">{cliente?.cliente}</p>
+            <p className="text-sm text-neutral-500 font-bold">{cliente?.cidade}</p>
+          </div>
+
+          <div className="space-y-4">
+            <p className="text-[10px] font-black text-neutral-400 uppercase border-b border-neutral-100 pb-1">Itens do Pedido</p>
+            {itens.map((item, idx) => {
+              const produto = produtos.find(p => p.id === item.produto_id)!;
+              return (
+                <div key={idx} className="flex justify-between items-start gap-4">
+                  <div className="flex-1">
+                    <p className="font-bold text-neutral-900 text-sm leading-tight">{produto.produto}</p>
+                    <p className="text-[10px] text-neutral-400 font-bold uppercase">{item.quantidade} UN • {formatWeight(item.peso_total || 0)}</p>
+                  </div>
+                  <p className="font-black text-neutral-900 text-sm">{formatCurrency(item.valor_total || 0)}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="pt-6 border-t-2 border-neutral-100 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-[10px] font-black text-neutral-400 uppercase">Condição</p>
+                <p className="font-black text-neutral-900">{selectedPrazo}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-black text-neutral-400 uppercase">Faixa</p>
+                <p className="font-black text-orange-600">{faixaPreco}</p>
+              </div>
+            </div>
+
+            <div className="bg-neutral-900 text-white p-6 rounded-2xl flex justify-between items-center">
+              <div>
+                <p className="text-[10px] font-black opacity-60 uppercase">Peso Total</p>
+                <p className="text-xl font-black">{formatWeight(pesoTotal)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-black opacity-60 uppercase">Valor Total</p>
+                <p className="text-2xl font-black">{formatCurrency(valorTotal)}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center pt-4">
+            <p className="text-[10px] font-black text-neutral-300 uppercase tracking-widest">Gerado via Sales Tablet</p>
           </div>
         </div>
-        {valorTotal < 700 && (
-          <p className="text-[10px] text-neutral-400 font-medium">
-            * Prazos estendidos liberados a partir de R$ 700,00
-          </p>
-        )}
       </div>
 
       {/* Items List */}
@@ -417,41 +465,92 @@ export function OrderPage() {
         )}
       </div>
 
-      {/* Action Buttons */}
-      <div className="fixed bottom-20 md:bottom-8 left-4 right-4 md:left-auto md:right-8 md:w-64 flex flex-col gap-3">
-        {showClearConfirm ? (
-          <div className="bg-white p-4 rounded-2xl border-2 border-red-200 shadow-lg animate-in fade-in slide-in-from-bottom-2">
-            <p className="text-sm font-bold text-neutral-800 mb-3 text-center">Limpar todo o pedido?</p>
-            <div className="flex gap-2">
+      {/* Bottom Section (Fixed) */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-t border-neutral-200 p-4 md:p-6 space-y-4 shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
+        <div className="max-w-4xl mx-auto space-y-4">
+          <div className="flex flex-col md:flex-row gap-4 items-end">
+            {/* Payment Terms Selection */}
+            <div className="flex-1 w-full space-y-2">
+              <div className="flex items-center gap-2">
+                <Calendar className="text-orange-600" size={16} />
+                <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Condição de Pagamento</h3>
+              </div>
+              <div className="relative">
+                <select
+                  value={selectedPrazo}
+                  onChange={(e) => setSelectedPrazo(e.target.value)}
+                  className="w-full pl-4 pr-10 py-3 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all"
+                >
+                  <option value="" disabled>Selecione...</option>
+                  {availableTerms.map((prazo) => (
+                    <option key={prazo} value={prazo}>
+                      {prazo}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                  <ChevronDown size={20} />
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 w-full md:w-auto">
+              {showClearConfirm ? (
+                <div className="flex-1 md:w-64 bg-white p-2 rounded-2xl border-2 border-red-200 shadow-lg flex gap-2 items-center">
+                  <p className="text-[10px] font-bold text-neutral-800 flex-1 px-2">Limpar pedido?</p>
+                  <button 
+                    onClick={() => setShowClearConfirm(false)}
+                    className="px-3 py-2 bg-neutral-100 text-neutral-600 rounded-xl font-bold text-[10px]"
+                  >
+                    Não
+                  </button>
+                  <button 
+                    onClick={handleClearOrder}
+                    className="px-3 py-2 bg-red-600 text-white rounded-xl font-bold text-[10px]"
+                  >
+                    Sim
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => setShowClearConfirm(true)}
+                  className="flex-1 md:w-40 bg-neutral-100 text-neutral-600 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-200 transition-all"
+                >
+                  <Trash2 size={18} /> Limpar
+                </button>
+              )}
               <button 
-                onClick={() => setShowClearConfirm(false)}
-                className="flex-1 py-2 bg-neutral-100 text-neutral-600 rounded-xl font-bold text-xs"
+                onClick={handleSave}
+                disabled={isGeneratingImage}
+                className="flex-[2] md:w-64 bg-green-600 text-white py-4 rounded-2xl font-bold shadow-lg flex items-center justify-center gap-2 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
               >
-                Não
-              </button>
-              <button 
-                onClick={handleClearOrder}
-                className="flex-1 py-2 bg-red-600 text-white rounded-xl font-bold text-xs"
-              >
-                Sim, Limpar
+                {isGeneratingImage ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <Save size={20} />
+                )}
+                <span>{isGeneratingImage ? 'Gerando...' : 'Finalizar Pedido'}</span>
               </button>
             </div>
           </div>
-        ) : (
-          <button 
-            onClick={() => setShowClearConfirm(true)}
-            className="w-full bg-neutral-200 text-neutral-600 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-300 transition-all"
-          >
-            <Trash2 size={18} /> Limpar Pedido
-          </button>
-        )}
-        <button 
-          onClick={handleSave}
-          disabled={itens.length === 0}
-          className="w-full bg-green-600 text-white py-4 rounded-2xl font-bold shadow-lg flex items-center justify-center gap-2 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
-        >
-          <Save size={20} /> Finalizar Pedido
-        </button>
+
+          {/* Summary Bar */}
+          <div className="bg-orange-600 text-white p-4 rounded-2xl shadow-lg flex justify-between items-center">
+            <div>
+              <p className="text-[10px] uppercase font-bold opacity-80">Peso Total</p>
+              <p className="text-xl font-black">{formatWeight(pesoTotal)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-[10px] uppercase font-bold opacity-80">Faixa</p>
+              <p className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">{faixaPreco}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] uppercase font-bold opacity-80">Valor Total</p>
+              <p className="text-xl font-black">{formatCurrency(valorTotal)}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Product Selector Modal */}
@@ -461,7 +560,7 @@ export function OrderPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-[60] flex items-end md:items-center justify-center p-4"
+            className="fixed inset-0 bg-black/50 z-[100] flex items-end md:items-center justify-center p-4"
           >
             <motion.div 
               initial={{ y: 100 }}
@@ -472,7 +571,7 @@ export function OrderPage() {
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold">Selecionar Produto</h3>
                 <button onClick={() => setShowProductSelector(false)} className="p-2 text-neutral-400">
-                  <Trash2 size={20} />
+                  <X size={24} />
                 </button>
               </div>
               

@@ -125,6 +125,39 @@ export function ClienteDetail() {
     loadClienteData();
   }, [id]);
 
+  const produtosMap = React.useMemo(() => {
+    return produtos.reduce((acc, p) => {
+      acc[p.id] = p;
+      return acc;
+    }, {} as Record<string, Produto>);
+  }, [produtos]);
+
+  const ordersByDate = React.useMemo(() => {
+    const groups: Record<string, HistVenda[]> = {};
+    historico.forEach(h => {
+      const date = h.faturamento;
+      if (!groups[date]) groups[date] = [];
+      groups[date].push(h);
+    });
+    
+    return Object.entries(groups)
+      .map(([date, items]) => ({
+        date,
+        items,
+        total: items.reduce((acc, item) => acc + (item["r$_total"] || 0), 0),
+        totalWeight: items.reduce((acc, item) => {
+          const prod = produtosMap[item.produto_id];
+          return acc + (item.qtd * (prod?.peso_embalagem || 0));
+        }, 0)
+      }))
+      .sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime());
+  }, [historico, produtosMap]);
+
+  const selectedOrder = React.useMemo(() => {
+    if (!selectedOrderDate) return null;
+    return ordersByDate.find(o => o.date === selectedOrderDate);
+  }, [ordersByDate, selectedOrderDate]);
+
   if (loading) return <div className="p-8 text-center">Carregando...</div>;
   if (!cliente) return <div className="p-8 text-center">Cliente não encontrado.</div>;
 
@@ -132,11 +165,6 @@ export function ClienteDetail() {
   const now = new Date();
   const startOfCurrentMonth = startOfMonth(now);
   const endOfCurrentMonth = endOfMonth(now);
-
-  const produtosMap = produtos.reduce((acc, p) => {
-    acc[p.id] = p;
-    return acc;
-  }, {} as Record<string, Produto>);
 
   // Realizado (Current Month)
   const realizado = historico
@@ -199,32 +227,6 @@ export function ClienteDetail() {
     { name: 'Realizado', valor: realizado },
     { name: 'Meta', valor: cliente.meta },
   ];
-
-  const ordersByDate = React.useMemo(() => {
-    const groups: Record<string, HistVenda[]> = {};
-    historico.forEach(h => {
-      const date = h.faturamento;
-      if (!groups[date]) groups[date] = [];
-      groups[date].push(h);
-    });
-    
-    return Object.entries(groups)
-      .map(([date, items]) => ({
-        date,
-        items,
-        total: items.reduce((acc, item) => acc + (item["r$_total"] || 0), 0),
-        totalWeight: items.reduce((acc, item) => {
-          const prod = produtosMap[item.produto_id];
-          return acc + (item.qtd * (prod?.peso_embalagem || 0));
-        }, 0)
-      }))
-      .sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime());
-  }, [historico, produtosMap]);
-
-  const selectedOrder = React.useMemo(() => {
-    if (!selectedOrderDate) return null;
-    return ordersByDate.find(o => o.date === selectedOrderDate);
-  }, [ordersByDate, selectedOrderDate]);
 
   return (
     <div className="space-y-6 pb-24">
