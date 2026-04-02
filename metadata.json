@@ -1,0 +1,7 @@
+{
+  "name": "Maicon Oliveira Representações",
+  "description": "Sistema de gestão comercial com análise inteligente e pedidos offline.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
