@@ -37,9 +37,8 @@ export type HistVenda = {
   vendas: string;
   xdt: number;
   "acresc.": number;
-  familia: string;
   faturamento: string;
-  mes_comis: string;
+  data?: string;
   cliente_id: string;
   produto_id: string;
 };

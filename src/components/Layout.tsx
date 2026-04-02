@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, ShoppingCart, BarChart3, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingCart, BarChart3, Settings, FileUp } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -16,6 +16,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <NavItem to="/clientes" icon={<Users size={24} />} label="" />
           <NavItem to="/pedido/novo" icon={<ShoppingCart size={24} />} label="" />
           <NavItem to="/metas" icon={<BarChart3 size={24} />} label="" />
+          <NavItem to="/import" icon={<FileUp size={24} />} label="" />
         </nav>
         <div className="p-2 border-t border-neutral-200">
           <NavItem to="/settings" icon={<Settings size={24} />} label="" />
@@ -33,6 +34,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <MobileNavItem to="/clientes" icon={<Users size={24} />} label="Clientes" />
         <MobileNavItem to="/pedido/novo" icon={<ShoppingCart size={24} />} label="Pedido" />
         <MobileNavItem to="/metas" icon={<BarChart3 size={24} />} label="Metas" />
+        <MobileNavItem to="/import" icon={<FileUp size={24} />} label="Importar" />
       </nav>
     </div>
   );

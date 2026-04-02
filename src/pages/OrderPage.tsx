@@ -308,7 +308,7 @@ export function OrderPage() {
                 <div className="flex-1">
                   <h4 className="font-bold text-neutral-900">{produto.produto}</h4>
                   <div className="flex gap-3 mt-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-                    <span>{produto.peso_embalagem}kg / un</span>
+                    <span>{(produto.peso_embalagem / (produto.quant_embalagem || 1)).toFixed(2)}kg / un</span>
                     <span className="text-neutral-300">|</span>
                     <span>Total: {formatWeight(item.peso_total || 0)}</span>
                     <span className="text-neutral-300">|</span>
@@ -432,7 +432,7 @@ export function OrderPage() {
                     >
                       <div>
                         <p className="font-bold text-neutral-900">{produto.produto}</p>
-                        <p className="text-xs text-neutral-500">{produto.peso_embalagem}kg / un</p>
+                        <p className="text-xs text-neutral-500">{(produto.peso_embalagem / (produto.quant_embalagem || 1)).toFixed(2)}kg / un</p>
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-orange-600">

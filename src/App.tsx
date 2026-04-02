@@ -10,6 +10,7 @@ import { ClienteDetail } from './pages/ClienteDetail';
 import { OrderPage } from './pages/OrderPage';
 import { StockCountPage } from './pages/StockCountPage';
 import { MetasPage } from './pages/MetasPage';
+import { ImportPage } from './pages/ImportPage';
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/pedido/novo" element={<Navigate to="/" replace />} />
           <Route path="/pedido/novo/:clienteId" element={<OrderPage />} />
           <Route path="/metas" element={<MetasPage />} />
+          <Route path="/import" element={<ImportPage />} />
           <Route path="/settings" element={<div className="p-8 text-center">Configurações (Em desenvolvimento)</div>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

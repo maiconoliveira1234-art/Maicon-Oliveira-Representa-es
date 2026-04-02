@@ -21,3 +21,5 @@ if (!supabaseUrl.startsWith('http')) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+console.log("URL FINAL:", supabaseUrl)
+console.log("KEY FINAL:", supabaseAnonKey)
