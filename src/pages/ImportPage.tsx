@@ -340,7 +340,7 @@ export function ImportPage() {
                   <thead className="sticky top-0 bg-white z-10">
                     <tr className="bg-neutral-50 text-[10px] uppercase font-bold text-neutral-500 border-b border-neutral-200">
                       <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3 min-w-[300px]">Produto</th>
+                      <th className="px-4 py-3 min-w-[450px]">Produto</th>
                       <th className="px-4 py-3 text-right">Qtd</th>
                       <th className="px-4 py-3 text-right">Peso Total</th>
                       <th className="px-4 py-3 text-right">Valor Total</th>
@@ -363,7 +363,7 @@ export function ImportPage() {
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-2 min-w-[300px]">
+                        <td className="px-4 py-2 min-w-[450px]">
                           <input
                             type="text"
                             value={row.produto}

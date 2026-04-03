@@ -433,7 +433,7 @@ export function StockCountPage() {
             </label>
             <button 
               onClick={handleClearAll}
-              className="px-3 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors flex items-center gap-1"
+              className="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-black hover:bg-red-700 transition-all flex items-center gap-2 shadow-sm active:scale-95"
             >
               <Trash2 size={14} /> Limpar
             </button>
@@ -488,7 +488,7 @@ export function StockCountPage() {
                   <div 
                     key={item.produto_id} 
                     className={cn(
-                      "grid items-center text-[12px] transition-colors cursor-pointer even:bg-neutral-100/60",
+                      "grid items-center text-[12px] transition-colors cursor-pointer even:bg-neutral-200/40",
                       gridCols,
                       rowStyle,
                       "hover:bg-orange-50/30"
@@ -497,7 +497,7 @@ export function StockCountPage() {
                   >
                   <div className={cn(
                     "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10", 
-                    (isTouched && isBelowIdeal && !isZeroStock) || item.dias_ult_compra > 180 ? "text-red-600 font-bold" : ""
+                    item.dias_ult_compra > 180 ? "text-red-600 font-black bg-red-50/50" : (isTouched && isBelowIdeal) ? "text-red-600 font-black" : ""
                   )}>
                     {item.dias_ult_compra}
                   </div>
@@ -512,26 +512,32 @@ export function StockCountPage() {
                   )}>
                     {item.produto_nome}
                   </div>
-                  <div className="p-1 border-r border-neutral-100 flex items-center justify-center gap-1 h-10" onClick={(e) => e.stopPropagation()}>
-                    <button 
-                      onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) - 1)}
-                      className="w-7 h-7 flex items-center justify-center bg-white border border-orange-200 rounded text-orange-600 hover:bg-orange-50 active:scale-90 transition-transform"
-                    >
-                      <Minus size={14} />
-                    </button>
-                    <input 
-                      type="number" 
-                      className="w-9 bg-orange-50 border border-orange-100 rounded py-1 text-center font-black text-orange-700 outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[12px]"
-                      value={estoqueMap[item.produto_id] ?? ''}
-                      onChange={(e) => updateQuantity(item.produto_id, e.target.value)}
-                    />
-                    <button 
-                      onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) + 1)}
-                      className="w-7 h-7 flex items-center justify-center bg-orange-600 border border-orange-700 rounded text-white hover:bg-orange-700 active:scale-90 transition-transform"
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </div>
+                    <div className={cn(
+                      "p-1 border-r border-neutral-100 flex items-center justify-center gap-1 h-10",
+                      isBelowIdeal ? "bg-red-50/30" : ""
+                    )} onClick={(e) => e.stopPropagation()}>
+                      <button 
+                        onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) - 1)}
+                        className="w-7 h-7 flex items-center justify-center bg-white border border-orange-200 rounded text-orange-600 hover:bg-orange-50 active:scale-90 transition-transform"
+                      >
+                        <Minus size={14} />
+                      </button>
+                      <input 
+                        type="number" 
+                        className={cn(
+                          "w-9 border rounded py-1 text-center font-black outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[12px]",
+                          isBelowIdeal ? "bg-red-100 border-red-200 text-red-700" : "bg-orange-50 border-orange-100 text-orange-700"
+                        )}
+                        value={estoqueMap[item.produto_id] ?? ''}
+                        onChange={(e) => updateQuantity(item.produto_id, e.target.value)}
+                      />
+                      <button 
+                        onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) + 1)}
+                        className="w-7 h-7 flex items-center justify-center bg-orange-600 border border-orange-700 rounded text-white hover:bg-orange-700 active:scale-90 transition-transform"
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
                   {showCycle && (
                     <>
                       <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-50">
@@ -543,7 +549,8 @@ export function StockCountPage() {
                     </>
                   )}
                   <div className={cn(
-                    "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10"
+                    "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10",
+                    isBelowIdeal ? "text-red-600 font-black bg-red-50/30" : "font-bold"
                   )}>
                     {item.estoque_ideal}
                   </div>
@@ -739,15 +746,15 @@ export function StockCountPage() {
                 const sugestao = Math.max(0, item.estoque_ideal - currentStock);
 
                 return (
-                  <tr key={item.produto_id} className="even:bg-neutral-50">
+                  <tr key={item.produto_id} className="even:bg-neutral-100/50">
                     <td className={cn(
-                      "p-3 border border-neutral-200 text-sm font-medium",
-                      isBelowIdeal ? "text-red-700 font-bold" : "text-neutral-800"
+                      "p-3 border border-neutral-200 text-sm font-black",
+                      isBelowIdeal ? "text-red-700" : "text-neutral-800"
                     )}>
                       {item.produto_nome}
                     </td>
                     <td className={cn(
-                      "p-3 border border-neutral-200 text-sm text-center font-bold",
+                      "p-3 border border-neutral-200 text-sm text-center font-black",
                       item.dias_ult_compra > 180 ? "text-red-600" : "text-neutral-500"
                     )}>
                       {item.dias_ult_compra}

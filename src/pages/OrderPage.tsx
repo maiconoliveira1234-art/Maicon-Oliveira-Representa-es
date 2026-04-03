@@ -109,11 +109,19 @@ export function OrderPage() {
         // Load Positivados (previously purchased products)
         const { data: histData, error: hError } = await supabase
           .from('hist_vendas')
-          .select('produto_id')
+          .select('produto_id, produtos')
           .eq('cliente_id', clienteId);
         
         if (!hError && histData && histData.length > 0) {
-          const ids = new Set(histData.map(h => h.produto_id));
+          const ids = new Set<string>();
+          histData.forEach(h => {
+            if (h.produto_id) ids.add(h.produto_id);
+            // Fallback: if we have the name, find the product ID from our loaded products
+            else if (h.produtos) {
+              const matched = produtosData?.find(p => p.produto.toLowerCase() === h.produtos.toLowerCase());
+              if (matched) ids.add(matched.id);
+            }
+          });
           setPositivadosIds(ids);
         } else {
           // Fallback to mock data

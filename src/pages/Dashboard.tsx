@@ -204,6 +204,22 @@ export function Dashboard() {
         if (end) query = query.lte('faturamento', end.toISOString());
         const { data: currentData } = await query;
 
+        // Deduplicate data to prevent tripled values from accidental multiple imports
+        const deduplicate = (data: HistVenda[] | null) => {
+          if (!data) return [];
+          const uniqueMap = new Map();
+          data.forEach(h => {
+            // Create a unique key based on core fields
+            const key = `${h.faturamento}-${h.cliente_id}-${h.produto_id || h.produtos}-${h.qtd}-${h["r$_total"]}`;
+            if (!uniqueMap.has(key)) {
+              uniqueMap.set(key, h);
+            }
+          });
+          return Array.from(uniqueMap.values()) as HistVenda[];
+        };
+
+        setHistorico(deduplicate(currentData));
+
         // Fetch previous period
         let prevData: HistVenda[] = [];
         if (prevStart && prevEnd) {
@@ -212,10 +228,8 @@ export function Dashboard() {
             .select('*')
             .gte('faturamento', prevStart.toISOString())
             .lte('faturamento', prevEnd.toISOString());
-          prevData = previousData || [];
+          prevData = deduplicate(previousData);
         }
-
-        setHistorico(currentData || []);
         setPrevHistorico(prevData);
       } catch (err) {
         console.error('Error loading sales data:', err);
@@ -229,18 +243,22 @@ export function Dashboard() {
   // --- Derived Data & Filtering ---
   const produtosMap = useMemo(() => {
     const map: Record<string, Produto> = {};
-    produtos.forEach(p => map[p.id] = p);
+    produtos.forEach(p => {
+      map[p.id] = p;
+      // Also map by name (lowercase) as fallback for old/imported data without IDs
+      map[p.produto.toLowerCase()] = p;
+    });
     return map;
   }, [produtos]);
 
   const applyFilters = (data: HistVenda[]) => {
     return data.filter(h => {
-      const prod = produtosMap[h.produto_id];
+      const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
       if (!prod) return false;
 
       const matchesClient = filters.clientIds.length === 0 || filters.clientIds.includes(h.cliente_id);
       const matchesFamily = filters.families.length === 0 || filters.families.includes(prod.familia);
-      const matchesProduct = filters.productIds.length === 0 || filters.productIds.includes(h.produto_id);
+      const matchesProduct = filters.productIds.length === 0 || (h.produto_id && filters.productIds.includes(h.produto_id));
 
       return matchesClient && matchesFamily && matchesProduct;
     });
@@ -259,12 +277,14 @@ export function Dashboard() {
       const orders = new Set<string>();
 
       data.forEach(h => {
-        const prod = produtosMap[h.produto_id];
-        revenue += h["r$_total"] || 0;
-        weight += h.qtd * (prod?.peso_embalagem || 0);
-        commission += (h["r$_total"] || 0) * ((prod?.comissao || 0) / 100);
+        const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
+        const val = h["r$_total"] || 0;
+        const q = h.qtd || 0;
+        
+        revenue += val;
+        weight += q * (prod?.peso_embalagem || 0);
+        commission += val * ((prod?.comissao || 0) / 100);
         clients.add(h.cliente_id);
-        // Assuming each unique faturamento + cliente_id is a "order" or just counting rows if not available
         orders.add(`${h.faturamento}-${h.cliente_id}`);
       });
 
