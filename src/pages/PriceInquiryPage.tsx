@@ -224,11 +224,19 @@ export function PriceInquiryPage() {
                     <p className="text-[10px] text-neutral-400 font-bold uppercase">{produto.familia}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-neutral-400 uppercase font-bold">Preço Unitário</p>
-                  <p className="text-lg font-black text-neutral-900">
-                    R$ {((produto.custo_und || 0) * (1 - (produto[selectedTable] || 0))).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </p>
+                <div className="flex items-center gap-6">
+                  <div className="text-right">
+                    <p className="text-[10px] text-neutral-400 uppercase font-bold">Sugestão</p>
+                    <p className="text-sm font-bold text-neutral-500">
+                      R$ {(produto.sugestao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-neutral-400 uppercase font-bold">Preço Unitário</p>
+                    <p className="text-lg font-black text-neutral-900">
+                      R$ {((produto.custo_und || 0) * (1 - (produto[selectedTable] || 0))).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
                 </div>
               </div>
             ))
@@ -262,11 +270,19 @@ export function PriceInquiryPage() {
                 <div>
                   <h3 className="text-2xl font-black text-neutral-900">{p.produto}</h3>
                 </div>
-                <div className="text-right">
-                  <p className="text-3xl font-black text-orange-600">
-                    R$ {((p.custo_und || 0) * (1 - (p[selectedTable] || 0))).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                  </p>
-                  <p className="text-sm text-neutral-400 font-bold uppercase">Unidade</p>
+                <div className="flex items-center gap-8">
+                  <div className="text-right">
+                    <p className="text-sm text-neutral-400 font-bold uppercase">Sugestão</p>
+                    <p className="text-xl font-bold text-neutral-400">
+                      R$ {(p.sugestao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-3xl font-black text-orange-600">
+                      R$ {((p.custo_und || 0) * (1 - (p[selectedTable] || 0))).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                    <p className="text-sm text-neutral-400 font-bold uppercase">Unidade</p>
+                  </div>
                 </div>
               </div>
             ))}
