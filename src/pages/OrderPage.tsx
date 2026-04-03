@@ -48,6 +48,7 @@ export function OrderPage() {
   const [showOnlyPositivados, setShowOnlyPositivados] = useState(false);
   const [positivadosIds, setPositivadosIds] = useState<Set<string>>(new Set());
   const [pesoConquistado, setPesoConquistado] = useState(0);
+  const [isReady, setIsReady] = useState(false);
   const itemsEndRef = React.useRef<HTMLDivElement>(null);
 
   const families = useMemo(() => {
@@ -201,44 +202,60 @@ export function OrderPage() {
   }, [pesoTotal, pesoConquistado]);
 
   const prefilledApplied = React.useRef(false);
+  const initialLoadDone = React.useRef(false);
 
-  // Clear items when client changes
+  // Reset load state when client changes
   useEffect(() => {
-    setItens([]);
+    initialLoadDone.current = false;
+    setIsReady(false);
     prefilledApplied.current = false;
   }, [clienteId]);
 
-  // Handle prefilled items from StockCountPage
+  // Load saved items when client or products change
   useEffect(() => {
-    if (!loading && produtos.length > 0 && location.state?.prefilledItems && !prefilledApplied.current) {
-      const prefilled = location.state.prefilledItems as Record<string, number>;
-      const newItens: Partial<ItemPedido>[] = [];
-      
-      Object.entries(prefilled).forEach(([produtoId, extraQtd]) => {
-        const produto = produtos.find(p => p.id === produtoId);
-        if (!produto) return;
+    if (!loading && produtos.length > 0 && clienteId && !initialLoadDone.current) {
+      const saved = localStorage.getItem(`pedido_${clienteId}`);
+      if (saved) {
+        const prefilled = JSON.parse(saved) as Record<string, number>;
+        const newItens: Partial<ItemPedido>[] = [];
+        
+        Object.entries(prefilled).forEach(([produtoId, extraQtd]) => {
+          const produto = produtos.find(p => p.id === produtoId);
+          if (!produto) return;
 
-        if (extraQtd > 0) {
-          const discount = getValorUnitario(produto, faixaPreco) || 0;
-          const unitario = produto.custo_und * (1 - discount);
-          const valorTotalItem = unitario * extraQtd * (produto.quant_embalagem || 1);
-          
-          newItens.push({
-            produto_id: produtoId,
-            quantidade: extraQtd,
-            peso_total: extraQtd * produto.peso_embalagem,
-            valor_unitario: unitario,
-            valor_total: valorTotalItem
-          });
+          if (extraQtd > 0) {
+            newItens.push({
+              produto_id: produtoId,
+              quantidade: extraQtd,
+              peso_total: extraQtd * produto.peso_embalagem,
+              valor_unitario: 0, // Will be updated by the price effect
+              valor_total: 0     // Will be updated by the price effect
+            });
+          }
+        });
+        setItens(newItens);
+      } else {
+        setItens([]);
+      }
+      setIsReady(true);
+      initialLoadDone.current = true;
+    }
+  }, [loading, produtos, clienteId]);
+
+  // Persist items to localStorage
+  useEffect(() => {
+    if (isReady && clienteId) {
+      const map: Record<string, number> = {};
+      itens.forEach(item => {
+        if (item.produto_id && item.quantidade) {
+          map[item.produto_id] = item.quantidade;
         }
       });
-
-      if (newItens.length > 0) {
-        setItens(newItens);
-      }
-      prefilledApplied.current = true;
+      // Only save if there are items or if we explicitly want to clear it
+      // Actually, always save the current state of the map for this client
+      localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(map));
     }
-  }, [loading, produtos, location.state, faixaPreco]);
+  }, [itens, clienteId, isReady]);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -247,6 +264,9 @@ export function OrderPage() {
   const handleClearOrder = () => {
     setItens([]);
     setShowClearConfirm(false);
+    if (clienteId) {
+      localStorage.removeItem(`pedido_${clienteId}`);
+    }
   };
 
   const valorTotal = useMemo(() => {
@@ -436,6 +456,9 @@ export function OrderPage() {
         }
       }
 
+      if (clienteId) {
+        localStorage.removeItem(`pedido_${clienteId}`);
+      }
       alert('Pedido finalizado com sucesso!');
       navigate(`/cliente/${clienteId}`);
     } catch (err) {
