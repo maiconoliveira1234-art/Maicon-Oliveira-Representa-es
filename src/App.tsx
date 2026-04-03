@@ -19,8 +19,9 @@ export default function App() {
     <BrowserRouter>
       <Layout>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/clientes" element={<ClientsPage />} />
+          <Route path="/" element={<ClientsPage />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/clientes" element={<Navigate to="/" replace />} />
           <Route path="/consulta-preco" element={<PriceInquiryPage />} />
           <Route path="/cliente/:id" element={<ClienteDetail />} />
           <Route path="/estoque/:clienteId" element={<StockCountPage />} />

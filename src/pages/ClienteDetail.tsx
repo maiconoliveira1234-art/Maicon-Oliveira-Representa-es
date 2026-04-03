@@ -96,7 +96,15 @@ export function ClienteDetail() {
         } else if (!histData || histData.length === 0) {
           setHistorico(MOCK_HISTORICO.filter(h => h.cliente_id === id));
         } else {
-          setHistorico(histData);
+          // Ensure unique items by composite key to prevent triplication if the database has duplicate rows with different IDs
+          const uniqueMap = new Map();
+          histData.forEach((h: HistVenda) => {
+            const key = `${h.faturamento}-${h.produto_id || h.produtos}-${h.qtd}-${h["r$_total"]}`;
+            if (!uniqueMap.has(key)) {
+              uniqueMap.set(key, h);
+            }
+          });
+          setHistorico(Array.from(uniqueMap.values()) as HistVenda[]);
         }
 
         // Fetch Produtos
@@ -141,15 +149,31 @@ export function ClienteDetail() {
     });
     
     return Object.entries(groups)
-      .map(([date, items]) => ({
-        date,
-        items,
-        total: items.reduce((acc, item) => acc + (item["r$_total"] || 0), 0),
-        totalWeight: items.reduce((acc, item) => {
-          const prod = produtosMap[item.produto_id];
-          return acc + (item.qtd * (prod?.peso_embalagem || 0));
-        }, 0)
-      }))
+      .map(([date, items]) => {
+        // Group items by product to avoid duplicates
+        const groupedItems: Record<string, HistVenda> = {};
+        items.forEach(item => {
+          const key = item.produto_id || item.produtos;
+          if (!groupedItems[key]) {
+            groupedItems[key] = { ...item };
+          } else {
+            groupedItems[key].qtd += item.qtd;
+            groupedItems[key]["r$_total"] += item["r$_total"];
+          }
+        });
+
+        const finalItems = Object.values(groupedItems);
+
+        return {
+          date,
+          items: finalItems,
+          total: finalItems.reduce((acc, item) => acc + (item["r$_total"] || 0), 0),
+          totalWeight: finalItems.reduce((acc, item) => {
+            const prod = produtosMap[item.produto_id];
+            return acc + (item.qtd * (prod?.peso_embalagem || 0));
+          }, 0)
+        };
+      })
       .sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime());
   }, [historico, produtosMap]);
 
@@ -219,7 +243,7 @@ export function ClienteDetail() {
   }
 
   const progresso = cliente.meta > 0 ? Math.round((realizado / cliente.meta) * 100) : 0;
-  const statusCiclo = diasUltima <= 28 ? "No Prazo" : "Atrasado";
+  const statusCiclo = diasUltima <= 28 ? "Válido" : "Inválido";
 
   const chartData = [
     { name: 'Média 12m', valor: media12m },
@@ -315,7 +339,7 @@ export function ClienteDetail() {
       <section className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm">
         <h3 className="font-bold text-neutral-800 mb-4 flex items-center gap-2">
           <Calendar className="text-orange-600" size={20} />
-          Ciclo de Compra
+          Recompra
         </h3>
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
@@ -329,10 +353,10 @@ export function ClienteDetail() {
             <p className="text-[10px] text-neutral-400">dias atrás</p>
           </div>
           <div>
-            <p className="text-[10px] font-bold text-neutral-400 uppercase">Status</p>
+            <p className="text-[10px] font-bold text-neutral-400 uppercase">Recompra</p>
             <p className={cn(
               "text-sm font-bold mt-2 uppercase tracking-tighter",
-              statusCiclo === "No Prazo" ? "text-green-600" : "text-red-600"
+              statusCiclo === "Válido" ? "text-green-600" : "text-red-600"
             )}>
               {statusCiclo}
             </p>
@@ -391,20 +415,26 @@ export function ClienteDetail() {
             </div>
             
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {selectedOrder.items.map((item, idx) => (
-                <div key={idx} className="flex justify-between items-start pb-4 border-b border-neutral-50 last:border-0">
-                  <div className="flex-1 pr-4">
-                    <p className="font-bold text-neutral-900 leading-tight">{item.produtos}</p>
-                    <p className="text-xs text-neutral-400 mt-1">
-                      Tabela: {item.tabela} • {item.vendas}
-                    </p>
+              {selectedOrder.items.map((item, idx) => {
+                const prod = produtosMap[item.produto_id];
+                const pesoTotalLinha = item.qtd * (prod?.peso_embalagem || 0);
+                const valorUnitario = item.qtd > 0 ? item["r$_total"] / item.qtd : 0;
+                
+                return (
+                  <div key={idx} className="flex justify-between items-start pb-4 border-b border-neutral-50 last:border-0">
+                    <div className="flex-1 pr-4">
+                      <p className="font-bold text-neutral-900 leading-tight">{item.produtos}</p>
+                      <p className="text-xs text-neutral-400 mt-1">
+                        Qtd: {item.qtd} un • Peso Total: {formatWeight(pesoTotalLinha)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-neutral-900">{formatCurrency(item["r$_total"])}</p>
+                      <p className="text-[10px] font-bold text-neutral-400 uppercase">Unit: {formatCurrency(valorUnitario)}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-neutral-900">{formatCurrency(item["r$_total"])}</p>
-                    <p className="text-[10px] font-bold text-neutral-400 uppercase">{item.qtd} un</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="p-6 bg-orange-50 border-t border-orange-100">
@@ -425,20 +455,24 @@ export function ClienteDetail() {
 
       {/* Full History View */}
       {showAllHistory && (
-        <div className="fixed inset-0 z-40 bg-neutral-50 flex flex-col">
-          <header className="bg-white p-4 border-b border-neutral-200 flex items-center gap-4 sticky top-0">
-            <button onClick={() => setShowAllHistory(false)} className="p-2 hover:bg-neutral-100 rounded-full">
-              <ArrowLeft size={24} />
+        <div className="fixed inset-0 z-40 bg-neutral-50 flex flex-col md:pl-20">
+          <header className="bg-white p-4 border-b border-neutral-200 flex items-center justify-between sticky top-0">
+            <h2 className="text-xl font-black text-neutral-900 ml-2">Histórico Completo</h2>
+            <button 
+              onClick={() => setShowAllHistory(false)} 
+              className="flex items-center gap-2 px-3 py-2 hover:bg-neutral-100 rounded-xl transition-colors text-neutral-600 font-bold"
+            >
+              <span>Voltar</span>
+              <ArrowLeft size={20} className="rotate-180" />
             </button>
-            <h2 className="text-xl font-black text-neutral-900">Histórico Completo</h2>
           </header>
           
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto p-4 max-w-4xl mx-auto w-full space-y-3">
             {ordersByDate.map((order) => (
               <button 
                 key={order.date} 
                 onClick={() => setSelectedOrderDate(order.date)}
-                className="w-full bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm flex justify-between items-center text-left"
+                className="w-full bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm flex justify-between items-center text-left hover:bg-neutral-50 transition-colors"
               >
                 <div>
                   <p className="font-bold text-neutral-900">{format(parseISO(order.date), 'dd/MM/yyyy')}</p>

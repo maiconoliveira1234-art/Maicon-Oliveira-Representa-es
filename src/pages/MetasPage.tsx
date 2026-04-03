@@ -93,8 +93,8 @@ export function MetasPage() {
         
         if (hData) {
           const uniqueMap = new Map();
-          hData.forEach(h => {
-            const key = `${h.faturamento}-${h.produto_id}-${h.qtd}-${h["r$_total"]}`;
+          hData.forEach((h: HistVenda) => {
+            const key = `${h.faturamento}-${h.produto_id || h.produtos}-${h.qtd}-${h["r$_total"]}`;
             if (!uniqueMap.has(key)) {
               uniqueMap.set(key, h);
             }

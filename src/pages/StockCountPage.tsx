@@ -92,14 +92,16 @@ export function StockCountPage() {
         
         if (histData) {
           const uniqueMap = new Map();
-          histData.forEach(h => {
-            const key = `${h.faturamento}-${h.produto_id}-${h.qtd}-${h["r$_total"]}`;
+          histData.forEach((h: HistVenda) => {
+            const key = `${h.faturamento}-${h.produto_id || h.produtos}-${h.qtd}-${h["r$_total"]}`;
             if (!uniqueMap.has(key)) {
               uniqueMap.set(key, h);
             }
           });
+          const uniqueHist = Array.from(uniqueMap.values()) as HistVenda[];
+          
           // Sort by date descending before setting state
-          const sortedHist = (Array.from(uniqueMap.values()) as HistVenda[]).sort((a, b) => 
+          const sortedHist = uniqueHist.sort((a, b) => 
             new Date(b.faturamento).getTime() - new Date(a.faturamento).getTime()
           );
           setHistorico(sortedHist);
@@ -168,8 +170,8 @@ export function StockCountPage() {
   }, [historico]);
 
   const gridCols = showCycle 
-    ? "grid-cols-[70px_60px_60px_minmax(200px,1fr)_80px_60px_60px_60px_140px]" 
-    : "grid-cols-[70px_60px_60px_minmax(200px,1fr)_80px_60px_140px]";
+    ? "grid-cols-[45px_45px_45px_minmax(200px,1fr)_110px_50px_50px_50px_110px]" 
+    : "grid-cols-[45px_45px_45px_minmax(200px,1fr)_110px_50px_110px]";
 
   const processedItems = useMemo(() => {
     const items: Record<string, HistVenda[]> = {};
@@ -367,7 +369,7 @@ export function StockCountPage() {
     <div className="min-h-screen bg-[#f8f9fa] pb-32 flex flex-col">
       {/* Spreadsheet Header */}
       <div className="bg-white border-b border-neutral-200 shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 py-3">
+        <div className="w-full px-2 py-3">
           <div className="flex items-center gap-4 mb-4">
             <button onClick={() => navigate(-1)} className="p-2 hover:bg-neutral-100 rounded-full transition-colors">
               <ArrowLeft size={20} />
@@ -426,32 +428,30 @@ export function StockCountPage() {
             </button>
           </div>
         </div>
-      </div>
-
-      <div className="max-w-5xl mx-auto px-2 mt-4 flex-1 flex flex-col min-h-0">
+      </div>      <div className="w-full px-1 mt-2 flex-1 flex flex-col min-h-0">
         {/* Spreadsheet Table Container */}
         <div className="bg-white rounded-xl shadow-sm border border-neutral-200 flex flex-col overflow-hidden">
           <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)]">
             <div className="min-w-max w-full">
               <div 
                 className={cn(
-                  "grid bg-neutral-100 border-b border-neutral-200 text-[10px] font-bold text-neutral-500 uppercase tracking-wider sticky top-0 z-[100] shadow-sm",
+                  "grid bg-neutral-100 border-b border-neutral-200 text-[11px] font-bold text-neutral-500 uppercase tracking-wider sticky top-0 z-[100] shadow-sm",
                   gridCols
                 )}
               >
-                <div className="p-2 border-r border-neutral-200 text-center flex items-center justify-center h-10">Ult. Ped</div>
-                <div className="p-2 border-r border-neutral-200 text-center flex items-center justify-center h-10">Qtd</div>
-                <div className="p-2 border-r border-neutral-200 text-center flex items-center justify-center h-10">Ult. Cont.</div>
-                <div className="p-2 border-r border-neutral-200 flex items-center h-10">Itens Positivados</div>
-                <div className="p-2 border-r border-neutral-200 text-center flex items-center justify-center h-10">Estoque</div>
+                <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-9">Ult. Ped</div>
+                <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-9">Qtd</div>
+                <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-9">Ult. Cont.</div>
+                <div className="p-2 border-r border-neutral-200 flex items-center h-9">Itens Positivados</div>
+                <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-9">Estoque</div>
                 {showCycle && (
                   <>
-                    <div className="p-2 border-r border-neutral-200 text-center flex items-center justify-center h-10">Méd.</div>
-                    <div className="p-2 border-r border-neutral-200 text-center flex items-center justify-center h-10">Ciclo</div>
+                    <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-9">Méd.</div>
+                    <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-9">Ciclo</div>
                   </>
                 )}
-                <div className="p-2 border-r border-neutral-200 text-center flex items-center justify-center h-10">Ideal</div>
-                <div className="p-2 text-center flex items-center justify-center h-10">Qtd Pedido</div>
+                <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-9">Ideal</div>
+                <div className="p-1 text-center flex items-center justify-center h-9">Qtd Pedido</div>
               </div>
 
               <div className="divide-y divide-neutral-100 relative z-0">
@@ -464,92 +464,90 @@ export function StockCountPage() {
                   <div 
                     key={item.produto_id} 
                     className={cn(
-                      "grid items-center text-xs transition-colors cursor-pointer",
+                      "grid items-center text-sm transition-colors cursor-pointer even:bg-neutral-50/50",
                       gridCols,
-                      isBelowIdeal ? "bg-orange-100/40" : "hover:bg-neutral-50"
+                      isZeroStock ? "text-red-600 font-bold" : isBelowIdeal ? "font-bold text-neutral-900" : "text-neutral-700",
+                      "hover:bg-orange-50/30"
                     )}
                     onClick={() => setSelectedProductHistory(item)}
                   >
-                  <div className={cn("p-2 border-r border-neutral-100 text-center font-bold flex items-center justify-center h-12", isOverdueItem ? "text-red-600" : "text-neutral-600")}>
+                  <div className={cn("p-1 border-r border-neutral-100 text-center flex items-center justify-center h-10", isOverdueItem && !isZeroStock ? "text-red-600" : "")}>
                     {item.dias_ult_compra}
                   </div>
-                  <div className="p-2 border-r border-neutral-100 text-center text-neutral-500 flex items-center justify-center h-12">
+                  <div className="p-1 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-70">
                     {item.qtd_ult_compra}
                   </div>
-                  <div className="p-2 border-r border-neutral-100 text-center text-neutral-500 flex items-center justify-center h-12">
+                  <div className="p-1 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-70">
                     {item.ultima_contagem_valor}
                   </div>
                   <div className={cn(
-                    "p-2 border-r border-neutral-100 truncate flex items-center h-12",
-                    isZeroStock ? "text-red-600 font-bold" : "text-neutral-800 font-medium"
+                    "p-2 border-r border-neutral-100 truncate flex items-center h-10"
                   )}>
                     {item.produto_nome}
                   </div>
-                  <div className="p-2 border-r border-neutral-100 flex items-center justify-center gap-1 h-12" onClick={(e) => e.stopPropagation()}>
+                  <div className="p-1 border-r border-neutral-100 flex items-center justify-center gap-1 h-10" onClick={(e) => e.stopPropagation()}>
                     <button 
                       onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) - 1)}
-                      className="w-6 h-6 flex items-center justify-center bg-white border border-orange-200 rounded text-orange-600 hover:bg-orange-50"
+                      className="w-7 h-7 flex items-center justify-center bg-white border border-orange-200 rounded text-orange-600 hover:bg-orange-50"
                     >
-                      <Minus size={12} />
+                      <Minus size={14} />
                     </button>
                     <input 
                       type="number" 
-                      className="w-12 bg-orange-50 border border-orange-100 rounded p-1 text-center font-bold text-orange-700 outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-10 bg-orange-50 border border-orange-100 rounded p-1 text-center font-bold text-orange-700 outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-sm"
                       value={estoqueMap[item.produto_id] ?? ''}
                       onChange={(e) => updateQuantity(item.produto_id, e.target.value)}
                     />
                     <button 
                       onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) + 1)}
-                      className="w-6 h-6 flex items-center justify-center bg-orange-600 border border-orange-700 rounded text-white hover:bg-orange-700"
+                      className="w-7 h-7 flex items-center justify-center bg-orange-600 border border-orange-700 rounded text-white hover:bg-orange-700"
                     >
-                      <Plus size={12} />
+                      <Plus size={14} />
                     </button>
                   </div>
                   {showCycle && (
                     <>
-                      <div className="p-2 border-r border-neutral-100 text-center text-neutral-500 font-bold flex items-center justify-center h-12">
+                      <div className="p-1 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-70">
                         {item.media_qtd}
                       </div>
-                      <div className="p-2 border-r border-neutral-100 text-center text-neutral-500 font-bold flex items-center justify-center h-12">
+                      <div className="p-1 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-70">
                         {item.media_ciclo}
                       </div>
                     </>
                   )}
                   <div className={cn(
-                    "p-2 border-r border-neutral-100 text-center flex items-center justify-center h-12",
-                    isBelowIdeal && "font-bold text-orange-700",
-                    isZeroStock && "text-red-600 font-black"
+                    "p-1 border-r border-neutral-100 text-center flex items-center justify-center h-10"
                   )}>
                     {item.estoque_ideal}
                   </div>
-                  <div className="p-2 flex items-center justify-center gap-1 h-12" onClick={(e) => e.stopPropagation()}>
+                  <div className="p-1 flex items-center justify-center gap-1 h-10" onClick={(e) => e.stopPropagation()}>
                     <button 
                       onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) - 1)}
-                      className="w-6 h-6 flex items-center justify-center bg-white border border-green-200 rounded text-green-600 hover:bg-green-50"
+                      className="w-7 h-7 flex items-center justify-center bg-white border border-green-200 rounded text-green-600 hover:bg-green-50"
                     >
-                      <Minus size={12} />
+                      <Minus size={14} />
                     </button>
                     <input 
                       type="number" 
-                      className="w-12 bg-green-50 border border-green-100 rounded p-1 text-center font-bold text-green-700 outline-none focus:ring-1 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-10 bg-green-50 border border-green-100 rounded p-1 text-center font-bold text-green-700 outline-none focus:ring-1 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-sm"
                       value={pedidoMap[item.produto_id] || ''}
                       onChange={(e) => updatePedido(item.produto_id, e.target.value)}
                     />
                     <button 
                       onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) + 1)}
-                      className="w-6 h-6 flex items-center justify-center bg-green-600 border border-green-700 rounded text-white hover:bg-green-700"
+                      className="w-7 h-7 flex items-center justify-center bg-green-600 border border-green-700 rounded text-white hover:bg-green-700"
                     >
-                      <Plus size={12} />
+                      <Plus size={14} />
                     </button>
                   </div>
                 </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
       {/* Floating Buttons */}
       <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-lg px-4 flex gap-2">
