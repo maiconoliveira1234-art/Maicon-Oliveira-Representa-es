@@ -194,6 +194,12 @@ export function ImportPage() {
         throw insertError;
       }
 
+      // Update client's last purchase date
+      await supabase
+        .from('clientes')
+        .update({ ultima_compra: orderDate })
+        .eq('id', selectedClienteId);
+
       setSuccess(true);
       setProcessedRows([]);
       setRawData('');

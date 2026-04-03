@@ -94,7 +94,7 @@ export function StockCountPage() {
         if (histData) {
           const uniqueMap = new Map();
           histData.forEach((h: HistVenda) => {
-            const key = `${h.faturamento}-${h.produto_id || h.produtos}-${h.qtd}-${h["r$_total"]}`;
+            const key = `${h.faturamento}-${h.cliente_id}-${h.produto_id || h.produtos}-${h.qtd}-${h["r$_total"]}`;
             if (!uniqueMap.has(key)) {
               uniqueMap.set(key, h);
             }

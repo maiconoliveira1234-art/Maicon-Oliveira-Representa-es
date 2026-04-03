@@ -29,6 +29,7 @@ import {
 import { cn, formatCurrency, formatWeight } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { getAvailableTerms } from '../lib/paymentTerms';
+import { parseISO, differenceInDays } from 'date-fns';
 
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from '../lib/mockData';
 
@@ -46,6 +47,7 @@ export function OrderPage() {
   const [selectedFamily, setSelectedFamily] = useState('Todas');
   const [showOnlyPositivados, setShowOnlyPositivados] = useState(false);
   const [positivadosIds, setPositivadosIds] = useState<Set<string>>(new Set());
+  const [pesoConquistado, setPesoConquistado] = useState(0);
   const itemsEndRef = React.useRef<HTMLDivElement>(null);
 
   const families = useMemo(() => {
@@ -106,31 +108,76 @@ export function OrderPage() {
           setProdutos(produtosData);
         }
 
-        // Load Positivados (previously purchased products)
-        const { data: histData, error: hError } = await supabase
+        // Load Positivados and calculate Conquered Weight (last 28 days)
+        const { data: histDataRaw, error: hError } = await supabase
           .from('hist_vendas')
-          .select('produto_id, produtos')
+          .select('produto_id, produtos, qtd, faturamento, r$_total, cliente_id')
           .eq('cliente_id', clienteId);
         
+        // Deduplicate data to prevent tripled values from accidental multiple imports
+        const deduplicate = (data: any[] | null) => {
+          if (!data) return [];
+          const uniqueMap = new Map();
+          data.forEach(h => {
+            const key = `${h.faturamento}-${h.cliente_id}-${h.produto_id || h.produtos}-${h.qtd}-${h["r$_total"]}`;
+            if (!uniqueMap.has(key)) {
+              uniqueMap.set(key, h);
+            }
+          });
+          return Array.from(uniqueMap.values());
+        };
+
+        const histData = deduplicate(histDataRaw);
+        const today = new Date();
+        let totalPesoConquistado = 0;
+
         if (!hError && histData && histData.length > 0) {
           const ids = new Set<string>();
           histData.forEach(h => {
+            // Positivados
             if (h.produto_id) ids.add(h.produto_id);
-            // Fallback: if we have the name, find the product ID from our loaded products
             else if (h.produtos) {
               const matched = produtosData?.find(p => p.produto.toLowerCase() === h.produtos.toLowerCase());
               if (matched) ids.add(matched.id);
             }
+
+            // Conquered Weight (last 28 days)
+            try {
+              const saleDate = parseISO(h.faturamento);
+              const daysSince = differenceInDays(today, saleDate);
+              if (daysSince >= 0 && daysSince <= 28) {
+                const prod = produtosData?.find(p => p.id === h.produto_id || p.produto.toLowerCase() === h.produtos?.toLowerCase());
+                if (prod) {
+                  totalPesoConquistado += (h.qtd * prod.peso_embalagem);
+                }
+              }
+            } catch (e) {
+              console.error('Erro ao processar data de faturamento:', h.faturamento);
+            }
           });
           setPositivadosIds(ids);
+          setPesoConquistado(totalPesoConquistado);
         } else {
           // Fallback to mock data
-          const mockIds = new Set(
-            MOCK_HISTORICO
-              .filter(h => h.cliente_id === clienteId)
-              .map(h => h.produto_id)
-          );
-          setPositivadosIds(mockIds);
+          const mockIds = new Set();
+          let mockPeso = 0;
+          MOCK_HISTORICO
+            .filter(h => h.cliente_id === clienteId)
+            .forEach(h => {
+              mockIds.add(h.produto_id);
+              try {
+                const saleDate = parseISO(h.faturamento);
+                const daysSince = differenceInDays(today, saleDate);
+                if (daysSince >= 0 && daysSince <= 28) {
+                  const prod = MOCK_PRODUTOS.find(p => p.id === h.produto_id);
+                  if (prod) {
+                    mockPeso += (h.qtd * prod.peso_embalagem);
+                  }
+                }
+              } catch (e) {}
+            });
+          setPositivadosIds(mockIds as Set<string>);
+          setPesoConquistado(mockPeso);
         }
       } catch (err) {
         console.error('Erro ao carregar dados:', err);
@@ -148,14 +195,10 @@ export function OrderPage() {
   }, [itens]);
 
   const faixaPreco = useMemo(() => {
-    const faixaCalculada = getFaixaPreco(pesoTotal);
-    
-    if (cliente && deveManterFaixaAnterior(cliente.ultima_compra)) {
-      return faixaCalculada; 
-    }
-    
-    return faixaCalculada;
-  }, [pesoTotal, cliente]);
+    // Rule: Effective weight is the max between current order weight and weight from last 28 days
+    const pesoEfetivo = Math.max(pesoTotal, pesoConquistado);
+    return getFaixaPreco(pesoEfetivo);
+  }, [pesoTotal, pesoConquistado]);
 
   const prefilledApplied = React.useRef(false);
 
@@ -317,9 +360,43 @@ export function OrderPage() {
     }
 
     try {
+      // 1. Save to History (hist_vendas)
+      const dataToInsert = itens.map(item => {
+        const produto = produtos.find(p => p.id === item.produto_id)!;
+        return {
+          cliente_id: clienteId,
+          cliente: cliente?.cliente || '',
+          faturamento: new Date().toISOString().split('T')[0],
+          produtos: produto.produto,
+          produto_id: produto.id,
+          qtd: item.quantidade,
+          "r$_total": item.valor_total,
+          vendas: 'Venda Normal',
+          tabela: faixaPreco,
+          xdt: 0,
+          "acresc.": 0
+        };
+      });
+
+      const { error: insertError } = await supabase
+        .from('hist_vendas')
+        .insert(dataToInsert);
+
+      if (insertError) {
+        console.error('Erro ao salvar histórico:', insertError);
+        // Continue anyway to generate image, but alert user
+        alert('Aviso: O pedido foi gerado mas houve um erro ao salvar no histórico.');
+      } else {
+        // Update client's last purchase date
+        await supabase
+          .from('clientes')
+          .update({ ultima_compra: new Date().toISOString() })
+          .eq('id', clienteId);
+      }
+
       setIsGeneratingImage(true);
       
-      // 1. Generate Image
+      // 2. Generate Image
       if (receiptRef.current) {
         // Wait a bit for the DOM to be ready and styles to apply
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -430,8 +507,11 @@ export function OrderPage() {
 
             <div className="bg-neutral-900 text-white p-6 rounded-2xl flex justify-between items-center">
               <div>
-                <p className="text-[10px] font-black opacity-60 uppercase">Peso Total</p>
-                <p className="text-xl font-black">{formatWeight(pesoTotal)}</p>
+                <p className="text-[10px] font-black opacity-60 uppercase">Peso Efetivo</p>
+                <p className="text-xl font-black">{formatWeight(Math.max(pesoTotal, pesoConquistado))}</p>
+                {pesoConquistado > 0 && (
+                  <p className="text-[8px] font-bold opacity-40 uppercase">Inclui {formatWeight(pesoConquistado)} de recompra</p>
+                )}
               </div>
               <div className="text-right">
                 <p className="text-[10px] font-black opacity-60 uppercase">Valor Total</p>
@@ -590,9 +670,15 @@ export function OrderPage() {
           {/* Summary Bar */}
           <div className="bg-orange-600 text-white p-4 rounded-2xl shadow-lg flex justify-between items-center">
             <div>
-              <p className="text-[10px] uppercase font-bold opacity-80">Peso Total</p>
+              <p className="text-[10px] uppercase font-bold opacity-80">Peso Atual</p>
               <p className="text-xl font-black">{formatWeight(pesoTotal)}</p>
             </div>
+            {pesoConquistado > 0 && (
+              <div className="text-center border-x border-white/20 px-4">
+                <p className="text-[10px] uppercase font-bold opacity-80">Recompra (28d)</p>
+                <p className="text-sm font-black">{formatWeight(pesoConquistado)}</p>
+              </div>
+            )}
             <div className="text-center">
               <p className="text-[10px] uppercase font-bold opacity-80">Faixa</p>
               <p className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">{faixaPreco}</p>

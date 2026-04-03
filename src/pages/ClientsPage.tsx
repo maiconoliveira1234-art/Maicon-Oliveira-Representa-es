@@ -2,26 +2,43 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Cliente } from '../types';
-import { Loader2, Search, UserCheck, UserX, ChevronRight } from 'lucide-react';
+import { Loader2, Search, UserCheck, UserX, ChevronRight, Calendar, Filter } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { differenceInDays, parseISO } from 'date-fns';
 
 export function ClientsPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showInactive, setShowInactive] = useState(false);
+  const [filterRepurchase, setFilterRepurchase] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     async function fetchClientes() {
       try {
-        const { data, error } = await supabase
-          .from('clientes')
-          .select('*')
-          .order('cliente');
+        const [clientesRes, histRes] = await Promise.all([
+          supabase.from('clientes').select('*').order('cliente'),
+          supabase.from('hist_vendas').select('cliente_id, faturamento').order('faturamento', { ascending: false })
+        ]);
         
-        if (error) throw error;
-        setClientes(data || []);
+        if (clientesRes.error) throw clientesRes.error;
+
+        const latestSalesMap: Record<string, string> = {};
+        if (histRes.data) {
+          histRes.data.forEach(h => {
+            if (!latestSalesMap[h.cliente_id]) {
+              latestSalesMap[h.cliente_id] = h.faturamento;
+            }
+          });
+        }
+
+        const enrichedClientes = (clientesRes.data || []).map(c => ({
+          ...c,
+          ultima_compra: c.ultima_compra || latestSalesMap[c.id]
+        }));
+
+        setClientes(enrichedClientes);
       } catch (err) {
         console.error('Erro ao carregar clientes:', err);
       } finally {
@@ -31,6 +48,18 @@ export function ClientsPage() {
     fetchClientes();
   }, []);
 
+  const isWithinRepurchase = (cliente: Cliente) => {
+    if (!cliente.ultima_compra) return false;
+    try {
+      const lastPurchase = parseISO(cliente.ultima_compra);
+      const today = new Date();
+      const daysSince = differenceInDays(today, lastPurchase);
+      return daysSince >= 0 && daysSince <= 28;
+    } catch (e) {
+      return false;
+    }
+  };
+
   const filteredClientes = clientes.filter(c => {
     const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word.length > 0);
     const clienteName = c.cliente || '';
@@ -39,7 +68,9 @@ export function ClientsPage() {
     
     const matchesSearch = searchWords.length === 0 || searchWords.every(word => targetString.includes(word));
     const matchesStatus = showInactive ? true : c.ativo;
-    return matchesSearch && matchesStatus;
+    const matchesRepurchase = filterRepurchase ? isWithinRepurchase(c) : true;
+    
+    return matchesSearch && matchesStatus && matchesRepurchase;
   });
 
   if (loading) {
@@ -57,18 +88,32 @@ export function ClientsPage() {
           <h1 className="text-2xl font-black text-neutral-900">Clientes</h1>
           <p className="text-neutral-500 text-sm">Gerencie sua carteira de clientes</p>
         </div>
-        <button
-          onClick={() => setShowInactive(!showInactive)}
-          className={cn(
-            "px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 border",
-            showInactive 
-              ? "bg-orange-600 text-white border-orange-600 shadow-lg shadow-orange-200" 
-              : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50"
-          )}
-        >
-          {showInactive ? <UserCheck size={18} /> : <UserX size={18} />}
-          {showInactive ? "Ocultar Inativos" : "Exibir Inativos"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setFilterRepurchase(!filterRepurchase)}
+            className={cn(
+              "px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 border",
+              filterRepurchase 
+                ? "bg-green-600 text-white border-green-600 shadow-lg shadow-green-200" 
+                : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50"
+            )}
+          >
+            <Calendar size={18} />
+            {filterRepurchase ? "Ver Todos" : "Recompra"}
+          </button>
+          <button
+            onClick={() => setShowInactive(!showInactive)}
+            className={cn(
+              "px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 border",
+              showInactive 
+                ? "bg-orange-600 text-white border-orange-600 shadow-lg shadow-orange-200" 
+                : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50"
+            )}
+          >
+            {showInactive ? <UserCheck size={18} /> : <UserX size={18} />}
+            {showInactive ? "Ocultar Inativos" : "Exibir Inativos"}
+          </button>
+        </div>
       </header>
 
       <div className="relative">
@@ -92,11 +137,17 @@ export function ClientsPage() {
                 className="w-full flex items-center justify-between p-4 hover:bg-neutral-50 transition-colors text-left group"
               >
                 <div className="flex items-center gap-4">
-                  <div className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm",
-                    cliente.ativo ? "bg-orange-100 text-orange-600" : "bg-neutral-100 text-neutral-400"
-                  )}>
-                    {cliente.cliente.substring(0, 2).toUpperCase()}
+                  <div className="relative">
+                    <div className={cn(
+                      "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm",
+                      cliente.ativo ? "bg-orange-100 text-orange-600" : "bg-neutral-100 text-neutral-400"
+                    )}>
+                      {cliente.cliente.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div className={cn(
+                      "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white",
+                      isWithinRepurchase(cliente) ? "bg-green-500" : "bg-red-500"
+                    )} />
                   </div>
                   <div>
                     <h3 className={cn(
