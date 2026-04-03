@@ -380,43 +380,9 @@ export function OrderPage() {
     }
 
     try {
-      // 1. Save to History (hist_vendas)
-      const dataToInsert = itens.map(item => {
-        const produto = produtos.find(p => p.id === item.produto_id)!;
-        return {
-          cliente_id: clienteId,
-          cliente: cliente?.cliente || '',
-          faturamento: new Date().toISOString().split('T')[0],
-          produtos: produto.produto,
-          produto_id: produto.id,
-          qtd: item.quantidade,
-          "r$_total": item.valor_total,
-          vendas: 'Venda Normal',
-          tabela: faixaPreco,
-          xdt: 0,
-          "acresc.": 0
-        };
-      });
-
-      const { error: insertError } = await supabase
-        .from('hist_vendas')
-        .insert(dataToInsert);
-
-      if (insertError) {
-        console.error('Erro ao salvar histórico:', insertError);
-        // Continue anyway to generate image, but alert user
-        alert('Aviso: O pedido foi gerado mas houve um erro ao salvar no histórico.');
-      } else {
-        // Update client's last purchase date
-        await supabase
-          .from('clientes')
-          .update({ ultima_compra: new Date().toISOString() })
-          .eq('id', clienteId);
-      }
-
       setIsGeneratingImage(true);
       
-      // 2. Generate Image
+      // 1. Generate Image
       if (receiptRef.current) {
         // Wait a bit for the DOM to be ready and styles to apply
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -459,7 +425,7 @@ export function OrderPage() {
       if (clienteId) {
         localStorage.removeItem(`pedido_${clienteId}`);
       }
-      alert('Pedido finalizado com sucesso!');
+      alert('Orçamento gerado com sucesso!');
       navigate(`/cliente/${clienteId}`);
     } catch (err) {
       console.error('Erro ao finalizar pedido:', err);
@@ -490,7 +456,7 @@ export function OrderPage() {
           className="w-[400px] bg-white p-8 space-y-6"
         >
           <div className="text-center border-b-2 border-neutral-100 pb-6">
-            <h1 className="text-2xl font-black text-neutral-900 uppercase tracking-tighter">Resumo do Pedido</h1>
+            <h1 className="text-2xl font-black text-neutral-900 uppercase tracking-tighter">Resumo do Orçamento</h1>
             <p className="text-neutral-500 font-bold mt-1">{new Date().toLocaleDateString('pt-BR')} - {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
           </div>
 
@@ -501,7 +467,7 @@ export function OrderPage() {
           </div>
 
           <div className="space-y-4">
-            <p className="text-[10px] font-black text-neutral-400 uppercase border-b border-neutral-100 pb-1">Itens do Pedido</p>
+            <p className="text-[10px] font-black text-neutral-400 uppercase border-b border-neutral-100 pb-1">Itens do Orçamento</p>
             {itens.map((item, idx) => {
               const produto = produtos.find(p => p.id === item.produto_id)!;
               return (
@@ -552,7 +518,7 @@ export function OrderPage() {
       {/* Items List */}
       <div className="space-y-3">
         <div className="px-1 py-3 border-b border-neutral-200">
-          <h3 className="font-bold text-neutral-800">Itens do Pedido</h3>
+          <h3 className="font-bold text-neutral-800">Itens do Orçamento</h3>
         </div>
 
         {itens.length === 0 ? (
@@ -685,7 +651,7 @@ export function OrderPage() {
                 ) : (
                   <Save size={20} />
                 )}
-                <span>{isGeneratingImage ? 'Gerando...' : 'Finalizar Pedido'}</span>
+                <span>{isGeneratingImage ? 'Gerando...' : 'Gerar Orçamento'}</span>
               </button>
             </div>
           </div>
