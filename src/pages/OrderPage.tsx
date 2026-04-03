@@ -44,6 +44,7 @@ export function OrderPage() {
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [selectedPrazo, setSelectedPrazo] = useState('');
   const [selectedFamily, setSelectedFamily] = useState('Todas');
+  const itemsEndRef = React.useRef<HTMLDivElement>(null);
 
   const families = useMemo(() => {
     const uniqueFamilies = Array.from(new Set(produtos.map(p => p.familia).filter(Boolean)));
@@ -255,6 +256,23 @@ export function OrderPage() {
     }));
   }, [faixaPreco, produtos]);
 
+  // Scroll to bottom when items are added
+  useEffect(() => {
+    if (itens.length > 0) {
+      // Use a small timeout to allow the DOM to update with the new item
+      const timer = setTimeout(() => {
+        if (itemsEndRef.current) {
+          // Scroll the element into view, aiming for the center to avoid fixed footer overlap
+          itemsEndRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+          });
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [itens.length]);
+
   const handleSave = async () => {
     if (!clienteId) return;
 
@@ -324,7 +342,7 @@ export function OrderPage() {
   if (loading) return <div className="p-8 text-center">Carregando...</div>;
 
   return (
-    <div className="space-y-6 pb-64">
+    <div className="space-y-6 pb-80">
       <header className="flex items-center gap-4">
         <button onClick={() => navigate(-1)} className="p-2 hover:bg-white rounded-full transition-colors">
           <ArrowLeft size={24} />
@@ -400,14 +418,8 @@ export function OrderPage() {
 
       {/* Items List */}
       <div className="space-y-3">
-        <div className="flex justify-between items-center px-1">
+        <div className="px-1 py-3 border-b border-neutral-200">
           <h3 className="font-bold text-neutral-800">Itens do Pedido</h3>
-          <button 
-            onClick={() => setShowProductSelector(true)}
-            className="text-orange-600 text-sm font-bold flex items-center gap-1"
-          >
-            <Plus size={16} /> Adicionar Produto
-          </button>
         </div>
 
         {itens.length === 0 ? (
@@ -415,54 +427,64 @@ export function OrderPage() {
             Nenhum item adicionado.
           </div>
         ) : (
-          itens.map(item => {
-            const produto = produtos.find(p => p.id === item.produto_id)!;
-            return (
-              <div key={item.produto_id} className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm flex items-center justify-between">
-                <div className="flex-1">
-                  <h4 className="font-bold text-neutral-900">{produto.produto}</h4>
-                  <div className="flex gap-3 mt-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-                    <span>{(produto.peso_embalagem / (produto.quant_embalagem || 1)).toFixed(2)}kg / un</span>
-                    <span className="text-neutral-300">|</span>
-                    <span>Total: {formatWeight(item.peso_total || 0)}</span>
-                    <span className="text-neutral-300">|</span>
-                    <span>{formatCurrency(item.valor_unitario || 0)} / un</span>
+          <div className="space-y-3">
+            {itens.map(item => {
+              const produto = produtos.find(p => p.id === item.produto_id)!;
+              return (
+                <div key={item.produto_id} className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm flex items-center justify-between">
+                  <div className="flex-1">
+                    <h4 className="font-bold text-neutral-900">{produto.produto}</h4>
+                    <div className="flex gap-3 mt-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                      <span>{(produto.peso_embalagem / (produto.quant_embalagem || 1)).toFixed(2)}kg / un</span>
+                      <span className="text-neutral-300">|</span>
+                      <span>Total: {formatWeight(item.peso_total || 0)}</span>
+                      <span className="text-neutral-300">|</span>
+                      <span>{formatCurrency(item.valor_unitario || 0)} / un</span>
+                    </div>
+                    <p className="text-orange-600 font-bold mt-1">{formatCurrency(item.valor_total || 0)}</p>
                   </div>
-                  <p className="text-orange-600 font-bold mt-1">{formatCurrency(item.valor_total || 0)}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => updateItem(item.produto_id!, 0)}
-                    className="w-8 h-8 flex items-center justify-center bg-red-50 rounded-lg text-red-600 hover:bg-red-100 transition-colors"
-                    title="Remover item"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                  <div className="flex items-center gap-3 bg-neutral-50 p-1 rounded-xl border border-neutral-100">
+                  <div className="flex items-center gap-2">
                     <button 
-                      onClick={() => updateItem(item.produto_id!, (item.quantidade || 0) - 1)}
-                      className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm text-neutral-600"
+                      onClick={() => updateItem(item.produto_id!, 0)}
+                      className="w-8 h-8 flex items-center justify-center bg-red-50 rounded-lg text-red-600 hover:bg-red-100 transition-colors"
+                      title="Remover item"
                     >
-                      <Minus size={16} />
+                      <Trash2 size={16} />
                     </button>
-                    <input 
-                      type="number" 
-                      className="w-10 text-center font-bold text-neutral-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      value={item.quantidade || ''}
-                      onChange={(e) => updateItem(item.produto_id!, parseInt(e.target.value) || 0)}
-                    />
-                    <button 
-                      onClick={() => updateItem(item.produto_id!, (item.quantidade || 0) + 1)}
-                      className="w-8 h-8 flex items-center justify-center bg-orange-600 rounded-lg shadow-sm text-white"
-                    >
-                      <Plus size={16} />
-                    </button>
+                    <div className="flex items-center gap-3 bg-neutral-50 p-1 rounded-xl border border-neutral-100">
+                      <button 
+                        onClick={() => updateItem(item.produto_id!, (item.quantidade || 0) - 1)}
+                        className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm text-neutral-600"
+                      >
+                        <Minus size={16} />
+                      </button>
+                      <input 
+                        type="number" 
+                        className="w-10 text-center font-bold text-neutral-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        value={item.quantidade || ''}
+                        onChange={(e) => updateItem(item.produto_id!, parseInt(e.target.value) || 0)}
+                      />
+                      <button 
+                        onClick={() => updateItem(item.produto_id!, (item.quantidade || 0) + 1)}
+                        className="w-8 h-8 flex items-center justify-center bg-orange-600 rounded-lg shadow-sm text-white"
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })
+              );
+            })}
+          </div>
         )}
+
+        <button 
+          onClick={() => setShowProductSelector(true)}
+          className="w-full py-4 bg-white rounded-2xl border-2 border-dashed border-orange-200 text-orange-600 font-bold flex items-center justify-center gap-2 hover:bg-orange-50 transition-all active:scale-95"
+        >
+          <Plus size={20} /> Adicionar Produto
+        </button>
+        <div ref={itemsEndRef} className="h-12" />
       </div>
 
       {/* Bottom Section (Fixed) */}

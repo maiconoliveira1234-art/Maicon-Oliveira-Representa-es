@@ -372,27 +372,29 @@ export function StockCountPage() {
       {/* Spreadsheet Header */}
       <div className="bg-white border-b border-neutral-200 shadow-sm">
         <div className="w-full px-2 py-3">
-          <div className="flex items-center gap-4 mb-4">
-            <button onClick={() => navigate(-1)} className="p-2 hover:bg-neutral-100 rounded-full transition-colors">
+          <div className="flex items-start gap-2 mb-4">
+            <button onClick={() => navigate(-1)} className="p-2 hover:bg-neutral-100 rounded-full transition-colors mt-0.5">
               <ArrowLeft size={20} />
             </button>
-            <h1 className="text-lg font-bold text-neutral-800 truncate">{cliente?.cliente}</h1>
-            <div className="ml-auto flex items-center gap-6">
+            <h1 className="text-base font-bold text-neutral-800 flex-1 leading-tight pt-1.5">
+              {cliente?.cliente}
+            </h1>
+            <div className="flex items-center gap-2 shrink-0">
               <div className="text-center">
-                <p className="text-[10px] font-bold text-neutral-400 uppercase">Ult. Ped.</p>
-                <p className={cn("text-lg font-black", isOverdueGlobal ? "text-red-600" : "text-neutral-800")}>
+                <p className="text-[9px] font-bold text-neutral-400 uppercase">Ult. Ped.</p>
+                <p className={cn("text-base font-black", isOverdueGlobal ? "text-red-600" : "text-neutral-800")}>
                   {diasDesdeUltimoPedidoGlobal}
                 </p>
               </div>
               <div className="text-center">
-                <p className="text-[10px] font-bold text-neutral-400 uppercase">Ciclo Méd.</p>
-                <p className="text-lg font-black text-neutral-800 bg-neutral-100 px-3 rounded-lg">
+                <p className="text-[9px] font-bold text-neutral-400 uppercase">Ciclo Méd.</p>
+                <p className="text-base font-black text-neutral-800 bg-neutral-100 px-2 rounded-lg">
                   {mediaCicloGlobal}
                 </p>
               </div>
               <div className="text-center">
-                <p className="text-[10px] font-bold text-neutral-400 uppercase">Peso Pedido</p>
-                <p className="text-lg font-black text-orange-600 bg-orange-50 px-3 rounded-lg">
+                <p className="text-[9px] font-bold text-neutral-400 uppercase">Peso Pedido</p>
+                <p className="text-sm font-black text-orange-600 bg-orange-50 px-2 py-1 rounded-lg whitespace-nowrap">
                   {formatWeight(totalPesoPedido)}
                 </p>
               </div>

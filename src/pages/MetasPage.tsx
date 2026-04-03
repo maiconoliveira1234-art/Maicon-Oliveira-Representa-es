@@ -473,47 +473,47 @@ export function MetasPage() {
 
       {/* Spreadsheet Table */}
       <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden overflow-y-auto flex-1 h-full min-h-0">
-        <table className="w-full text-left border-collapse min-w-[800px]">
+        <table className="w-full text-left border-separate border-spacing-0">
           <thead className="sticky top-0 z-20">
-            <tr className="bg-neutral-50 text-[11px] font-bold uppercase text-neutral-500 border-b border-neutral-200">
+            <tr className="bg-neutral-50 text-[10px] font-bold uppercase text-neutral-500">
               <th 
-                className="px-4 py-3 border-r border-neutral-200 sticky left-0 bg-neutral-50 z-30 cursor-pointer hover:bg-neutral-100 transition-colors"
+                className="px-3 py-3 border-r border-b border-neutral-200 sticky left-0 bg-neutral-50 z-30 cursor-pointer hover:bg-neutral-100 transition-colors"
                 onClick={() => handleSort('cliente')}
               >
                 Clientes
               </th>
               <th 
-                className="px-3 py-3 border-r border-neutral-200 text-right cursor-pointer hover:bg-neutral-100 transition-colors"
+                className="w-14 px-1 py-3 border-r border-b border-neutral-200 text-right cursor-pointer hover:bg-neutral-100 transition-colors"
                 onClick={() => handleSort('med6')}
               >
                 Med. 6
               </th>
               <th 
-                className="px-3 py-3 border-r border-neutral-200 text-center cursor-pointer hover:bg-neutral-100 transition-colors"
+                className="w-14 px-1 py-3 border-r border-b border-neutral-200 text-center cursor-pointer hover:bg-neutral-100 transition-colors"
                 onClick={() => handleSort('medDias')}
               >
                 Méd Dias
               </th>
               <th 
-                className="px-3 py-3 border-r border-neutral-200 text-center cursor-pointer hover:bg-neutral-100 transition-colors"
+                className="w-14 px-1 py-3 border-r border-b border-neutral-200 text-center cursor-pointer hover:bg-neutral-100 transition-colors"
                 onClick={() => handleSort('ultPed')}
               >
                 Últ Ped
               </th>
               <th 
-                className="px-3 py-3 border-r border-neutral-200 text-right cursor-pointer hover:bg-neutral-100 transition-colors"
+                className="w-16 px-1 py-3 border-r border-b border-neutral-200 text-right cursor-pointer hover:bg-neutral-100 transition-colors"
                 onClick={() => handleSort('gap')}
               >
                 PRÓX PED
               </th>
               <th 
-                className="px-4 py-3 border-r border-neutral-200 text-right cursor-pointer hover:bg-neutral-100 transition-colors"
+                className="w-20 px-2 py-3 border-r border-b border-neutral-200 text-right cursor-pointer hover:bg-neutral-100 transition-colors"
                 onClick={() => handleSort('meta')}
               >
                 Meta (KG)
               </th>
               <th 
-                className="px-4 py-3 text-right cursor-pointer hover:bg-neutral-100 transition-colors"
+                className="w-16 px-2 py-3 border-b border-neutral-200 text-right cursor-pointer hover:bg-neutral-100 transition-colors"
                 onClick={() => handleSort('vend')}
               >
                 Vend
@@ -523,25 +523,25 @@ export function MetasPage() {
           <tbody className="divide-y divide-neutral-100">
             {sortedAndFilteredData.map((row) => (
               <tr key={row.id} className="hover:bg-neutral-50 transition-colors group">
-                <td className="px-4 py-3 border-r border-neutral-200 font-bold text-neutral-800 text-[13px] sticky left-0 bg-white group-hover:bg-neutral-50 z-10">
+                <td className="px-3 py-3 border-r border-b border-neutral-100 font-bold text-neutral-800 text-[12px] sticky left-0 bg-white group-hover:bg-neutral-50 z-10 leading-tight">
                   {row.cliente}
                 </td>
-                <td className="px-3 py-3 border-r border-neutral-200 text-right text-[13px] text-neutral-600 font-medium">
+                <td className="px-1 py-3 border-r border-b border-neutral-100 text-right text-[12px] text-neutral-600 font-medium">
                   {row.med6.toFixed(1)}
                 </td>
-                <td className="px-3 py-3 border-r border-neutral-200 text-center text-[13px] text-neutral-500">
+                <td className="px-1 py-3 border-r border-b border-neutral-100 text-center text-[12px] text-neutral-500">
                   {row.medDias || '-'}
                 </td>
-                <td className="px-3 py-3 border-r border-neutral-200 text-center text-[13px] text-neutral-500">
+                <td className="px-1 py-3 border-r border-b border-neutral-100 text-center text-[12px] text-neutral-500">
                   {row.ultPed}
                 </td>
                 <td className={cn(
-                  "px-3 py-3 border-r border-neutral-200 text-right text-[13px] font-bold",
+                  "px-1 py-3 border-r border-b border-neutral-100 text-right text-[12px] font-bold",
                   row.gap <= 0 ? "text-green-600" : "text-red-500"
                 )}>
                   {row.gap}
                 </td>
-                <td className="px-3 py-2 border-r border-neutral-200">
+                <td className="px-1 py-2 border-r border-b border-neutral-100">
                   <div className="relative flex items-center">
                     <input
                       type="number"
@@ -561,25 +561,25 @@ export function MetasPage() {
                           (e.target as HTMLInputElement).blur();
                         }
                       }}
-                      className="w-full bg-transparent text-right pr-6 py-1 font-bold text-neutral-700 outline-none focus:ring-1 focus:ring-orange-500 rounded px-1 text-[13px]"
+                      className="w-full bg-transparent text-right pr-5 py-1 font-bold text-neutral-700 outline-none focus:ring-1 focus:ring-orange-500 rounded px-1 text-[12px]"
                     />
-                    <div className="absolute right-1">
+                    <div className="absolute right-0.5">
                       {savingId === row.id ? (
-                        <Loader2 size={12} className="animate-spin text-orange-500" />
+                        <Loader2 size={10} className="animate-spin text-orange-500" />
                       ) : saveStatus?.id === row.id ? (
                         saveStatus.success ? (
-                          <CheckCircle2 size={12} className="text-green-500" />
+                          <CheckCircle2 size={10} className="text-green-500" />
                         ) : (
-                          <AlertCircle size={12} className="text-red-500" />
+                          <AlertCircle size={10} className="text-red-500" />
                         )
                       ) : (
-                        <Save size={12} className="text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <Save size={10} className="text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                       )}
                     </div>
                   </div>
                 </td>
                 <td className={cn(
-                  "px-4 py-3 text-right text-[13px] font-black transition-colors duration-300",
+                  "px-2 py-3 border-b border-neutral-100 text-right text-[12px] font-black transition-colors duration-300",
                   row.vend === 0 
                     ? "bg-red-600 text-white" 
                     : row.meta > 0 && row.vend >= row.meta 
