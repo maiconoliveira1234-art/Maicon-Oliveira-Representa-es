@@ -171,8 +171,8 @@ export function StockCountPage() {
   }, [historico]);
 
   const gridCols = showCycle 
-    ? "grid-cols-[28px_28px_28px_minmax(60px,1fr)_80px_28px_28px_28px_80px]" 
-    : "grid-cols-[28px_28px_28px_minmax(60px,1fr)_80px_28px_80px]";
+    ? "grid-cols-[42px_35px_42px_minmax(100px,1fr)_100px_40px_40px_40px_100px]" 
+    : "grid-cols-[42px_35px_42px_minmax(100px,1fr)_100px_40px_100px]";
 
   const processedItems = useMemo(() => {
     const items: Record<string, HistVenda[]> = {};
@@ -432,28 +432,28 @@ export function StockCountPage() {
         </div>
       </div>      <div className="w-full px-1 mt-2 flex-1 flex flex-col min-h-0">
         {/* Spreadsheet Table Container */}
-        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 flex flex-col overflow-hidden mx-1">
+        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 flex flex-col overflow-hidden">
           <div className="overflow-y-auto max-h-[calc(100vh-280px)]">
             <div className="w-full">
               <div 
                 className={cn(
-                  "grid bg-neutral-100 border-b border-neutral-200 text-[9px] font-bold text-neutral-500 uppercase tracking-tighter sticky top-0 z-[100] shadow-sm",
+                  "grid bg-neutral-100 border-b border-neutral-200 text-[10px] font-bold text-neutral-500 uppercase tracking-tight sticky top-0 z-[100] shadow-sm",
                   gridCols
                 )}
               >
-                <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Ult.<br/>P</div>
-                <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Q</div>
-                <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Ult.<br/>C</div>
+                <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Ult.<br/>Ped</div>
+                <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Qtd</div>
+                <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Ult.<br/>Cont</div>
                 <div className="p-2 border-r border-neutral-200 flex items-center h-9">Item</div>
                 <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-9">Estoque</div>
                 {showCycle && (
                   <>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">M</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">C</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Méd.</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Ciclo</div>
                   </>
                 )}
-                <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">I</div>
-                <div className="p-1 text-center flex items-center justify-center h-9">Ped</div>
+                <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Ideal</div>
+                <div className="p-1 text-center flex items-center justify-center h-9">Pedido</div>
               </div>
 
               <div className="divide-y divide-neutral-100 relative z-0">
@@ -470,7 +470,7 @@ export function StockCountPage() {
                   <div 
                     key={item.produto_id} 
                     className={cn(
-                      "grid items-center text-[11px] transition-colors cursor-pointer even:bg-neutral-50/50",
+                      "grid items-center text-[12px] transition-colors cursor-pointer even:bg-neutral-50/50",
                       gridCols,
                       rowStyle,
                       "hover:bg-orange-50/30"
@@ -491,32 +491,32 @@ export function StockCountPage() {
                   )}>
                     {item.produto_nome}
                   </div>
-                  <div className="p-1 border-r border-neutral-100 flex items-center justify-center gap-0.5 h-10" onClick={(e) => e.stopPropagation()}>
+                  <div className="p-1 border-r border-neutral-100 flex items-center justify-center gap-1 h-10" onClick={(e) => e.stopPropagation()}>
                     <button 
                       onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) - 1)}
-                      className="w-6 h-6 flex items-center justify-center bg-white border border-orange-200 rounded text-orange-600 hover:bg-orange-50 active:scale-90 transition-transform"
+                      className="w-7 h-7 flex items-center justify-center bg-white border border-orange-200 rounded text-orange-600 hover:bg-orange-50 active:scale-90 transition-transform"
                     >
-                      <Minus size={12} />
+                      <Minus size={14} />
                     </button>
                     <input 
                       type="number" 
-                      className="w-8 bg-orange-50 border border-orange-100 rounded py-1 text-center font-black text-orange-700 outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px]"
+                      className="w-9 bg-orange-50 border border-orange-100 rounded py-1 text-center font-black text-orange-700 outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[12px]"
                       value={estoqueMap[item.produto_id] ?? ''}
                       onChange={(e) => updateQuantity(item.produto_id, e.target.value)}
                     />
                     <button 
                       onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) + 1)}
-                      className="w-6 h-6 flex items-center justify-center bg-orange-600 border border-orange-700 rounded text-white hover:bg-orange-700 active:scale-90 transition-transform"
+                      className="w-7 h-7 flex items-center justify-center bg-orange-600 border border-orange-700 rounded text-white hover:bg-orange-700 active:scale-90 transition-transform"
                     >
-                      <Plus size={12} />
+                      <Plus size={14} />
                     </button>
                   </div>
                   {showCycle && (
                     <>
-                      <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-60">
+                      <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-50">
                         {item.media_qtd}
                       </div>
-                      <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-60">
+                      <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-50">
                         {item.media_ciclo}
                       </div>
                     </>
@@ -526,24 +526,24 @@ export function StockCountPage() {
                   )}>
                     {item.estoque_ideal}
                   </div>
-                  <div className="p-1 flex items-center justify-center gap-0.5 h-10" onClick={(e) => e.stopPropagation()}>
+                  <div className="p-1 flex items-center justify-center gap-1 h-10" onClick={(e) => e.stopPropagation()}>
                     <button 
                       onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) - 1)}
-                      className="w-6 h-6 flex items-center justify-center bg-white border border-green-200 rounded text-green-600 hover:bg-green-50 active:scale-90 transition-transform"
+                      className="w-7 h-7 flex items-center justify-center bg-white border border-green-200 rounded text-green-600 hover:bg-green-50 active:scale-90 transition-transform"
                     >
-                      <Minus size={12} />
+                      <Minus size={14} />
                     </button>
                     <input 
                       type="number" 
-                      className="w-8 bg-green-50 border border-green-100 rounded py-1 text-center font-black text-green-700 outline-none focus:ring-1 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px]"
+                      className="w-9 bg-green-50 border border-green-100 rounded py-1 text-center font-black text-green-700 outline-none focus:ring-1 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[12px]"
                       value={pedidoMap[item.produto_id] || ''}
                       onChange={(e) => updatePedido(item.produto_id, e.target.value)}
                     />
                     <button 
                       onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) + 1)}
-                      className="w-6 h-6 flex items-center justify-center bg-green-600 border border-green-700 rounded text-white hover:bg-green-700 active:scale-90 transition-transform"
+                      className="w-7 h-7 flex items-center justify-center bg-green-600 border border-green-700 rounded text-white hover:bg-green-700 active:scale-90 transition-transform"
                     >
-                      <Plus size={12} />
+                      <Plus size={14} />
                     </button>
                   </div>
                 </div>
