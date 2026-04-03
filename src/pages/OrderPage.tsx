@@ -30,7 +30,7 @@ import { cn, formatCurrency, formatWeight } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { getAvailableTerms } from '../lib/paymentTerms';
 
-import { MOCK_CLIENTES, MOCK_PRODUTOS } from '../lib/mockData';
+import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from '../lib/mockData';
 
 export function OrderPage() {
   const { clienteId } = useParams();
@@ -44,6 +44,8 @@ export function OrderPage() {
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [selectedPrazo, setSelectedPrazo] = useState('');
   const [selectedFamily, setSelectedFamily] = useState('Todas');
+  const [showOnlyPositivados, setShowOnlyPositivados] = useState(false);
+  const [positivadosIds, setPositivadosIds] = useState<Set<string>>(new Set());
   const itemsEndRef = React.useRef<HTMLDivElement>(null);
 
   const families = useMemo(() => {
@@ -56,7 +58,8 @@ export function OrderPage() {
       .filter(p => {
         const matchesSearch = (p.produto?.toLowerCase() || '').includes(searchTerm.toLowerCase());
         const matchesFamily = selectedFamily === 'Todas' || p.familia === selectedFamily;
-        return matchesSearch && matchesFamily;
+        const matchesPositivados = !showOnlyPositivados || positivadosIds.has(p.id);
+        return matchesSearch && matchesFamily && matchesPositivados;
       })
       .sort((a, b) => {
         // First sort by family
@@ -65,7 +68,7 @@ export function OrderPage() {
         // Then sort by product name
         return (a.produto || '').localeCompare(b.produto || '');
       });
-  }, [produtos, searchTerm, selectedFamily]);
+  }, [produtos, searchTerm, selectedFamily, showOnlyPositivados, positivadosIds]);
 
   useEffect(() => {
     async function loadData() {
@@ -101,6 +104,25 @@ export function OrderPage() {
           setProdutos(MOCK_PRODUTOS);
         } else {
           setProdutos(produtosData);
+        }
+
+        // Load Positivados (previously purchased products)
+        const { data: histData, error: hError } = await supabase
+          .from('hist_vendas')
+          .select('produto_id')
+          .eq('cliente_id', clienteId);
+        
+        if (!hError && histData && histData.length > 0) {
+          const ids = new Set(histData.map(h => h.produto_id));
+          setPositivadosIds(ids);
+        } else {
+          // Fallback to mock data
+          const mockIds = new Set(
+            MOCK_HISTORICO
+              .filter(h => h.cliente_id === clienteId)
+              .map(h => h.produto_id)
+          );
+          setPositivadosIds(mockIds);
         }
       } catch (err) {
         console.error('Erro ao carregar dados:', err);
@@ -598,15 +620,26 @@ export function OrderPage() {
               </div>
               
               <div className="flex flex-col gap-3 mb-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
-                  <input 
-                    type="text" 
-                    placeholder="Filtrar produtos..."
-                    className="w-full pl-10 pr-4 py-3 bg-neutral-100 rounded-xl outline-none focus:ring-2 focus:ring-orange-500"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
+                <div className="flex items-center justify-between gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
+                    <input 
+                      type="text" 
+                      placeholder="Filtrar produtos..."
+                      className="w-full pl-10 pr-4 py-3 bg-neutral-100 rounded-xl outline-none focus:ring-2 focus:ring-orange-500"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer bg-neutral-100 px-4 py-3 rounded-xl border border-neutral-200">
+                    <input 
+                      type="checkbox" 
+                      checked={showOnlyPositivados}
+                      onChange={(e) => setShowOnlyPositivados(e.target.checked)}
+                      className="w-4 h-4 rounded border-neutral-300 text-orange-600 focus:ring-orange-500"
+                    />
+                    <span className="text-xs font-bold text-neutral-700">Positivados</span>
+                  </label>
                 </div>
                 
                 <div className="relative">

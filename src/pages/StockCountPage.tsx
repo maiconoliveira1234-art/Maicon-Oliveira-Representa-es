@@ -472,14 +472,17 @@ export function StockCountPage() {
                   <div 
                     key={item.produto_id} 
                     className={cn(
-                      "grid items-center text-[12px] transition-colors cursor-pointer even:bg-neutral-50/50",
+                      "grid items-center text-[12px] transition-colors cursor-pointer even:bg-neutral-100/60",
                       gridCols,
                       rowStyle,
                       "hover:bg-orange-50/30"
                     )}
                     onClick={() => setSelectedProductHistory(item)}
                   >
-                  <div className={cn("p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10", isTouched && isBelowIdeal && !isZeroStock ? "text-red-600" : "")}>
+                  <div className={cn(
+                    "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10", 
+                    (isTouched && isBelowIdeal && !isZeroStock) || item.dias_ult_compra > 180 ? "text-red-600 font-bold" : ""
+                  )}>
                     {item.dias_ult_compra}
                   </div>
                   <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-50">
@@ -705,19 +708,53 @@ export function StockCountPage() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-neutral-100 text-left">
-                <th className="p-3 border border-neutral-200 text-xs font-bold uppercase">Item</th>
-                <th className="p-3 border border-neutral-200 text-xs font-bold uppercase text-center">Ult. Contagem</th>
-                <th className="p-3 border border-neutral-200 text-xs font-bold uppercase text-center">Contagem Atual</th>
+                <th className="p-3 border border-neutral-200 text-[10px] font-bold uppercase">Item</th>
+                <th className="p-3 border border-neutral-200 text-[10px] font-bold uppercase text-center">Ult. Ped</th>
+                <th className="p-3 border border-neutral-200 text-[10px] font-bold uppercase text-center">Ult. Contagem</th>
+                <th className="p-3 border border-neutral-200 text-[10px] font-bold uppercase text-center">Contagem Atual</th>
+                <th className="p-3 border border-neutral-200 text-[10px] font-bold uppercase text-center">Estoque Ideal</th>
+                <th className="p-3 border border-neutral-200 text-[10px] font-bold uppercase text-center">Sugestão</th>
               </tr>
             </thead>
             <tbody>
-              {processedItems.map(item => (
-                <tr key={item.produto_id}>
-                  <td className="p-3 border border-neutral-200 text-sm font-medium">{item.produto_nome}</td>
-                  <td className="p-3 border border-neutral-200 text-sm text-center font-bold text-neutral-500">{item.ultima_contagem_valor}</td>
-                  <td className="p-3 border border-neutral-200 text-sm text-center font-black text-orange-600">{estoqueMap[item.produto_id] ?? 0}</td>
-                </tr>
-              ))}
+              {processedItems.map(item => {
+                const currentStock = estoqueMap[item.produto_id] ?? 0;
+                const isBelowIdeal = currentStock < item.estoque_ideal;
+                const sugestao = Math.max(0, item.estoque_ideal - currentStock);
+
+                return (
+                  <tr key={item.produto_id} className="even:bg-neutral-50">
+                    <td className={cn(
+                      "p-3 border border-neutral-200 text-sm font-medium",
+                      isBelowIdeal ? "text-red-700 font-bold" : "text-neutral-800"
+                    )}>
+                      {item.produto_nome}
+                    </td>
+                    <td className={cn(
+                      "p-3 border border-neutral-200 text-sm text-center font-bold",
+                      item.dias_ult_compra > 180 ? "text-red-600" : "text-neutral-500"
+                    )}>
+                      {item.dias_ult_compra}
+                    </td>
+                    <td className="p-3 border border-neutral-200 text-sm text-center font-bold text-neutral-400">{item.ultima_contagem_valor}</td>
+                    <td className={cn(
+                      "p-3 border border-neutral-200 text-sm text-center font-black",
+                      isBelowIdeal ? "text-red-600" : "text-neutral-700"
+                    )}>
+                      {currentStock}
+                    </td>
+                    <td className="p-3 border border-neutral-200 text-sm text-center font-bold text-neutral-500">
+                      {item.estoque_ideal}
+                    </td>
+                    <td className={cn(
+                      "p-3 border border-neutral-200 text-sm text-center font-black",
+                      sugestao > 0 ? "text-red-600" : "text-neutral-400"
+                    )}>
+                      {sugestao > 0 ? sugestao : '-'}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           
