@@ -29,7 +29,8 @@ import {
 import { cn, formatCurrency, formatWeight } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { getAvailableTerms } from '../lib/paymentTerms';
-import { parseISO, differenceInDays } from 'date-fns';
+import { parseISO, differenceInDays, startOfWeek, addWeeks, addDays, format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from '../lib/mockData';
 
@@ -386,6 +387,37 @@ export function OrderPage() {
     }
   }, [itens.length]);
 
+  const installmentDetails = useMemo(() => {
+    if (!selectedPrazo || selectedPrazo === 'À Vista') {
+      return {
+        numBoletos: 1,
+        valorBoleto: valorTotal,
+        dataVencimento: null
+      };
+    }
+
+    // Parse "02 Boletos (14-21)" or "01 Boleto (07)"
+    const match = selectedPrazo.match(/(\d+)\s+Boleto[s]?\s+\((\d+)/);
+    if (!match) return { numBoletos: 1, valorBoleto: valorTotal, dataVencimento: null };
+
+    const numBoletos = parseInt(match[1], 10);
+    const firstDays = parseInt(match[2], 10);
+    const valorBoleto = valorTotal / numBoletos;
+
+    // Calculation: Saturday of the following week + firstDays
+    const today = new Date();
+    const startOfThisWeek = startOfWeek(today, { weekStartsOn: 0 }); // Sunday
+    const startOfNextWeek = addWeeks(startOfThisWeek, 1); // Next Sunday
+    const followingSaturday = addDays(startOfNextWeek, 6); // Next Saturday
+    const dataVencimento = addDays(followingSaturday, firstDays);
+
+    return {
+      numBoletos,
+      valorBoleto,
+      dataVencimento
+    };
+  }, [selectedPrazo, valorTotal]);
+
   const handleSave = async () => {
     if (!clienteId) return;
 
@@ -513,6 +545,21 @@ export function OrderPage() {
                 <p className="font-black text-orange-600">{faixaPreco}</p>
               </div>
             </div>
+
+            {selectedPrazo && selectedPrazo !== 'À Vista' && (
+              <div className="bg-neutral-50 p-4 rounded-xl border border-neutral-100 grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] font-black text-neutral-400 uppercase">Valor por Boleto</p>
+                  <p className="font-black text-neutral-900">{formatCurrency(installmentDetails.valorBoleto)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-black text-neutral-400 uppercase">1º Vencimento (Est.)</p>
+                  <p className="font-black text-neutral-900">
+                    {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="bg-neutral-900 text-white p-6 rounded-2xl flex justify-between items-center">
               <div>
