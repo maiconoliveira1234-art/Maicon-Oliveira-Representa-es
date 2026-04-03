@@ -55,6 +55,7 @@ export function StockCountPage() {
   const [showCycle, setShowCycle] = useState(false);
   const [selectedProductHistory, setSelectedProductHistory] = useState<ItemEstoqueData | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [touchedItems, setTouchedItems] = useState<Set<string>>(new Set());
   const exportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -170,8 +171,8 @@ export function StockCountPage() {
   }, [historico]);
 
   const gridCols = showCycle 
-    ? "grid-cols-[45px_45px_45px_minmax(200px,1fr)_110px_50px_50px_50px_110px]" 
-    : "grid-cols-[45px_45px_45px_minmax(200px,1fr)_110px_50px_110px]";
+    ? "grid-cols-[28px_28px_28px_minmax(60px,1fr)_80px_28px_28px_28px_80px]" 
+    : "grid-cols-[28px_28px_28px_minmax(60px,1fr)_80px_28px_80px]";
 
   const processedItems = useMemo(() => {
     const items: Record<string, HistVenda[]> = {};
@@ -253,6 +254,7 @@ export function StockCountPage() {
       ...prev,
       [produtoId]: isNaN(num) ? 0 : Math.max(0, num)
     }));
+    setTouchedItems(prev => new Set(prev).add(produtoId));
   };
 
   const updatePedido = (produtoId: string, val: string | number) => {
@@ -430,114 +432,118 @@ export function StockCountPage() {
         </div>
       </div>      <div className="w-full px-1 mt-2 flex-1 flex flex-col min-h-0">
         {/* Spreadsheet Table Container */}
-        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 flex flex-col overflow-hidden">
-          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-280px)]">
-            <div className="min-w-max w-full">
+        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 flex flex-col overflow-hidden mx-1">
+          <div className="overflow-y-auto max-h-[calc(100vh-280px)]">
+            <div className="w-full">
               <div 
                 className={cn(
-                  "grid bg-neutral-100 border-b border-neutral-200 text-[11px] font-bold text-neutral-500 uppercase tracking-wider sticky top-0 z-[100] shadow-sm",
+                  "grid bg-neutral-100 border-b border-neutral-200 text-[9px] font-bold text-neutral-500 uppercase tracking-tighter sticky top-0 z-[100] shadow-sm",
                   gridCols
                 )}
               >
-                <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-9">Ult. Ped</div>
-                <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-9">Qtd</div>
-                <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-9">Ult. Cont.</div>
-                <div className="p-2 border-r border-neutral-200 flex items-center h-9">Itens Positivados</div>
+                <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Ult.<br/>P</div>
+                <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Q</div>
+                <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Ult.<br/>C</div>
+                <div className="p-2 border-r border-neutral-200 flex items-center h-9">Item</div>
                 <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-9">Estoque</div>
                 {showCycle && (
                   <>
-                    <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-9">Méd.</div>
-                    <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-9">Ciclo</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">M</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">C</div>
                   </>
                 )}
-                <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-9">Ideal</div>
-                <div className="p-1 text-center flex items-center justify-center h-9">Qtd Pedido</div>
+                <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">I</div>
+                <div className="p-1 text-center flex items-center justify-center h-9">Ped</div>
               </div>
 
               <div className="divide-y divide-neutral-100 relative z-0">
               {filteredItems.map((item) => {
-                const isOverdueItem = item.dias_ult_compra > 180;
+                const isTouched = touchedItems.has(item.produto_id);
                 const isBelowIdeal = item.quantidade_atual < item.estoque_ideal;
                 const isZeroStock = item.quantidade_atual === 0;
+
+                const rowStyle = isTouched 
+                  ? (isZeroStock ? "text-red-600 font-black" : isBelowIdeal ? "font-black text-neutral-900" : "text-neutral-900 font-bold")
+                  : "text-neutral-800 font-normal";
 
                 return (
                   <div 
                     key={item.produto_id} 
                     className={cn(
-                      "grid items-center text-sm transition-colors cursor-pointer even:bg-neutral-50/50",
+                      "grid items-center text-[11px] transition-colors cursor-pointer even:bg-neutral-50/50",
                       gridCols,
-                      isZeroStock ? "text-red-600 font-bold" : isBelowIdeal ? "font-bold text-neutral-900" : "text-neutral-700",
+                      rowStyle,
                       "hover:bg-orange-50/30"
                     )}
                     onClick={() => setSelectedProductHistory(item)}
                   >
-                  <div className={cn("p-1 border-r border-neutral-100 text-center flex items-center justify-center h-10", isOverdueItem && !isZeroStock ? "text-red-600" : "")}>
+                  <div className={cn("p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10", isTouched && isBelowIdeal && !isZeroStock ? "text-red-600" : "")}>
                     {item.dias_ult_compra}
                   </div>
-                  <div className="p-1 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-70">
+                  <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-50">
                     {item.qtd_ult_compra}
                   </div>
-                  <div className="p-1 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-70">
+                  <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-50">
                     {item.ultima_contagem_valor}
                   </div>
                   <div className={cn(
-                    "p-2 border-r border-neutral-100 truncate flex items-center h-10"
+                    "p-2 border-r border-neutral-100 truncate flex items-center h-10 leading-tight"
                   )}>
                     {item.produto_nome}
                   </div>
-                  <div className="p-1 border-r border-neutral-100 flex items-center justify-center gap-1 h-10" onClick={(e) => e.stopPropagation()}>
+                  <div className="p-1 border-r border-neutral-100 flex items-center justify-center gap-0.5 h-10" onClick={(e) => e.stopPropagation()}>
                     <button 
                       onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) - 1)}
-                      className="w-7 h-7 flex items-center justify-center bg-white border border-orange-200 rounded text-orange-600 hover:bg-orange-50"
+                      className="w-6 h-6 flex items-center justify-center bg-white border border-orange-200 rounded text-orange-600 hover:bg-orange-50 active:scale-90 transition-transform"
                     >
-                      <Minus size={14} />
+                      <Minus size={12} />
                     </button>
                     <input 
                       type="number" 
-                      className="w-10 bg-orange-50 border border-orange-100 rounded p-1 text-center font-bold text-orange-700 outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-sm"
+                      className="w-8 bg-orange-50 border border-orange-100 rounded py-1 text-center font-black text-orange-700 outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px]"
                       value={estoqueMap[item.produto_id] ?? ''}
                       onChange={(e) => updateQuantity(item.produto_id, e.target.value)}
                     />
                     <button 
                       onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) + 1)}
-                      className="w-7 h-7 flex items-center justify-center bg-orange-600 border border-orange-700 rounded text-white hover:bg-orange-700"
+                      className="w-6 h-6 flex items-center justify-center bg-orange-600 border border-orange-700 rounded text-white hover:bg-orange-700 active:scale-90 transition-transform"
                     >
-                      <Plus size={14} />
+                      <Plus size={12} />
                     </button>
                   </div>
                   {showCycle && (
                     <>
-                      <div className="p-1 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-70">
+                      <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-60">
                         {item.media_qtd}
                       </div>
-                      <div className="p-1 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-70">
+                      <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-60">
                         {item.media_ciclo}
                       </div>
                     </>
                   )}
                   <div className={cn(
-                    "p-1 border-r border-neutral-100 text-center flex items-center justify-center h-10"
+                    "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10"
                   )}>
                     {item.estoque_ideal}
                   </div>
-                  <div className="p-1 flex items-center justify-center gap-1 h-10" onClick={(e) => e.stopPropagation()}>
+                  <div className="p-1 flex items-center justify-center gap-0.5 h-10" onClick={(e) => e.stopPropagation()}>
                     <button 
                       onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) - 1)}
-                      className="w-7 h-7 flex items-center justify-center bg-white border border-green-200 rounded text-green-600 hover:bg-green-50"
+                      className="w-6 h-6 flex items-center justify-center bg-white border border-green-200 rounded text-green-600 hover:bg-green-50 active:scale-90 transition-transform"
                     >
-                      <Minus size={14} />
+                      <Minus size={12} />
                     </button>
                     <input 
                       type="number" 
-                      className="w-10 bg-green-50 border border-green-100 rounded p-1 text-center font-bold text-green-700 outline-none focus:ring-1 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-sm"
+                      className="w-8 bg-green-50 border border-green-100 rounded py-1 text-center font-black text-green-700 outline-none focus:ring-1 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px]"
                       value={pedidoMap[item.produto_id] || ''}
                       onChange={(e) => updatePedido(item.produto_id, e.target.value)}
                     />
                     <button 
                       onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) + 1)}
-                      className="w-7 h-7 flex items-center justify-center bg-green-600 border border-green-700 rounded text-white hover:bg-green-700"
+                      className="w-6 h-6 flex items-center justify-center bg-green-600 border border-green-700 rounded text-white hover:bg-green-700 active:scale-90 transition-transform"
                     >
-                      <Plus size={14} />
+                      <Plus size={12} />
                     </button>
                   </div>
                 </div>
