@@ -216,31 +216,51 @@ export function OrderPage() {
     if (!loading && produtos.length > 0 && clienteId && !initialLoadDone.current) {
       const saved = localStorage.getItem(`pedido_${clienteId}`);
       if (saved) {
-        const prefilled = JSON.parse(saved) as Record<string, number>;
-        const newItens: Partial<ItemPedido>[] = [];
-        
-        Object.entries(prefilled).forEach(([produtoId, extraQtd]) => {
-          const produto = produtos.find(p => p.id === produtoId);
-          if (!produto) return;
+        try {
+          const prefilled = JSON.parse(saved) as Record<string, number>;
+          const newItens: Partial<ItemPedido>[] = [];
+          
+          // Calculate initial weight to get correct initial price range
+          let tempPesoTotal = 0;
+          Object.entries(prefilled).forEach(([produtoId, extraQtd]) => {
+            const produto = produtos.find(p => p.id === produtoId);
+            if (produto && extraQtd > 0) {
+              tempPesoTotal += extraQtd * produto.peso_embalagem;
+            }
+          });
 
-          if (extraQtd > 0) {
-            newItens.push({
-              produto_id: produtoId,
-              quantidade: extraQtd,
-              peso_total: extraQtd * produto.peso_embalagem,
-              valor_unitario: 0, // Will be updated by the price effect
-              valor_total: 0     // Will be updated by the price effect
-            });
-          }
-        });
-        setItens(newItens);
+          const tempFaixa = getFaixaPreco(Math.max(tempPesoTotal, pesoConquistado));
+
+          Object.entries(prefilled).forEach(([produtoId, extraQtd]) => {
+            const produto = produtos.find(p => p.id === produtoId);
+            if (!produto) return;
+
+            if (extraQtd > 0) {
+              const discount = getValorUnitario(produto, tempFaixa) || 0;
+              const unitario = produto.custo_und * (1 - discount);
+              const valorTotalItem = unitario * extraQtd * (produto.quant_embalagem || 1);
+
+              newItens.push({
+                produto_id: produtoId,
+                quantidade: extraQtd,
+                peso_total: extraQtd * produto.peso_embalagem,
+                valor_unitario: unitario,
+                valor_total: valorTotalItem
+              });
+            }
+          });
+          setItens(newItens);
+        } catch (e) {
+          console.error('Error parsing saved order:', e);
+          setItens([]);
+        }
       } else {
         setItens([]);
       }
       setIsReady(true);
       initialLoadDone.current = true;
     }
-  }, [loading, produtos, clienteId]);
+  }, [loading, produtos, clienteId, pesoConquistado]);
 
   // Persist items to localStorage
   useEffect(() => {
