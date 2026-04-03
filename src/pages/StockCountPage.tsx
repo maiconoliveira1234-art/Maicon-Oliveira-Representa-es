@@ -285,6 +285,16 @@ export function StockCountPage() {
     }
   }, [pedidoMap, clienteId, isReady]);
 
+  const handleClearAll = () => {
+    setEstoqueMap({});
+    setPedidoMap({});
+    setTouchedItems(new Set());
+    if (clienteId) {
+      localStorage.removeItem(`estoque_${clienteId}`);
+      localStorage.removeItem(`pedido_${clienteId}`);
+    }
+  };
+
   const handleSave = async () => {
     if (!clienteId) return;
     setSaving(true);
@@ -421,6 +431,12 @@ export function StockCountPage() {
               />
               <span className="text-xs font-bold text-neutral-600">Inativos</span>
             </label>
+            <button 
+              onClick={handleClearAll}
+              className="px-3 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors flex items-center gap-1"
+            >
+              <Trash2 size={14} /> Limpar
+            </button>
             <button 
               onClick={() => setShowCycle(!showCycle)}
               className={cn(
