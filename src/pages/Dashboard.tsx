@@ -45,6 +45,7 @@ import {
   parseISO, 
   isWithinInterval, 
   subDays, 
+  subYears,
   differenceInDays,
   startOfYear,
   eachMonthOfInterval,
@@ -78,12 +79,18 @@ type KpiData = {
 const COLORS = ['#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#f43f5e', '#eab308', '#06b6d4', '#ec4899'];
 
 // --- Helper Components ---
-const KpiCard: React.FC<{ kpi: KpiData }> = ({ kpi }) => {
+const KpiCard: React.FC<{ kpi: KpiData, onClick?: () => void }> = ({ kpi, onClick }) => {
   const variation = kpi.previousValue > 0 ? ((kpi.value - kpi.previousValue) / kpi.previousValue) * 100 : 0;
   const isPositive = variation >= 0;
 
   return (
-    <div className="bg-white p-3 rounded-2xl border border-neutral-200 shadow-sm hover:shadow-md transition-all">
+    <div 
+      onClick={onClick}
+      className={cn(
+        "bg-white p-3 rounded-2xl border border-neutral-200 shadow-sm hover:shadow-md transition-all",
+        onClick && "cursor-pointer hover:border-orange-300 active:scale-95"
+      )}
+    >
       <div className="flex justify-between items-start mb-2">
         <div className={cn("p-2 rounded-xl", {
           'bg-blue-50 text-blue-600': kpi.color === 'blue',
@@ -110,12 +117,12 @@ const KpiCard: React.FC<{ kpi: KpiData }> = ({ kpi }) => {
 };
 
 const ChartCard: React.FC<{ title: string, children: React.ReactNode, className?: string }> = ({ title, children, className }) => (
-  <div className={cn("bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm", className)}>
-    <h3 className="text-sm font-bold text-neutral-800 mb-6 uppercase tracking-tight flex items-center gap-2">
-      <div className="w-1.5 h-4 bg-orange-500 rounded-full" />
+  <div className={cn("bg-white p-3 rounded-2xl border border-neutral-200 shadow-sm flex flex-col h-full", className)}>
+    <h3 className="text-[11px] font-bold text-neutral-800 mb-2 uppercase tracking-tight flex items-center gap-2 shrink-0">
+      <div className="w-1 h-3 bg-orange-500 rounded-full" />
       {title}
     </h3>
-    <div className="h-[300px] w-full">
+    <div className="flex-1 w-full min-h-0">
       {children}
     </div>
   </div>
@@ -126,24 +133,37 @@ export function Dashboard() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [metas, setMetas] = useState<Record<string, number>>({});
-  const [historico, setHistorico] = useState<HistVenda[]>([]);
-  const [prevHistorico, setPrevHistorico] = useState<HistVenda[]>([]);
+  const [allSalesData, setAllSalesData] = useState<HistVenda[]>([]);
 
   // --- Filter State ---
+  const now = new Date();
   const [filters, setFilters] = useState<DashboardFilters>({
     clientIds: [],
     families: [],
     productIds: [],
-    year: 'all',
-    month: 'all',
-    startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
-    endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
+    year: now.getFullYear(),
+    month: now.getMonth() + 1,
+    startDate: format(startOfMonth(now), 'yyyy-MM-dd'),
+    endDate: format(endOfMonth(now), 'yyyy-MM-dd'),
     useCustomRange: false
   });
 
   const [showFilters, setShowFilters] = useState(false);
+  const [isFilterAnimationFinished, setIsFilterAnimationFinished] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
-  const [evolutionMetric, setEvolutionMetric] = useState<'value' | 'weight'>('value');
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [showFamilyDropdown, setShowFamilyDropdown] = useState(false);
+  const [evolutionMetric, setEvolutionMetric] = useState<'value' | 'weight'>('weight');
+  
+  // --- Chart Visibility State ---
+  const [visibleCharts, setVisibleCharts] = useState<string[]>(['monthly']);
+
+  const chartOptions = [
+    { id: 'monthly', label: 'Comparativo Mensal' },
+    { id: 'clients', label: 'Top 10 Clientes' },
+    { id: 'family', label: 'Faturamento por Família' },
+    { id: 'products', label: 'Top 10 Produtos' }
+  ];
 
   // --- Load Initial Data ---
   useEffect(() => {
@@ -173,43 +193,18 @@ export function Dashboard() {
     loadBaseData();
   }, []);
 
-  // --- Load Sales Data based on filters ---
+  // --- Load Sales Data (All History) ---
   useEffect(() => {
     async function loadSalesData() {
       setLoading(true);
       try {
-        let start: Date | null = null;
-        let end: Date | null = null;
-
-        if (filters.useCustomRange) {
-          start = parseISO(filters.startDate);
-          end = parseISO(filters.endDate);
-        } else if (filters.year === 'all') {
-          // No start/end filtering for year = 'all'
-        } else if (filters.month === 'all') {
-          start = startOfYear(new Date(filters.year, 0, 1));
-          end = endOfMonth(new Date(filters.year, 11, 31));
-        } else {
-          start = startOfMonth(new Date(filters.year, filters.month - 1, 1));
-          end = endOfMonth(new Date(filters.year, filters.month - 1, 1));
-        }
-
-        const duration = (start && end) ? differenceInDays(end, start) + 1 : 30;
-        const prevStart = start ? subDays(start, duration) : null;
-        const prevEnd = end ? subDays(end, duration) : null;
-
-        // Fetch current period
-        let query = supabase.from('hist_vendas').select('*');
-        if (start) query = query.gte('faturamento', start.toISOString());
-        if (end) query = query.lte('faturamento', end.toISOString());
-        const { data: currentData } = await query;
-
-        // Deduplicate data to prevent tripled values from accidental multiple imports
+        const { data } = await supabase.from('hist_vendas').select('*');
+        
+        // Deduplicate data
         const deduplicate = (data: HistVenda[] | null) => {
           if (!data) return [];
           const uniqueMap = new Map();
           data.forEach(h => {
-            // Create a unique key based on core fields
             const key = `${h.faturamento}-${h.cliente_id}-${h.produto_id || h.produtos}-${h.qtd}-${h["r$_total"]}`;
             if (!uniqueMap.has(key)) {
               uniqueMap.set(key, h);
@@ -218,19 +213,7 @@ export function Dashboard() {
           return Array.from(uniqueMap.values()) as HistVenda[];
         };
 
-        setHistorico(deduplicate(currentData));
-
-        // Fetch previous period
-        let prevData: HistVenda[] = [];
-        if (prevStart && prevEnd) {
-          const { data: previousData } = await supabase
-            .from('hist_vendas')
-            .select('*')
-            .gte('faturamento', prevStart.toISOString())
-            .lte('faturamento', prevEnd.toISOString());
-          prevData = deduplicate(previousData);
-        }
-        setPrevHistorico(prevData);
+        setAllSalesData(deduplicate(data));
       } catch (err) {
         console.error('Error loading sales data:', err);
       } finally {
@@ -238,7 +221,7 @@ export function Dashboard() {
       }
     }
     loadSalesData();
-  }, [filters.year, filters.month, filters.startDate, filters.endDate, filters.useCustomRange]);
+  }, []);
 
   // --- Derived Data & Filtering ---
   const produtosMap = useMemo(() => {
@@ -251,8 +234,82 @@ export function Dashboard() {
     return map;
   }, [produtos]);
 
-  const applyFilters = (data: HistVenda[]) => {
-    return data.filter(h => {
+  const filteredHistorico = useMemo(() => {
+    let start: Date | null = null;
+    let end: Date | null = null;
+
+    if (filters.useCustomRange) {
+      start = parseISO(filters.startDate);
+      end = parseISO(filters.endDate);
+    } else if (filters.year === 'all') {
+      // No start/end filtering
+    } else if (filters.month === 'all') {
+      start = startOfYear(new Date(filters.year, 0, 1));
+      end = endOfMonth(new Date(filters.year, 11, 31));
+    } else {
+      start = startOfMonth(new Date(filters.year, filters.month - 1, 1));
+      end = endOfMonth(new Date(filters.year, filters.month - 1, 1));
+    }
+
+    return allSalesData.filter(h => {
+      const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
+      if (!prod) return false;
+
+      const matchesClient = filters.clientIds.length === 0 || filters.clientIds.includes(h.cliente_id);
+      const matchesFamily = filters.families.length === 0 || filters.families.includes(prod.familia);
+      const matchesProduct = filters.productIds.length === 0 || (h.produto_id && filters.productIds.includes(h.produto_id));
+      
+      let matchesDate = true;
+      if (start || end) {
+        const d = parseISO(h.faturamento);
+        if (start && d < start) matchesDate = false;
+        if (end && d > end) matchesDate = false;
+      }
+
+      return matchesClient && matchesFamily && matchesProduct && matchesDate;
+    });
+  }, [allSalesData, filters, produtosMap]);
+
+  const filteredPrevHistorico = useMemo(() => {
+    let start: Date | null = null;
+    let end: Date | null = null;
+
+    if (filters.useCustomRange) {
+      start = parseISO(filters.startDate);
+      end = parseISO(filters.endDate);
+    } else if (filters.year === 'all') {
+      return [];
+    } else if (filters.month === 'all') {
+      start = startOfYear(new Date(filters.year, 0, 1));
+      end = endOfMonth(new Date(filters.year, 11, 31));
+    } else {
+      start = startOfMonth(new Date(filters.year, filters.month - 1, 1));
+      end = endOfMonth(new Date(filters.year, filters.month - 1, 1));
+    }
+
+    const prevStart = start ? subYears(start, 1) : null;
+    const prevEnd = end ? subYears(end, 1) : null;
+
+    if (!prevStart || !prevEnd) return [];
+
+    return allSalesData.filter(h => {
+      const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
+      if (!prod) return false;
+
+      const matchesClient = filters.clientIds.length === 0 || filters.clientIds.includes(h.cliente_id);
+      const matchesFamily = filters.families.length === 0 || filters.families.includes(prod.familia);
+      const matchesProduct = filters.productIds.length === 0 || (h.produto_id && filters.productIds.includes(h.produto_id));
+      
+      const d = parseISO(h.faturamento);
+      const matchesDate = d >= prevStart && d <= prevEnd;
+
+      return matchesClient && matchesFamily && matchesProduct && matchesDate;
+    });
+  }, [allSalesData, filters, produtosMap]);
+
+  // Full history filtered only by client/family/product (for Monthly Comparison)
+  const fullFilteredHistory = useMemo(() => {
+    return allSalesData.filter(h => {
       const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
       if (!prod) return false;
 
@@ -262,10 +319,7 @@ export function Dashboard() {
 
       return matchesClient && matchesFamily && matchesProduct;
     });
-  };
-
-  const filteredHistorico = useMemo(() => applyFilters(historico), [historico, filters, produtosMap]);
-  const filteredPrevHistorico = useMemo(() => applyFilters(prevHistorico), [prevHistorico, filters, produtosMap]);
+  }, [allSalesData, filters.clientIds, filters.families, filters.productIds, produtosMap]);
 
   // --- KPI Calculations ---
   const kpis = useMemo(() => {
@@ -304,7 +358,6 @@ export function Dashboard() {
     const data: KpiData[] = [
       { label: 'Faturamento', value: current.revenue, previousValue: prev.revenue, format: formatCurrency, icon: DollarSign, color: 'blue' },
       { label: 'Peso Total', value: current.weight, previousValue: prev.weight, format: formatWeight, icon: Package, color: 'orange' },
-      { label: 'Comissão', value: current.commission, previousValue: prev.commission, format: formatCurrency, icon: TrendingUp, color: 'green' },
       { label: 'Ticket Médio', value: ticketMedio, previousValue: prevTicketMedio, format: formatCurrency, icon: Users, color: 'purple' },
       { label: 'Positivação', value: current.clientsCount, previousValue: prev.clientsCount, format: (v) => `${v} Clientes`, icon: Check, color: 'indigo' },
       { label: 'Pedidos', value: current.ordersCount, previousValue: prev.ordersCount, format: (v) => `${v} Pedidos`, icon: ShoppingCart, color: 'cyan' },
@@ -323,7 +376,7 @@ export function Dashboard() {
       const entry: any = { name: monthName };
       
       years.forEach(year => {
-        const yearMonthData = filteredHistorico.filter(h => {
+        const yearMonthData = fullFilteredHistory.filter(h => {
           const d = parseISO(h.faturamento);
           return d.getFullYear() === year && d.getMonth() === monthIndex;
         });
@@ -343,35 +396,41 @@ export function Dashboard() {
   }, [filteredHistorico, produtosMap]);
 
   const revenueByClientData = useMemo(() => {
-    const map: Record<string, number> = {};
+    const map: Record<string, { value: number, weight: number }> = {};
     filteredHistorico.forEach(h => {
-      map[h.cliente] = (map[h.cliente] || 0) + h["r$_total"];
+      if (!map[h.cliente]) map[h.cliente] = { value: 0, weight: 0 };
+      const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
+      map[h.cliente].value += h["r$_total"];
+      map[h.cliente].weight += (h.qtd || 0) * (prod?.peso_embalagem || 0);
     });
     return Object.entries(map)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
+      .map(([name, data]) => ({ name, value: data.value, weight: data.weight }))
+      .sort((a, b) => evolutionMetric === 'value' ? b.value - a.value : b.weight - a.weight)
       .slice(0, 10);
-  }, [filteredHistorico]);
+  }, [filteredHistorico, evolutionMetric, produtosMap]);
 
   const revenueByFamilyData = useMemo(() => {
-    const map: Record<string, number> = {};
+    const map: Record<string, { value: number, weight: number }> = {};
     filteredHistorico.forEach(h => {
-      const prod = produtosMap[h.produto_id];
+      const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
       const family = prod?.familia || 'Outros';
-      map[family] = (map[family] || 0) + h["r$_total"];
+      if (!map[family]) map[family] = { value: 0, weight: 0 };
+      map[family].value += h["r$_total"];
+      map[family].weight += (h.qtd || 0) * (prod?.peso_embalagem || 0);
     });
     
     const sorted = Object.entries(map)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
+      .map(([name, data]) => ({ name, value: data.value, weight: data.weight }))
+      .sort((a, b) => evolutionMetric === 'value' ? b.value - a.value : b.weight - a.weight);
       
     if (sorted.length <= 9) return sorted;
     
     const top9 = sorted.slice(0, 9);
     const othersValue = sorted.slice(9).reduce((acc, curr) => acc + curr.value, 0);
+    const othersWeight = sorted.slice(9).reduce((acc, curr) => acc + curr.weight, 0);
     
-    return [...top9, { name: 'Outros', value: othersValue }];
-  }, [filteredHistorico, produtosMap]);
+    return [...top9, { name: 'Outros', value: othersValue, weight: othersWeight }];
+  }, [filteredHistorico, produtosMap, evolutionMetric]);
 
   const topProductsData = useMemo(() => {
     const map: Record<string, { revenue: number, weight: number }> = {};
@@ -398,24 +457,65 @@ export function Dashboard() {
   }, [filters]);
 
   return (
-    <div className="space-y-8 pb-12">
+    <div className="h-[calc(100vh-100px)] flex flex-col gap-3 overflow-hidden pb-4">
       {/* Header & Filters Toggle */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-2 shrink-0">
         <div>
-          <h2 className="text-2xl font-black text-neutral-900 tracking-tight">Análise Comercial</h2>
-          <p className="text-sm text-neutral-500 font-medium">Acompanhamento de performance e metas</p>
+          <h2 className="text-xl font-black text-neutral-900 tracking-tight">Análise Comercial</h2>
+          <p className="text-[10px] text-neutral-500 font-medium">Performance e metas</p>
         </div>
-        <button 
-          onClick={() => setShowFilters(!showFilters)}
-          className={cn(
-            "flex items-center gap-2 px-5 py-3 rounded-2xl font-bold transition-all shadow-sm",
-            showFilters ? "bg-neutral-900 text-white" : "bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50"
-          )}
-        >
-          <Filter size={18} />
-          <span>Filtros</span>
-          <ChevronDown size={16} className={cn("transition-transform", showFilters && "rotate-180")} />
-        </button>
+        
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => {
+              setShowFilters(!showFilters);
+              if (showFilters) setIsFilterAnimationFinished(false);
+            }}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all shadow-sm text-xs",
+              showFilters ? "bg-neutral-900 text-white" : "bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50"
+            )}
+          >
+            <Filter size={16} />
+            <span>Filtros</span>
+            <ChevronDown size={14} className={cn("transition-transform", showFilters && "rotate-180")} />
+          </button>
+
+          {/* Chart Selection Dropdown */}
+          <select 
+            value={visibleCharts[0]}
+            onChange={(e) => setVisibleCharts([e.target.value])}
+            className="bg-white border border-neutral-200 rounded-xl px-3 py-2 font-bold text-xs outline-none focus:ring-2 focus:ring-orange-500 shadow-sm"
+          >
+            {chartOptions.map(opt => (
+              <option key={opt.id} value={opt.id}>{opt.label}</option>
+            ))}
+          </select>
+
+          {/* Metric Toggle */}
+          <div className="flex bg-neutral-100 p-1 rounded-xl border border-neutral-200">
+            <button 
+              onClick={() => setEvolutionMetric('weight')}
+              className={cn(
+                "px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center gap-1.5",
+                evolutionMetric === 'weight' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+              )}
+            >
+              <Package size={12} />
+              Peso
+            </button>
+            <button 
+              onClick={() => setEvolutionMetric('value')}
+              className={cn(
+                "px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center gap-1.5",
+                evolutionMetric === 'value' ? "bg-white text-blue-600 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+              )}
+            >
+              <DollarSign size={12} />
+              Valor
+            </button>
+          </div>
+        </div>
       </header>
 
       {/* Filters Panel */}
@@ -425,41 +525,71 @@ export function Dashboard() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
+            onAnimationComplete={() => setIsFilterAnimationFinished(true)}
+            className={cn(
+              "relative z-[150]",
+              isFilterAnimationFinished ? "overflow-visible" : "overflow-hidden"
+            )}
           >
             <div className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-xl space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {/* Date Selection */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Período</label>
-                  <div className="flex gap-2">
-                    <select 
-                      value={filters.year}
-                      onChange={(e) => setFilters(prev => ({ ...prev, year: e.target.value === 'all' ? 'all' : parseInt(e.target.value), useCustomRange: false }))}
-                      className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
-                    >
-                      <option value="all">Todos os Anos</option>
-                      {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
-                    </select>
-                    <select 
-                      value={filters.month}
-                      onChange={(e) => setFilters(prev => ({ ...prev, month: e.target.value === 'all' ? 'all' : parseInt(e.target.value), useCustomRange: false }))}
-                      className="flex-[2] bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
-                    >
-                      <option value="all">Ano Inteiro</option>
-                      {Array.from({ length: 12 }).map((_, i) => (
-                        <option key={i + 1} value={i + 1}>
-                          {format(new Date(2024, i, 1), 'MMMM', { locale: ptBR })}
-                        </option>
-                      ))}
-                    </select>
+              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
+                <div className="flex flex-wrap gap-6 items-end flex-1">
+                  {/* Date Selection */}
+                  <div className="space-y-2 min-w-[240px]">
+                    <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Período</label>
+                    <div className="flex gap-2">
+                      <select 
+                        value={filters.year}
+                        onChange={(e) => setFilters(prev => ({ ...prev, year: e.target.value === 'all' ? 'all' : parseInt(e.target.value), useCustomRange: false }))}
+                        className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                      >
+                        <option value="all">Todos os Anos</option>
+                        {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+                      </select>
+                      <select 
+                        value={filters.month}
+                        onChange={(e) => setFilters(prev => ({ ...prev, month: e.target.value === 'all' ? 'all' : parseInt(e.target.value), useCustomRange: false }))}
+                        className="flex-[2] bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                      >
+                        <option value="all">Ano Inteiro</option>
+                        {Array.from({ length: 12 }).map((_, i) => (
+                          <option key={i + 1} value={i + 1}>
+                            {format(new Date(2024, i, 1), 'MMMM', { locale: ptBR })}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
+
+                  {filters.useCustomRange && (
+                    <div className="flex flex-wrap gap-4 flex-1">
+                      <div className="space-y-2 min-w-[140px] flex-1">
+                        <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Início</label>
+                        <input 
+                          type="date" 
+                          value={filters.startDate}
+                          onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
+                          className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                      </div>
+                      <div className="space-y-2 min-w-[140px] flex-1">
+                        <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Fim</label>
+                        <input 
+                          type="date" 
+                          value={filters.endDate}
+                          onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                          className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Custom Range Toggle */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Personalizado</label>
-                  <div className="flex items-center gap-3 h-[42px]">
+                <div className="space-y-2 min-w-[220px]">
+                  <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest lg:text-right block">Personalizado</label>
+                  <div className="flex items-center justify-between h-[42px] bg-neutral-50 px-4 rounded-xl border border-neutral-200">
+                    <span className="text-sm font-bold text-neutral-600">Usar datas específicas</span>
                     <button 
                       onClick={() => setFilters(prev => ({ ...prev, useCustomRange: !prev.useCustomRange }))}
                       className={cn(
@@ -472,100 +602,131 @@ export function Dashboard() {
                         filters.useCustomRange ? "left-7" : "left-1"
                       )} />
                     </button>
-                    <span className="text-sm font-bold text-neutral-600">Usar datas específicas</span>
                   </div>
                 </div>
-
-                {filters.useCustomRange && (
-                  <>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Início</label>
-                      <input 
-                        type="date" 
-                        value={filters.startDate}
-                        onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
-                        className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Fim</label>
-                      <input 
-                        type="date" 
-                        value={filters.endDate}
-                        onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
-                        className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                  </>
-                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-neutral-100">
                 {/* Client Multi-select */}
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Clientes ({filters.clientIds.length})</label>
-                  <div className="relative group">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={16} />
-                    <input 
-                      type="text"
-                      placeholder="Buscar clientes..."
-                      value={clientSearch}
-                      onChange={(e) => setClientSearch(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-orange-500"
-                    />
-                    {clientSearch && (
-                      <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl z-50 max-h-60 overflow-y-auto p-2">
-                        {clientes
-                          .filter(c => c.cliente.toLowerCase().includes(clientSearch.toLowerCase()))
-                          .map(c => (
-                            <button
-                              key={c.id}
-                              onClick={() => {
-                                setFilters(prev => ({
-                                  ...prev,
-                                  clientIds: prev.clientIds.includes(c.id) 
-                                    ? prev.clientIds.filter(id => id !== c.id)
-                                    : [...prev.clientIds, c.id]
-                                }));
-                              }}
-                              className="w-full text-left px-3 py-2 rounded-lg hover:bg-neutral-50 flex items-center justify-between text-sm font-medium"
-                            >
-                              <span>{c.cliente}</span>
-                              {filters.clientIds.includes(c.id) && <Check size={14} className="text-orange-500" />}
-                            </button>
-                          ))}
-                      </div>
-                    )}
+                  <div className="relative">
+                    <button 
+                      onClick={() => setShowClientDropdown(!showClientDropdown)}
+                      className="w-full flex items-center justify-between px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
+                    >
+                      <span className="truncate">
+                        {filters.clientIds.length === 0 ? "Selecionar Clientes" : `${filters.clientIds.length} selecionados`}
+                      </span>
+                      <ChevronDown size={16} className={cn("transition-transform", showClientDropdown && "rotate-180")} />
+                    </button>
+                    
+                    <AnimatePresence>
+                      {showClientDropdown && (
+                        <>
+                          <div className="fixed inset-0 z-[60]" onClick={() => setShowClientDropdown(false)} />
+                          <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 10 }}
+                            className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl z-[70] max-h-64 flex flex-col overflow-hidden"
+                          >
+                            <div className="p-2 border-b border-neutral-100">
+                              <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={14} />
+                                <input 
+                                  type="text"
+                                  placeholder="Buscar..."
+                                  value={clientSearch}
+                                  onChange={(e) => setClientSearch(e.target.value)}
+                                  className="w-full pl-9 pr-4 py-1.5 bg-neutral-50 border border-neutral-100 rounded-lg text-xs font-medium outline-none focus:ring-2 focus:ring-orange-500"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-1">
+                              {clientes
+                                .filter(c => c.cliente.toLowerCase().includes(clientSearch.toLowerCase()))
+                                .map(c => (
+                                  <button
+                                    key={c.id}
+                                    onClick={() => {
+                                      setFilters(prev => ({
+                                        ...prev,
+                                        clientIds: prev.clientIds.includes(c.id) 
+                                          ? prev.clientIds.filter(id => id !== c.id)
+                                          : [...prev.clientIds, c.id]
+                                      }));
+                                    }}
+                                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-neutral-50 flex items-center gap-3 text-sm font-medium"
+                                  >
+                                    <div className={cn(
+                                      "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+                                      filters.clientIds.includes(c.id) ? "bg-orange-500 border-orange-500" : "border-neutral-300"
+                                    )}>
+                                      {filters.clientIds.includes(c.id) && <Check size={10} className="text-white" strokeWidth={4} />}
+                                    </div>
+                                    <span className="truncate">{c.cliente}</span>
+                                  </button>
+                                ))}
+                            </div>
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
                   </div>
-                  {filters.clientIds.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {filters.clientIds.slice(0, 3).map(id => (
-                        <span key={id} className="bg-orange-50 text-orange-600 text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
-                          {clientes.find(c => c.id === id)?.cliente.split(' ')[0]}
-                          <X size={10} className="cursor-pointer" onClick={() => setFilters(prev => ({ ...prev, clientIds: prev.clientIds.filter(i => i !== id) }))} />
-                        </span>
-                      ))}
-                      {filters.clientIds.length > 3 && <span className="text-[10px] font-bold text-neutral-400">+{filters.clientIds.length - 3}</span>}
-                    </div>
-                  )}
                 </div>
 
                 {/* Family Filter */}
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Família</label>
-                  <select 
-                    multiple
-                    value={filters.families}
-                    onChange={(e) => {
-                      const values = Array.from(e.target.selectedOptions, (option) => (option as HTMLOptionElement).value);
-                      setFilters(prev => ({ ...prev, families: values }));
-                    }}
-                    className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500 h-[42px]"
-                  >
-                    {Array.from(new Set(produtos.map(p => p.familia))).map(f => (
-                      <option key={f} value={f}>{f}</option>
-                    ))}
-                  </select>
+                  <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Família ({filters.families.length})</label>
+                  <div className="relative">
+                    <button 
+                      onClick={() => setShowFamilyDropdown(!showFamilyDropdown)}
+                      className="w-full flex items-center justify-between px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
+                    >
+                      <span className="truncate">
+                        {filters.families.length === 0 ? "Selecionar Famílias" : `${filters.families.length} selecionadas`}
+                      </span>
+                      <ChevronDown size={16} className={cn("transition-transform", showFamilyDropdown && "rotate-180")} />
+                    </button>
+                    
+                    <AnimatePresence>
+                      {showFamilyDropdown && (
+                        <>
+                          <div className="fixed inset-0 z-[60]" onClick={() => setShowFamilyDropdown(false)} />
+                          <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 10 }}
+                            className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl z-[70] max-h-64 overflow-y-auto p-1"
+                          >
+                            {Array.from(new Set(produtos.map(p => p.familia))).map(f => (
+                              <button
+                                key={f}
+                                onClick={() => {
+                                  setFilters(prev => ({
+                                    ...prev,
+                                    families: prev.families.includes(f) 
+                                      ? prev.families.filter(id => id !== f)
+                                      : [...prev.families, f]
+                                  }));
+                                }}
+                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-neutral-50 flex items-center gap-3 text-sm font-medium"
+                              >
+                                <div className={cn(
+                                  "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+                                  filters.families.includes(f) ? "bg-orange-500 border-orange-500" : "border-neutral-300"
+                                )}>
+                                  {filters.families.includes(f) && <Check size={10} className="text-white" strokeWidth={4} />}
+                                </div>
+                                <span className="truncate">{f}</span>
+                              </button>
+                            ))}
+                          </motion.div>
+                        </>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
 
                 {/* Reset Button */}
@@ -596,136 +757,163 @@ export function Dashboard() {
       </AnimatePresence>
 
       {/* KPI Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 shrink-0">
         {kpis.map((kpi, i) => (
-          <KpiCard key={i} kpi={kpi} />
+          <KpiCard 
+            key={i} 
+            kpi={kpi} 
+          />
         ))}
       </div>
 
       {/* Main Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Monthly Revenue & Commission */}
-        <ChartCard 
-          title={`Comparativo Mensal: ${evolutionMetric === 'value' ? 'Faturamento (R$)' : 'Peso (Kg)'}`} 
-          className="lg:col-span-2"
-        >
-          <div className="absolute top-6 right-6 flex bg-neutral-100 p-1 rounded-lg z-10">
-            <button 
-              onClick={() => setEvolutionMetric('value')}
-              className={cn("px-3 py-1 text-[10px] font-bold rounded-md transition-all", evolutionMetric === 'value' ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500")}
+      <div className="flex-1 min-h-0">
+        <div className={cn(
+          "grid gap-4 h-full",
+          visibleCharts.length === 1 ? "grid-cols-1 grid-rows-1" : 
+          visibleCharts.length === 2 ? "grid-cols-1 lg:grid-cols-2 grid-rows-1" :
+          "grid-cols-1 lg:grid-cols-2 grid-rows-2"
+        )}>
+          {/* Monthly Revenue & Commission */}
+          {visibleCharts.includes('monthly') && (
+            <ChartCard 
+              title={`Comparativo Mensal: ${evolutionMetric === 'value' ? 'Faturamento (R$)' : 'Peso (Kg)'}`} 
+              className={cn(visibleCharts.length === 1 || visibleCharts.length === 3 ? "lg:col-span-2" : "")}
             >
-              Valor
-            </button>
-            <button 
-              onClick={() => setEvolutionMetric('weight')}
-              className={cn("px-3 py-1 text-[10px] font-bold rounded-md transition-all", evolutionMetric === 'weight' ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500")}
-            >
-              Peso
-            </button>
-          </div>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={monthlyRevenueData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#a3a3a3' }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#a3a3a3' }} />
-              <Tooltip 
-                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}
-                formatter={(value: any) => evolutionMetric === 'value' ? formatCurrency(value) : formatWeight(value)}
-              />
-              <Legend verticalAlign="top" align="center" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '10px', fontWeight: 700 }} />
-              <Bar 
-                dataKey={`${evolutionMetric === 'value' ? 'faturamento' : 'peso'}_2024`} 
-                name="2024" 
-                fill="#3b82f6" 
-                radius={[4, 4, 0, 0]} 
-                barSize={20}
-              />
-              <Bar 
-                dataKey={`${evolutionMetric === 'value' ? 'faturamento' : 'peso'}_2025`} 
-                name="2025" 
-                fill="#f97316" 
-                radius={[4, 4, 0, 0]} 
-                barSize={20}
-              />
-              <Bar 
-                dataKey={`${evolutionMetric === 'value' ? 'faturamento' : 'peso'}_2026`} 
-                name="2026" 
-                fill="#10b981" 
-                radius={[4, 4, 0, 0]} 
-                barSize={20}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthlyRevenueData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#a3a3a3' }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#a3a3a3' }} />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '10px' }}
+                    formatter={(value: any) => evolutionMetric === 'value' ? formatCurrency(value) : formatWeight(value)}
+                  />
+                  <Legend verticalAlign="top" align="center" iconType="circle" wrapperStyle={{ paddingBottom: '10px', fontSize: '9px', fontWeight: 700 }} />
+                  <Bar 
+                    dataKey={`${evolutionMetric === 'value' ? 'faturamento' : 'peso'}_2024`} 
+                    name="2024" 
+                    fill="#3b82f6" 
+                    radius={[2, 2, 0, 0]} 
+                    barSize={20}
+                  />
+                  <Bar 
+                    dataKey={`${evolutionMetric === 'value' ? 'faturamento' : 'peso'}_2025`} 
+                    name="2025" 
+                    fill="#f97316" 
+                    radius={[2, 2, 0, 0]} 
+                    barSize={20}
+                  />
+                  <Bar 
+                    dataKey={`${evolutionMetric === 'value' ? 'faturamento' : 'peso'}_2026`} 
+                    name="2026" 
+                    fill="#10b981" 
+                    radius={[2, 2, 0, 0]} 
+                    barSize={20}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          )}
 
-        {/* Revenue by Client */}
-        <ChartCard title={`Top 10 Clientes (${periodLabel})`}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={revenueByClientData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
-              <XAxis type="number" hide />
-              <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={120} tick={{ fontSize: 9, fontWeight: 700, fill: '#737373' }} />
-              <Tooltip 
-                cursor={{ fill: '#f8fafc' }}
-                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 20px rgba(0,0,0,0.05)' }}
-                formatter={(value: any) => formatCurrency(value)}
-              />
-              <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+          {/* Revenue by Client */}
+          {visibleCharts.includes('clients') && (
+            <ChartCard title={`Top 10 Clientes (${periodLabel})`}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={revenueByClientData} layout="vertical" margin={{ top: 0, right: 30, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={80} tick={{ fontSize: 8, fontWeight: 700, fill: '#737373' }} />
+                  <Tooltip 
+                    cursor={{ fill: '#f8fafc' }}
+                    contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 10px 20px rgba(0,0,0,0.05)', fontSize: '10px' }}
+                    formatter={(value: any) => evolutionMetric === 'value' ? formatCurrency(value) : formatWeight(value)}
+                  />
+                  <Bar dataKey={evolutionMetric} fill="#3b82f6" radius={[0, 2, 2, 0]} barSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          )}
 
-        {/* Revenue by Family */}
-        <ChartCard title="Faturamento por Família">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={revenueByFamilyData}
-                cx="40%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={100}
-                paddingAngle={5}
-                dataKey="value"
-              >
-                {revenueByFamilyData.map((_, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip 
-                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 20px rgba(0,0,0,0.05)' }}
-                formatter={(value: any) => formatCurrency(value)}
-              />
-              <Legend 
-                layout="vertical" 
-                align="right" 
-                verticalAlign="middle" 
-                iconType="circle" 
-                wrapperStyle={{ fontSize: '10px', fontWeight: 700, paddingLeft: '20px' }} 
-                formatter={(value: string) => {
-                  const item = revenueByFamilyData.find(d => d.name === value);
-                  return `${value}: ${formatCurrency(item?.value || 0)}`;
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartCard>
+          {/* Revenue by Family */}
+          {visibleCharts.includes('family') && (
+            <ChartCard title={`${evolutionMetric === 'value' ? 'Faturamento' : 'Peso'} por Família`}>
+              <div className="flex h-full items-center gap-4">
+                <div className="flex-1 h-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={revenueByFamilyData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius="45%"
+                        outerRadius="85%"
+                        paddingAngle={5}
+                        dataKey={evolutionMetric}
+                      >
+                        {revenueByFamilyData.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 10px 20px rgba(0,0,0,0.05)', fontSize: '10px' }}
+                        formatter={(value: any) => evolutionMetric === 'value' ? formatCurrency(value) : formatWeight(value)}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                
+                <div className="w-[240px] max-h-full overflow-y-auto shrink-0 pr-2">
+                  <table className="w-full text-[11px] font-bold text-neutral-600 border-collapse">
+                    <thead>
+                      <tr className="border-b border-neutral-100">
+                        <th className="text-left py-1 font-black text-neutral-400 uppercase tracking-tighter pr-4">Família</th>
+                        <th className="text-right py-1 font-black text-neutral-400 uppercase tracking-tighter">
+                          {evolutionMetric === 'value' ? 'Valor' : 'Peso'}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...revenueByFamilyData]
+                        .sort((a, b) => (b[evolutionMetric] || 0) - (a[evolutionMetric] || 0))
+                        .map((entry, index) => (
+                          <tr key={`item-${index}`} className="border-b border-neutral-50 last:border-0 hover:bg-neutral-50 transition-colors">
+                            <td className="py-1.5 flex items-center gap-2 pr-4">
+                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[revenueByFamilyData.indexOf(entry) % COLORS.length] }} />
+                              <span className="truncate max-w-[120px]">{entry.name}</span>
+                            </td>
+                            <td className="py-1.5 text-right text-neutral-900 whitespace-nowrap">
+                              {evolutionMetric === 'value' 
+                                ? formatCurrency(entry.value) 
+                                : formatWeight(entry.weight)}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </ChartCard>
+          )}
 
-        {/* Top Products */}
-        <ChartCard title="Top 10 Produtos (Volume kg)" className="lg:col-span-2">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={topProductsData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
-              <XAxis type="number" hide />
-              <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={150} tick={{ fontSize: 9, fontWeight: 700, fill: '#737373' }} />
-              <Tooltip 
-                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 20px rgba(0,0,0,0.05)' }}
-                formatter={(value: any) => formatWeight(value)}
-              />
-              <Bar dataKey="weight" fill="#f97316" radius={[0, 4, 4, 0]} barSize={20} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+          {/* Top Products */}
+          {visibleCharts.includes('products') && (
+            <ChartCard title={`Top 10 Produtos (${evolutionMetric === 'value' ? 'R$' : 'kg'})`} className={cn(visibleCharts.length === 1 || (visibleCharts.length === 3 && !visibleCharts.includes('monthly')) ? "lg:col-span-2" : "")}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={topProductsData} layout="vertical" margin={{ top: 0, right: 30, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={100} tick={{ fontSize: 8, fontWeight: 700, fill: '#737373' }} />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 10px 20px rgba(0,0,0,0.05)', fontSize: '10px' }}
+                    formatter={(value: any) => evolutionMetric === 'value' ? formatCurrency(value) : formatWeight(value)}
+                  />
+                  <Bar dataKey={evolutionMetric === 'value' ? 'revenue' : 'weight'} fill="#f97316" radius={[0, 2, 2, 0]} barSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          )}
+        </div>
       </div>
 
       {/* Loading Overlay */}

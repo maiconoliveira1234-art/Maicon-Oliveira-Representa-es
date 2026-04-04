@@ -680,6 +680,26 @@ export function OrderPage() {
                   <ChevronDown size={20} />
                 </div>
               </div>
+
+              {/* Installment details display on screen */}
+              {selectedPrazo && selectedPrazo !== 'À Vista' && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex gap-4 p-3 bg-orange-50 border border-orange-100 rounded-xl"
+                >
+                  <div className="flex-1">
+                    <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">Valor por Boleto</p>
+                    <p className="text-sm font-black text-neutral-900">{formatCurrency(installmentDetails.valorBoleto)}</p>
+                  </div>
+                  <div className="flex-1 text-right">
+                    <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">1º Vencimento (Est.)</p>
+                    <p className="text-sm font-black text-neutral-900">
+                      {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
             </div>
 
             {/* Action Buttons */}
