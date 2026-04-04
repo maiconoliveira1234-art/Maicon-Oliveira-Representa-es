@@ -6,6 +6,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
+import { Reports } from './pages/Reports';
 import { ClientsPage } from './pages/ClientsPage';
 import { PriceInquiryPage } from './pages/PriceInquiryPage';
 import { ClienteDetail } from './pages/ClienteDetail';
@@ -21,6 +22,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<ClientsPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/relatorios" element={<Reports />} />
           <Route path="/clientes" element={<Navigate to="/" replace />} />
           <Route path="/consulta-preco" element={<PriceInquiryPage />} />
           <Route path="/cliente/:id" element={<ClienteDetail />} />
