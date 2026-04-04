@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Cliente } from '../types';
 import { Loader2, Search, UserCheck, UserX, ChevronRight, Calendar, Filter } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, deduplicateSales } from '../lib/utils';
 import { differenceInDays, parseISO } from 'date-fns';
 
 export function ClientsPage() {
-  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [clientes, setClientes] = useState<(Cliente & { ultima_compra_peso?: number })[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showInactive, setShowInactive] = useState(false);
@@ -17,26 +17,40 @@ export function ClientsPage() {
   useEffect(() => {
     async function fetchClientes() {
       try {
-        const [clientesRes, histRes] = await Promise.all([
+        const [clientesRes, produtosRes, histRes] = await Promise.all([
           supabase.from('clientes').select('*').order('cliente'),
-          supabase.from('hist_vendas').select('cliente_id, faturamento').order('faturamento', { ascending: false })
+          supabase.from('produtos').select('id, peso_embalagem'),
+          supabase.from('hist_vendas').select('cliente_id, faturamento, produto_id, qtd').order('faturamento', { ascending: false })
         ]);
         
         if (clientesRes.error) throw clientesRes.error;
 
-        const latestSalesMap: Record<string, string> = {};
+        const productWeights: Record<string, number> = {};
+        produtosRes.data?.forEach(p => {
+          productWeights[p.id] = p.peso_embalagem || 0;
+        });
+
+        const latestSalesMap: Record<string, { date: string, weight: number }> = {};
         if (histRes.data) {
-          histRes.data.forEach(h => {
+          const uniqueSales = deduplicateSales(histRes.data);
+          uniqueSales.forEach(h => {
+            const weight = (h.qtd || 0) * (productWeights[h.produto_id] || 0);
             if (!latestSalesMap[h.cliente_id]) {
-              latestSalesMap[h.cliente_id] = h.faturamento;
+              latestSalesMap[h.cliente_id] = { date: h.faturamento, weight: weight };
+            } else if (latestSalesMap[h.cliente_id].date === h.faturamento) {
+              latestSalesMap[h.cliente_id].weight += weight;
             }
           });
         }
 
-        const enrichedClientes = (clientesRes.data || []).map(c => ({
-          ...c,
-          ultima_compra: c.ultima_compra || latestSalesMap[c.id]
-        }));
+        const enrichedClientes = (clientesRes.data || []).map(c => {
+          const lastSale = latestSalesMap[c.id];
+          return {
+            ...c,
+            ultima_compra: c.ultima_compra || lastSale?.date,
+            ultima_compra_peso: lastSale?.weight || 0
+          };
+        });
 
         setClientes(enrichedClientes);
       } catch (err) {
@@ -71,6 +85,19 @@ export function ClientsPage() {
     const matchesRepurchase = filterRepurchase ? isWithinRepurchase(c) : true;
     
     return matchesSearch && matchesStatus && matchesRepurchase;
+  }).sort((a, b) => {
+    if (filterRepurchase) {
+      const dateA = a.ultima_compra || '9999-99-99';
+      const dateB = b.ultima_compra || '9999-99-99';
+      
+      if (dateA !== dateB) {
+        return dateA.localeCompare(dateB); // Oldest first
+      }
+      
+      // If same date, largest weight first
+      return (b.ultima_compra_peso || 0) - (a.ultima_compra_peso || 0);
+    }
+    return 0; // Keep original order (by name from Supabase)
   });
 
   if (loading) {
@@ -159,7 +186,18 @@ export function ClientsPage() {
                     <p className="text-xs text-neutral-500">{cliente.cidade}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-4">
+                  {filterRepurchase && cliente.ultima_compra && (
+                    <div className="text-right">
+                      <p className="text-sm font-black text-orange-600">
+                        {differenceInDays(new Date(), parseISO(cliente.ultima_compra))} dias
+                      </p>
+                      <p className="text-[10px] font-bold text-neutral-400 uppercase">
+                        {Math.round(cliente.ultima_compra_peso || 0)}kg
+                      </p>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
                   {!cliente.ativo && (
                     <span className="text-[10px] font-bold uppercase px-2 py-0.5 bg-neutral-100 text-neutral-500 rounded-full">
                       Inativo
@@ -167,7 +205,8 @@ export function ClientsPage() {
                   )}
                   <ChevronRight size={18} className="text-neutral-300 group-hover:text-orange-500 transition-colors" />
                 </div>
-              </button>
+              </div>
+            </button>
             ))
           ) : (
             <div className="p-12 text-center text-neutral-400">

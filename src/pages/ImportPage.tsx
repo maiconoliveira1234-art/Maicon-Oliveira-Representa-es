@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Cliente, Produto, HistVenda } from '../types';
 import { Loader2, FileUp, Save, AlertCircle, CheckCircle2, Trash2 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, deduplicateSales } from '../lib/utils';
 import { format } from 'date-fns';
 
 interface RawRow {
@@ -161,7 +161,7 @@ export function ImportPage() {
     try {
       const selectedCliente = clientes.find(c => c.id === selectedClienteId);
       
-      const dataToInsert = validRowsToSave.map(row => {
+      const dataToInsert = deduplicateSales(validRowsToSave.map(row => {
         // Try to find product ID by name
         const matchedProduto = produtos.find(p => p.produto.toLowerCase() === row.produto.toLowerCase());
         
@@ -184,7 +184,7 @@ export function ImportPage() {
         }
         
         return record;
-      });
+      }));
 
       const { error: insertError } = await supabase
         .from('hist_vendas')

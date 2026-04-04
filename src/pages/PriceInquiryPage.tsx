@@ -4,6 +4,7 @@ import { Produto, PrecoFaixa } from '../types';
 import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle, Users } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toJpeg } from 'html-to-image';
+import { FilterDropdown } from '../components/FilterDropdown';
 
 export function PriceInquiryPage() {
   const [produtos, setProdutos] = useState<Produto[]>([]);
@@ -263,36 +264,36 @@ export function PriceInquiryPage() {
           />
         </div>
         <div className="relative">
-          <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" size={20} />
-          <select
-            value={selectedFamily}
-            onChange={(e) => {
-              setSelectedFamily(e.target.value);
+          <FilterDropdown 
+            label="Todas as Famílias"
+            options={[
+              { id: 'all', label: 'Todas as Famílias' },
+              ...families.map(f => ({ id: f, label: f }))
+            ]}
+            selected={selectedFamily}
+            onChange={(value) => {
+              setSelectedFamily(value);
               setSearchTerm('');
             }}
-            className="w-full pl-12 pr-4 py-3 bg-white border border-neutral-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all appearance-none"
-          >
-            <option value="all">Todas as Famílias</option>
-            {families.map(f => (
-              <option key={f} value={f}>{f}</option>
-            ))}
-          </select>
+            placeholder="Buscar família..."
+            icon={<Filter size={20} />}
+          />
         </div>
         <div className="relative">
-          <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" size={20} />
-          <select
-            value={selectedClient}
-            onChange={(e) => {
-              setSelectedClient(e.target.value);
+          <FilterDropdown 
+            label="Todos os Clientes"
+            options={[
+              { id: 'all', label: 'Todos os Clientes' },
+              ...clients.map(c => ({ id: c, label: c }))
+            ]}
+            selected={selectedClient}
+            onChange={(value) => {
+              setSelectedClient(value);
               setSearchTerm('');
             }}
-            className="w-full pl-12 pr-4 py-3 bg-white border border-neutral-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all appearance-none"
-          >
-            <option value="all">Todos os Clientes</option>
-            {clients.map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+            placeholder="Buscar cliente..."
+            icon={<Users size={20} />}
+          />
         </div>
         <div className="relative">
           <CheckSquare className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" size={20} />

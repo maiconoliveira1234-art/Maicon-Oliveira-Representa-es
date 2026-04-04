@@ -36,7 +36,7 @@ import {
 } from 'recharts';
 import { supabase } from '../lib/supabase';
 import { Cliente, Produto, HistVenda } from '../types';
-import { cn, formatCurrency, formatWeight } from '../lib/utils';
+import { cn, formatCurrency, formatWeight, deduplicateSales } from '../lib/utils';
 import { 
   startOfMonth, 
   endOfMonth, 
@@ -199,21 +199,7 @@ export function Dashboard() {
       setLoading(true);
       try {
         const { data } = await supabase.from('hist_vendas').select('*');
-        
-        // Deduplicate data
-        const deduplicate = (data: HistVenda[] | null) => {
-          if (!data) return [];
-          const uniqueMap = new Map();
-          data.forEach(h => {
-            const key = `${h.faturamento}-${h.cliente_id}-${h.produto_id || h.produtos}-${h.qtd}-${h["r$_total"]}`;
-            if (!uniqueMap.has(key)) {
-              uniqueMap.set(key, h);
-            }
-          });
-          return Array.from(uniqueMap.values()) as HistVenda[];
-        };
-
-        setAllSalesData(deduplicate(data));
+        setAllSalesData(deduplicateSales(data || []));
       } catch (err) {
         console.error('Error loading sales data:', err);
       } finally {
