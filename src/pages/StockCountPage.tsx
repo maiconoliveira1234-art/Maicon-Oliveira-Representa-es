@@ -537,6 +537,8 @@ export function StockCountPage() {
                       </button>
                       <input 
                         type="number" 
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         className={cn(
                           "w-9 border rounded py-1 text-center font-black outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[12px]",
                           isBelowIdeal ? "bg-red-100 border-red-200 text-red-700" : "bg-orange-50 border-orange-100 text-orange-700"
@@ -576,6 +578,8 @@ export function StockCountPage() {
                     </button>
                     <input 
                       type="number" 
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       className="w-9 bg-green-50 border border-green-100 rounded py-1 text-center font-black text-green-700 outline-none focus:ring-1 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[12px]"
                       value={pedidoMap[item.produto_id] || ''}
                       onChange={(e) => updatePedido(item.produto_id, e.target.value)}

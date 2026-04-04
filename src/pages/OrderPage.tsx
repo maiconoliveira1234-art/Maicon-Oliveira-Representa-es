@@ -632,6 +632,8 @@ export function OrderPage() {
                       </button>
                       <input 
                         type="number" 
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         className="w-10 text-center font-bold text-neutral-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         value={item.quantidade || ''}
                         onChange={(e) => updateItem(item.produto_id!, parseInt(e.target.value) || 0)}

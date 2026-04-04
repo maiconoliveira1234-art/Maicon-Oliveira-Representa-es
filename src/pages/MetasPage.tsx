@@ -545,6 +545,8 @@ export function MetasPage() {
                   <div className="relative flex items-center">
                     <input
                       type="number"
+                      inputMode="decimal"
+                      pattern="[0-9]*[.,]?[0-9]*"
                       defaultValue={row.meta}
                       onBlur={(e) => {
                         const val = parseFloat(e.target.value);
