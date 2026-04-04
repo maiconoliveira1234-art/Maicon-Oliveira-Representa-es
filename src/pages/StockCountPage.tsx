@@ -15,7 +15,8 @@ import {
   FileText,
   Trash2
 } from 'lucide-react';
-import { toJpeg } from 'html-to-image';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { Cliente, Produto, EstoqueCliente, HistVenda } from '../types';
 import { supabase } from '../lib/supabase';
 import { cn, formatWeight, formatCurrency } from '../lib/utils';
@@ -354,18 +355,30 @@ export function StockCountPage() {
     }
   };
 
-  const handleExportImage = async () => {
+  const handleExportPDF = async () => {
     if (!exportRef.current) return;
     
     try {
-      const dataUrl = await toJpeg(exportRef.current, { quality: 0.95, backgroundColor: '#ffffff' });
-      const link = document.createElement('a');
-      link.download = `contagem-${cliente?.cliente || 'cliente'}-${new Date().toLocaleDateString()}.jpeg`;
-      link.href = dataUrl;
-      link.click();
+      const canvas = await html2canvas(exportRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        windowWidth: 800
+      });
+      
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: [canvas.width, canvas.height]
+      });
+
+      pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+      const fileName = `contagem-${cliente?.cliente || 'cliente'}-${new Date().toLocaleDateString()}.pdf`;
+      pdf.save(fileName);
     } catch (err) {
-      console.error('Erro ao exportar imagem:', err);
-      alert('Erro ao exportar imagem.');
+      console.error('Erro ao exportar PDF:', err);
+      alert('Erro ao exportar PDF.');
     }
   };
 
@@ -586,9 +599,9 @@ export function StockCountPage() {
       {/* Floating Buttons */}
       <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-lg px-4 flex gap-2">
         <button 
-          onClick={handleExportImage}
+          onClick={handleExportPDF}
           className="bg-neutral-800 text-white p-4 rounded-2xl font-bold shadow-2xl flex items-center justify-center gap-2 hover:bg-neutral-900 transition-all active:scale-95"
-          title="Exportar Imagem"
+          title="Exportar PDF"
         >
           <Download size={20} />
         </button>

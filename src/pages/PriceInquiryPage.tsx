@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase';
 import { Produto, PrecoFaixa } from '../types';
 import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle, Users } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { toJpeg } from 'html-to-image';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { FilterDropdown } from '../components/FilterDropdown';
 
 export function PriceInquiryPage() {
@@ -167,12 +168,24 @@ export function PriceInquiryPage() {
 
     setExporting(true);
     try {
-      const dataUrl = await toJpeg(exportRef.current, { quality: 0.95, backgroundColor: '#fff' });
+      const canvas = await html2canvas(exportRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        windowWidth: 800
+      });
       
-      // Convert dataUrl to a File object for sharing
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-      const file = new File([blob], `lista-precos-${new Date().getTime()}.jpeg`, { type: 'image/jpeg' });
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: [canvas.width, canvas.height]
+      });
+
+      pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+      const pdfBlob = pdf.output('blob');
+      const fileName = `lista-precos-${new Date().getTime()}.pdf`;
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
       // Check if sharing is supported
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -185,26 +198,19 @@ export function PriceInquiryPage() {
         } catch (shareErr) {
           // If user cancels or share fails, fallback to download
           if ((shareErr as Error).name !== 'AbortError') {
-            triggerDownload(dataUrl);
+            pdf.save(fileName);
           }
         }
       } else {
         // Fallback to download if sharing is not supported
-        triggerDownload(dataUrl);
+        pdf.save(fileName);
       }
     } catch (err) {
-      console.error('Erro ao exportar imagem:', err);
-      alert('Erro ao exportar imagem. Tente novamente.');
+      console.error('Erro ao exportar PDF:', err);
+      alert('Erro ao exportar PDF. Tente novamente.');
     } finally {
       setExporting(false);
     }
-  };
-
-  const triggerDownload = (dataUrl: string) => {
-    const link = document.createElement('a');
-    link.download = `lista-precos-${new Date().getTime()}.jpeg`;
-    link.href = dataUrl;
-    link.click();
   };
 
   const selectedProductsList = useMemo(() => {

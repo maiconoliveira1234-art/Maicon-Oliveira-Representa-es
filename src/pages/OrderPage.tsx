@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { toJpeg } from 'html-to-image';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { 
   ArrowLeft, 
   ShoppingCart, 
@@ -439,15 +440,24 @@ export function OrderPage() {
         // Wait a bit for the DOM to be ready and styles to apply
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        const dataUrl = await toJpeg(receiptRef.current, {
-          quality: 0.95,
+        const canvas = await html2canvas(receiptRef.current, {
+          scale: 2,
+          useCORS: true,
           backgroundColor: '#ffffff',
-          cacheBust: true,
+          windowWidth: 400
+        });
+        
+        const imgData = canvas.toDataURL('image/jpeg', 1.0);
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'px',
+          format: [canvas.width, canvas.height]
         });
 
-        // 2. Share via WhatsApp
-        const blob = await (await fetch(dataUrl)).blob();
-        const file = new File([blob], `pedido_${cliente?.cliente?.replace(/\s+/g, '_')}.jpg`, { type: 'image/jpeg' });
+        pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+        const pdfBlob = pdf.output('blob');
+        const fileName = `pedido_${cliente?.cliente?.replace(/\s+/g, '_')}.pdf`;
+        const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
         if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
           try {
@@ -459,18 +469,14 @@ export function OrderPage() {
           } catch (shareErr) {
             console.error('Error sharing:', shareErr);
             // Fallback to download if share fails or is cancelled
-            const link = document.createElement('a');
-            link.download = `pedido_${cliente?.cliente}.jpg`;
-            link.href = dataUrl;
-            link.click();
+            if ((shareErr as Error).name !== 'AbortError') {
+              pdf.save(fileName);
+            }
           }
         } else {
           // Fallback for browsers that don't support file sharing
-          const link = document.createElement('a');
-          link.download = `pedido_${cliente?.cliente}.jpg`;
-          link.href = dataUrl;
-          link.click();
-          alert('Imagem do pedido gerada! Como seu navegador não suporta compartilhamento direto de arquivos, o resumo foi baixado. Você pode enviá-lo manualmente pelo WhatsApp.');
+          pdf.save(fileName);
+          alert('PDF do pedido gerado! Como seu navegador não suporta compartilhamento direto de arquivos, o resumo foi baixado. Você pode enviá-lo manualmente pelo WhatsApp.');
         }
       }
 
