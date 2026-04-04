@@ -456,15 +456,15 @@ export function OrderPage() {
 
         pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
         const pdfBlob = pdf.output('blob');
-        const fileName = `pedido_${cliente?.cliente?.replace(/\s+/g, '_')}.pdf`;
+        const fileName = `ORÇAMENTO_${cliente?.cliente?.replace(/\s+/g, '_')}.pdf`;
         const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
         if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
           try {
             await navigator.share({
               files: [file],
-              title: 'Resumo do Pedido',
-              text: `Resumo do pedido - ${cliente?.cliente}`,
+              title: 'ORÇAMENTO',
+              text: `ORÇAMENTO - ${cliente?.cliente}`,
             });
           } catch (shareErr) {
             console.error('Error sharing:', shareErr);
