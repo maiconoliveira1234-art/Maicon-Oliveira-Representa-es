@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Produto, PrecoFaixa } from '../types';
-import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle } from 'lucide-react';
+import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle, Users } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { toJpeg } from 'html-to-image';
 
@@ -12,6 +12,10 @@ export function PriceInquiryPage() {
   const [selectedFamily, setSelectedFamily] = useState<string>('all');
   const [selectedTable, setSelectedTable] = useState<PrecoFaixa>('livre');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [clients, setClients] = useState<string[]>([]);
+  const [selectedClient, setSelectedClient] = useState<string>('all');
+  const [clientLastPrices, setClientLastPrices] = useState<Record<string, number>>({});
+  const [clientLastPricesByName, setClientLastPricesByName] = useState<Record<string, number>>({});
   const [exporting, setExporting] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
 
@@ -34,7 +38,76 @@ export function PriceInquiryPage() {
       }
     }
     fetchProdutos();
+
+    async function fetchClients() {
+      try {
+        const { data, error } = await supabase
+          .from('hist_vendas')
+          .select('cliente')
+          .not('cliente', 'is', null);
+        
+        if (error) throw error;
+        if (data) {
+          const uniqueClients = Array.from(new Set(data.map(d => d.cliente))).filter(Boolean).sort();
+          console.log('Loaded', uniqueClients.length, 'unique clients from history');
+          setClients(uniqueClients as string[]);
+        }
+      } catch (err) {
+        console.error('Erro ao carregar clientes:', err);
+      }
+    }
+    fetchClients();
   }, []);
+
+  useEffect(() => {
+    if (selectedClient === 'all') {
+      setClientLastPrices({});
+      return;
+    }
+
+    async function fetchLastPrices() {
+      try {
+        console.log('Fetching last prices for client:', selectedClient);
+        const { data, error } = await supabase
+          .from('hist_vendas')
+          .select('produto_id, produtos, "r$_total", qtd, faturamento')
+          .eq('cliente', selectedClient);
+        
+        if (error) throw error;
+        if (data) {
+          console.log('Sales data received:', data.length, 'records for', selectedClient);
+          const sortedData = [...data].sort((a, b) => {
+            const dateA = a.faturamento || '';
+            const dateB = b.faturamento || '';
+            return dateB.localeCompare(dateA);
+          });
+
+          const lastPrices: Record<string, number> = {};
+          const lastPricesByName: Record<string, number> = {};
+          
+          sortedData.forEach(sale => {
+            const total = sale['r$_total'] || 0;
+            const qty = sale.qtd || 1;
+            const unitPrice = total / qty;
+
+            if (sale.produto_id && !lastPrices[sale.produto_id]) {
+              lastPrices[sale.produto_id] = unitPrice;
+            }
+            if (sale.produtos && !lastPricesByName[sale.produtos.toLowerCase()]) {
+              lastPricesByName[sale.produtos.toLowerCase()] = unitPrice;
+            }
+          });
+          
+          console.log('Processed last prices for', Object.keys(lastPrices).length, 'products by ID and', Object.keys(lastPricesByName).length, 'by name');
+          setClientLastPrices(lastPrices);
+          setClientLastPricesByName(lastPricesByName);
+        }
+      } catch (err) {
+        console.error('Erro ao carregar últimos preços:', err);
+      }
+    }
+    fetchLastPrices();
+  }, [selectedClient]);
 
   const families = useMemo(() => {
     const fams = new Set(produtos.map(p => p.familia || 'Sem Família'));
@@ -51,9 +124,23 @@ export function PriceInquiryPage() {
       
       const matchesSearch = searchWords.length === 0 || searchWords.every(word => targetString.includes(word));
       const matchesFamily = selectedFamily === 'all' || productFamily === selectedFamily;
+      
+      if (selectedClient !== 'all') {
+        const hasBeenBought = clientLastPrices.hasOwnProperty(p.id) || 
+                             (p.produto && clientLastPricesByName.hasOwnProperty(p.produto.toLowerCase()));
+        const hasSuggestion = (p.sugestao || 0) > 0;
+        
+        return matchesSearch && matchesFamily && hasBeenBought && hasSuggestion;
+      }
+
       return matchesSearch && matchesFamily;
     });
-  }, [produtos, searchTerm, selectedFamily]);
+  }, [produtos, searchTerm, selectedFamily, selectedClient, clientLastPrices, clientLastPricesByName]);
+
+  const selectAll = () => {
+    const allIds = filteredProdutos.map(p => p.id);
+    setSelectedIds(new Set(allIds));
+  };
 
   const toggleSelect = (id: string) => {
     const newSelected = new Set(selectedIds);
@@ -140,6 +227,13 @@ export function PriceInquiryPage() {
         </div>
         <div className="flex gap-2">
           <button
+            onClick={selectAll}
+            className="px-4 py-2 bg-white border border-neutral-200 text-neutral-600 rounded-xl font-bold hover:bg-neutral-50 transition-all flex items-center gap-2"
+          >
+            <CheckSquare size={18} />
+            Marcar Todos
+          </button>
+          <button
             onClick={deselectAll}
             className="px-4 py-2 bg-white border border-neutral-200 text-neutral-600 rounded-xl font-bold hover:bg-neutral-50 transition-all flex items-center gap-2"
           >
@@ -157,7 +251,7 @@ export function PriceInquiryPage() {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" size={20} />
           <input
@@ -181,6 +275,22 @@ export function PriceInquiryPage() {
             <option value="all">Todas as Famílias</option>
             {families.map(f => (
               <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+        </div>
+        <div className="relative">
+          <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" size={20} />
+          <select
+            value={selectedClient}
+            onChange={(e) => {
+              setSelectedClient(e.target.value);
+              setSearchTerm('');
+            }}
+            className="w-full pl-12 pr-4 py-3 bg-white border border-neutral-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all appearance-none"
+          >
+            <option value="all">Todos os Clientes</option>
+            {clients.map(c => (
+              <option key={c} value={c}>{c}</option>
             ))}
           </select>
         </div>
@@ -234,7 +344,10 @@ export function PriceInquiryPage() {
                   <div className="text-right">
                     <p className="text-xs text-neutral-400 uppercase font-bold">Preço Unitário</p>
                     <p className="text-lg font-black text-neutral-900">
-                      R$ {((produto.custo_und || 0) * (1 - (produto[selectedTable] || 0))).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      R$ {(selectedClient !== 'all' 
+                        ? (clientLastPrices[produto.id] || clientLastPricesByName[produto.produto?.toLowerCase() || ''] || 0)
+                        : ((produto.custo_und || 0) * (1 - (produto[selectedTable] || 0)))
+                      ).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                   </div>
                 </div>
@@ -279,7 +392,10 @@ export function PriceInquiryPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-3xl font-black text-orange-600">
-                      R$ {((p.custo_und || 0) * (1 - (p[selectedTable] || 0))).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      R$ {(selectedClient !== 'all'
+                        ? (clientLastPrices[p.id] || clientLastPricesByName[p.produto?.toLowerCase() || ''] || 0)
+                        : ((p.custo_und || 0) * (1 - (p[selectedTable] || 0)))
+                      ).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                     <p className="text-sm text-neutral-400 font-bold uppercase">Unidade</p>
                   </div>

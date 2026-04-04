@@ -16,7 +16,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <NavItem to="/consulta-preco" icon={<Search size={24} />} label="" />
           <NavItem to="/metas" icon={<BarChart3 size={24} />} label="" />
           <NavItem to="/dashboard" icon={<LayoutDashboard size={24} />} label="" />
-          <NavItem to="/relatorios" icon={<PieChart size={24} />} label="" />
           <NavItem to="/import" icon={<FileUp size={24} />} label="" />
         </nav>
         <div className="p-2 border-t border-neutral-200">
@@ -35,7 +34,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <MobileNavItem to="/consulta-preco" icon={<Search size={24} />} label="Preços" />
         <MobileNavItem to="/metas" icon={<BarChart3 size={24} />} label="Metas" />
         <MobileNavItem to="/dashboard" icon={<LayoutDashboard size={24} />} label="Dashboard" />
-        <MobileNavItem to="/relatorios" icon={<PieChart size={24} />} label="Relatórios" />
         <MobileNavItem to="/import" icon={<FileUp size={24} />} label="Importar" />
       </nav>
     </div>
