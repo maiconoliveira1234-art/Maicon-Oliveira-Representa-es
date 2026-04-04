@@ -734,22 +734,22 @@ export function StockCountPage() {
 
       {/* Hidden Export View */}
       <div className="fixed -left-[9999px] top-0">
-        <div ref={exportRef} className="bg-white p-8 w-[800px]">
-          <div className="border-b-2 border-orange-600 pb-4 mb-6">
-            <h1 className="text-2xl font-black text-neutral-800 uppercase tracking-tight">Contagem de Estoque</h1>
-            <p className="text-lg font-bold text-orange-600">{cliente?.cliente}</p>
-            <p className="text-sm text-neutral-400">{new Date().toLocaleDateString()}</p>
+        <div ref={exportRef} className="bg-[#ffffff] p-8 w-[800px]">
+          <div className="border-b-2 border-[#ea580c] pb-4 mb-6">
+            <h1 className="text-2xl font-black text-[#262626] uppercase tracking-tight">Contagem de Estoque</h1>
+            <p className="text-lg font-bold text-[#ea580c]">{cliente?.cliente}</p>
+            <p className="text-sm text-[#a3a3a3]">{new Date().toLocaleDateString()}</p>
           </div>
           
           <table className="w-full border-collapse">
             <thead>
-              <tr className="bg-neutral-100 text-left">
-                <th className="p-3 border border-neutral-200 text-[10px] font-bold uppercase">Item</th>
-                <th className="p-3 border border-neutral-200 text-[10px] font-bold uppercase text-center">Ult. Ped</th>
-                <th className="p-3 border border-neutral-200 text-[10px] font-bold uppercase text-center">Ult. Contagem</th>
-                <th className="p-3 border border-neutral-200 text-[10px] font-bold uppercase text-center">Contagem Atual</th>
-                <th className="p-3 border border-neutral-200 text-[10px] font-bold uppercase text-center">Estoque Ideal</th>
-                <th className="p-3 border border-neutral-200 text-[10px] font-bold uppercase text-center">Sugestão</th>
+              <tr className="bg-[#f5f5f5] text-left">
+                <th className="p-3 border border-[#e5e5e5] text-[10px] font-bold uppercase">Item</th>
+                <th className="p-3 border border-[#e5e5e5] text-[10px] font-bold uppercase text-center">Ult. Ped</th>
+                <th className="p-3 border border-[#e5e5e5] text-[10px] font-bold uppercase text-center">Ult. Contagem</th>
+                <th className="p-3 border border-[#e5e5e5] text-[10px] font-bold uppercase text-center">Contagem Atual</th>
+                <th className="p-3 border border-[#e5e5e5] text-[10px] font-bold uppercase text-center">Estoque Ideal</th>
+                <th className="p-3 border border-[#e5e5e5] text-[10px] font-bold uppercase text-center">Sugestão</th>
               </tr>
             </thead>
             <tbody>
@@ -759,32 +759,32 @@ export function StockCountPage() {
                 const sugestao = Math.max(0, item.estoque_ideal - currentStock);
 
                 return (
-                  <tr key={item.produto_id} className="even:bg-neutral-100/50">
+                  <tr key={item.produto_id} className="even:bg-[#f5f5f5]/50">
                     <td className={cn(
-                      "p-3 border border-neutral-200 text-sm font-black",
-                      isBelowIdeal ? "text-red-700" : "text-neutral-800"
+                      "p-3 border border-[#e5e5e5] text-sm font-black",
+                      isBelowIdeal ? "text-[#b91c1c]" : "text-[#262626]"
                     )}>
                       {item.produto_nome}
                     </td>
                     <td className={cn(
-                      "p-3 border border-neutral-200 text-sm text-center font-black",
-                      item.dias_ult_compra > 180 ? "text-red-600" : "text-neutral-500"
+                      "p-3 border border-[#e5e5e5] text-sm text-center font-black",
+                      item.dias_ult_compra > 180 ? "text-[#dc2626]" : "text-[#737373]"
                     )}>
                       {item.dias_ult_compra}
                     </td>
-                    <td className="p-3 border border-neutral-200 text-sm text-center font-bold text-neutral-400">{item.ultima_contagem_valor}</td>
+                    <td className="p-3 border border-[#e5e5e5] text-sm text-center font-bold text-[#a3a3a3]">{item.ultima_contagem_valor}</td>
                     <td className={cn(
-                      "p-3 border border-neutral-200 text-sm text-center font-black",
-                      isBelowIdeal ? "text-red-600" : "text-neutral-700"
+                      "p-3 border border-[#e5e5e5] text-sm text-center font-black",
+                      isBelowIdeal ? "text-[#dc2626]" : "text-[#404040]"
                     )}>
                       {currentStock}
                     </td>
-                    <td className="p-3 border border-neutral-200 text-sm text-center font-bold text-neutral-500">
+                    <td className="p-3 border border-[#e5e5e5] text-sm text-center font-bold text-[#737373]">
                       {item.estoque_ideal}
                     </td>
                     <td className={cn(
-                      "p-3 border border-neutral-200 text-sm text-center font-black",
-                      sugestao > 0 ? "text-red-600" : "text-neutral-400"
+                      "p-3 border border-[#e5e5e5] text-sm text-center font-black",
+                      sugestao > 0 ? "text-[#dc2626]" : "text-[#a3a3a3]"
                     )}>
                       {sugestao > 0 ? sugestao : '-'}
                     </td>
@@ -794,7 +794,7 @@ export function StockCountPage() {
             </tbody>
           </table>
           
-          <div className="mt-8 pt-4 border-t border-neutral-100 text-[10px] text-neutral-400 text-center">
+          <div className="mt-8 pt-4 border-t border-[#f5f5f5] text-[10px] text-[#a3a3a3] text-center">
             Gerado por Força de Vendas App
           </div>
         </div>

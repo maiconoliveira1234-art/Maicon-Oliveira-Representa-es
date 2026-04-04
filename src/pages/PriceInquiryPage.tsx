@@ -372,47 +372,47 @@ export function PriceInquiryPage() {
       <div className="fixed -left-[2000px] top-0">
         <div 
           ref={exportRef} 
-          className="w-[800px] bg-white p-12 space-y-8"
+          className="w-[800px] bg-[#ffffff] p-12 space-y-8"
         >
-          <div className="flex items-center justify-between border-b-4 border-orange-600 pb-6">
+          <div className="flex items-center justify-between border-b-4 border-[#ea580c] pb-6">
             <div>
-              <h1 className="text-4xl font-black text-neutral-900">Lista de Preços</h1>
-              <p className="text-xl text-neutral-500 font-bold">Tabela: {selectedTable.toUpperCase()}</p>
+              <h1 className="text-4xl font-black text-[#171717]">Lista de Preços</h1>
+              <p className="text-xl text-[#737373] font-bold">Tabela: {selectedTable.toUpperCase()}</p>
             </div>
             <div className="text-right">
-              <p className="text-lg font-bold text-neutral-400">{new Date().toLocaleDateString('pt-BR')}</p>
+              <p className="text-lg font-bold text-[#a3a3a3]">{new Date().toLocaleDateString('pt-BR')}</p>
             </div>
           </div>
 
           <div className="space-y-2">
             {selectedProductsList.map((p) => (
-              <div key={p.id} className="flex items-center justify-between py-3 border-b border-neutral-100">
+              <div key={p.id} className="flex items-center justify-between py-3 border-b border-[#f5f5f5]">
                 <div>
-                  <h3 className="text-2xl font-black text-neutral-900">{p.produto}</h3>
+                  <h3 className="text-2xl font-black text-[#171717]">{p.produto}</h3>
                 </div>
                 <div className="flex items-center gap-8">
                   <div className="text-right">
-                    <p className="text-sm text-neutral-400 font-bold uppercase">Sugestão</p>
-                    <p className="text-xl font-bold text-neutral-400">
+                    <p className="text-sm text-[#a3a3a3] font-bold uppercase">Sugestão</p>
+                    <p className="text-xl font-bold text-[#a3a3a3]">
                       R$ {(p.sugestao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-3xl font-black text-orange-600">
+                    <p className="text-3xl font-black text-[#ea580c]">
                       R$ {(selectedClient !== 'all'
                         ? (clientLastPrices[p.id] || clientLastPricesByName[p.produto?.toLowerCase() || ''] || 0)
                         : ((p.custo_und || 0) * (1 - (p[selectedTable] || 0)))
                       ).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
-                    <p className="text-sm text-neutral-400 font-bold uppercase">Unidade</p>
+                    <p className="text-sm text-[#a3a3a3] font-bold uppercase">Unidade</p>
                   </div>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="pt-8 text-center border-t border-neutral-200">
-            <p className="text-neutral-400 font-bold italic">Preços sujeitos a alteração sem aviso prévio.</p>
+          <div className="pt-8 text-center border-t border-[#e5e5e5]">
+            <p className="text-[#a3a3a3] font-bold italic">Preços sujeitos a alteração sem aviso prévio.</p>
           </div>
         </div>
       </div>
