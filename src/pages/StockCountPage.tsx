@@ -175,6 +175,19 @@ export function StockCountPage() {
     ? "grid-cols-[42px_35px_42px_minmax(100px,1fr)_100px_40px_40px_40px_100px]" 
     : "grid-cols-[42px_35px_42px_minmax(100px,1fr)_100px_40px_100px]";
 
+  const orderWeightByDay = useMemo(() => {
+    const map: Record<string, number> = {};
+    historico.forEach(h => {
+      const date = h.faturamento;
+      const prod = produtosMap[h.produto_id];
+      if (prod) {
+        const weight = h.qtd * (prod.peso_embalagem || 0);
+        map[date] = (map[date] || 0) + weight;
+      }
+    });
+    return map;
+  }, [historico, produtosMap]);
+
   const processedItems = useMemo(() => {
     const items: Record<string, HistVenda[]> = {};
     historico.forEach(h => {
@@ -667,7 +680,7 @@ export function StockCountPage() {
                       <th className="pb-2 px-2 text-center">Qtd</th>
                       <th className="pb-2 px-2 text-center">Peso Total</th>
                       <th className="pb-2 px-2 text-right">Valor Pago</th>
-                      <th className="pb-2 px-2 text-center">Tabela</th>
+                      <th className="pb-2 px-2 text-center">Pedido</th>
                       <th className="pb-2 px-2 text-center">xDt</th>
                     </tr>
                   </thead>
@@ -679,17 +692,7 @@ export function StockCountPage() {
 
                       return productVendas.map((venda) => {
                         const unitPrice = (venda["r$_total"] / venda.qtd) / selectedProductHistory.quant_embalagem;
-                        const produto = produtosMap[venda.produto_id];
-                        let tabela = '-';
-                        if (produto) {
-                          const xdtNormalized = venda.xdt / 100;
-                          if (xdtNormalized === produto.livre) tabela = 'Livre';
-                          else if (xdtNormalized === produto["200kg"]) tabela = '200kg';
-                          else if (xdtNormalized === produto["500kg"]) tabela = '500kg';
-                          else if (xdtNormalized === produto["1000kg"]) tabela = '1000kg';
-                          else if (xdtNormalized === produto["2000kg"]) tabela = '2000kg';
-                          else if (xdtNormalized === produto["4000kg"]) tabela = '4000kg';
-                        }
+                        const totalOrderWeight = orderWeightByDay[venda.faturamento] || 0;
 
                         return (
                           <tr key={venda.id} className="text-xs hover:bg-neutral-50 transition-colors">
@@ -706,8 +709,8 @@ export function StockCountPage() {
                               {formatCurrency(unitPrice)}
                             </td>
                             <td className="py-3 px-2 text-center">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-neutral-100 text-neutral-600">
-                                {tabela}
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-100 text-orange-600">
+                                {formatWeight(totalOrderWeight)}
                               </span>
                             </td>
                             <td className="py-3 px-2 text-center">
