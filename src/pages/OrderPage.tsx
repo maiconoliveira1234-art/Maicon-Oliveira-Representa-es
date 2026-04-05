@@ -420,6 +420,7 @@ export function OrderPage() {
   }, [selectedPrazo, valorTotal]);
 
   const handleSave = async () => {
+    console.log('handleSave called', { clienteId, itensLength: itens.length, selectedPrazo });
     if (!clienteId) return;
 
     if (itens.length === 0) {
@@ -427,7 +428,7 @@ export function OrderPage() {
       return;
     }
 
-    if (!selectedPrazo) {
+    if (!selectedPrazo || selectedPrazo === '') {
       alert('Por favor, selecione uma condição de pagamento.');
       return;
     }
@@ -583,7 +584,7 @@ export function OrderPage() {
           </div>
 
           <div className="text-center pt-4">
-            <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-widest">Gerado via Sales Tablet</p>
+            <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-widest">MAICON OLIVEIRA REPRESENTAÇÕES</p>
           </div>
         </div>
       </div>
