@@ -420,7 +420,6 @@ export function OrderPage() {
   }, [selectedPrazo, valorTotal]);
 
   const handleSave = async () => {
-    console.log('handleSave called', { clienteId, itensLength: itens.length, selectedPrazo });
     if (!clienteId) return;
 
     if (itens.length === 0) {
@@ -805,10 +804,18 @@ export function OrderPage() {
                     <input 
                       type="text" 
                       placeholder="Filtrar produtos..."
-                      className="w-full pl-10 pr-4 py-3 bg-neutral-100 rounded-xl outline-none focus:ring-2 focus:ring-orange-500"
+                      className="w-full pl-10 pr-10 py-3 bg-neutral-100 rounded-xl outline-none focus:ring-2 focus:ring-orange-500"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
+                    {searchTerm && (
+                      <button
+                        onClick={() => setSearchTerm('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 p-1 transition-colors"
+                      >
+                        <X size={18} />
+                      </button>
+                    )}
                   </div>
                   <label className="flex items-center gap-2 cursor-pointer bg-neutral-100 px-4 py-3 rounded-xl border border-neutral-200">
                     <input 

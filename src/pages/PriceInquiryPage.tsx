@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Produto, PrecoFaixa } from '../types';
-import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle, Users } from 'lucide-react';
+import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle, Users, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -266,8 +266,16 @@ export function PriceInquiryPage() {
             placeholder="Buscar produto..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-white border border-neutral-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all"
+            className="w-full pl-12 pr-12 py-3 bg-white border border-neutral-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all"
           />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 p-1 transition-colors"
+            >
+              <X size={20} />
+            </button>
+          )}
         </div>
         <div className="relative">
           <FilterDropdown 
@@ -411,8 +419,9 @@ export function PriceInquiryPage() {
             ))}
           </div>
 
-          <div className="pt-4 text-center border-t border-[#e5e5e5]">
+          <div className="pt-4 text-center border-t border-[#e5e5e5] space-y-2">
             <p className="text-[#a3a3a3] text-xs font-bold italic">Preços sujeitos a alteração sem aviso prévio.</p>
+            <p className="text-[9px] font-black text-[#d4d4d4] uppercase tracking-widest">MAICON OLIVEIRA REPRESENTAÇÕES</p>
           </div>
         </div>
       </div>

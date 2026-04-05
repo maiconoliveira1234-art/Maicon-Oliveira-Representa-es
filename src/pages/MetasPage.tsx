@@ -422,10 +422,18 @@ export function MetasPage() {
             <input
               type="text"
               placeholder="Buscar cliente ou cidade..."
-              className="w-full pl-10 pr-4 py-2 bg-white border border-neutral-200 rounded-xl shadow-sm focus:ring-2 focus:ring-orange-500 outline-none"
+              className="w-full pl-10 pr-10 py-2 bg-white border border-neutral-200 rounded-xl shadow-sm focus:ring-2 focus:ring-orange-500 outline-none"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 p-1 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            )}
           </div>
           <button 
             onClick={() => setShowClearConfirm(true)}
@@ -524,7 +532,12 @@ export function MetasPage() {
             {sortedAndFilteredData.map((row) => (
               <tr key={row.id} className="hover:bg-neutral-50 transition-colors group">
                 <td className="px-3 py-3 border-r border-b border-neutral-100 font-bold text-neutral-800 text-[12px] sticky left-0 bg-white group-hover:bg-neutral-50 z-10 leading-tight">
-                  {row.cliente}
+                  <button 
+                    onClick={() => navigate(`/cliente/${row.id}`, { state: { fromMetas: true } })}
+                    className="text-left hover:text-orange-600 transition-colors"
+                  >
+                    {row.cliente}
+                  </button>
                 </td>
                 <td className="px-1 py-3 border-r border-b border-neutral-100 text-right text-[12px] text-neutral-600 font-medium">
                   {row.med6.toFixed(1)}

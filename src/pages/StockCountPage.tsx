@@ -205,9 +205,6 @@ export function StockCountPage() {
         const oldestVenda = sortedVendas[sortedVendas.length - 1];
         const diasUltCompra = differenceInDays(new Date(), parseISO(ultVenda.faturamento));
         
-        // Filter: only if purchased in the last 365 days
-        if (diasUltCompra > 365) return null;
-
         // Calculate average qty
         const totalQtd = vendas.reduce((acc, v) => acc + v.qtd, 0);
         const mediaQtd = totalQtd / vendas.length;
@@ -245,7 +242,7 @@ export function StockCountPage() {
           tendencia,
           peso: produto?.peso_embalagem || 0,
           estoque_ideal: estoqueIdeal,
-          ativo: produto?.ativo ?? true,
+          ativo: (produto?.ativo ?? true) && diasUltCompra <= 365,
           quant_embalagem: quantEmbalagem
         };
       })
@@ -443,10 +440,18 @@ export function StockCountPage() {
               <input 
                 type="text" 
                 placeholder="Filtrar itens positivados..."
-                className="w-full pl-10 pr-4 py-2 bg-neutral-100 rounded-lg outline-none text-sm"
+                className="w-full pl-10 pr-10 py-2 bg-neutral-100 rounded-lg outline-none text-sm"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 p-1 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              )}
             </div>
             <label className="flex items-center gap-2 px-3 py-2 bg-neutral-100 rounded-lg cursor-pointer hover:bg-neutral-200 transition-colors">
               <input 
@@ -794,8 +799,8 @@ export function StockCountPage() {
             </tbody>
           </table>
           
-          <div className="mt-4 pt-2 border-t border-[#f5f5f5] text-[9px] text-[#a3a3a3] text-center">
-            Gerado por Força de Vendas App
+          <div className="mt-4 pt-2 border-t border-[#f5f5f5] text-[9px] text-[#a3a3a3] text-center font-bold uppercase tracking-widest">
+            MAICON OLIVEIRA REPRESENTAÇÕES
           </div>
         </div>
       </div>

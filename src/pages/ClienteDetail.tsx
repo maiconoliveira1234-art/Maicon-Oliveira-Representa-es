@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
   ArrowLeft, 
   ShoppingCart, 
@@ -41,6 +41,7 @@ import { Produto } from '../types';
 export function ClienteDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [historico, setHistorico] = useState<HistVenda[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
@@ -255,7 +256,16 @@ export function ClienteDetail() {
   return (
     <div className="space-y-6 pb-24">
       <header className="flex items-center gap-4">
-        <button onClick={() => navigate('/')} className="p-2 hover:bg-white rounded-full transition-colors">
+        <button 
+          onClick={() => {
+            if (location.state?.fromMetas) {
+              navigate('/metas');
+            } else {
+              navigate('/');
+            }
+          }} 
+          className="p-2 hover:bg-white rounded-full transition-colors"
+        >
           <ArrowLeft size={24} />
         </button>
         <div>
