@@ -752,7 +752,6 @@ export function StockCountPage() {
             <thead>
               <tr className="bg-[#f5f5f5] text-left">
                 <th className="p-1.5 border border-[#e5e5e5] text-[9px] font-bold uppercase">Item</th>
-                <th className="p-1.5 border border-[#e5e5e5] text-[9px] font-bold uppercase text-center">Ult. Ped</th>
                 <th className="p-1.5 border border-[#e5e5e5] text-[9px] font-bold uppercase text-center">Ult. Contagem</th>
                 <th className="p-1.5 border border-[#e5e5e5] text-[9px] font-bold uppercase text-center">Contagem Atual</th>
                 <th className="p-1.5 border border-[#e5e5e5] text-[9px] font-bold uppercase text-center">Estoque Ideal</th>
@@ -772,12 +771,6 @@ export function StockCountPage() {
                       isBelowIdeal ? "text-[#b91c1c]" : "text-[#262626]"
                     )}>
                       {item.produto_nome}
-                    </td>
-                    <td className={cn(
-                      "p-1.5 border border-[#e5e5e5] text-xs text-center font-black",
-                      item.dias_ult_compra > 180 ? "text-[#dc2626]" : "text-[#737373]"
-                    )}>
-                      {item.dias_ult_compra}
                     </td>
                     <td className="p-1.5 border border-[#e5e5e5] text-xs text-center font-bold text-[#a3a3a3]">{item.ultima_contagem_valor}</td>
                     <td className={cn(
