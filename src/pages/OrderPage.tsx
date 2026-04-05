@@ -511,73 +511,73 @@ export function OrderPage() {
       <div className="fixed -left-[9999px] top-0">
         <div 
           ref={receiptRef}
-          className="w-[400px] bg-[#ffffff] p-8 space-y-6"
+          className="w-[400px] bg-[#ffffff] p-4 space-y-3"
         >
-          <div className="text-center border-b-2 border-[#f5f5f5] pb-6">
-            <h1 className="text-2xl font-black text-[#171717] uppercase tracking-tighter">Resumo do Orçamento</h1>
-            <p className="text-[#737373] font-bold mt-1">{new Date().toLocaleDateString('pt-BR')} - {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+          <div className="text-center border-b-2 border-[#f5f5f5] pb-3">
+            <h1 className="text-xl font-black text-[#171717] uppercase tracking-tighter">Resumo do Orçamento</h1>
+            <p className="text-[#737373] font-bold text-[10px] mt-0.5">{new Date().toLocaleDateString('pt-BR')} - {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
           </div>
 
-          <div className="space-y-1">
-            <p className="text-[10px] font-black text-[#a3a3a3] uppercase">Cliente</p>
-            <p className="text-lg font-black text-[#171717] leading-tight">{cliente?.cliente}</p>
-            <p className="text-sm text-[#737373] font-bold">{cliente?.cidade}</p>
+          <div className="space-y-0.5">
+            <p className="text-[8px] font-black text-[#a3a3a3] uppercase">Cliente</p>
+            <p className="text-base font-black text-[#171717] leading-tight">{cliente?.cliente}</p>
+            <p className="text-xs text-[#737373] font-bold">{cliente?.cidade}</p>
           </div>
 
-          <div className="space-y-4">
-            <p className="text-[10px] font-black text-[#a3a3a3] uppercase border-b border-[#f5f5f5] pb-1">Itens do Orçamento</p>
+          <div className="space-y-2">
+            <p className="text-[8px] font-black text-[#a3a3a3] uppercase border-b border-[#f5f5f5] pb-0.5">Itens do Orçamento</p>
             {itens.map((item, idx) => {
               const produto = produtos.find(p => p.id === item.produto_id)!;
               return (
-                <div key={idx} className="flex justify-between items-start gap-4">
+                <div key={idx} className="flex justify-between items-start gap-2">
                   <div className="flex-1">
-                    <p className="font-bold text-[#171717] text-sm leading-tight">{produto.produto}</p>
-                    <p className="text-[10px] text-[#a3a3a3] font-bold uppercase">{item.quantidade} UN • {formatWeight(item.peso_total || 0)}</p>
+                    <p className="font-bold text-[#171717] text-xs leading-tight">{produto.produto}</p>
+                    <p className="text-[9px] text-[#a3a3a3] font-bold uppercase">{item.quantidade} UN • {formatWeight(item.peso_total || 0)}</p>
                   </div>
-                  <p className="font-black text-[#171717] text-sm">{formatCurrency(item.valor_total || 0)}</p>
+                  <p className="font-black text-[#171717] text-xs">{formatCurrency(item.valor_total || 0)}</p>
                 </div>
               );
             })}
           </div>
 
-          <div className="pt-6 border-t-2 border-[#f5f5f5] space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="pt-3 border-t-2 border-[#f5f5f5] space-y-2">
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <p className="text-[10px] font-black text-[#a3a3a3] uppercase">Condição</p>
-                <p className="font-black text-[#171717]">{selectedPrazo}</p>
+                <p className="text-[8px] font-black text-[#a3a3a3] uppercase">Condição</p>
+                <p className="font-black text-[#171717] text-xs">{selectedPrazo}</p>
               </div>
               <div className="text-right">
-                <p className="text-[10px] font-black text-[#a3a3a3] uppercase">Faixa</p>
-                <p className="font-black text-[#ea580c]">{faixaPreco}</p>
+                <p className="text-[8px] font-black text-[#a3a3a3] uppercase">Faixa</p>
+                <p className="font-black text-[#ea580c] text-xs">{faixaPreco}</p>
               </div>
             </div>
 
             {selectedPrazo && selectedPrazo !== 'À Vista' && (
-              <div className="bg-[#fafafa] p-4 rounded-xl border border-[#f5f5f5] grid grid-cols-2 gap-4">
+              <div className="bg-[#fafafa] p-2 rounded-xl border border-[#f5f5f5] grid grid-cols-2 gap-2">
                 <div>
-                  <p className="text-[10px] font-black text-[#a3a3a3] uppercase">Valor por Boleto</p>
-                  <p className="font-black text-[#171717]">{formatCurrency(installmentDetails.valorBoleto)}</p>
+                  <p className="text-[8px] font-black text-[#a3a3a3] uppercase">Valor por Boleto</p>
+                  <p className="font-black text-[#171717] text-xs">{formatCurrency(installmentDetails.valorBoleto)}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[10px] font-black text-[#a3a3a3] uppercase">1º Vencimento (Est.)</p>
-                  <p className="font-black text-[#171717]">
+                  <p className="text-[8px] font-black text-[#a3a3a3] uppercase">1º Vencimento (Est.)</p>
+                  <p className="font-black text-[#171717] text-xs">
                     {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
                   </p>
                 </div>
               </div>
             )}
 
-            <div className="bg-[#171717] text-[#ffffff] p-6 rounded-2xl flex justify-between items-center">
+            <div className="bg-[#171717] text-[#ffffff] p-3 rounded-2xl flex justify-between items-center">
               <div>
-                <p className="text-[10px] font-black opacity-60 uppercase">Peso Efetivo</p>
-                <p className="text-xl font-black">{formatWeight(Math.max(pesoTotal, pesoConquistado))}</p>
+                <p className="text-[8px] font-black opacity-60 uppercase">Peso Efetivo</p>
+                <p className="text-lg font-black">{formatWeight(Math.max(pesoTotal, pesoConquistado))}</p>
                 {pesoConquistado > 0 && (
-                  <p className="text-[8px] font-bold opacity-40 uppercase">Inclui {formatWeight(pesoConquistado)} de recompra</p>
+                  <p className="text-[7px] font-bold opacity-40 uppercase">Inclui {formatWeight(pesoConquistado)} de recompra</p>
                 )}
               </div>
               <div className="text-right">
-                <p className="text-[10px] font-black opacity-60 uppercase">Valor Total</p>
-                <p className="text-2xl font-black">{formatCurrency(valorTotal)}</p>
+                <p className="text-[8px] font-black opacity-60 uppercase">Valor Total</p>
+                <p className="text-xl font-black">{formatCurrency(valorTotal)}</p>
               </div>
             </div>
           </div>
