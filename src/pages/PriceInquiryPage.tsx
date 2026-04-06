@@ -394,34 +394,34 @@ export function PriceInquiryPage() {
 
           <div className="space-y-1">
             {selectedProductsList.map((p) => (
-              <div key={p.id} className="flex items-center justify-between py-1.5 border-b border-[#f5f5f5]">
-                <div>
-                  <h3 className="text-xl font-black text-[#171717]">{p.produto}</h3>
+              <div key={p.id} className="flex items-center justify-between py-2 border-b border-[#f5f5f5] gap-4">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-black text-[#171717] leading-tight break-words">{p.produto}</h3>
                 </div>
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-6 flex-shrink-0">
                   <div className="text-right">
-                    <p className="text-[10px] text-[#a3a3a3] font-bold uppercase">Sugestão</p>
-                    <p className="text-base font-bold text-[#a3a3a3]">
+                    <p className="text-[9px] text-[#a3a3a3] font-bold uppercase">Sugestão</p>
+                    <p className="text-sm font-bold text-[#a3a3a3]">
                       R$ {(p.sugestao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right min-w-[130px]">
                     <p className="text-2xl font-black text-[#ea580c]">
                       R$ {(selectedClient !== 'all'
                         ? (clientLastPrices[p.id] || clientLastPricesByName[p.produto?.toLowerCase() || ''] || 0)
                         : ((p.custo_und || 0) * (1 - (p[selectedTable] || 0)))
                       ).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
-                    <p className="text-[10px] text-[#a3a3a3] font-bold uppercase">Unidade</p>
+                    <p className="text-[9px] text-[#a3a3a3] font-bold uppercase">Unidade</p>
                   </div>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="pt-4 text-center border-t border-[#e5e5e5] space-y-2">
+          <div className="pt-8 pb-4 text-center border-t border-[#e5e5e5] space-y-2">
             <p className="text-[#a3a3a3] text-xs font-bold italic">Preços sujeitos a alteração sem aviso prévio.</p>
-            <p className="text-[9px] font-black text-[#d4d4d4] uppercase tracking-widest">MAICON OLIVEIRA REPRESENTAÇÕES</p>
+            <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-widest">MAICON OLIVEIRA REPRESENTAÇÕES</p>
           </div>
         </div>
       </div>
