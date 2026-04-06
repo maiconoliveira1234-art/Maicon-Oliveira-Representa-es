@@ -393,7 +393,7 @@ export function PriceInquiryPage() {
       {/* Hidden Export Area - Professional A4 Format */}
       <div className="fixed -left-[9999px] top-0" ref={exportRef}>
         {(() => {
-          const itemsPerPage = 20;
+          const itemsPerPage = 18;
           const chunks = [];
           for (let i = 0; i < selectedProductsList.length; i += itemsPerPage) {
             chunks.push(selectedProductsList.slice(i, i + itemsPerPage));
@@ -419,6 +419,7 @@ export function PriceInquiryPage() {
                     src="https://www.adimax.com.br/wp-content/themes/adimax/assets/img/logo-adimax.png" 
                     alt="ADIMAX" 
                     className="h-12 w-auto mb-2"
+                    crossOrigin="anonymous"
                     referrerPolicy="no-referrer"
                   />
                   <span className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest">Parceiro Oficial</span>

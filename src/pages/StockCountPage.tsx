@@ -765,10 +765,16 @@ export function StockCountPage() {
       {/* Hidden Export View - Professional A4 Format */}
       <div className="fixed -left-[9999px] top-0" ref={exportRef}>
         {(() => {
-          const itemsPerPage = 20;
+          // Smart pagination: First page fits less items due to header/client info
           const chunks = [];
-          for (let i = 0; i < processedItems.length; i += itemsPerPage) {
-            chunks.push(processedItems.slice(i, i + itemsPerPage));
+          let i = 0;
+          let isFirstPage = true;
+          
+          while (i < processedItems.length) {
+            const itemsLimit = isFirstPage ? 12 : 18;
+            chunks.push(processedItems.slice(i, i + itemsLimit));
+            i += itemsLimit;
+            isFirstPage = false;
           }
 
           return chunks.map((chunk, pageIdx) => (
@@ -791,6 +797,7 @@ export function StockCountPage() {
                     src="https://www.adimax.com.br/wp-content/themes/adimax/assets/img/logo-adimax.png" 
                     alt="ADIMAX" 
                     className="h-12 w-auto mb-2"
+                    crossOrigin="anonymous"
                     referrerPolicy="no-referrer"
                   />
                   <span className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest">Parceiro Oficial</span>

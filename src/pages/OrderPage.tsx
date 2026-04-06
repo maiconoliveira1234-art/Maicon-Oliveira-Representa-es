@@ -526,10 +526,16 @@ export function OrderPage() {
       {/* Hidden Receipt for Image Generation - Professional A4 Format */}
       <div className="fixed -left-[9999px] top-0" ref={receiptRef}>
         {(() => {
-          const itemsPerPage = 15;
+          // Smart pagination: First page fits less items due to header/client info
           const chunks = [];
-          for (let i = 0; i < itens.length; i += itemsPerPage) {
-            chunks.push(itens.slice(i, i + itemsPerPage));
+          let i = 0;
+          let isFirstPage = true;
+          
+          while (i < itens.length) {
+            const itemsLimit = isFirstPage ? 10 : 15;
+            chunks.push(itens.slice(i, i + itemsLimit));
+            i += itemsLimit;
+            isFirstPage = false;
           }
 
           return chunks.map((chunk, pageIdx) => (
@@ -551,7 +557,8 @@ export function OrderPage() {
                   <img 
                     src="https://www.adimax.com.br/wp-content/themes/adimax/assets/img/logo-adimax.png" 
                     alt="ADIMAX" 
-                    className="h-12 w-auto mb-2"
+                    className="h-12 w-auto mb-1"
+                    crossOrigin="anonymous"
                     referrerPolicy="no-referrer"
                   />
                   <span className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest">Parceiro Oficial</span>
