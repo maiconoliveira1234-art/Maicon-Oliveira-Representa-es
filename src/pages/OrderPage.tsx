@@ -66,7 +66,8 @@ export function OrderPage() {
         const matchesSearch = (p.produto?.toLowerCase() || '').includes(searchTerm.toLowerCase());
         const matchesFamily = selectedFamily === 'Todas' || p.familia === selectedFamily;
         const matchesPositivados = !showOnlyPositivados || positivadosIds.has(p.id);
-        return matchesSearch && matchesFamily && matchesPositivados;
+        const isActive = p.ativo !== false; // Only show active products
+        return matchesSearch && matchesFamily && matchesPositivados && isActive;
       })
       .sort((a, b) => {
         // First sort by family
