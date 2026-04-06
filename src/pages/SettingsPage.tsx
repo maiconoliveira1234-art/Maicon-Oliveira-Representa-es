@@ -1,8 +1,22 @@
-import React from 'react';
-import { Settings, Info, Shield, Database, Smartphone } from 'lucide-react';
+import React, { useState } from 'react';
+import { Settings, Info, Shield, Database, Smartphone, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { APP_VERSION } from '../constants';
 
 export function SettingsPage() {
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateSuccess, setUpdateSuccess] = useState(false);
+
+  const handleUpdate = () => {
+    setIsUpdating(true);
+    // Simulate a check for updates before reloading
+    setTimeout(() => {
+      setUpdateSuccess(true);
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    }, 1500);
+  };
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
       <div className="flex items-center gap-3 mb-8">
@@ -33,9 +47,32 @@ export function SettingsPage() {
                   <p className="text-xs text-neutral-500">Versão atual instalada</p>
                 </div>
               </div>
-              <span className="px-3 py-1 bg-neutral-100 text-neutral-600 rounded-full text-sm font-black">
-                v{APP_VERSION}
-              </span>
+              <div className="flex flex-col items-end gap-2">
+                <span className="px-3 py-1 bg-neutral-100 text-neutral-600 rounded-full text-sm font-black">
+                  v{APP_VERSION}
+                </span>
+                <button
+                  onClick={handleUpdate}
+                  disabled={isUpdating}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                    updateSuccess 
+                      ? 'bg-green-100 text-green-600' 
+                      : 'bg-orange-600 text-white hover:bg-orange-700 active:scale-95 disabled:opacity-50'
+                  }`}
+                >
+                  {isUpdating ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      {updateSuccess ? 'Atualizado!' : 'Buscando...'}
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw size={14} />
+                      Atualizar Sistema
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="flex justify-between items-center pt-4 border-t border-neutral-100">
