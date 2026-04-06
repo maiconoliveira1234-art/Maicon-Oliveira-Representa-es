@@ -35,6 +35,7 @@ interface ItemEstoqueData {
   tendencia: number;
   peso: number;
   estoque_ideal: number;
+  raw_estoque_ideal: number;
   ativo: boolean;
   quant_embalagem: number;
 }
@@ -225,7 +226,9 @@ export function StockCountPage() {
         
         // Ideal Stock Calculation: (Total Qty / Days since first purchase) * mediaCiclo
         // We use the full mediaCiclo for ideal stock to ensure we have enough for one full cycle
-        const estoqueIdeal = Math.ceil(consumoDiario * mediaCiclo * quantEmbalagem);
+        const rawEstoqueIdeal = Math.ceil(consumoDiario * mediaCiclo * quantEmbalagem);
+        const currentStock = estoqueMap[produtoId] || 0;
+        const estoqueIdeal = Math.max(0, rawEstoqueIdeal - currentStock);
 
         // Tendencia (Column T in image) - Simplified logic: how many cycles passed
         const tendencia = mediaCiclo > 0 ? Math.floor(diasUltCompra / mediaCiclo) * -1 : 0;
@@ -235,13 +238,14 @@ export function StockCountPage() {
           produto_nome: ultVenda.produtos,
           dias_ult_compra: diasUltCompra,
           qtd_ult_compra: ultVenda.qtd * quantEmbalagem,
-          quantidade_atual: estoqueMap[produtoId] || 0,
+          quantidade_atual: currentStock,
           ultima_contagem_valor: ultimaContagemMap[produtoId] || 0,
           media_qtd: Math.round(mediaQtd * quantEmbalagem),
           media_ciclo: mediaCiclo,
           tendencia,
           peso: produto?.peso_embalagem || 0,
           estoque_ideal: estoqueIdeal,
+          raw_estoque_ideal: rawEstoqueIdeal,
           ativo: (produto?.ativo ?? true) && diasUltCompra <= 365,
           quant_embalagem: quantEmbalagem
         };
@@ -250,7 +254,7 @@ export function StockCountPage() {
 
     // Sort: Alphabetical and Active status
     return result
-      .filter(item => showInactive || item.ativo)
+      .filter(item => showInactive || item.ativo || (estoqueMap[item.produto_id] > 0))
       .sort((a, b) => a.produto_nome.localeCompare(b.produto_nome));
   }, [historico, estoqueMap, ultimaContagemMap, produtosMap, mediaCicloGlobal, showInactive]);
 
@@ -508,7 +512,7 @@ export function StockCountPage() {
               <div className="divide-y divide-neutral-100 relative z-0">
               {filteredItems.map((item) => {
                 const isTouched = touchedItems.has(item.produto_id);
-                const isBelowIdeal = item.quantidade_atual < item.estoque_ideal;
+                const isBelowIdeal = item.estoque_ideal > 0;
                 const isZeroStock = item.quantidade_atual === 0;
 
                 const rowStyle = isTouched 
@@ -766,8 +770,8 @@ export function StockCountPage() {
             <tbody>
               {processedItems.map(item => {
                 const currentStock = estoqueMap[item.produto_id] ?? 0;
-                const isBelowIdeal = currentStock < item.estoque_ideal;
-                const sugestao = Math.max(0, item.estoque_ideal - currentStock);
+                const isBelowIdeal = item.estoque_ideal > 0;
+                const sugestao = item.estoque_ideal;
 
                 return (
                   <tr key={item.produto_id} className="even:bg-[#f5f5f5]/50">

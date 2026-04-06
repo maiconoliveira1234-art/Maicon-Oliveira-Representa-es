@@ -17,7 +17,8 @@ import {
   Search,
   ChevronDown,
   Share2,
-  X
+  X,
+  FileText
 } from 'lucide-react';
 import { Cliente, Produto, ItemPedido, PrecoFaixa } from '../types';
 import { supabase } from '../lib/supabase';
@@ -51,6 +52,7 @@ export function OrderPage() {
   const [positivadosIds, setPositivadosIds] = useState<Set<string>>(new Set());
   const [pesoConquistado, setPesoConquistado] = useState(0);
   const [isReady, setIsReady] = useState(false);
+  const [observacoes, setObservacoes] = useState('');
   const itemsEndRef = React.useRef<HTMLDivElement>(null);
 
   const families = useMemo(() => {
@@ -567,20 +569,27 @@ export function OrderPage() {
               </div>
             )}
 
-            <div className="bg-[#171717] text-[#ffffff] p-3 rounded-2xl flex justify-between items-center">
-              <div>
-                <p className="text-[8px] font-black opacity-60 uppercase">Peso Efetivo</p>
-                <p className="text-lg font-black">{formatWeight(Math.max(pesoTotal, pesoConquistado))}</p>
-                {pesoConquistado > 0 && (
-                  <p className="text-[7px] font-bold opacity-40 uppercase">Inclui {formatWeight(pesoConquistado)} de recompra</p>
-                )}
-              </div>
-              <div className="text-right">
-                <p className="text-[8px] font-black opacity-60 uppercase">Valor Total</p>
-                <p className="text-xl font-black">{formatCurrency(valorTotal)}</p>
-              </div>
+          <div className="bg-[#171717] text-[#ffffff] p-3 rounded-2xl flex justify-between items-center">
+            <div>
+              <p className="text-[8px] font-black opacity-60 uppercase">Peso Efetivo</p>
+              <p className="text-lg font-black">{formatWeight(Math.max(pesoTotal, pesoConquistado))}</p>
+              {pesoConquistado > 0 && (
+                <p className="text-[7px] font-bold opacity-40 uppercase">Inclui {formatWeight(pesoConquistado)} de recompra</p>
+              )}
+            </div>
+            <div className="text-right">
+              <p className="text-[8px] font-black opacity-60 uppercase">Valor Total</p>
+              <p className="text-xl font-black">{formatCurrency(valorTotal)}</p>
             </div>
           </div>
+
+          {observacoes && (
+            <div className="pt-2 border-t border-[#f5f5f5]">
+              <p className="text-[8px] font-black text-[#a3a3a3] uppercase mb-1">Observações</p>
+              <p className="text-[10px] text-[#171717] font-bold leading-tight whitespace-pre-wrap">{observacoes}</p>
+            </div>
+          )}
+        </div>
 
           <div className="text-center pt-4">
             <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-widest">MAICON OLIVEIRA REPRESENTAÇÕES</p>
@@ -664,6 +673,20 @@ export function OrderPage() {
       {/* Bottom Section (Fixed) */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-t border-neutral-200 p-4 md:p-6 space-y-4 shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
         <div className="max-w-4xl mx-auto space-y-4">
+          {/* Observations Field */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <FileText className="text-orange-600" size={16} />
+              <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Observações do Pedido</h3>
+            </div>
+            <textarea 
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
+              placeholder="Digite aqui observações importantes para este pedido..."
+              className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-medium text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all resize-none h-20"
+            />
+          </div>
+
           <div className="flex flex-col md:flex-row gap-4 items-end">
             {/* Payment Terms Selection */}
             <div className="flex-1 w-full space-y-2">
