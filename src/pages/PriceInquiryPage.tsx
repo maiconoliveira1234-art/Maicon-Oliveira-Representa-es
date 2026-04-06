@@ -168,25 +168,35 @@ export function PriceInquiryPage() {
 
     setExporting(true);
     try {
-      const canvas = await html2canvas(exportRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        windowWidth: 800
-      });
-      
-      const imgData = canvas.toDataURL('image/jpeg', 1.0);
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4'
       });
 
-      // A4 is 210mm x 297mm
-      const imgWidth = 210;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const pages = exportRef.current?.querySelectorAll('.pdf-page');
+      if (!pages || pages.length === 0) return;
 
-      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+      for (let i = 0; i < pages.length; i++) {
+        const page = pages[i] as HTMLElement;
+        const canvas = await html2canvas(page, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          windowWidth: 800
+        });
+        
+        const imgData = canvas.toDataURL('image/jpeg', 1.0);
+        
+        if (i > 0) pdf.addPage();
+        
+        // A4 is 210mm x 297mm
+        const imgWidth = 210;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        
+        pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+      }
+
       const pdfBlob = pdf.output('blob');
       const fileName = `lista-precos-${new Date().getTime()}.pdf`;
       const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
@@ -381,66 +391,83 @@ export function PriceInquiryPage() {
       </div>
 
       {/* Hidden Export Area - Professional A4 Format */}
-      <div className="fixed -left-[9999px] top-0">
-        <div 
-          ref={exportRef} 
-          className="w-[800px] min-h-[1130px] bg-[#ffffff] p-[40px] flex flex-col font-sans text-[#171717]"
-          style={{ fontFamily: 'Arial, sans-serif' }}
-        >
-          {/* Header */}
-          <div className="flex justify-between items-start border-b-2 border-[#262626] pb-6 mb-8">
-            <div className="flex flex-col">
-              <h1 className="text-3xl font-black uppercase tracking-tighter text-[#171717]">Lista de Preços</h1>
-              <div className="mt-2 space-y-1">
-                <p className="text-sm font-bold text-[#737373]">Tabela: {selectedTable.toUpperCase()}</p>
-                <p className="text-sm font-bold text-[#737373]">Data: {new Date().toLocaleDateString('pt-BR')}</p>
+      <div className="fixed -left-[9999px] top-0" ref={exportRef}>
+        {(() => {
+          const itemsPerPage = 20;
+          const chunks = [];
+          for (let i = 0; i < selectedProductsList.length; i += itemsPerPage) {
+            chunks.push(selectedProductsList.slice(i, i + itemsPerPage));
+          }
+
+          return chunks.map((chunk, pageIdx) => (
+            <div 
+              key={pageIdx}
+              className="pdf-page w-[800px] h-[1130px] bg-[#ffffff] p-[40px] flex flex-col font-sans text-[#171717] mb-10"
+              style={{ fontFamily: 'Arial, sans-serif' }}
+            >
+              {/* Header */}
+              <div className="flex justify-between items-start border-b-2 border-[#262626] pb-6 mb-8">
+                <div className="flex flex-col">
+                  <h1 className="text-3xl font-black uppercase tracking-tighter text-[#171717]">Lista de Preços</h1>
+                  <div className="mt-2 space-y-1">
+                    <p className="text-sm font-bold text-[#737373]">Tabela: {selectedTable.toUpperCase()}</p>
+                    <p className="text-sm font-bold text-[#737373]">Data: {new Date().toLocaleDateString('pt-BR')}</p>
+                    <p className="text-[10px] font-bold text-[#a3a3a3]">Página {pageIdx + 1} de {chunks.length}</p>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end">
+                  <img 
+                    src="https://www.adimax.com.br/wp-content/themes/adimax/assets/img/logo-adimax.png" 
+                    alt="ADIMAX" 
+                    className="h-12 w-auto mb-2"
+                    referrerPolicy="no-referrer"
+                  />
+                  <span className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest">Parceiro Oficial</span>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="flex-1">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-[#171717] text-[#ffffff]">
+                      <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
+                      <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest">Sugestão</th>
+                      <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest rounded-tr-lg">Preço Unitário</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#f5f5f5]">
+                    {chunk.map((p, idx) => {
+                      const price = selectedClient !== 'all'
+                        ? (clientLastPrices[p.id] || clientLastPricesByName[p.produto?.toLowerCase() || ''] || 0)
+                        : ((p.custo_und || 0) * (1 - (p[selectedTable] || 0)));
+                      
+                      return (
+                        <tr key={p.id} className={cn("text-sm", idx % 2 === 0 ? "bg-[#ffffff]" : "bg-[#fafafa]")}>
+                          <td className="py-4 px-4 font-bold text-[#262626] leading-tight break-words">
+                            {p.produto}
+                          </td>
+                          <td className="py-4 px-4 text-right font-bold text-[#a3a3a3]">
+                            R$ {(p.sugestao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="py-4 px-4 text-right font-black text-[#171717] text-lg">
+                            R$ {price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Footer */}
+              <div className="mt-12 pt-8 border-t border-[#f5f5f5] text-center">
+                <p className="text-xs font-bold text-[#a3a3a3] italic mb-4">Preços sujeitos a alteração sem aviso prévio.</p>
+                <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES COMERCIAIS</p>
               </div>
             </div>
-            <div className="w-32 h-16 bg-[#f5f5f5] rounded flex items-center justify-center border border-[#e5e5e5]">
-              <span className="text-[10px] font-bold text-[#a3a3a3] uppercase tracking-widest">Logo Empresa</span>
-            </div>
-          </div>
-
-          {/* Table */}
-          <div className="flex-1">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-[#171717] text-[#ffffff]">
-                  <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
-                  <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest">Sugestão</th>
-                  <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest rounded-tr-lg">Preço Unitário</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#f5f5f5]">
-                {selectedProductsList.map((p, idx) => {
-                  const price = selectedClient !== 'all'
-                    ? (clientLastPrices[p.id] || clientLastPricesByName[p.produto?.toLowerCase() || ''] || 0)
-                    : ((p.custo_und || 0) * (1 - (p[selectedTable] || 0)));
-                  
-                  return (
-                    <tr key={p.id} className={cn("text-sm", idx % 2 === 0 ? "bg-[#ffffff]" : "bg-[#fafafa]")}>
-                      <td className="py-4 px-4 font-bold text-[#262626] leading-tight break-words">
-                        {p.produto}
-                      </td>
-                      <td className="py-4 px-4 text-right font-bold text-[#a3a3a3]">
-                        R$ {(p.sugestao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="py-4 px-4 text-right font-black text-[#171717] text-lg">
-                        R$ {price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Footer */}
-          <div className="mt-12 pt-8 border-t border-[#f5f5f5] text-center">
-            <p className="text-xs font-bold text-[#a3a3a3] italic mb-4">Preços sujeitos a alteração sem aviso prévio.</p>
-            <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES COMERCIAIS</p>
-          </div>
-        </div>
+          ));
+        })()}
       </div>
     </div>
   );

@@ -442,25 +442,35 @@ export function OrderPage() {
         // Wait a bit for the DOM to be ready and styles to apply
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        const canvas = await html2canvas(receiptRef.current, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-          windowWidth: 800
-        });
-        
-        const imgData = canvas.toDataURL('image/jpeg', 1.0);
         const pdf = new jsPDF({
           orientation: 'portrait',
           unit: 'mm',
           format: 'a4'
         });
 
-        // A4 is 210mm x 297mm
-        const imgWidth = 210;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        const pages = receiptRef.current?.querySelectorAll('.pdf-page');
+        if (!pages || pages.length === 0) return;
 
-        pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+        for (let i = 0; i < pages.length; i++) {
+          const page = pages[i] as HTMLElement;
+          const canvas = await html2canvas(page, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff',
+            windowWidth: 800
+          });
+          
+          const imgData = canvas.toDataURL('image/jpeg', 1.0);
+          
+          if (i > 0) pdf.addPage();
+          
+          // A4 is 210mm x 297mm
+          const imgWidth = 210;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          
+          pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+        }
+
         const pdfBlob = pdf.output('blob');
         const fileName = `ORÇAMENTO_${cliente?.cliente?.replace(/\s+/g, '_')}.pdf`;
         const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
@@ -514,134 +524,155 @@ export function OrderPage() {
       </header>
 
       {/* Hidden Receipt for Image Generation - Professional A4 Format */}
-      <div className="fixed -left-[9999px] top-0">
-        <div 
-          ref={receiptRef}
-          className="w-[800px] min-h-[1130px] bg-[#ffffff] p-[40px] flex flex-col font-sans text-[#171717]"
-          style={{ fontFamily: 'Arial, sans-serif' }}
-        >
-          {/* Header */}
-          <div className="flex justify-between items-start border-b-2 border-[#262626] pb-6 mb-8">
-            <div className="flex flex-col">
-              <h1 className="text-3xl font-black uppercase tracking-tighter text-[#171717]">Resumo do Orçamento</h1>
-              <div className="mt-2 space-y-1">
-                <p className="text-sm font-bold text-[#737373]">Data: {new Date().toLocaleDateString('pt-BR')}</p>
-                <p className="text-sm font-bold text-[#737373]">Hora: {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+      <div className="fixed -left-[9999px] top-0" ref={receiptRef}>
+        {(() => {
+          const itemsPerPage = 15;
+          const chunks = [];
+          for (let i = 0; i < itens.length; i += itemsPerPage) {
+            chunks.push(itens.slice(i, i + itemsPerPage));
+          }
+
+          return chunks.map((chunk, pageIdx) => (
+            <div 
+              key={pageIdx}
+              className="pdf-page w-[800px] h-[1130px] bg-[#ffffff] p-[40px] flex flex-col font-sans text-[#171717] mb-10"
+              style={{ fontFamily: 'Arial, sans-serif' }}
+            >
+              {/* Header */}
+              <div className="flex justify-between items-start border-b-2 border-[#262626] pb-6 mb-8">
+                <div className="flex flex-col">
+                  <h1 className="text-3xl font-black uppercase tracking-tighter text-[#171717]">Resumo do Orçamento</h1>
+                  <div className="mt-2 space-y-1">
+                    <p className="text-sm font-bold text-[#737373]">Data: {new Date().toLocaleDateString('pt-BR')}</p>
+                    <p className="text-sm font-bold text-[#737373]">Hora: {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                    <p className="text-[10px] font-bold text-[#a3a3a3]">Página {pageIdx + 1} de {chunks.length}</p>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end">
+                  <img 
+                    src="https://www.adimax.com.br/wp-content/themes/adimax/assets/img/logo-adimax.png" 
+                    alt="ADIMAX" 
+                    className="h-12 w-auto mb-2"
+                    referrerPolicy="no-referrer"
+                  />
+                  <span className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest">Parceiro Oficial</span>
+                </div>
               </div>
-            </div>
-            <div className="w-32 h-16 bg-[#f5f5f5] rounded flex items-center justify-center border border-[#e5e5e5]">
-              <span className="text-[10px] font-bold text-[#a3a3a3] uppercase tracking-widest">Logo Empresa</span>
-            </div>
-          </div>
 
-          {/* Client Info */}
-          <div className="grid grid-cols-2 gap-8 mb-8">
-            <div className="p-4 bg-[#fafafa] rounded-lg border border-[#f5f5f5]">
-              <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-1">Cliente</p>
-              <p className="text-lg font-black text-[#171717] leading-tight">{cliente?.cliente}</p>
-              <p className="text-sm font-bold text-[#737373] mt-1">{cliente?.cidade}</p>
-            </div>
-            <div className="p-4 bg-[#fafafa] rounded-lg border border-[#f5f5f5]">
-              <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-1">Vendedor</p>
-              <p className="text-lg font-black text-[#171717] leading-tight">MAICON OLIVEIRA</p>
-              <p className="text-sm font-bold text-[#737373] mt-1">Representações Comerciais</p>
-            </div>
-          </div>
+              {/* Client Info (Only on first page) */}
+              {pageIdx === 0 && (
+                <div className="grid grid-cols-2 gap-8 mb-8">
+                  <div className="p-4 bg-[#fafafa] rounded-lg border border-[#f5f5f5]">
+                    <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-1">Cliente</p>
+                    <p className="text-lg font-black text-[#171717] leading-tight">{cliente?.cliente}</p>
+                    <p className="text-sm font-bold text-[#737373] mt-1">{cliente?.cidade}</p>
+                  </div>
+                  <div className="p-4 bg-[#fafafa] rounded-lg border border-[#f5f5f5]">
+                    <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-1">Vendedor</p>
+                    <p className="text-lg font-black text-[#171717] leading-tight">MAICON OLIVEIRA</p>
+                    <p className="text-sm font-bold text-[#737373] mt-1">Representações Comerciais</p>
+                  </div>
+                </div>
+              )}
 
-          {/* Items Table */}
-          <div className="flex-1">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-[#171717] text-[#ffffff]">
-                  <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
-                  <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Qtd</th>
-                  <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Peso</th>
-                  <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest">Unitário</th>
-                  <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest rounded-tr-lg">Subtotal</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#f5f5f5]">
-                {itens.map((item, idx) => {
-                  const produto = produtos.find(p => p.id === item.produto_id)!;
-                  return (
-                    <tr key={idx} className={cn("text-sm", idx % 2 === 0 ? "bg-[#ffffff]" : "bg-[#fafafa]")}>
-                      <td className="py-4 px-4 font-bold text-[#262626] leading-tight max-w-[300px] break-words">
-                        {produto.produto}
-                      </td>
-                      <td className="py-4 px-4 text-center font-black text-[#525252]">
-                        {item.quantidade} {produto.quant_embalagem > 1 ? 'CX' : 'UN'}
-                      </td>
-                      <td className="py-4 px-4 text-center font-bold text-[#737373]">
-                        {formatWeight(item.peso_total || 0)}
-                      </td>
-                      <td className="py-4 px-4 text-right font-bold text-[#737373]">
-                        {formatCurrency(item.valor_unitario || 0)}
-                      </td>
-                      <td className="py-4 px-4 text-right font-black text-[#171717]">
-                        {formatCurrency(item.valor_total || 0)}
-                      </td>
+              {/* Items Table */}
+              <div className="flex-1">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-[#171717] text-[#ffffff]">
+                      <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
+                      <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Qtd</th>
+                      <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Peso</th>
+                      <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest">Unitário</th>
+                      <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest rounded-tr-lg">Subtotal</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Summary Section */}
-          <div className="mt-8 pt-8 border-t-2 border-[#f5f5f5]">
-            <div className="grid grid-cols-2 gap-12">
-              <div className="space-y-4">
-                <div className="p-4 border border-[#e5e5e5] rounded-xl">
-                  <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-2">Condições de Pagamento</p>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm font-bold text-[#525252]">Condição:</span>
-                      <span className="text-sm font-black text-[#171717]">{selectedPrazo}</span>
-                    </div>
-                    {selectedPrazo && selectedPrazo !== 'À Vista' && (
-                      <>
-                        <div className="flex justify-between">
-                          <span className="text-sm font-bold text-[#525252]">Valor por Boleto:</span>
-                          <span className="text-sm font-black text-[#171717]">{formatCurrency(installmentDetails.valorBoleto)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm font-bold text-[#525252]">1º Vencimento:</span>
-                          <span className="text-sm font-black text-[#171717]">
-                            {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-                
-                {observacoes && (
-                  <div className="p-4 border border-[#e5e5e5] rounded-xl">
-                    <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-2">Observações</p>
-                    <p className="text-xs font-bold text-[#404040] leading-relaxed whitespace-pre-wrap">{observacoes}</p>
-                  </div>
-                )}
+                  </thead>
+                  <tbody className="divide-y divide-[#f5f5f5]">
+                    {chunk.map((item, idx) => {
+                      const produto = produtos.find(p => p.id === item.produto_id)!;
+                      return (
+                        <tr key={idx} className={cn("text-sm", idx % 2 === 0 ? "bg-[#ffffff]" : "bg-[#fafafa]")}>
+                          <td className="py-4 px-4 font-bold text-[#262626] leading-tight max-w-[300px] break-words">
+                            {produto.produto}
+                          </td>
+                          <td className="py-4 px-4 text-center font-black text-[#525252]">
+                            {item.quantidade} {produto.quant_embalagem > 1 ? 'CX' : 'UN'}
+                          </td>
+                          <td className="py-4 px-4 text-center font-bold text-[#737373]">
+                            {formatWeight(item.peso_total || 0)}
+                          </td>
+                          <td className="py-4 px-4 text-right font-bold text-[#737373]">
+                            {formatCurrency(item.valor_unitario || 0)}
+                          </td>
+                          <td className="py-4 px-4 text-right font-black text-[#171717]">
+                            {formatCurrency(item.valor_total || 0)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
 
-              <div className="space-y-4">
-                <div className="flex justify-between items-center p-4 bg-[#fafafa] rounded-xl border border-[#f5f5f5]">
-                  <span className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest">Peso Total</span>
-                  <span className="text-xl font-black text-[#171717]">{formatWeight(Math.max(pesoTotal, pesoConquistado))}</span>
+              {/* Summary Section (Only on last page) */}
+              {pageIdx === chunks.length - 1 && (
+                <div className="mt-8 pt-8 border-t-2 border-[#f5f5f5]">
+                  <div className="grid grid-cols-2 gap-12">
+                    <div className="space-y-4">
+                      <div className="p-4 border border-[#e5e5e5] rounded-xl">
+                        <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-2">Condições de Pagamento</p>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-sm font-bold text-[#525252]">Condição:</span>
+                            <span className="text-sm font-black text-[#171717]">{selectedPrazo}</span>
+                          </div>
+                          {selectedPrazo && selectedPrazo !== 'À Vista' && (
+                            <>
+                              <div className="flex justify-between">
+                                <span className="text-sm font-bold text-[#525252]">Valor por Boleto:</span>
+                                <span className="text-sm font-black text-[#171717]">{formatCurrency(installmentDetails.valorBoleto)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-sm font-bold text-[#525252]">1º Vencimento:</span>
+                                <span className="text-sm font-black text-[#171717]">
+                                  {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
+                                </span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {observacoes && (
+                        <div className="p-4 border border-[#e5e5e5] rounded-xl">
+                          <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-2">Observações</p>
+                          <p className="text-xs font-bold text-[#404040] leading-relaxed whitespace-pre-wrap">{observacoes}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center p-4 bg-[#fafafa] rounded-xl border border-[#f5f5f5]">
+                        <span className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest">Peso Total</span>
+                        <span className="text-xl font-black text-[#171717]">{formatWeight(Math.max(pesoTotal, pesoConquistado))}</span>
+                      </div>
+                      <div className="flex justify-between items-center p-6 bg-[#171717] rounded-xl shadow-xl">
+                        <span className="text-xs font-black text-[#a3a3a3] uppercase tracking-widest">Valor Total do Orçamento</span>
+                        <span className="text-3xl font-black text-[#ffffff]">{formatCurrency(valorTotal)}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center p-6 bg-[#171717] rounded-xl shadow-xl">
-                  <span className="text-xs font-black text-[#a3a3a3] uppercase tracking-widest">Valor Total do Orçamento</span>
-                  <span className="text-3xl font-black text-[#ffffff]">{formatCurrency(valorTotal)}</span>
-                </div>
+              )}
+
+              {/* Footer */}
+              <div className="mt-12 text-center">
+                <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES COMERCIAIS</p>
+                <p className="text-[8px] font-bold text-[#a3a3a3] mt-2 italic">Este documento é um orçamento e não possui validade fiscal.</p>
               </div>
             </div>
-          </div>
-
-          {/* Footer */}
-          <div className="mt-12 text-center">
-            <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES COMERCIAIS</p>
-            <p className="text-[8px] font-bold text-[#a3a3a3] mt-2 italic">Este documento é um orçamento e não possui validade fiscal.</p>
-          </div>
-        </div>
+          ));
+        })()}
       </div>
 
       {/* Items List */}

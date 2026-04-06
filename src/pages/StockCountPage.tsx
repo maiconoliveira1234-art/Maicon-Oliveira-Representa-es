@@ -373,25 +373,35 @@ export function StockCountPage() {
     if (!exportRef.current) return;
     
     try {
-      const canvas = await html2canvas(exportRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        windowWidth: 800
-      });
-      
-      const imgData = canvas.toDataURL('image/jpeg', 1.0);
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4'
       });
 
-      // A4 is 210mm x 297mm
-      const imgWidth = 210;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const pages = exportRef.current?.querySelectorAll('.pdf-page');
+      if (!pages || pages.length === 0) return;
 
-      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+      for (let i = 0; i < pages.length; i++) {
+        const page = pages[i] as HTMLElement;
+        const canvas = await html2canvas(page, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          windowWidth: 800
+        });
+        
+        const imgData = canvas.toDataURL('image/jpeg', 1.0);
+        
+        if (i > 0) pdf.addPage();
+        
+        // A4 is 210mm x 297mm
+        const imgWidth = 210;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        
+        pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+      }
+
       const fileName = `contagem-${cliente?.cliente || 'cliente'}-${new Date().toLocaleDateString()}.pdf`;
       pdf.save(fileName);
     } catch (err) {
@@ -753,82 +763,99 @@ export function StockCountPage() {
       </AnimatePresence>
 
       {/* Hidden Export View - Professional A4 Format */}
-      <div className="fixed -left-[9999px] top-0">
-        <div 
-          ref={exportRef} 
-          className="w-[800px] min-h-[1130px] bg-[#ffffff] p-[40px] flex flex-col font-sans text-[#171717]"
-          style={{ fontFamily: 'Arial, sans-serif' }}
-        >
-          {/* Header */}
-          <div className="flex justify-between items-start border-b-2 border-[#262626] pb-6 mb-8">
-            <div className="flex flex-col">
-              <h1 className="text-3xl font-black uppercase tracking-tighter text-[#171717]">Contagem de Estoque</h1>
-              <div className="mt-2 space-y-1">
-                <p className="text-sm font-bold text-[#171717]">{cliente?.cliente}</p>
-                <p className="text-sm font-bold text-[#737373]">Data: {new Date().toLocaleDateString('pt-BR')}</p>
+      <div className="fixed -left-[9999px] top-0" ref={exportRef}>
+        {(() => {
+          const itemsPerPage = 20;
+          const chunks = [];
+          for (let i = 0; i < processedItems.length; i += itemsPerPage) {
+            chunks.push(processedItems.slice(i, i + itemsPerPage));
+          }
+
+          return chunks.map((chunk, pageIdx) => (
+            <div 
+              key={pageIdx}
+              className="pdf-page w-[800px] h-[1130px] bg-[#ffffff] p-[40px] flex flex-col font-sans text-[#171717] mb-10"
+              style={{ fontFamily: 'Arial, sans-serif' }}
+            >
+              {/* Header */}
+              <div className="flex justify-between items-start border-b-2 border-[#262626] pb-6 mb-8">
+                <div className="flex flex-col">
+                  <h1 className="text-3xl font-black uppercase tracking-tighter text-[#171717]">Contagem de Estoque</h1>
+                  <div className="mt-2 space-y-1">
+                    <p className="text-sm font-bold text-[#171717]">{cliente?.cliente}</p>
+                    <p className="text-sm font-bold text-[#737373]">Data: {new Date().toLocaleDateString('pt-BR')}</p>
+                    <p className="text-[10px] font-bold text-[#a3a3a3]">Página {pageIdx + 1} de {chunks.length}</p>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end">
+                  <img 
+                    src="https://www.adimax.com.br/wp-content/themes/adimax/assets/img/logo-adimax.png" 
+                    alt="ADIMAX" 
+                    className="h-12 w-auto mb-2"
+                    referrerPolicy="no-referrer"
+                  />
+                  <span className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest">Parceiro Oficial</span>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="flex-1">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-[#171717] text-[#ffffff]">
+                      <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
+                      <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Ult. Contagem</th>
+                      <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Contagem Atual</th>
+                      <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Estoque Ideal</th>
+                      <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest rounded-tr-lg">Sugestão</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#f5f5f5]">
+                    {chunk.map((item, idx) => {
+                      const currentStock = estoqueMap[item.produto_id] ?? 0;
+                      const isBelowIdeal = item.estoque_ideal > 0;
+                      const sugestao = item.estoque_ideal;
+
+                      return (
+                        <tr key={item.produto_id} className={cn("text-sm", idx % 2 === 0 ? "bg-[#ffffff]" : "bg-[#fafafa]")}>
+                          <td className={cn(
+                            "py-4 px-4 font-bold leading-tight break-words",
+                            isBelowIdeal ? "text-[#dc2626]" : "text-[#262626]"
+                          )}>
+                            {item.produto_nome}
+                          </td>
+                          <td className="py-4 px-4 text-center font-bold text-[#a3a3a3]">
+                            {item.ultima_contagem_valor}
+                          </td>
+                          <td className={cn(
+                            "py-4 px-4 text-center font-black",
+                            isBelowIdeal ? "text-[#dc2626]" : "text-[#171717]"
+                          )}>
+                            {currentStock}
+                          </td>
+                          <td className="py-4 px-4 text-center font-bold text-[#737373]">
+                            {item.estoque_ideal}
+                          </td>
+                          <td className={cn(
+                            "py-4 px-4 text-center font-black",
+                            sugestao > 0 ? "text-[#dc2626]" : "text-[#a3a3a3]"
+                          )}>
+                            {sugestao > 0 ? sugestao : '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Footer */}
+              <div className="mt-12 pt-8 border-t border-[#f5f5f5] text-center">
+                <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES COMERCIAIS</p>
               </div>
             </div>
-            <div className="w-32 h-16 bg-[#f5f5f5] rounded flex items-center justify-center border border-[#e5e5e5]">
-              <span className="text-[10px] font-bold text-[#a3a3a3] uppercase tracking-widest">Logo Empresa</span>
-            </div>
-          </div>
-
-          {/* Table */}
-          <div className="flex-1">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-[#171717] text-[#ffffff]">
-                  <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
-                  <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Ult. Contagem</th>
-                  <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Contagem Atual</th>
-                  <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Estoque Ideal</th>
-                  <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest rounded-tr-lg">Sugestão</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#f5f5f5]">
-                {processedItems.map((item, idx) => {
-                  const currentStock = estoqueMap[item.produto_id] ?? 0;
-                  const isBelowIdeal = item.estoque_ideal > 0;
-                  const sugestao = item.estoque_ideal;
-
-                  return (
-                    <tr key={item.produto_id} className={cn("text-sm", idx % 2 === 0 ? "bg-[#ffffff]" : "bg-[#fafafa]")}>
-                      <td className={cn(
-                        "py-4 px-4 font-bold leading-tight break-words",
-                        isBelowIdeal ? "text-[#dc2626]" : "text-[#262626]"
-                      )}>
-                        {item.produto_nome}
-                      </td>
-                      <td className="py-4 px-4 text-center font-bold text-[#a3a3a3]">
-                        {item.ultima_contagem_valor}
-                      </td>
-                      <td className={cn(
-                        "py-4 px-4 text-center font-black",
-                        isBelowIdeal ? "text-[#dc2626]" : "text-[#171717]"
-                      )}>
-                        {currentStock}
-                      </td>
-                      <td className="py-4 px-4 text-center font-bold text-[#737373]">
-                        {item.estoque_ideal}
-                      </td>
-                      <td className={cn(
-                        "py-4 px-4 text-center font-black",
-                        sugestao > 0 ? "text-[#dc2626]" : "text-[#a3a3a3]"
-                      )}>
-                        {sugestao > 0 ? sugestao : '-'}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Footer */}
-          <div className="mt-12 pt-8 border-t border-[#f5f5f5] text-center">
-            <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES COMERCIAIS</p>
-          </div>
-        </div>
+          ));
+        })()}
       </div>
     </div>
   );
