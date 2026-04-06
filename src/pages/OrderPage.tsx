@@ -545,7 +545,6 @@ export function OrderPage() {
                   <div className="mt-2 space-y-1">
                     <p className="text-sm font-bold text-[#737373]">Data: {new Date().toLocaleDateString('pt-BR')}</p>
                     <p className="text-sm font-bold text-[#737373]">Hora: {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
-                    <p className="text-[10px] font-bold text-[#a3a3a3]">Página {pageIdx + 1} de {chunks.length}</p>
                   </div>
                 </div>
                 <div className="flex flex-col items-end">
@@ -570,7 +569,7 @@ export function OrderPage() {
                   <div className="p-4 bg-[#fafafa] rounded-lg border border-[#f5f5f5]">
                     <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-1">Vendedor</p>
                     <p className="text-lg font-black text-[#171717] leading-tight">MAICON OLIVEIRA</p>
-                    <p className="text-sm font-bold text-[#737373] mt-1">Representações Comerciais</p>
+                    <p className="text-sm font-bold text-[#737373] mt-1">Representante Comercial</p>
                   </div>
                 </div>
               )}
@@ -633,7 +632,7 @@ export function OrderPage() {
                                 <span className="text-sm font-black text-[#171717]">{formatCurrency(installmentDetails.valorBoleto)}</span>
                               </div>
                               <div className="flex justify-between">
-                                <span className="text-sm font-bold text-[#525252]">1º Vencimento:</span>
+                                <span className="text-sm font-bold text-[#525252]">1º Vencimento (Estimado):</span>
                                 <span className="text-sm font-black text-[#171717]">
                                   {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
                                 </span>
@@ -667,8 +666,9 @@ export function OrderPage() {
 
               {/* Footer */}
               <div className="mt-12 text-center">
-                <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES COMERCIAIS</p>
-                <p className="text-[8px] font-bold text-[#a3a3a3] mt-2 italic">Este documento é um orçamento e não possui validade fiscal.</p>
+                <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES</p>
+                <p className="text-[10px] font-bold text-[#a3a3a3] mt-2 italic uppercase tracking-wider">Este documento é um orçamento e não possui validade fiscal.</p>
+                <p className="text-[10px] font-bold text-[#a3a3a3] mt-4">Página {pageIdx + 1} de {chunks.length}</p>
               </div>
             </div>
           ));

@@ -784,7 +784,6 @@ export function StockCountPage() {
                   <div className="mt-2 space-y-1">
                     <p className="text-sm font-bold text-[#171717]">{cliente?.cliente}</p>
                     <p className="text-sm font-bold text-[#737373]">Data: {new Date().toLocaleDateString('pt-BR')}</p>
-                    <p className="text-[10px] font-bold text-[#a3a3a3]">Página {pageIdx + 1} de {chunks.length}</p>
                   </div>
                 </div>
                 <div className="flex flex-col items-end">
@@ -851,7 +850,9 @@ export function StockCountPage() {
 
               {/* Footer */}
               <div className="mt-12 pt-8 border-t border-[#f5f5f5] text-center">
-                <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES COMERCIAIS</p>
+                <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES</p>
+                <p className="text-[10px] font-bold text-[#a3a3a3] mt-2 italic uppercase tracking-wider">Este documento é uma contagem de estoque e não possui validade fiscal.</p>
+                <p className="text-[10px] font-bold text-[#a3a3a3] mt-4">Página {pageIdx + 1} de {chunks.length}</p>
               </div>
             </div>
           ));

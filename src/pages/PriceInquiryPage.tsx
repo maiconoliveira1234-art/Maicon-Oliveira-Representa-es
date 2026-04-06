@@ -412,7 +412,6 @@ export function PriceInquiryPage() {
                   <div className="mt-2 space-y-1">
                     <p className="text-sm font-bold text-[#737373]">Tabela: {selectedTable.toUpperCase()}</p>
                     <p className="text-sm font-bold text-[#737373]">Data: {new Date().toLocaleDateString('pt-BR')}</p>
-                    <p className="text-[10px] font-bold text-[#a3a3a3]">Página {pageIdx + 1} de {chunks.length}</p>
                   </div>
                 </div>
                 <div className="flex flex-col items-end">
@@ -462,8 +461,9 @@ export function PriceInquiryPage() {
 
               {/* Footer */}
               <div className="mt-12 pt-8 border-t border-[#f5f5f5] text-center">
-                <p className="text-xs font-bold text-[#a3a3a3] italic mb-4">Preços sujeitos a alteração sem aviso prévio.</p>
-                <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES COMERCIAIS</p>
+                <p className="text-[10px] font-bold text-[#a3a3a3] mt-2 italic uppercase tracking-wider">Preços sujeitos a alteração sem aviso prévio. Este documento não possui validade fiscal.</p>
+                <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-[0.3em] mt-4">MAICON OLIVEIRA REPRESENTAÇÕES</p>
+                <p className="text-[10px] font-bold text-[#a3a3a3] mt-4">Página {pageIdx + 1} de {chunks.length}</p>
               </div>
             </div>
           ));
