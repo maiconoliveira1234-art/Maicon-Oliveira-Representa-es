@@ -756,20 +756,20 @@ export function StockCountPage() {
       <div className="fixed -left-[9999px] top-0">
         <div 
           ref={exportRef} 
-          className="w-[800px] min-h-[1130px] bg-white p-[40px] flex flex-col font-sans text-neutral-900"
+          className="w-[800px] min-h-[1130px] bg-[#ffffff] p-[40px] flex flex-col font-sans text-[#171717]"
           style={{ fontFamily: 'Arial, sans-serif' }}
         >
           {/* Header */}
-          <div className="flex justify-between items-start border-b-2 border-neutral-800 pb-6 mb-8">
+          <div className="flex justify-between items-start border-b-2 border-[#262626] pb-6 mb-8">
             <div className="flex flex-col">
-              <h1 className="text-3xl font-black uppercase tracking-tighter text-neutral-900">Contagem de Estoque</h1>
+              <h1 className="text-3xl font-black uppercase tracking-tighter text-[#171717]">Contagem de Estoque</h1>
               <div className="mt-2 space-y-1">
-                <p className="text-sm font-bold text-neutral-900">{cliente?.cliente}</p>
-                <p className="text-sm font-bold text-neutral-500">Data: {new Date().toLocaleDateString('pt-BR')}</p>
+                <p className="text-sm font-bold text-[#171717]">{cliente?.cliente}</p>
+                <p className="text-sm font-bold text-[#737373]">Data: {new Date().toLocaleDateString('pt-BR')}</p>
               </div>
             </div>
-            <div className="w-32 h-16 bg-neutral-100 rounded flex items-center justify-center border border-neutral-200">
-              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Logo Empresa</span>
+            <div className="w-32 h-16 bg-[#f5f5f5] rounded flex items-center justify-center border border-[#e5e5e5]">
+              <span className="text-[10px] font-bold text-[#a3a3a3] uppercase tracking-widest">Logo Empresa</span>
             </div>
           </div>
 
@@ -777,7 +777,7 @@ export function StockCountPage() {
           <div className="flex-1">
             <table className="w-full border-collapse">
               <thead>
-                <tr className="bg-neutral-900 text-white">
+                <tr className="bg-[#171717] text-[#ffffff]">
                   <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
                   <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Ult. Contagem</th>
                   <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Contagem Atual</th>
@@ -785,35 +785,35 @@ export function StockCountPage() {
                   <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest rounded-tr-lg">Sugestão</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100">
+              <tbody className="divide-y divide-[#f5f5f5]">
                 {processedItems.map((item, idx) => {
                   const currentStock = estoqueMap[item.produto_id] ?? 0;
                   const isBelowIdeal = item.estoque_ideal > 0;
                   const sugestao = item.estoque_ideal;
 
                   return (
-                    <tr key={item.produto_id} className={cn("text-sm", idx % 2 === 0 ? "bg-white" : "bg-neutral-50")}>
+                    <tr key={item.produto_id} className={cn("text-sm", idx % 2 === 0 ? "bg-[#ffffff]" : "bg-[#fafafa]")}>
                       <td className={cn(
                         "py-4 px-4 font-bold leading-tight break-words",
-                        isBelowIdeal ? "text-red-600" : "text-neutral-800"
+                        isBelowIdeal ? "text-[#dc2626]" : "text-[#262626]"
                       )}>
                         {item.produto_nome}
                       </td>
-                      <td className="py-4 px-4 text-center font-bold text-neutral-400">
+                      <td className="py-4 px-4 text-center font-bold text-[#a3a3a3]">
                         {item.ultima_contagem_valor}
                       </td>
                       <td className={cn(
                         "py-4 px-4 text-center font-black",
-                        isBelowIdeal ? "text-red-600" : "text-neutral-900"
+                        isBelowIdeal ? "text-[#dc2626]" : "text-[#171717]"
                       )}>
                         {currentStock}
                       </td>
-                      <td className="py-4 px-4 text-center font-bold text-neutral-500">
+                      <td className="py-4 px-4 text-center font-bold text-[#737373]">
                         {item.estoque_ideal}
                       </td>
                       <td className={cn(
                         "py-4 px-4 text-center font-black",
-                        sugestao > 0 ? "text-red-600" : "text-neutral-400"
+                        sugestao > 0 ? "text-[#dc2626]" : "text-[#a3a3a3]"
                       )}>
                         {sugestao > 0 ? sugestao : '-'}
                       </td>
@@ -825,8 +825,8 @@ export function StockCountPage() {
           </div>
 
           {/* Footer */}
-          <div className="mt-12 pt-8 border-t border-neutral-100 text-center">
-            <p className="text-[10px] font-black text-neutral-300 uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES COMERCIAIS</p>
+          <div className="mt-12 pt-8 border-t border-[#f5f5f5] text-center">
+            <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES COMERCIAIS</p>
           </div>
         </div>
       </div>

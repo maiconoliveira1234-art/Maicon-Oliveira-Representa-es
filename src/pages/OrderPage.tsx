@@ -517,34 +517,34 @@ export function OrderPage() {
       <div className="fixed -left-[9999px] top-0">
         <div 
           ref={receiptRef}
-          className="w-[800px] min-h-[1130px] bg-white p-[40px] flex flex-col font-sans text-neutral-900"
+          className="w-[800px] min-h-[1130px] bg-[#ffffff] p-[40px] flex flex-col font-sans text-[#171717]"
           style={{ fontFamily: 'Arial, sans-serif' }}
         >
           {/* Header */}
-          <div className="flex justify-between items-start border-b-2 border-neutral-800 pb-6 mb-8">
+          <div className="flex justify-between items-start border-b-2 border-[#262626] pb-6 mb-8">
             <div className="flex flex-col">
-              <h1 className="text-3xl font-black uppercase tracking-tighter text-neutral-900">Resumo do Orçamento</h1>
+              <h1 className="text-3xl font-black uppercase tracking-tighter text-[#171717]">Resumo do Orçamento</h1>
               <div className="mt-2 space-y-1">
-                <p className="text-sm font-bold text-neutral-500">Data: {new Date().toLocaleDateString('pt-BR')}</p>
-                <p className="text-sm font-bold text-neutral-500">Hora: {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                <p className="text-sm font-bold text-[#737373]">Data: {new Date().toLocaleDateString('pt-BR')}</p>
+                <p className="text-sm font-bold text-[#737373]">Hora: {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
               </div>
             </div>
-            <div className="w-32 h-16 bg-neutral-100 rounded flex items-center justify-center border border-neutral-200">
-              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Logo Empresa</span>
+            <div className="w-32 h-16 bg-[#f5f5f5] rounded flex items-center justify-center border border-[#e5e5e5]">
+              <span className="text-[10px] font-bold text-[#a3a3a3] uppercase tracking-widest">Logo Empresa</span>
             </div>
           </div>
 
           {/* Client Info */}
           <div className="grid grid-cols-2 gap-8 mb-8">
-            <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-100">
-              <p className="text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-1">Cliente</p>
-              <p className="text-lg font-black text-neutral-900 leading-tight">{cliente?.cliente}</p>
-              <p className="text-sm font-bold text-neutral-500 mt-1">{cliente?.cidade}</p>
+            <div className="p-4 bg-[#fafafa] rounded-lg border border-[#f5f5f5]">
+              <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-1">Cliente</p>
+              <p className="text-lg font-black text-[#171717] leading-tight">{cliente?.cliente}</p>
+              <p className="text-sm font-bold text-[#737373] mt-1">{cliente?.cidade}</p>
             </div>
-            <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-100">
-              <p className="text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-1">Vendedor</p>
-              <p className="text-lg font-black text-neutral-900 leading-tight">MAICON OLIVEIRA</p>
-              <p className="text-sm font-bold text-neutral-500 mt-1">Representações Comerciais</p>
+            <div className="p-4 bg-[#fafafa] rounded-lg border border-[#f5f5f5]">
+              <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-1">Vendedor</p>
+              <p className="text-lg font-black text-[#171717] leading-tight">MAICON OLIVEIRA</p>
+              <p className="text-sm font-bold text-[#737373] mt-1">Representações Comerciais</p>
             </div>
           </div>
 
@@ -552,7 +552,7 @@ export function OrderPage() {
           <div className="flex-1">
             <table className="w-full border-collapse">
               <thead>
-                <tr className="bg-neutral-900 text-white">
+                <tr className="bg-[#171717] text-[#ffffff]">
                   <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
                   <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Qtd</th>
                   <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Peso</th>
@@ -560,24 +560,24 @@ export function OrderPage() {
                   <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest rounded-tr-lg">Subtotal</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100">
+              <tbody className="divide-y divide-[#f5f5f5]">
                 {itens.map((item, idx) => {
                   const produto = produtos.find(p => p.id === item.produto_id)!;
                   return (
-                    <tr key={idx} className={cn("text-sm", idx % 2 === 0 ? "bg-white" : "bg-neutral-50")}>
-                      <td className="py-4 px-4 font-bold text-neutral-800 leading-tight max-w-[300px] break-words">
+                    <tr key={idx} className={cn("text-sm", idx % 2 === 0 ? "bg-[#ffffff]" : "bg-[#fafafa]")}>
+                      <td className="py-4 px-4 font-bold text-[#262626] leading-tight max-w-[300px] break-words">
                         {produto.produto}
                       </td>
-                      <td className="py-4 px-4 text-center font-black text-neutral-600">
+                      <td className="py-4 px-4 text-center font-black text-[#525252]">
                         {item.quantidade} {produto.quant_embalagem > 1 ? 'CX' : 'UN'}
                       </td>
-                      <td className="py-4 px-4 text-center font-bold text-neutral-500">
+                      <td className="py-4 px-4 text-center font-bold text-[#737373]">
                         {formatWeight(item.peso_total || 0)}
                       </td>
-                      <td className="py-4 px-4 text-right font-bold text-neutral-500">
+                      <td className="py-4 px-4 text-right font-bold text-[#737373]">
                         {formatCurrency(item.valor_unitario || 0)}
                       </td>
-                      <td className="py-4 px-4 text-right font-black text-neutral-900">
+                      <td className="py-4 px-4 text-right font-black text-[#171717]">
                         {formatCurrency(item.valor_total || 0)}
                       </td>
                     </tr>
@@ -588,25 +588,25 @@ export function OrderPage() {
           </div>
 
           {/* Summary Section */}
-          <div className="mt-8 pt-8 border-t-2 border-neutral-100">
+          <div className="mt-8 pt-8 border-t-2 border-[#f5f5f5]">
             <div className="grid grid-cols-2 gap-12">
               <div className="space-y-4">
-                <div className="p-4 border border-neutral-200 rounded-xl">
-                  <p className="text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-2">Condições de Pagamento</p>
+                <div className="p-4 border border-[#e5e5e5] rounded-xl">
+                  <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-2">Condições de Pagamento</p>
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-sm font-bold text-neutral-600">Condição:</span>
-                      <span className="text-sm font-black text-neutral-900">{selectedPrazo}</span>
+                      <span className="text-sm font-bold text-[#525252]">Condição:</span>
+                      <span className="text-sm font-black text-[#171717]">{selectedPrazo}</span>
                     </div>
                     {selectedPrazo && selectedPrazo !== 'À Vista' && (
                       <>
                         <div className="flex justify-between">
-                          <span className="text-sm font-bold text-neutral-600">Valor por Boleto:</span>
-                          <span className="text-sm font-black text-neutral-900">{formatCurrency(installmentDetails.valorBoleto)}</span>
+                          <span className="text-sm font-bold text-[#525252]">Valor por Boleto:</span>
+                          <span className="text-sm font-black text-[#171717]">{formatCurrency(installmentDetails.valorBoleto)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-sm font-bold text-neutral-600">1º Vencimento:</span>
-                          <span className="text-sm font-black text-neutral-900">
+                          <span className="text-sm font-bold text-[#525252]">1º Vencimento:</span>
+                          <span className="text-sm font-black text-[#171717]">
                             {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
                           </span>
                         </div>
@@ -616,21 +616,21 @@ export function OrderPage() {
                 </div>
                 
                 {observacoes && (
-                  <div className="p-4 border border-neutral-200 rounded-xl">
-                    <p className="text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-2">Observações</p>
-                    <p className="text-xs font-bold text-neutral-700 leading-relaxed whitespace-pre-wrap">{observacoes}</p>
+                  <div className="p-4 border border-[#e5e5e5] rounded-xl">
+                    <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-2">Observações</p>
+                    <p className="text-xs font-bold text-[#404040] leading-relaxed whitespace-pre-wrap">{observacoes}</p>
                   </div>
                 )}
               </div>
 
               <div className="space-y-4">
-                <div className="flex justify-between items-center p-4 bg-neutral-50 rounded-xl border border-neutral-100">
-                  <span className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Peso Total</span>
-                  <span className="text-xl font-black text-neutral-900">{formatWeight(Math.max(pesoTotal, pesoConquistado))}</span>
+                <div className="flex justify-between items-center p-4 bg-[#fafafa] rounded-xl border border-[#f5f5f5]">
+                  <span className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest">Peso Total</span>
+                  <span className="text-xl font-black text-[#171717]">{formatWeight(Math.max(pesoTotal, pesoConquistado))}</span>
                 </div>
-                <div className="flex justify-between items-center p-6 bg-neutral-900 rounded-xl shadow-xl">
-                  <span className="text-xs font-black text-neutral-400 uppercase tracking-widest">Valor Total do Orçamento</span>
-                  <span className="text-3xl font-black text-white">{formatCurrency(valorTotal)}</span>
+                <div className="flex justify-between items-center p-6 bg-[#171717] rounded-xl shadow-xl">
+                  <span className="text-xs font-black text-[#a3a3a3] uppercase tracking-widest">Valor Total do Orçamento</span>
+                  <span className="text-3xl font-black text-[#ffffff]">{formatCurrency(valorTotal)}</span>
                 </div>
               </div>
             </div>
@@ -638,8 +638,8 @@ export function OrderPage() {
 
           {/* Footer */}
           <div className="mt-12 text-center">
-            <p className="text-[10px] font-black text-neutral-300 uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES COMERCIAIS</p>
-            <p className="text-[8px] font-bold text-neutral-400 mt-2 italic">Este documento é um orçamento e não possui validade fiscal.</p>
+            <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES COMERCIAIS</p>
+            <p className="text-[8px] font-bold text-[#a3a3a3] mt-2 italic">Este documento é um orçamento e não possui validade fiscal.</p>
           </div>
         </div>
       </div>
