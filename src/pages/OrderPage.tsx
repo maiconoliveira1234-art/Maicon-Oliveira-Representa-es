@@ -531,12 +531,21 @@ export function OrderPage() {
             {itens.map((item, idx) => {
               const produto = produtos.find(p => p.id === item.produto_id)!;
               return (
-                <div key={idx} className="flex justify-between items-start gap-2">
-                  <div className="flex-1">
-                    <p className="font-bold text-[#171717] text-xs leading-tight">{produto.produto}</p>
-                    <p className="text-[9px] text-[#a3a3a3] font-bold uppercase">{item.quantidade} UN • {formatWeight(item.peso_total || 0)}</p>
+                <div key={idx} className="flex justify-between items-center gap-2 py-1 border-b border-[#f5f5f5] last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-[#171717] text-xs leading-tight truncate">{produto.produto}</p>
+                    <p className="text-[8px] text-[#a3a3a3] font-bold uppercase">
+                      {item.quantidade} {produto.quant_embalagem > 1 ? 'CX' : 'UN'} • {formatWeight(item.peso_total || 0)}
+                    </p>
                   </div>
-                  <p className="font-black text-[#171717] text-xs">{formatCurrency(item.valor_total || 0)}</p>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-[7px] text-[#a3a3a3] font-bold uppercase">Unit.</p>
+                    <p className="text-[9px] text-[#737373] font-bold">{formatCurrency(item.valor_unitario || 0)}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0 min-w-[70px]">
+                    <p className="text-[7px] text-[#a3a3a3] font-bold uppercase">Subtotal</p>
+                    <p className="font-black text-[#171717] text-xs">{formatCurrency(item.valor_total || 0)}</p>
+                  </div>
                 </div>
               );
             })}
