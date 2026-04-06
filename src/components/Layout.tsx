@@ -35,6 +35,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <MobileNavItem to="/metas" icon={<BarChart3 size={24} />} label="Metas" />
         <MobileNavItem to="/dashboard" icon={<LayoutDashboard size={24} />} label="Dashboard" />
         <MobileNavItem to="/import" icon={<FileUp size={24} />} label="Importar" />
+        <MobileNavItem to="/settings" icon={<Settings size={24} />} label="Config" />
       </nav>
     </div>
   );

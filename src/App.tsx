@@ -13,6 +13,7 @@ import { OrderPage } from './pages/OrderPage';
 import { StockCountPage } from './pages/StockCountPage';
 import { MetasPage } from './pages/MetasPage';
 import { ImportPage } from './pages/ImportPage';
+import { SettingsPage } from './pages/SettingsPage';
 
 export default function App() {
   return (
@@ -29,7 +30,7 @@ export default function App() {
           <Route path="/pedido/novo/:clienteId" element={<OrderPage />} />
           <Route path="/metas" element={<MetasPage />} />
           <Route path="/import" element={<ImportPage />} />
-          <Route path="/settings" element={<div className="p-8 text-center">Configurações (Em desenvolvimento)</div>} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
