@@ -383,11 +383,15 @@ export function StockCountPage() {
       const imgData = canvas.toDataURL('image/jpeg', 1.0);
       const pdf = new jsPDF({
         orientation: 'portrait',
-        unit: 'px',
-        format: [canvas.width, canvas.height]
+        unit: 'mm',
+        format: 'a4'
       });
 
-      pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+      // A4 is 210mm x 297mm
+      const imgWidth = 210;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
       const fileName = `contagem-${cliente?.cliente || 'cliente'}-${new Date().toLocaleDateString()}.pdf`;
       pdf.save(fileName);
     } catch (err) {
@@ -748,63 +752,81 @@ export function StockCountPage() {
         )}
       </AnimatePresence>
 
-      {/* Hidden Export View */}
+      {/* Hidden Export View - Professional A4 Format */}
       <div className="fixed -left-[9999px] top-0">
-        <div ref={exportRef} className="bg-[#ffffff] p-4 w-[800px]">
-          <div className="border-b-2 border-[#ea580c] pb-2 mb-3">
-            <h1 className="text-xl font-black text-[#262626] uppercase tracking-tight">Contagem de Estoque</h1>
-            <p className="text-base font-bold text-[#ea580c]">{cliente?.cliente}</p>
-            <p className="text-[10px] text-[#a3a3a3]">{new Date().toLocaleDateString()}</p>
+        <div 
+          ref={exportRef} 
+          className="w-[800px] min-h-[1130px] bg-white p-[40px] flex flex-col font-sans text-neutral-900"
+          style={{ fontFamily: 'Arial, sans-serif' }}
+        >
+          {/* Header */}
+          <div className="flex justify-between items-start border-b-2 border-neutral-800 pb-6 mb-8">
+            <div className="flex flex-col">
+              <h1 className="text-3xl font-black uppercase tracking-tighter text-neutral-900">Contagem de Estoque</h1>
+              <div className="mt-2 space-y-1">
+                <p className="text-sm font-bold text-neutral-900">{cliente?.cliente}</p>
+                <p className="text-sm font-bold text-neutral-500">Data: {new Date().toLocaleDateString('pt-BR')}</p>
+              </div>
+            </div>
+            <div className="w-32 h-16 bg-neutral-100 rounded flex items-center justify-center border border-neutral-200">
+              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Logo Empresa</span>
+            </div>
           </div>
-          
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-[#f5f5f5] text-left">
-                <th className="p-1.5 border border-[#e5e5e5] text-[9px] font-bold uppercase">Item</th>
-                <th className="p-1.5 border border-[#e5e5e5] text-[9px] font-bold uppercase text-center">Ult. Contagem</th>
-                <th className="p-1.5 border border-[#e5e5e5] text-[9px] font-bold uppercase text-center">Contagem Atual</th>
-                <th className="p-1.5 border border-[#e5e5e5] text-[9px] font-bold uppercase text-center">Estoque Ideal</th>
-                <th className="p-1.5 border border-[#e5e5e5] text-[9px] font-bold uppercase text-center">Sugestão</th>
-              </tr>
-            </thead>
-            <tbody>
-              {processedItems.map(item => {
-                const currentStock = estoqueMap[item.produto_id] ?? 0;
-                const isBelowIdeal = item.estoque_ideal > 0;
-                const sugestao = item.estoque_ideal;
 
-                return (
-                  <tr key={item.produto_id} className="even:bg-[#f5f5f5]/50">
-                    <td className={cn(
-                      "p-1.5 pt-2 border border-[#e5e5e5] text-xs font-black leading-normal",
-                      isBelowIdeal ? "text-[#b91c1c]" : "text-[#262626]"
-                    )}>
-                      {item.produto_nome}
-                    </td>
-                    <td className="p-1.5 border border-[#e5e5e5] text-xs text-center font-bold text-[#a3a3a3]">{item.ultima_contagem_valor}</td>
-                    <td className={cn(
-                      "p-1.5 border border-[#e5e5e5] text-xs text-center font-black",
-                      isBelowIdeal ? "text-[#dc2626]" : "text-[#404040]"
-                    )}>
-                      {currentStock}
-                    </td>
-                    <td className="p-1.5 border border-[#e5e5e5] text-xs text-center font-bold text-[#737373]">
-                      {item.estoque_ideal}
-                    </td>
-                    <td className={cn(
-                      "p-1.5 border border-[#e5e5e5] text-xs text-center font-black",
-                      sugestao > 0 ? "text-[#dc2626]" : "text-[#a3a3a3]"
-                    )}>
-                      {sugestao > 0 ? sugestao : '-'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          
-          <div className="mt-4 pt-2 border-t border-[#f5f5f5] text-[9px] text-[#a3a3a3] text-center font-bold uppercase tracking-widest">
-            MAICON OLIVEIRA REPRESENTAÇÕES
+          {/* Table */}
+          <div className="flex-1">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-neutral-900 text-white">
+                  <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
+                  <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Ult. Contagem</th>
+                  <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Contagem Atual</th>
+                  <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Estoque Ideal</th>
+                  <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest rounded-tr-lg">Sugestão</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {processedItems.map((item, idx) => {
+                  const currentStock = estoqueMap[item.produto_id] ?? 0;
+                  const isBelowIdeal = item.estoque_ideal > 0;
+                  const sugestao = item.estoque_ideal;
+
+                  return (
+                    <tr key={item.produto_id} className={cn("text-sm", idx % 2 === 0 ? "bg-white" : "bg-neutral-50")}>
+                      <td className={cn(
+                        "py-4 px-4 font-bold leading-tight break-words",
+                        isBelowIdeal ? "text-red-600" : "text-neutral-800"
+                      )}>
+                        {item.produto_nome}
+                      </td>
+                      <td className="py-4 px-4 text-center font-bold text-neutral-400">
+                        {item.ultima_contagem_valor}
+                      </td>
+                      <td className={cn(
+                        "py-4 px-4 text-center font-black",
+                        isBelowIdeal ? "text-red-600" : "text-neutral-900"
+                      )}>
+                        {currentStock}
+                      </td>
+                      <td className="py-4 px-4 text-center font-bold text-neutral-500">
+                        {item.estoque_ideal}
+                      </td>
+                      <td className={cn(
+                        "py-4 px-4 text-center font-black",
+                        sugestao > 0 ? "text-red-600" : "text-neutral-400"
+                      )}>
+                        {sugestao > 0 ? sugestao : '-'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-12 pt-8 border-t border-neutral-100 text-center">
+            <p className="text-[10px] font-black text-neutral-300 uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES COMERCIAIS</p>
           </div>
         </div>
       </div>

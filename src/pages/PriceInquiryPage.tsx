@@ -178,11 +178,15 @@ export function PriceInquiryPage() {
       const imgData = canvas.toDataURL('image/jpeg', 1.0);
       const pdf = new jsPDF({
         orientation: 'portrait',
-        unit: 'px',
-        format: [canvas.width, canvas.height]
+        unit: 'mm',
+        format: 'a4'
       });
 
-      pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+      // A4 is 210mm x 297mm
+      const imgWidth = 210;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
       const pdfBlob = pdf.output('blob');
       const fileName = `lista-precos-${new Date().getTime()}.pdf`;
       const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
@@ -376,52 +380,65 @@ export function PriceInquiryPage() {
         </div>
       </div>
 
-      {/* Hidden Export Area */}
-      <div className="fixed -left-[2000px] top-0">
+      {/* Hidden Export Area - Professional A4 Format */}
+      <div className="fixed -left-[9999px] top-0">
         <div 
           ref={exportRef} 
-          className="w-[800px] bg-[#ffffff] p-8 space-y-4"
+          className="w-[800px] min-h-[1130px] bg-white p-[40px] flex flex-col font-sans text-neutral-900"
+          style={{ fontFamily: 'Arial, sans-serif' }}
         >
-          <div className="flex items-center justify-between border-b-4 border-[#ea580c] pb-4">
-            <div>
-              <h1 className="text-3xl font-black text-[#171717]">Lista de Preços</h1>
-              <p className="text-lg text-[#737373] font-bold">Tabela: {selectedTable.toUpperCase()}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-base font-bold text-[#a3a3a3]">{new Date().toLocaleDateString('pt-BR')}</p>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            {selectedProductsList.map((p) => (
-              <div key={p.id} className="flex items-center justify-between py-2 border-b border-[#f5f5f5] gap-4">
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-black text-[#171717] leading-normal break-words pt-1">{p.produto}</h3>
-                </div>
-                <div className="flex items-center gap-6 flex-shrink-0">
-                  <div className="text-right">
-                    <p className="text-[9px] text-[#a3a3a3] font-bold uppercase">Sugestão</p>
-                    <p className="text-sm font-bold text-[#a3a3a3]">
-                      R$ {(p.sugestao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                  <div className="text-right min-w-[130px]">
-                    <p className="text-2xl font-black text-[#ea580c]">
-                      R$ {(selectedClient !== 'all'
-                        ? (clientLastPrices[p.id] || clientLastPricesByName[p.produto?.toLowerCase() || ''] || 0)
-                        : ((p.custo_und || 0) * (1 - (p[selectedTable] || 0)))
-                      ).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                    <p className="text-[9px] text-[#a3a3a3] font-bold uppercase">Unidade</p>
-                  </div>
-                </div>
+          {/* Header */}
+          <div className="flex justify-between items-start border-b-2 border-neutral-800 pb-6 mb-8">
+            <div className="flex flex-col">
+              <h1 className="text-3xl font-black uppercase tracking-tighter text-neutral-900">Lista de Preços</h1>
+              <div className="mt-2 space-y-1">
+                <p className="text-sm font-bold text-neutral-500">Tabela: {selectedTable.toUpperCase()}</p>
+                <p className="text-sm font-bold text-neutral-500">Data: {new Date().toLocaleDateString('pt-BR')}</p>
               </div>
-            ))}
+            </div>
+            <div className="w-32 h-16 bg-neutral-100 rounded flex items-center justify-center border border-neutral-200">
+              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Logo Empresa</span>
+            </div>
           </div>
 
-          <div className="pt-8 pb-4 text-center border-t border-[#e5e5e5] space-y-2">
-            <p className="text-[#a3a3a3] text-xs font-bold italic">Preços sujeitos a alteração sem aviso prévio.</p>
-            <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-widest">MAICON OLIVEIRA REPRESENTAÇÕES</p>
+          {/* Table */}
+          <div className="flex-1">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-neutral-900 text-white">
+                  <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
+                  <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest">Sugestão</th>
+                  <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest rounded-tr-lg">Preço Unitário</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {selectedProductsList.map((p, idx) => {
+                  const price = selectedClient !== 'all'
+                    ? (clientLastPrices[p.id] || clientLastPricesByName[p.produto?.toLowerCase() || ''] || 0)
+                    : ((p.custo_und || 0) * (1 - (p[selectedTable] || 0)));
+                  
+                  return (
+                    <tr key={p.id} className={cn("text-sm", idx % 2 === 0 ? "bg-white" : "bg-neutral-50")}>
+                      <td className="py-4 px-4 font-bold text-neutral-800 leading-tight break-words">
+                        {p.produto}
+                      </td>
+                      <td className="py-4 px-4 text-right font-bold text-neutral-400">
+                        R$ {(p.sugestao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-4 px-4 text-right font-black text-neutral-900 text-lg">
+                        R$ {price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Footer */}
+          <div className="mt-12 pt-8 border-t border-neutral-100 text-center">
+            <p className="text-xs font-bold text-neutral-400 italic mb-4">Preços sujeitos a alteração sem aviso prévio.</p>
+            <p className="text-[10px] font-black text-neutral-300 uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES COMERCIAIS</p>
           </div>
         </div>
       </div>
