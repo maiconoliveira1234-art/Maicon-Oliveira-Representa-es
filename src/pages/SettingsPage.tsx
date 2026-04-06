@@ -8,12 +8,19 @@ export function SettingsPage() {
 
   const handleUpdate = () => {
     setIsUpdating(true);
-    // Simulate a check for updates before reloading
+    
+    // 1. Clear any local storage that might be stale (optional, but good for "hard" updates)
+    // localStorage.clear(); 
+    
     setTimeout(() => {
       setUpdateSuccess(true);
       setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+        // 2. Use cache-busting to force the browser to fetch the latest version
+        // This avoids 404s if the previous deployment was cached or if the route is handled by SPA
+        const url = new URL(window.location.origin);
+        url.searchParams.set('v', Date.now().toString());
+        window.location.href = url.toString();
+      }, 800);
     }, 1500);
   };
 
