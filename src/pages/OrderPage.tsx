@@ -516,7 +516,7 @@ export function OrderPage() {
           className="w-[400px] bg-[#ffffff] p-4 space-y-3"
         >
           <div className="text-center border-b-2 border-[#f5f5f5] pb-3">
-            <h1 className="text-xl font-black text-[#171717] uppercase tracking-tighter">Resumo do Orçamento</h1>
+            <h1 className="text-xl font-black text-[#171717] uppercase tracking-tight">Resumo do Orçamento</h1>
             <p className="text-[#737373] font-bold text-[10px] mt-0.5">{new Date().toLocaleDateString('pt-BR')} - {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
           </div>
 
@@ -526,15 +526,15 @@ export function OrderPage() {
             <p className="text-xs text-[#737373] font-bold">{cliente?.cidade}</p>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-[8px] font-black text-[#a3a3a3] uppercase border-b border-[#f5f5f5] pb-0.5">Itens do Orçamento</p>
+          <div className="space-y-2 pt-1">
+            <p className="text-[8px] font-black text-[#a3a3a3] uppercase border-b border-[#f5f5f5] pb-1">Itens do Orçamento</p>
             {itens.map((item, idx) => {
               const produto = produtos.find(p => p.id === item.produto_id)!;
               return (
-                <div key={idx} className="flex justify-between items-center gap-2 py-1 border-b border-[#f5f5f5] last:border-0">
+                <div key={idx} className="flex justify-between items-center gap-2 py-2 border-b border-[#f5f5f5] last:border-0">
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-[#171717] text-xs leading-tight truncate">{produto.produto}</p>
-                    <p className="text-[8px] text-[#a3a3a3] font-bold uppercase">
+                    <p className="font-bold text-[#171717] text-xs leading-normal pt-0.5 break-words">{produto.produto}</p>
+                    <p className="text-[8px] text-[#a3a3a3] font-bold uppercase mt-0.5">
                       {item.quantidade} {produto.quant_embalagem > 1 ? 'CX' : 'UN'} • {formatWeight(item.peso_total || 0)}
                     </p>
                   </div>

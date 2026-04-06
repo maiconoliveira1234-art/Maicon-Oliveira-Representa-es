@@ -396,7 +396,7 @@ export function PriceInquiryPage() {
             {selectedProductsList.map((p) => (
               <div key={p.id} className="flex items-center justify-between py-2 border-b border-[#f5f5f5] gap-4">
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-black text-[#171717] leading-tight break-words">{p.produto}</h3>
+                  <h3 className="text-lg font-black text-[#171717] leading-normal break-words pt-1">{p.produto}</h3>
                 </div>
                 <div className="flex items-center gap-6 flex-shrink-0">
                   <div className="text-right">

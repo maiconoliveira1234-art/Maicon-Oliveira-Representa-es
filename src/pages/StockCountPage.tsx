@@ -776,7 +776,7 @@ export function StockCountPage() {
                 return (
                   <tr key={item.produto_id} className="even:bg-[#f5f5f5]/50">
                     <td className={cn(
-                      "p-1.5 border border-[#e5e5e5] text-xs font-black",
+                      "p-1.5 pt-2 border border-[#e5e5e5] text-xs font-black leading-normal",
                       isBelowIdeal ? "text-[#b91c1c]" : "text-[#262626]"
                     )}>
                       {item.produto_nome}
