@@ -526,14 +526,21 @@ export function OrderPage() {
       {/* Hidden Receipt for Image Generation - Professional A4 Format */}
       <div className="fixed -left-[9999px] top-0" ref={receiptRef}>
         {(() => {
+          // Sort items alphabetically by product name
+          const sortedItens = [...itens].sort((a, b) => {
+            const prodA = produtos.find(p => p.id === a.produto_id)?.produto || '';
+            const prodB = produtos.find(p => p.id === b.produto_id)?.produto || '';
+            return prodA.localeCompare(prodB);
+          });
+
           // Smart pagination: First page fits less items due to header/client info
           const chunks = [];
           let i = 0;
           let isFirstPage = true;
           
-          while (i < itens.length) {
+          while (i < sortedItens.length) {
             const itemsLimit = isFirstPage ? 10 : 15;
-            chunks.push(itens.slice(i, i + itemsLimit));
+            chunks.push(sortedItens.slice(i, i + itemsLimit));
             i += itemsLimit;
             isFirstPage = false;
           }
