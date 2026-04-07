@@ -180,7 +180,7 @@ export function Dashboard() {
         ]);
 
         if (cData) setClientes(cData);
-        if (pData) setProdutos(pData);
+        if (pData) setProdutos(pData.filter(p => p.familia?.toLowerCase() !== 'amostras e brindes'));
         if (mData) {
           const map: Record<string, number> = {};
           mData.forEach(m => map[m.cliente_id] = m.meta);
@@ -407,7 +407,7 @@ export function Dashboard() {
     
     const sorted = Object.entries(map)
       .map(([name, data]) => ({ name, value: data.value, weight: data.weight }))
-      .sort((a, b) => evolutionMetric === 'value' ? b.value - a.value : b.weight - a.weight);
+      .sort((a, b) => a.name.localeCompare(b.name));
       
     if (sorted.length <= 9) return sorted;
     
@@ -429,7 +429,7 @@ export function Dashboard() {
     });
     return Object.entries(map)
       .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.revenue - a.revenue)
+      .sort((a, b) => a.name.localeCompare(b.name))
       .slice(0, 10);
   }, [filteredHistorico, produtosMap]);
 
@@ -686,9 +686,12 @@ export function Dashboard() {
                             exit={{ opacity: 0, y: 10 }}
                             className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl z-[70] max-h-64 overflow-y-auto p-1"
                           >
-                            {Array.from(new Set(produtos.map(p => p.familia))).map(f => (
-                              <button
-                                key={f}
+                            {(Array.from(new Set(produtos.map(p => p.familia).filter(Boolean))) as string[])
+                              .filter(f => f.toLowerCase() !== 'amostras e brindes')
+                              .sort((a, b) => a.localeCompare(b))
+                              .map(f => (
+                                <button
+                                  key={f}
                                 onClick={() => {
                                   setFilters(prev => ({
                                     ...prev,
