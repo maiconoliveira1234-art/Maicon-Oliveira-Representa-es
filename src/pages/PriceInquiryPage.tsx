@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Produto, PrecoFaixa } from '../types';
-import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle, Users, X } from 'lucide-react';
+import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle, Users, X, ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -243,23 +243,23 @@ export function PriceInquiryPage() {
     <div className="space-y-6 pb-12">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-neutral-900">Consulta de Preço</h1>
-          <p className="text-neutral-500 text-sm">Gere listas de preços para seus clientes</p>
+          <h1 className="text-2xl font-black text-neutral-900">Consulta Preço</h1>
+          <p className="text-neutral-500 text-sm">Gere listas de preços</p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={selectAll}
-            className="px-4 py-2 bg-white border border-neutral-200 text-neutral-600 rounded-xl font-bold hover:bg-neutral-50 transition-all flex items-center gap-2"
-          >
-            <CheckSquare size={18} />
-            Marcar Todos
-          </button>
           <button
             onClick={deselectAll}
             className="px-4 py-2 bg-white border border-neutral-200 text-neutral-600 rounded-xl font-bold hover:bg-neutral-50 transition-all flex items-center gap-2"
           >
             <XCircle size={18} />
             Desmarcar Todos
+          </button>
+          <button
+            onClick={selectAll}
+            className="px-4 py-2 bg-white border border-neutral-200 text-neutral-600 rounded-xl font-bold hover:bg-neutral-50 transition-all flex items-center gap-2"
+          >
+            <CheckSquare size={18} />
+            Marcar Todos
           </button>
           <button
             onClick={handleExport}
@@ -272,8 +272,8 @@ export function PriceInquiryPage() {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="relative">
+      <div className="space-y-4">
+        <div className="relative max-w-2xl mx-auto">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" size={20} />
           <input
             type="text"
@@ -291,52 +291,58 @@ export function PriceInquiryPage() {
             </button>
           )}
         </div>
-        <div className="relative">
-          <FilterDropdown 
-            label="Todas as Famílias"
-            options={[
-              { id: 'all', label: 'Todas as Famílias' },
-              ...families.map(f => ({ id: f, label: f }))
-            ]}
-            selected={selectedFamily}
-            onChange={(value) => {
-              setSelectedFamily(value);
-              setSearchTerm('');
-            }}
-            placeholder="Buscar família..."
-            icon={<Filter size={20} />}
-          />
-        </div>
-        <div className="relative">
-          <FilterDropdown 
-            label="Todos os Clientes"
-            options={[
-              { id: 'all', label: 'Todos os Clientes' },
-              ...clients.map(c => ({ id: c, label: c }))
-            ]}
-            selected={selectedClient}
-            onChange={(value) => {
-              setSelectedClient(value);
-              setSearchTerm('');
-            }}
-            placeholder="Buscar cliente..."
-            icon={<Users size={20} />}
-          />
-        </div>
-        <div className="relative">
-          <CheckSquare className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" size={20} />
-          <select
-            value={selectedTable}
-            onChange={(e) => setSelectedTable(e.target.value as PrecoFaixa)}
-            className="w-full pl-12 pr-4 py-3 bg-white border border-neutral-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all appearance-none"
-          >
-            <option value="livre">Tabela Livre</option>
-            <option value="200kg">Tabela 200kg</option>
-            <option value="500kg">Tabela 500kg</option>
-            <option value="1000kg">Tabela 1000kg</option>
-            <option value="2000kg">Tabela 2000kg</option>
-            <option value="4000kg">Tabela 4000kg</option>
-          </select>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl mx-auto">
+          <div className="relative">
+            <FilterDropdown 
+              label="Todas as Famílias"
+              options={[
+                { id: 'all', label: 'Todas as Famílias' },
+                ...families.map(f => ({ id: f, label: f }))
+              ]}
+              selected={selectedFamily}
+              onChange={(value) => {
+                setSelectedFamily(value);
+                setSearchTerm('');
+              }}
+              placeholder="Buscar família..."
+              icon={<Filter size={20} />}
+            />
+          </div>
+          <div className="relative">
+            <FilterDropdown 
+              label="Todos os Clientes"
+              options={[
+                { id: 'all', label: 'Todos os Clientes' },
+                ...clients.map(c => ({ id: c, label: c }))
+              ]}
+              selected={selectedClient}
+              onChange={(value) => {
+                setSelectedClient(value);
+                setSearchTerm('');
+              }}
+              placeholder="Buscar cliente..."
+              icon={<Users size={20} />}
+            />
+          </div>
+          <div className="relative">
+            <CheckSquare className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" size={20} />
+            <select
+              value={selectedTable}
+              onChange={(e) => setSelectedTable(e.target.value as PrecoFaixa)}
+              className="w-full pl-12 pr-10 py-3 bg-white border border-neutral-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all appearance-none font-bold text-neutral-700"
+            >
+              <option value="livre">Tabela Livre</option>
+              <option value="200kg">Tabela 200kg</option>
+              <option value="500kg">Tabela 500kg</option>
+              <option value="1000kg">Tabela 1000kg</option>
+              <option value="2000kg">Tabela 2000kg</option>
+              <option value="4000kg">Tabela 4000kg</option>
+            </select>
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+              <ChevronDown size={20} />
+            </div>
+          </div>
         </div>
       </div>
 
