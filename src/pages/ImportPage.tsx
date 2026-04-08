@@ -31,6 +31,7 @@ export function ImportPage() {
 
   // Form states
   const [selectedClienteId, setSelectedClienteId] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
   const [orderDate, setOrderDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [rawData, setRawData] = useState('');
 
@@ -211,6 +212,10 @@ export function ImportPage() {
     }
   };
 
+  const filteredClientes = useMemo(() => {
+    return clientes.filter(c => c.ativo || showInactive);
+  }, [clientes, showInactive]);
+
   const validRowsToSave = useMemo(() => processedRows.filter(r => r.isValid), [processedRows]);
 
   const totalPesoPreview = useMemo(() => {
@@ -265,15 +270,28 @@ export function ImportPage() {
         <div className="lg:col-span-1 space-y-4">
           <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm space-y-4">
             <div>
-              <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Cliente</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-neutral-500 uppercase">Cliente</label>
+                <button 
+                  onClick={() => setShowInactive(!showInactive)}
+                  className={cn(
+                    "text-[10px] font-bold px-2 py-0.5 rounded-lg transition-all border",
+                    showInactive 
+                      ? "bg-orange-50 border-orange-200 text-orange-600 shadow-sm" 
+                      : "bg-white border-neutral-200 text-neutral-400 hover:bg-neutral-50"
+                  )}
+                >
+                  {showInactive ? "Ocultar Inativos" : "Inativos"}
+                </button>
+              </div>
               <select
                 value={selectedClienteId}
                 onChange={(e) => setSelectedClienteId(e.target.value)}
                 className="w-full p-2.5 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm"
               >
                 <option value="">Selecione o Cliente</option>
-                {clientes.map(c => (
-                  <option key={c.id} value={c.id}>{c.cliente}</option>
+                {filteredClientes.map(c => (
+                  <option key={c.id} value={c.id}>{c.cliente} {!c.ativo && '(Inativo)'}</option>
                 ))}
               </select>
             </div>
