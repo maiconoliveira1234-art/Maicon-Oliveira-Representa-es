@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { Produto, PrecoFaixa } from '../types';
-import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle, Users, X, ChevronDown } from 'lucide-react';
+import { Produto, PrecoFaixa, HistVenda } from '../types';
+import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle, Users, X, ChevronDown, History, TrendingUp } from 'lucide-react';
 import { cn } from '../lib/utils';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { FilterDropdown } from '../components/FilterDropdown';
+import { format, parseISO } from 'date-fns';
 
 export function PriceInquiryPage() {
   const [produtos, setProdutos] = useState<Produto[]>([]);
@@ -20,6 +21,16 @@ export function PriceInquiryPage() {
   const [clientLastPricesByName, setClientLastPricesByName] = useState<Record<string, number>>({});
   const [exporting, setExporting] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
+
+  // Sales History States
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyProductId, setHistoryProductId] = useState<string | null>(null);
+  const [historyData, setHistoryData] = useState<HistVenda[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historySort, setHistorySort] = useState<{ key: keyof HistVenda | 'unit_price'; direction: 'asc' | 'desc' }>({
+    key: 'faturamento',
+    direction: 'desc'
+  });
 
   useEffect(() => {
     async function fetchProdutos() {
@@ -111,6 +122,70 @@ export function PriceInquiryPage() {
     fetchLastPrices();
   }, [selectedClient]);
 
+  useEffect(() => {
+    if (!showHistory || !historyProductId) {
+      setHistoryData([]);
+      return;
+    }
+
+    async function fetchHistory() {
+      setHistoryLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('hist_vendas')
+          .select('*')
+          .eq('produto_id', historyProductId)
+          .order('faturamento', { ascending: false });
+
+        if (error) throw error;
+        setHistoryData(data || []);
+      } catch (err) {
+        console.error('Erro ao carregar histórico de vendas:', err);
+      } finally {
+        setHistoryLoading(false);
+      }
+    }
+
+    fetchHistory();
+  }, [showHistory, historyProductId]);
+
+  const sortedHistoryData = useMemo(() => {
+    if (!historyData.length) return [];
+    
+    return [...historyData].sort((a, b) => {
+      let valA: any;
+      let valB: any;
+
+      if (historySort.key === 'unit_price') {
+        valA = (a['r$_total'] || 0) / (a.qtd || 1);
+        valB = (b['r$_total'] || 0) / (b.qtd || 1);
+      } else {
+        valA = a[historySort.key];
+        valB = b[historySort.key];
+      }
+
+      if (valA === undefined || valA === null) return 1;
+      if (valB === undefined || valB === null) return -1;
+
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        return historySort.direction === 'asc' 
+          ? valA.localeCompare(valB) 
+          : valB.localeCompare(valA);
+      }
+
+      return historySort.direction === 'asc' 
+        ? (valA > valB ? 1 : -1) 
+        : (valB > valA ? 1 : -1);
+    });
+  }, [historyData, historySort]);
+
+  const toggleHistorySort = (key: keyof HistVenda | 'unit_price') => {
+    setHistorySort(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc'
+    }));
+  };
+
   const families = useMemo(() => {
     const fams = new Set(produtos.map(p => p.familia || 'Sem Família'));
     return Array.from(fams).sort();
@@ -148,14 +223,21 @@ export function PriceInquiryPage() {
     const newSelected = new Set(selectedIds);
     if (newSelected.has(id)) {
       newSelected.delete(id);
+      if (historyProductId === id) {
+        // If we removed the current history product, pick another one from the set if available
+        const remaining = Array.from(newSelected);
+        setHistoryProductId(remaining.length > 0 ? remaining[remaining.length - 1] : null);
+      }
     } else {
       newSelected.add(id);
+      setHistoryProductId(id);
     }
     setSelectedIds(newSelected);
   };
 
   const deselectAll = () => {
     setSelectedIds(new Set());
+    setHistoryProductId(null);
   };
 
   const handleExport = async () => {
@@ -246,27 +328,39 @@ export function PriceInquiryPage() {
           <h1 className="text-2xl font-black text-neutral-900">Consulta Preço</h1>
           <p className="text-neutral-500 text-sm">Gere listas de preços</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className={cn(
+              "px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-2 border text-xs",
+              showHistory 
+                ? "bg-orange-100 text-orange-600 border-orange-200 shadow-sm" 
+                : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50"
+            )}
+          >
+            <History size={16} />
+            {showHistory ? "Ocultar Histórico" : "Ver Histórico"}
+          </button>
           <button
             onClick={deselectAll}
-            className="px-4 py-2 bg-white border border-neutral-200 text-neutral-600 rounded-xl font-bold hover:bg-neutral-50 transition-all flex items-center gap-2"
+            className="px-3 py-1.5 bg-white border border-neutral-200 text-neutral-600 rounded-lg font-bold hover:bg-neutral-50 transition-all flex items-center gap-2 text-xs"
           >
-            <XCircle size={18} />
+            <XCircle size={16} />
             Desmarcar Todos
           </button>
           <button
             onClick={selectAll}
-            className="px-4 py-2 bg-white border border-neutral-200 text-neutral-600 rounded-xl font-bold hover:bg-neutral-50 transition-all flex items-center gap-2"
+            className="px-3 py-1.5 bg-white border border-neutral-200 text-neutral-600 rounded-lg font-bold hover:bg-neutral-50 transition-all flex items-center gap-2 text-xs"
           >
-            <CheckSquare size={18} />
+            <CheckSquare size={16} />
             Marcar Todos
           </button>
           <button
             onClick={handleExport}
             disabled={exporting}
-            className="px-4 py-2 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-all flex items-center gap-2 shadow-lg shadow-orange-200 disabled:opacity-50"
+            className="px-3 py-1.5 bg-orange-600 text-white rounded-lg font-bold hover:bg-orange-700 transition-all flex items-center gap-2 shadow-lg shadow-orange-200 disabled:opacity-50 text-xs"
           >
-            {exporting ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
+            {exporting ? <Loader2 className="animate-spin" size={16} /> : <Download size={16} />}
             Exportar / Enviar
           </button>
         </div>
@@ -345,6 +439,110 @@ export function PriceInquiryPage() {
           </div>
         </div>
       </div>
+
+      {showHistory && (
+        <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="p-4 border-b border-neutral-100 bg-neutral-50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="text-orange-600" size={20} />
+              <h2 className="font-bold text-neutral-900">Histórico de Vendas</h2>
+              {historyProductId && (
+                <span className="text-xs font-bold text-neutral-400 bg-neutral-200 px-2 py-0.5 rounded-full uppercase">
+                  {produtos.find(p => p.id === historyProductId)?.produto}
+                </span>
+              )}
+            </div>
+            {historyLoading && <Loader2 className="animate-spin text-orange-600" size={18} />}
+          </div>
+
+          <div className="p-0">
+            {!historyProductId ? (
+              <div className="p-8 text-center text-neutral-400">
+                <p className="font-medium">Selecione um produto para visualizar o histórico</p>
+              </div>
+            ) : historyLoading ? (
+              <div className="p-8 flex justify-center">
+                <Loader2 className="animate-spin text-orange-600" size={24} />
+              </div>
+            ) : historyData.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-neutral-50 text-[10px] uppercase font-bold text-neutral-500 border-b border-neutral-100">
+                      <th 
+                        className="px-4 py-3 cursor-pointer hover:bg-neutral-100 transition-colors group w-[40%]"
+                        onClick={() => toggleHistorySort('cliente')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Cliente
+                          <ChevronDown size={12} className={cn("transition-transform", historySort.key === 'cliente' && historySort.direction === 'asc' && "rotate-180", historySort.key !== 'cliente' && "opacity-0 group-hover:opacity-100")} />
+                        </div>
+                      </th>
+                      <th 
+                        className="px-2 py-3 cursor-pointer hover:bg-neutral-100 transition-colors group w-[12%]"
+                        onClick={() => toggleHistorySort('faturamento')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Data
+                          <ChevronDown size={12} className={cn("transition-transform", historySort.key === 'faturamento' && historySort.direction === 'asc' && "rotate-180", historySort.key !== 'faturamento' && "opacity-0 group-hover:opacity-100")} />
+                        </div>
+                      </th>
+                      <th 
+                        className="px-2 py-3 text-right cursor-pointer hover:bg-neutral-100 transition-colors group w-[10%]"
+                        onClick={() => toggleHistorySort('qtd')}
+                      >
+                        <div className="flex items-center justify-end gap-1">
+                          Quant.
+                          <ChevronDown size={12} className={cn("transition-transform", historySort.key === 'qtd' && historySort.direction === 'asc' && "rotate-180", historySort.key !== 'qtd' && "opacity-0 group-hover:opacity-100")} />
+                        </div>
+                      </th>
+                      <th 
+                        className="px-4 py-3 text-right cursor-pointer hover:bg-neutral-100 transition-colors group w-[18%]"
+                        onClick={() => toggleHistorySort('unit_price')}
+                      >
+                        <div className="flex items-center justify-end gap-1">
+                          Val. Unit.
+                          <ChevronDown size={12} className={cn("transition-transform", historySort.key === 'unit_price' && historySort.direction === 'asc' && "rotate-180", historySort.key !== 'unit_price' && "opacity-0 group-hover:opacity-100")} />
+                        </div>
+                      </th>
+                      <th 
+                        className="px-4 py-3 text-right cursor-pointer hover:bg-neutral-100 transition-colors group w-[20%]"
+                        onClick={() => toggleHistorySort('r$_total')}
+                      >
+                        <div className="flex items-center justify-end gap-1">
+                          Total
+                          <ChevronDown size={12} className={cn("transition-transform", historySort.key === 'r$_total' && historySort.direction === 'asc' && "rotate-180", historySort.key !== 'r$_total' && "opacity-0 group-hover:opacity-100")} />
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100">
+                    {sortedHistoryData.map((venda) => (
+                      <tr key={venda.id} className="text-[11px] hover:bg-neutral-50 transition-colors">
+                        <td className="px-4 py-2 font-bold text-neutral-900 truncate max-w-0">{venda.cliente}</td>
+                        <td className="px-2 py-2 text-neutral-500">
+                          {venda.faturamento ? format(parseISO(venda.faturamento), 'dd/MM/yy') : '-'}
+                        </td>
+                        <td className="px-2 py-2 text-right font-medium text-neutral-700">{venda.qtd}</td>
+                        <td className="px-4 py-2 text-right font-medium text-neutral-700">
+                          R$ {((venda['r$_total'] || 0) / (venda.qtd || 1)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-4 py-2 text-right font-black text-orange-600">
+                          R$ {(venda['r$_total'] || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-8 text-center text-neutral-400">
+                <p>Nenhuma venda encontrada para este produto.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden flex-1">
         <div className="divide-y divide-neutral-100">
