@@ -144,6 +144,11 @@ export function ImportPage() {
   };
 
   const handleSave = async () => {
+    if (!selectedClienteId) {
+      setError('Selecione um cliente antes de importar o pedido');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
     if (processedRows.length === 0) return;
     const validRows = processedRows.filter(r => r.isValid);
     if (validRows.length === 0) {
@@ -198,6 +203,7 @@ export function ImportPage() {
       setSuccess(true);
       setProcessedRows([]);
       setRawData('');
+      setSelectedClienteId(''); // Reset client selection after success
     } catch (err: any) {
       console.error('Erro ao salvar no banco:', err);
       setError(`Erro ao salvar os dados: ${err.message || 'Erro desconhecido'}`);
