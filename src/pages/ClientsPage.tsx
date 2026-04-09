@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Cliente } from '../types';
-import { Loader2, Search, UserCheck, UserX, ChevronRight, Calendar, Filter, X } from 'lucide-react';
+import { Loader2, Search, UserCheck, UserX, ChevronRight, Calendar, Filter, X, UserPlus, CheckCircle2 } from 'lucide-react';
 import { cn, deduplicateSales } from '../lib/utils';
 import { differenceInDays, parseISO } from 'date-fns';
+import { NewClientModal } from '../components/NewClientModal';
 
 export function ClientsPage() {
   const [clientes, setClientes] = useState<(Cliente & { ultima_compra_peso?: number })[]>([]);
@@ -12,55 +13,65 @@ export function ClientsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [filterRepurchase, setFilterRepurchase] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    async function fetchClientes() {
-      try {
-        const [clientesRes, produtosRes, histRes] = await Promise.all([
-          supabase.from('clientes').select('*').order('cliente'),
-          supabase.from('produtos').select('id, peso_embalagem'),
-          supabase.from('hist_vendas').select('cliente_id, faturamento, produto_id, qtd').order('faturamento', { ascending: false })
-        ]);
-        
-        if (clientesRes.error) throw clientesRes.error;
+  const fetchClientes = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [clientesRes, produtosRes, histRes] = await Promise.all([
+        supabase.from('clientes').select('*').order('cliente'),
+        supabase.from('produtos').select('id, peso_embalagem'),
+        supabase.from('hist_vendas').select('cliente_id, faturamento, produto_id, qtd').order('faturamento', { ascending: false })
+      ]);
+      
+      if (clientesRes.error) throw clientesRes.error;
 
-        const productWeights: Record<string, number> = {};
-        produtosRes.data?.forEach(p => {
-          productWeights[p.id] = p.peso_embalagem || 0;
+      const productWeights: Record<string, number> = {};
+      produtosRes.data?.forEach(p => {
+        productWeights[p.id] = p.peso_embalagem || 0;
+      });
+
+      const latestSalesMap: Record<string, { date: string, weight: number }> = {};
+      if (histRes.data) {
+        const uniqueSales = deduplicateSales(histRes.data);
+        uniqueSales.forEach(h => {
+          const weight = (h.qtd || 0) * (productWeights[h.produto_id] || 0);
+          if (!latestSalesMap[h.cliente_id]) {
+            latestSalesMap[h.cliente_id] = { date: h.faturamento, weight: weight };
+          } else if (latestSalesMap[h.cliente_id].date === h.faturamento) {
+            latestSalesMap[h.cliente_id].weight += weight;
+          }
         });
-
-        const latestSalesMap: Record<string, { date: string, weight: number }> = {};
-        if (histRes.data) {
-          const uniqueSales = deduplicateSales(histRes.data);
-          uniqueSales.forEach(h => {
-            const weight = (h.qtd || 0) * (productWeights[h.produto_id] || 0);
-            if (!latestSalesMap[h.cliente_id]) {
-              latestSalesMap[h.cliente_id] = { date: h.faturamento, weight: weight };
-            } else if (latestSalesMap[h.cliente_id].date === h.faturamento) {
-              latestSalesMap[h.cliente_id].weight += weight;
-            }
-          });
-        }
-
-        const enrichedClientes = (clientesRes.data || []).map(c => {
-          const lastSale = latestSalesMap[c.id];
-          return {
-            ...c,
-            ultima_compra: c.ultima_compra || lastSale?.date,
-            ultima_compra_peso: lastSale?.weight || 0
-          };
-        });
-
-        setClientes(enrichedClientes);
-      } catch (err) {
-        console.error('Erro ao carregar clientes:', err);
-      } finally {
-        setLoading(false);
       }
+
+      const enrichedClientes = (clientesRes.data || []).map(c => {
+        const lastSale = latestSalesMap[c.id];
+        return {
+          ...c,
+          ultima_compra: c.ultima_compra || lastSale?.date,
+          ultima_compra_peso: lastSale?.weight || 0
+        };
+      });
+
+      setClientes(enrichedClientes);
+    } catch (err) {
+      console.error('Erro ao carregar clientes:', err);
+    } finally {
+      setLoading(false);
     }
-    fetchClientes();
   }, []);
+
+  useEffect(() => {
+    fetchClientes();
+  }, [fetchClientes]);
+
+  const handleSuccess = () => {
+    fetchClientes();
+    setShowSuccessToast(true);
+    setTimeout(() => setShowSuccessToast(false), 3000);
+  };
 
   const isWithinRepurchase = (cliente: Cliente) => {
     if (!cliente.ultima_compra) return false;
@@ -116,6 +127,13 @@ export function ClientsPage() {
           <p className="text-neutral-500 text-sm">Gerencie sua carteira de clientes</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="px-4 py-2 bg-neutral-900 text-white rounded-xl font-bold transition-all flex items-center gap-2 hover:bg-neutral-800 active:scale-95 shadow-lg shadow-neutral-200"
+          >
+            <UserPlus size={18} />
+            Novo
+          </button>
           <button
             onClick={() => setFilterRepurchase(!filterRepurchase)}
             className={cn(
@@ -223,6 +241,21 @@ export function ClientsPage() {
           )}
         </div>
       </div>
+
+      <NewClientModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSuccess={handleSuccess}
+      />
+
+      {showSuccessToast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[300] animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-green-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 font-bold">
+            <CheckCircle2 size={20} />
+            Cliente cadastrado com sucesso!
+          </div>
+        </div>
+      )}
     </div>
   );
 }
