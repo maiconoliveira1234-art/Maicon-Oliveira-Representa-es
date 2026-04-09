@@ -3,21 +3,18 @@ import { subMonths, isBefore, parseISO } from 'date-fns';
 
 export async function runAutomaticInactivation() {
   try {
-    // 1. Fetch all active clients
-    const { data: activeClients, error: fetchError } = await supabase
+    // 1. Fetch all clients
+    const { data: allClients, error: fetchError } = await supabase
       .from('clientes')
-      .select('id, cliente')
-      .eq('ativo', true);
+      .select('id, cliente, ativo');
 
     if (fetchError) throw fetchError;
-    if (!activeClients || activeClients.length === 0) return;
+    if (!allClients || allClients.length === 0) return;
 
-    // 2. Fetch the latest sale for each active client
-    // We fetch all sales for these clients and then find the max date per client
+    // 2. Fetch the latest sale for each client
     const { data: sales, error: salesError } = await supabase
       .from('hist_vendas')
-      .select('cliente_id, faturamento')
-      .in('cliente_id', activeClients.map(c => c.id));
+      .select('cliente_id, faturamento');
 
     if (salesError) throw salesError;
 
@@ -31,34 +28,46 @@ export async function runAutomaticInactivation() {
     // 3. Define the threshold (6 months ago)
     const thresholdDate = subMonths(new Date(), 6);
     
-    // 4. Identify clients to inactivate
-    const clientsToInactivate = activeClients.filter(client => {
+    // 4. Identify clients to inactivate and reactivate
+    const idsToInactivate: string[] = [];
+    const idsToReactivate: string[] = [];
+
+    allClients.forEach(client => {
       const lastPurchase = latestSalesMap[client.id];
-      if (!lastPurchase) return true; // No purchase found = inactivate
-      
-      const lastPurchaseDate = parseISO(lastPurchase);
-      return isBefore(lastPurchaseDate, thresholdDate);
+      const hasRecentPurchase = lastPurchase && !isBefore(parseISO(lastPurchase), thresholdDate);
+
+      if (client.ativo && !hasRecentPurchase) {
+        idsToInactivate.push(client.id);
+      } else if (!client.ativo && hasRecentPurchase) {
+        idsToReactivate.push(client.id);
+      }
     });
 
-    if (clientsToInactivate.length === 0) {
-      console.log('No clients to inactivate.');
-      return;
+    // 5. Perform updates
+    if (idsToInactivate.length > 0) {
+      console.log(`Inactivating ${idsToInactivate.length} clients...`);
+      const { error: inactivateError } = await supabase
+        .from('clientes')
+        .update({ ativo: false })
+        .in('id', idsToInactivate);
+      if (inactivateError) throw inactivateError;
     }
 
-    console.log(`Inactivating ${clientsToInactivate.length} inactive clients...`);
+    if (idsToReactivate.length > 0) {
+      console.log(`Reactivating ${idsToReactivate.length} clients...`);
+      const { error: reactivateError } = await supabase
+        .from('clientes')
+        .update({ ativo: true })
+        .in('id', idsToReactivate);
+      if (reactivateError) throw reactivateError;
+    }
 
-    // 5. Update them in the database
-    const idsToUpdate = clientsToInactivate.map(c => c.id);
-    
-    const { error: updateError } = await supabase
-      .from('clientes')
-      .update({ ativo: false })
-      .in('id', idsToUpdate);
-
-    if (updateError) throw updateError;
-    
-    console.log('Automatic inactivation completed successfully.');
+    if (idsToInactivate.length === 0 && idsToReactivate.length === 0) {
+      console.log('No changes needed for client status.');
+    } else {
+      console.log('Automatic status update completed successfully.');
+    }
   } catch (err) {
-    console.error('Error during automatic inactivation:', err);
+    console.error('Error during automatic status update:', err);
   }
 }
