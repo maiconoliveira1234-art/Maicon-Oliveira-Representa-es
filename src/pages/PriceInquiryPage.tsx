@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Produto, PrecoFaixa, HistVenda } from '../types';
 import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle, Users, X, ChevronDown, History, TrendingUp } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, deduplicateSales } from '../lib/utils';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { FilterDropdown } from '../components/FilterDropdown';
@@ -138,7 +138,10 @@ export function PriceInquiryPage() {
           .order('faturamento', { ascending: false });
 
         if (error) throw error;
-        setHistoryData(data || []);
+        
+        // Apply deduplication to avoid showing duplicated records from the database
+        const uniqueData = deduplicateSales(data || []);
+        setHistoryData(uniqueData);
       } catch (err) {
         console.error('Erro ao carregar histórico de vendas:', err);
       } finally {
