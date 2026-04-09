@@ -1,27 +1,33 @@
 import React, { useState } from 'react';
-import { Settings, Info, Shield, Database, Smartphone, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Settings, Info, Shield, Database, Smartphone, RefreshCw, UserX, Loader2, CheckCircle2 } from 'lucide-react';
 import { APP_VERSION } from '../constants';
+import { runAutomaticInactivation } from '../lib/clientInactivation';
 
 export function SettingsPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateSuccess, setUpdateSuccess] = useState(false);
+  const [isInactivating, setIsInactivating] = useState(false);
+  const [inactivateSuccess, setInactivateSuccess] = useState(false);
 
   const handleUpdate = () => {
     setIsUpdating(true);
     
-    // 1. Clear any local storage that might be stale (optional, but good for "hard" updates)
-    // localStorage.clear(); 
-    
     setTimeout(() => {
       setUpdateSuccess(true);
       setTimeout(() => {
-        // 2. Use cache-busting to force the browser to fetch the latest version
-        // This avoids 404s if the previous deployment was cached or if the route is handled by SPA
         const url = new URL(window.location.origin);
         url.searchParams.set('v', Date.now().toString());
         window.location.href = url.toString();
       }, 800);
     }, 1500);
+  };
+
+  const handleManualInactivation = async () => {
+    setIsInactivating(true);
+    await runAutomaticInactivation();
+    setIsInactivating(false);
+    setInactivateSuccess(true);
+    setTimeout(() => setInactivateSuccess(false), 3000);
   };
 
   return (
@@ -37,6 +43,45 @@ export function SettingsPage() {
       </div>
 
       <div className="space-y-6">
+        {/* Manutenção de Dados */}
+        <section className="bg-white rounded-3xl border border-neutral-200 overflow-hidden shadow-sm">
+          <div className="p-6 border-b border-neutral-100 bg-neutral-50/50 flex items-center gap-2">
+            <Database size={18} className="text-neutral-400" />
+            <h2 className="font-bold text-neutral-900 uppercase tracking-wider text-xs">Manutenção de Dados</h2>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
+                  <UserX size={20} />
+                </div>
+                <div className="max-w-[200px] md:max-w-none">
+                  <p className="font-bold text-neutral-900">Inativação Automática</p>
+                  <p className="text-xs text-neutral-500">Inativa clientes sem compras nos últimos 6 meses</p>
+                </div>
+              </div>
+              <button
+                onClick={handleManualInactivation}
+                disabled={isInactivating}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                  inactivateSuccess 
+                    ? 'bg-green-100 text-green-600' 
+                    : 'bg-neutral-900 text-white hover:bg-neutral-800 active:scale-95 disabled:opacity-50'
+                }`}
+              >
+                {isInactivating ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : inactivateSuccess ? (
+                  <CheckCircle2 size={14} />
+                ) : (
+                  'Executar'
+                )}
+                {inactivateSuccess ? 'Concluído' : isInactivating ? 'Processando' : ''}
+              </button>
+            </div>
+          </div>
+        </section>
+
         {/* Informações do App */}
         <section className="bg-white rounded-3xl border border-neutral-200 overflow-hidden shadow-sm">
           <div className="p-6 border-b border-neutral-100 bg-neutral-50/50 flex items-center gap-2">

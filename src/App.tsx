@@ -4,6 +4,7 @@
  */
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { ClientsPage } from './pages/ClientsPage';
@@ -14,8 +15,13 @@ import { StockCountPage } from './pages/StockCountPage';
 import { MetasPage } from './pages/MetasPage';
 import { ImportPage } from './pages/ImportPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { runAutomaticInactivation } from './lib/clientInactivation';
 
 export default function App() {
+  useEffect(() => {
+    runAutomaticInactivation();
+  }, []);
+
   return (
     <BrowserRouter>
       <Layout>
