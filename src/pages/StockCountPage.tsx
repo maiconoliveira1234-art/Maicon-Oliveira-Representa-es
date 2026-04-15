@@ -143,7 +143,12 @@ export function StockCountPage() {
 
         if (savedPedido) {
           try {
-            setPedidoMap(JSON.parse(savedPedido));
+            const parsed = JSON.parse(savedPedido);
+            if (parsed && typeof parsed === 'object' && 'items' in parsed) {
+              setPedidoMap(parsed.items || {});
+            } else {
+              setPedidoMap(parsed || {});
+            }
           } catch (e) {
             console.error('Error parsing saved pedido:', e);
           }
@@ -296,7 +301,23 @@ export function StockCountPage() {
 
   useEffect(() => {
     if (isReady && clienteId) {
-      localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(pedidoMap));
+      const saved = localStorage.getItem(`pedido_${clienteId}`);
+      let dataToSave = { items: pedidoMap, prazo: '', obs: '' };
+      
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object' && 'items' in parsed) {
+            dataToSave = { ...parsed, items: pedidoMap };
+          } else {
+            dataToSave = { items: pedidoMap, prazo: '', obs: '' };
+          }
+        } catch (e) {
+          dataToSave = { items: pedidoMap, prazo: '', obs: '' };
+        }
+      }
+      
+      localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(dataToSave));
     }
   }, [pedidoMap, clienteId, isReady]);
 
@@ -410,9 +431,16 @@ export function StockCountPage() {
     }
   };
 
-  const filteredItems = processedItems.filter(item => 
-    item.produto_nome.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredItems = useMemo(() => {
+    if (!searchTerm.trim()) return processedItems;
+    
+    const searchWords = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
+    
+    return processedItems.filter(item => {
+      const productName = item.produto_nome.toLowerCase();
+      return searchWords.every(word => productName.includes(word));
+    });
+  }, [processedItems, searchTerm]);
 
   if (loading) return <div className="p-8 text-center">Carregando...</div>;
 
@@ -794,7 +822,7 @@ export function StockCountPage() {
                 </div>
                 <div className="flex flex-col items-end">
                   <img 
-                    src="https://www.adimax.com.br/wp-content/themes/adimax/assets/img/logo-adimax.png" 
+                    src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png" 
                     alt="ADIMAX" 
                     className="h-12 w-auto mb-2"
                     crossOrigin="anonymous"

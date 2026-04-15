@@ -630,30 +630,37 @@ export function Dashboard() {
                               </div>
                             </div>
                             <div className="flex-1 overflow-y-auto p-1">
-                              {clientes
-                                .filter(c => c.cliente.toLowerCase().includes(clientSearch.toLowerCase()))
-                                .map(c => (
-                                  <button
-                                    key={c.id}
-                                    onClick={() => {
-                                      setFilters(prev => ({
-                                        ...prev,
-                                        clientIds: prev.clientIds.includes(c.id) 
-                                          ? prev.clientIds.filter(id => id !== c.id)
-                                          : [...prev.clientIds, c.id]
-                                      }));
-                                    }}
-                                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-neutral-50 flex items-center gap-3 text-sm font-medium"
-                                  >
-                                    <div className={cn(
-                                      "w-4 h-4 rounded border flex items-center justify-center transition-colors",
-                                      filters.clientIds.includes(c.id) ? "bg-orange-500 border-orange-500" : "border-neutral-300"
-                                    )}>
-                                      {filters.clientIds.includes(c.id) && <Check size={10} className="text-white" strokeWidth={4} />}
-                                    </div>
-                                    <span className="truncate">{c.cliente}</span>
-                                  </button>
-                                ))}
+                              {(() => {
+                                const searchWords = clientSearch.toLowerCase().split(/\s+/).filter(Boolean);
+                                return clientes
+                                  .filter(c => {
+                                    if (searchWords.length === 0) return true;
+                                    const targetString = (c.cliente || '').toLowerCase();
+                                    return searchWords.every(word => targetString.includes(word));
+                                  })
+                                  .map(c => (
+                                    <button
+                                      key={c.id}
+                                      onClick={() => {
+                                        setFilters(prev => ({
+                                          ...prev,
+                                          clientIds: prev.clientIds.includes(c.id) 
+                                            ? prev.clientIds.filter(id => id !== c.id)
+                                            : [...prev.clientIds, c.id]
+                                        }));
+                                      }}
+                                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-neutral-50 flex items-center gap-3 text-sm font-medium"
+                                    >
+                                      <div className={cn(
+                                        "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+                                        filters.clientIds.includes(c.id) ? "bg-orange-500 border-orange-500" : "border-neutral-300"
+                                      )}>
+                                        {filters.clientIds.includes(c.id) && <Check size={10} className="text-white" strokeWidth={4} />}
+                                      </div>
+                                      <span className="truncate">{c.cliente}</span>
+                                    </button>
+                                  ));
+                              })()}
                             </div>
                           </motion.div>
                         </>

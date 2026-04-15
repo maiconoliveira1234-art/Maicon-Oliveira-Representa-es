@@ -63,9 +63,15 @@ export function OrderPage() {
   }, [produtos]);
 
   const filteredAndSortedProducts = useMemo(() => {
+    const searchWords = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
+    
     return produtos
       .filter(p => {
-        const matchesSearch = (p.produto?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+        const productName = p.produto?.toLowerCase() || '';
+        const productFamily = p.familia?.toLowerCase() || '';
+        const targetString = `${productName} ${productFamily}`;
+        
+        const matchesSearch = searchWords.length === 0 || searchWords.every(word => targetString.includes(word));
         const matchesFamily = selectedFamily === 'Todas' || p.familia === selectedFamily;
         const matchesPositivados = !showOnlyPositivados || positivadosIds.has(p.id);
         const isActive = p.ativo !== false; // Only show active products
