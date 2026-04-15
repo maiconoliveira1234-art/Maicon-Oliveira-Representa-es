@@ -18,7 +18,8 @@ import {
   ChevronDown,
   Share2,
   X,
-  FileText
+  FileText,
+  Eye
 } from 'lucide-react';
 import { Cliente, Produto, ItemPedido, PrecoFaixa } from '../types';
 import { supabase } from '../lib/supabase';
@@ -284,6 +285,7 @@ export function OrderPage() {
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const receiptRef = React.useRef<HTMLDivElement>(null);
 
   const handleClearOrder = () => {
@@ -422,7 +424,7 @@ export function OrderPage() {
     };
   }, [selectedPrazo, valorTotal]);
 
-  const handleSave = async () => {
+  const handleSave = async (shouldClear: boolean = true) => {
     if (!clienteId) return;
 
     if (itens.length === 0) {
@@ -438,7 +440,7 @@ export function OrderPage() {
     try {
       setIsGeneratingImage(true);
       
-      // 1. Generate Image
+      // 1. Generate PDF
       if (receiptRef.current) {
         // Wait a bit for the DOM to be ready and styles to apply
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -497,11 +499,15 @@ export function OrderPage() {
         }
       }
 
-      if (clienteId) {
-        localStorage.removeItem(`pedido_${clienteId}`);
+      if (shouldClear) {
+        if (clienteId) {
+          localStorage.removeItem(`pedido_${clienteId}`);
+        }
+        alert('Orçamento gerado com sucesso!');
+        navigate(`/cliente/${clienteId}`);
+      } else {
+        alert('Orçamento compartilhado com sucesso!');
       }
-      alert('Orçamento gerado com sucesso!');
-      navigate(`/cliente/${clienteId}`);
     } catch (err) {
       console.error('Erro ao finalizar pedido:', err);
       alert('Erro ao finalizar pedido. Tente novamente.');
@@ -827,42 +833,50 @@ export function OrderPage() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3 w-full md:w-auto">
-              {showClearConfirm ? (
-                <div className="flex-1 md:w-64 bg-white p-2 rounded-2xl border-2 border-red-200 shadow-lg flex gap-2 items-center">
-                  <p className="text-[10px] font-bold text-neutral-800 flex-1 px-2">Limpar pedido?</p>
+            <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+              <div className="flex gap-3 w-full">
+                {showClearConfirm ? (
+                  <div className="flex-1 bg-white p-2 rounded-2xl border-2 border-red-200 shadow-lg flex gap-2 items-center">
+                    <p className="text-[10px] font-bold text-neutral-800 flex-1 px-2">Limpar pedido?</p>
+                    <button 
+                      onClick={() => setShowClearConfirm(false)}
+                      className="px-3 py-2 bg-neutral-100 text-neutral-600 rounded-xl font-bold text-[10px]"
+                    >
+                      Não
+                    </button>
+                    <button 
+                      onClick={handleClearOrder}
+                      className="px-3 py-2 bg-red-600 text-white rounded-xl font-bold text-[10px]"
+                    >
+                      Sim
+                    </button>
+                  </div>
+                ) : (
                   <button 
-                    onClick={() => setShowClearConfirm(false)}
-                    className="px-3 py-2 bg-neutral-100 text-neutral-600 rounded-xl font-bold text-[10px]"
+                    onClick={() => setShowClearConfirm(true)}
+                    className="flex-1 bg-neutral-100 text-neutral-600 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-200 transition-all"
                   >
-                    Não
+                    <Trash2 size={18} /> Limpar
                   </button>
-                  <button 
-                    onClick={handleClearOrder}
-                    className="px-3 py-2 bg-red-600 text-white rounded-xl font-bold text-[10px]"
-                  >
-                    Sim
-                  </button>
-                </div>
-              ) : (
+                )}
                 <button 
-                  onClick={() => setShowClearConfirm(true)}
-                  className="flex-1 md:w-40 bg-neutral-100 text-neutral-600 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-200 transition-all"
+                  onClick={() => setShowPreview(true)}
+                  className="flex-1 bg-white border border-neutral-200 text-neutral-600 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-50 transition-all"
                 >
-                  <Trash2 size={18} /> Limpar
+                  <Eye size={18} /> Visualizar
                 </button>
-              )}
+              </div>
               <button 
-                onClick={handleSave}
+                onClick={() => handleSave(true)}
                 disabled={isGeneratingImage}
-                className="flex-[2] md:w-64 bg-green-600 text-white py-4 rounded-2xl font-bold shadow-lg flex items-center justify-center gap-2 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
+                className="w-full md:w-64 bg-green-600 text-white py-4 rounded-2xl font-bold shadow-lg flex items-center justify-center gap-2 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
               >
                 {isGeneratingImage ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   <Save size={20} />
                 )}
-                <span>{isGeneratingImage ? 'Gerando...' : 'Gerar Orçamento'}</span>
+                <span>{isGeneratingImage ? 'Gerando...' : 'Finalizar Pedido'}</span>
               </button>
             </div>
           </div>
@@ -890,6 +904,219 @@ export function OrderPage() {
           </div>
         </div>
       </div>
+
+      {/* PDF Preview Modal */}
+      <AnimatePresence>
+        {showPreview && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-neutral-100 w-full max-w-4xl h-[90vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl"
+            >
+              <div className="bg-white p-4 border-b border-neutral-200 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-orange-100 text-orange-600 rounded-lg">
+                    <FileText size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-neutral-900">Visualização do Orçamento</h3>
+                    <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">Confira os dados antes de compartilhar</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => handleSave(false)}
+                    disabled={isGeneratingImage}
+                    className="px-4 py-2 bg-orange-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-orange-700 transition-all disabled:opacity-50"
+                  >
+                    {isGeneratingImage ? (
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <Share2 size={18} />
+                    )}
+                    <span>{isGeneratingImage ? 'Gerando...' : 'Compartilhar'}</span>
+                  </button>
+                  <button 
+                    onClick={() => setShowPreview(false)} 
+                    className="p-2 text-neutral-400 hover:bg-neutral-100 rounded-full transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-neutral-200/50">
+                <div className="max-w-[800px] mx-auto shadow-2xl">
+                  {(() => {
+                    const sortedItens = [...itens].sort((a, b) => {
+                      const prodA = produtos.find(p => p.id === a.produto_id)?.produto || '';
+                      const prodB = produtos.find(p => p.id === b.produto_id)?.produto || '';
+                      return prodA.localeCompare(prodB);
+                    });
+
+                    const chunks = [];
+                    let i = 0;
+                    let isFirstPage = true;
+                    while (i < sortedItens.length) {
+                      const itemsLimit = isFirstPage ? 10 : 15;
+                      chunks.push(sortedItens.slice(i, i + itemsLimit));
+                      i += itemsLimit;
+                      isFirstPage = false;
+                    }
+
+                    return chunks.map((chunk, pageIdx) => (
+                      <div 
+                        key={pageIdx}
+                        className="w-full aspect-[1/1.414] bg-white p-[5%] flex flex-col font-sans text-[#171717] mb-8 last:mb-0 rounded-sm"
+                        style={{ fontFamily: 'Arial, sans-serif' }}
+                      >
+                        {/* Header */}
+                        <div className="flex justify-between items-start border-b-2 border-[#262626] pb-4 mb-6">
+                          <div className="flex flex-col">
+                            <h1 className="text-2xl font-black uppercase tracking-tighter text-[#171717]">Resumo do Orçamento</h1>
+                            <div className="mt-1 space-y-0.5">
+                              <p className="text-[10px] font-bold text-[#737373]">Data: {new Date().toLocaleDateString('pt-BR')}</p>
+                              <p className="text-[10px] font-bold text-[#737373]">Hora: {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <img 
+                              src="https://www.adimax.com.br/wp-content/themes/adimax/assets/img/logo-adimax.png" 
+                              alt="ADIMAX" 
+                              className="h-8 w-auto mb-1"
+                            />
+                            <span className="text-[6px] font-black text-[#a3a3a3] uppercase tracking-widest">Parceiro Oficial</span>
+                          </div>
+                        </div>
+
+                        {/* Client Info */}
+                        {pageIdx === 0 && (
+                          <div className="grid grid-cols-2 gap-4 mb-6">
+                            <div className="p-3 bg-[#fafafa] rounded-lg border border-[#f5f5f5]">
+                              <p className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest mb-0.5">Cliente</p>
+                              <p className="text-sm font-black text-[#171717] leading-tight">{cliente?.cliente}</p>
+                              <p className="text-[10px] font-bold text-[#737373] mt-0.5">{cliente?.cidade}</p>
+                            </div>
+                            <div className="p-3 bg-[#fafafa] rounded-lg border border-[#f5f5f5]">
+                              <p className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest mb-0.5">Vendedor</p>
+                              <p className="text-sm font-black text-[#171717] leading-tight">MAICON OLIVEIRA</p>
+                              <p className="text-[10px] font-bold text-[#737373] mt-0.5">Representante Comercial</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Items Table */}
+                        <div className="flex-1 overflow-hidden">
+                          <table className="w-full border-collapse">
+                            <thead>
+                              <tr className="bg-[#171717] text-[#ffffff]">
+                                <th className="py-2 px-3 text-left text-[8px] font-black uppercase tracking-widest rounded-tl-md">Produto</th>
+                                <th className="py-2 px-3 text-center text-[8px] font-black uppercase tracking-widest">Qtd</th>
+                                <th className="py-2 px-3 text-center text-[8px] font-black uppercase tracking-widest">Peso</th>
+                                <th className="py-2 px-3 text-right text-[8px] font-black uppercase tracking-widest">Unitário</th>
+                                <th className="py-2 px-3 text-right text-[8px] font-black uppercase tracking-widest rounded-tr-md">Subtotal</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[#f5f5f5]">
+                              {chunk.map((item, idx) => {
+                                const produto = produtos.find(p => p.id === item.produto_id)!;
+                                return (
+                                  <tr key={idx} className={cn("text-[10px]", idx % 2 === 0 ? "bg-[#ffffff]" : "bg-[#fafafa]")}>
+                                    <td className="py-2 px-3 font-bold text-[#262626] leading-tight max-w-[200px] break-words">
+                                      {produto.produto}
+                                    </td>
+                                    <td className="py-2 px-3 text-center font-black text-[#525252]">
+                                      {item.quantidade} {produto.quant_embalagem > 1 ? 'CX' : 'UN'}
+                                    </td>
+                                    <td className="py-2 px-3 text-center font-bold text-[#737373]">
+                                      {formatWeight(item.peso_total || 0)}
+                                    </td>
+                                    <td className="py-2 px-3 text-right font-bold text-[#737373]">
+                                      {formatCurrency(item.valor_unitario || 0)}
+                                    </td>
+                                    <td className="py-2 px-3 text-right font-black text-[#171717]">
+                                      {formatCurrency(item.valor_total || 0)}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Summary Section */}
+                        {pageIdx === chunks.length - 1 && (
+                          <div className="mt-6 pt-6 border-t-2 border-[#f5f5f5]">
+                            <div className="grid grid-cols-2 gap-8">
+                              <div className="space-y-3">
+                                <div className="p-3 border border-[#e5e5e5] rounded-xl">
+                                  <p className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest mb-1.5">Condições de Pagamento</p>
+                                  <div className="space-y-1">
+                                    <div className="flex justify-between">
+                                      <span className="text-[10px] font-bold text-[#525252]">Condição:</span>
+                                      <span className="text-[10px] font-black text-[#171717]">{selectedPrazo}</span>
+                                    </div>
+                                    {selectedPrazo && selectedPrazo !== 'À Vista' && (
+                                      <>
+                                        <div className="flex justify-between">
+                                          <span className="text-[10px] font-bold text-[#525252]">Valor por Boleto:</span>
+                                          <span className="text-[10px] font-black text-[#171717]">{formatCurrency(installmentDetails.valorBoleto)}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-[10px] font-bold text-[#525252]">1º Vencimento:</span>
+                                          <span className="text-[10px] font-black text-[#171717]">
+                                            {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
+                                          </span>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                {observacoes && (
+                                  <div className="p-3 border border-[#e5e5e5] rounded-xl">
+                                    <p className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest mb-1.5">Observações</p>
+                                    <p className="text-[9px] font-bold text-[#404040] leading-relaxed whitespace-pre-wrap">{observacoes}</p>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="space-y-3">
+                                <div className="flex justify-between items-center p-3 bg-[#fafafa] rounded-xl border border-[#f5f5f5]">
+                                  <span className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest">Peso Total</span>
+                                  <span className="text-sm font-black text-[#171717]">{formatWeight(Math.max(pesoTotal, pesoConquistado))}</span>
+                                </div>
+                                <div className="flex justify-between items-center p-4 bg-[#171717] rounded-xl shadow-lg">
+                                  <span className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest">Total</span>
+                                  <span className="text-xl font-black text-[#ffffff]">{formatCurrency(valorTotal)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Footer */}
+                        <div className="mt-8 text-center">
+                          <p className="text-[8px] font-black text-[#d4d4d4] uppercase tracking-[0.2em]">MAICON OLIVEIRA REPRESENTAÇÕES</p>
+                          <p className="text-[8px] font-bold text-[#a3a3a3] mt-1 italic uppercase tracking-wider">Este documento é um orçamento e não possui validade fiscal.</p>
+                          <p className="text-[8px] font-bold text-[#a3a3a3] mt-2">Página {pageIdx + 1} de {chunks.length}</p>
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Product Selector Modal */}
       <AnimatePresence>
