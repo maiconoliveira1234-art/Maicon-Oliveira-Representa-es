@@ -1198,41 +1198,43 @@ export function OrderPage() {
                   </label>
                 </div>
                 
-                <div className="relative">
-                  <select
-                    value={selectedFamily}
-                    onChange={(e) => setSelectedFamily(e.target.value)}
-                    className="w-full pl-4 pr-10 py-3 bg-neutral-100 rounded-xl font-bold text-neutral-700 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all"
-                  >
-                    {families.map((family) => (
-                      <option key={family} value={family}>
-                        {family}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
-                    <ChevronDown size={20} />
+                <div className="flex gap-3">
+                  <div className="relative flex-1">
+                    <select
+                      value={selectedFamily}
+                      onChange={(e) => setSelectedFamily(e.target.value)}
+                      className="w-full pl-4 pr-10 py-3 bg-neutral-100 rounded-xl font-bold text-neutral-700 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all text-xs"
+                    >
+                      {families.map((family) => (
+                        <option key={family} value={family}>
+                          {family}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                      <ChevronDown size={16} />
+                    </div>
                   </div>
-                </div>
 
-                <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
-                    <TrendingUp size={18} />
-                  </div>
-                  <select
-                    value={currentFaixa}
-                    onChange={(e) => setManualFaixa(e.target.value as PrecoFaixa)}
-                    className="w-full pl-11 pr-10 py-3 bg-orange-50 rounded-xl font-black text-orange-700 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all border border-orange-100"
-                  >
-                    <option value="livre">Tabela Livre</option>
-                    <option value="200kg">Tabela 200kg</option>
-                    <option value="500kg">Tabela 500kg</option>
-                    <option value="1000kg">Tabela 1000kg</option>
-                    <option value="2000kg">Tabela 2000kg</option>
-                    <option value="4000kg">Tabela 4000kg</option>
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-orange-400">
-                    <ChevronDown size={20} />
+                  <div className="relative flex-1">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                      <TrendingUp size={16} />
+                    </div>
+                    <select
+                      value={currentFaixa}
+                      onChange={(e) => setManualFaixa(e.target.value as PrecoFaixa)}
+                      className="w-full pl-9 pr-8 py-3 bg-orange-50 rounded-xl font-black text-orange-700 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all border border-orange-100 text-xs"
+                    >
+                      <option value="livre">Tabela Livre</option>
+                      <option value="200kg">Tabela 200kg</option>
+                      <option value="500kg">Tabela 500kg</option>
+                      <option value="1000kg">Tabela 1000kg</option>
+                      <option value="2000kg">Tabela 2000kg</option>
+                      <option value="4000kg">Tabela 4000kg</option>
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-orange-400">
+                      <ChevronDown size={16} />
+                    </div>
                   </div>
                 </div>
               </div>
