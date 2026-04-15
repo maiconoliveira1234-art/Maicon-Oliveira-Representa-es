@@ -54,6 +54,7 @@ export function OrderPage() {
   const [pesoConquistado, setPesoConquistado] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [observacoes, setObservacoes] = useState('');
+  const [manualFaixa, setManualFaixa] = useState<PrecoFaixa | null>(null);
   const itemsEndRef = React.useRef<HTMLDivElement>(null);
 
   const families = useMemo(() => {
@@ -223,7 +224,18 @@ export function OrderPage() {
       const saved = localStorage.getItem(`pedido_${clienteId}`);
       if (saved) {
         try {
-          const prefilled = JSON.parse(saved) as Record<string, number>;
+          const savedData = JSON.parse(saved);
+          let prefilled: Record<string, number> = {};
+          
+          // Handle both old format (Record<string, number>) and new format ({ items, prazo, obs })
+          if (savedData && typeof savedData === 'object' && 'items' in savedData) {
+            prefilled = savedData.items || {};
+            if (savedData.prazo) setSelectedPrazo(savedData.prazo);
+            if (savedData.obs) setObservacoes(savedData.obs);
+          } else {
+            prefilled = savedData || {};
+          }
+
           const newItens: Partial<ItemPedido>[] = [];
           
           // Calculate initial weight to get correct initial price range
@@ -277,11 +289,16 @@ export function OrderPage() {
           map[item.produto_id] = item.quantidade;
         }
       });
-      // Only save if there are items or if we explicitly want to clear it
-      // Actually, always save the current state of the map for this client
-      localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(map));
+      
+      const dataToSave = {
+        items: map,
+        prazo: selectedPrazo,
+        obs: observacoes
+      };
+      
+      localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(dataToSave));
     }
-  }, [itens, clienteId, isReady]);
+  }, [itens, clienteId, isReady, selectedPrazo, observacoes]);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -518,6 +535,8 @@ export function OrderPage() {
 
   if (loading) return <div className="p-8 text-center">Carregando...</div>;
 
+  const currentFaixa = manualFaixa || faixaPreco;
+
   return (
     <div className="space-y-6 pb-80">
       <header className="flex items-center gap-4">
@@ -569,7 +588,7 @@ export function OrderPage() {
                 </div>
                 <div className="flex flex-col items-end">
                   <img 
-                    src="https://www.adimax.com.br/wp-content/themes/adimax/assets/img/logo-adimax.png" 
+                    src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png" 
                     alt="ADIMAX" 
                     className="h-12 w-auto mb-1"
                     crossOrigin="anonymous"
@@ -988,9 +1007,11 @@ export function OrderPage() {
                           </div>
                           <div className="flex flex-col items-end">
                             <img 
-                              src="https://www.adimax.com.br/wp-content/themes/adimax/assets/img/logo-adimax.png" 
+                              src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=300&output=png" 
                               alt="ADIMAX" 
                               className="h-8 w-auto mb-1"
+                              crossOrigin="anonymous"
+                              referrerPolicy="no-referrer"
                             />
                             <span className="text-[6px] font-black text-[#a3a3a3] uppercase tracking-widest">Parceiro Oficial</span>
                           </div>
@@ -1070,7 +1091,7 @@ export function OrderPage() {
                                           <span className="text-[10px] font-black text-[#171717]">{formatCurrency(installmentDetails.valorBoleto)}</span>
                                         </div>
                                         <div className="flex justify-between">
-                                          <span className="text-[10px] font-bold text-[#525252]">1º Vencimento:</span>
+                                          <span className="text-[10px] font-bold text-[#525252]">1º Vencimento (Estimado):</span>
                                           <span className="text-[10px] font-black text-[#171717]">
                                             {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
                                           </span>
@@ -1187,6 +1208,27 @@ export function OrderPage() {
                     <ChevronDown size={20} />
                   </div>
                 </div>
+
+                <div className="relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                    <TrendingUp size={18} />
+                  </div>
+                  <select
+                    value={currentFaixa}
+                    onChange={(e) => setManualFaixa(e.target.value as PrecoFaixa)}
+                    className="w-full pl-11 pr-10 py-3 bg-orange-50 rounded-xl font-black text-orange-700 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all border border-orange-100"
+                  >
+                    <option value="livre">Tabela Livre</option>
+                    <option value="200kg">Tabela 200kg</option>
+                    <option value="500kg">Tabela 500kg</option>
+                    <option value="1000kg">Tabela 1000kg</option>
+                    <option value="2000kg">Tabela 2000kg</option>
+                    <option value="4000kg">Tabela 4000kg</option>
+                  </select>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-orange-400">
+                    <ChevronDown size={20} />
+                  </div>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-2 pr-2">
@@ -1207,7 +1249,7 @@ export function OrderPage() {
                     </div>
                     <div className="text-right">
                       <p className="font-bold text-orange-600">
-                        {formatCurrency(produto.custo_und * (1 - (getValorUnitario(produto, faixaPreco) || 0)))}
+                        {formatCurrency(produto.custo_und * (1 - (getValorUnitario(produto, currentFaixa) || 0)))}
                       </p>
                       <p className="text-[10px] text-neutral-400 font-bold uppercase">Por Unidade</p>
                     </div>
