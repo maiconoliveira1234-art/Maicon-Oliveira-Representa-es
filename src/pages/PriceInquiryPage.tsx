@@ -190,7 +190,8 @@ export function PriceInquiryPage() {
   };
 
   const families = useMemo(() => {
-    const fams = new Set(produtos.map(p => p.familia || 'Sem Família'));
+    const activeProducts = produtos.filter(p => p.ativo !== false);
+    const fams = new Set(activeProducts.map(p => p.familia || 'Sem Família'));
     return Array.from(fams).sort();
   }, [produtos]);
 

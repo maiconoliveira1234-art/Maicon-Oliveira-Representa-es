@@ -58,7 +58,8 @@ export function OrderPage() {
   const itemsEndRef = React.useRef<HTMLDivElement>(null);
 
   const families = useMemo(() => {
-    const uniqueFamilies = Array.from(new Set(produtos.map(p => p.familia).filter(Boolean)));
+    const activeProducts = produtos.filter(p => p.ativo !== false);
+    const uniqueFamilies = Array.from(new Set(activeProducts.map(p => p.familia).filter(Boolean)));
     return ['Todas', ...uniqueFamilies.sort()];
   }, [produtos]);
 
