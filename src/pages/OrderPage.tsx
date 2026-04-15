@@ -1179,7 +1179,7 @@ export function OrderPage() {
                   >
                     {families.map((family) => (
                       <option key={family} value={family}>
-                        Família: {family}
+                        {family}
                       </option>
                     ))}
                   </select>
