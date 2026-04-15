@@ -259,7 +259,7 @@ export function StockCountPage() {
 
     // Sort: Alphabetical and Active status
     return result
-      .filter(item => showInactive || item.ativo || (estoqueMap[item.produto_id] > 0))
+      .filter(item => showInactive || item.ativo)
       .sort((a, b) => a.produto_nome.localeCompare(b.produto_nome));
   }, [historico, estoqueMap, ultimaContagemMap, produtosMap, mediaCicloGlobal, showInactive]);
 
