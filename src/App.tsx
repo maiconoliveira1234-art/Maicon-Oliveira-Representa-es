@@ -14,6 +14,7 @@ import { OrderPage } from './pages/OrderPage';
 import { StockCountPage } from './pages/StockCountPage';
 import { MetasPage } from './pages/MetasPage';
 import { ImportPage } from './pages/ImportPage';
+import { CommissionPage } from './pages/CommissionPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { runAutomaticInactivation } from './lib/clientInactivation';
 
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="/pedido/novo" element={<Navigate to="/" replace />} />
           <Route path="/pedido/novo/:clienteId" element={<OrderPage />} />
           <Route path="/metas" element={<MetasPage />} />
+          <Route path="/comissoes" element={<CommissionPage />} />
           <Route path="/import" element={<ImportPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

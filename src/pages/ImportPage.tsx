@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Cliente, Produto, HistVenda } from '../types';
-import { Loader2, FileUp, Save, AlertCircle, CheckCircle2, Trash2 } from 'lucide-react';
+import { Loader2, FileUp, Save, AlertCircle, CheckCircle2, Trash2, Plus, X, Package } from 'lucide-react';
 import { cn, deduplicateSales } from '../lib/utils';
 import { format } from 'date-fns';
 
@@ -16,7 +16,25 @@ interface RawRow {
   acrescimo: number;
   peso_total: number;
   isValid: boolean;
+  isMissingProduct?: boolean;
   error?: string;
+}
+
+interface NewProductData {
+  produto: string;
+  familia: string;
+  custo_total: number;
+  custo_und: number;
+  sugestao: number;
+  peso_embalagem: number;
+  quant_embalagem: number;
+  comissao: number;
+  livre: number;
+  "200kg": number;
+  "500kg": number;
+  "1000kg": number;
+  "2000kg": number;
+  "4000kg": number;
 }
 
 export function ImportPage() {
@@ -28,6 +46,24 @@ export function ImportPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
+  const [showNewProductModal, setShowNewProductModal] = useState(false);
+  const [newProductData, setNewProductData] = useState<NewProductData>({
+    produto: '',
+    familia: '',
+    custo_total: 0,
+    custo_und: 0,
+    sugestao: 0,
+    peso_embalagem: 0,
+    quant_embalagem: 1,
+    comissao: 0,
+    livre: 0,
+    "200kg": 0,
+    "500kg": 0,
+    "1000kg": 0,
+    "2000kg": 0,
+    "4000kg": 0
+  });
+  const [savingNewProduct, setSavingNewProduct] = useState(false);
 
   // Form states
   const [selectedClienteId, setSelectedClienteId] = useState('');
@@ -60,6 +96,11 @@ export function ImportPage() {
     }
     fetchData();
   }, []);
+
+  const families = useMemo(() => {
+    const fams = new Set(produtos.map(p => p.familia).filter(Boolean));
+    return Array.from(fams).sort();
+  }, [produtos]);
 
   const handleProcess = () => {
     if (!selectedClienteId) {
@@ -115,7 +156,8 @@ export function ImportPage() {
         };
 
         const qtd = parseAcrescido(cols[2]);
-        const matchedProduto = produtos.find(p => p.produto.toLowerCase() === cols[1].trim().toLowerCase());
+        const productName = cols[1].trim();
+        const matchedProduto = produtos.find(p => p.produto.toLowerCase() === productName.toLowerCase());
         const pesoTotal = matchedProduto 
           ? qtd * (matchedProduto.peso_embalagem || 0)
           : 0;
@@ -123,14 +165,16 @@ export function ImportPage() {
         return {
           id: `row-${index}`,
           tabela: cols[0].trim(),
-          produto: cols[1].trim(),
+          produto: productName,
           qtd,
           valor_total: parseValorTotal(cols[3]),
           tipo: cols[4].trim(),
           desconto: parseAcrescido(cols[5]),
           acrescimo: parseAcrescido(cols[6]),
           peso_total: pesoTotal,
-          isValid: true
+          isValid: !!matchedProduto,
+          isMissingProduct: !matchedProduto,
+          error: !matchedProduto ? 'Produto não cadastrado' : undefined
         };
       });
 
@@ -150,6 +194,13 @@ export function ImportPage() {
       return;
     }
     if (processedRows.length === 0) return;
+
+    const missingProducts = processedRows.filter(r => r.isMissingProduct);
+    if (missingProducts.length > 0) {
+      setError(`Existem ${missingProducts.length} produtos não cadastrados. Cadastre-os antes de continuar.`);
+      return;
+    }
+
     const validRows = processedRows.filter(r => r.isValid);
     if (validRows.length === 0) {
       setError('Não há linhas válidas para salvar.');
@@ -243,6 +294,92 @@ export function ImportPage() {
 
   const removeRow = (id: string) => {
     setProcessedRows(prev => prev.filter(row => row.id !== id));
+  };
+
+  const openNewProductModal = (productName: string) => {
+    setNewProductData({
+      produto: productName,
+      familia: '',
+      custo_total: 0,
+      custo_und: 0,
+      sugestao: 0,
+      peso_embalagem: 0,
+      quant_embalagem: 1,
+      comissao: 0,
+      livre: 0,
+      "200kg": 0,
+      "500kg": 0,
+      "1000kg": 0,
+      "2000kg": 0,
+      "4000kg": 0
+    });
+    setShowNewProductModal(true);
+  };
+
+  const handleFamilyChange = (familia: string) => {
+    // Find a product from this family to inherit defaults
+    const template = produtos.find(p => p.familia === familia);
+    if (template) {
+      setNewProductData(prev => ({
+        ...prev,
+        familia,
+        comissao: template.comissao || 0,
+        livre: template.livre || 0,
+        "200kg": template["200kg"] || 0,
+        "500kg": template["500kg"] || 0,
+        "1000kg": template["1000kg"] || 0,
+        "2000kg": template["2000kg"] || 0,
+        "4000kg": template["4000kg"] || 0
+      }));
+    } else {
+      setNewProductData(prev => ({ ...prev, familia }));
+    }
+  };
+
+  const handleSaveNewProduct = async () => {
+    if (!newProductData.produto || !newProductData.familia) {
+      alert('Preencha o nome e a família do produto.');
+      return;
+    }
+
+    setSavingNewProduct(true);
+    try {
+      const { data, error } = await supabase
+        .from('produtos')
+        .insert([{
+          ...newProductData,
+          ativo: true
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update local products list
+      const updatedProdutos = [...produtos, data];
+      setProdutos(updatedProdutos);
+
+      // Update processed rows to mark this product as valid
+      setProcessedRows(prev => prev.map(row => {
+        if (row.produto.toLowerCase() === newProductData.produto.toLowerCase()) {
+          return {
+            ...row,
+            isValid: true,
+            isMissingProduct: false,
+            error: undefined,
+            peso_total: row.qtd * (data.peso_embalagem || 0)
+          };
+        }
+        return row;
+      }));
+
+      setShowNewProductModal(false);
+    } catch (err: any) {
+      console.error('Erro ao cadastrar produto:', err);
+      alert(`Erro ao cadastrar produto: ${err.message}`);
+    } finally {
+      setSavingNewProduct(false);
+    }
   };
 
   if (loading) {
@@ -380,6 +517,14 @@ export function ImportPage() {
                         <td className="px-4 py-2">
                           {row.isValid ? (
                             <CheckCircle2 className="text-green-500" size={16} />
+                          ) : row.isMissingProduct ? (
+                            <button 
+                              onClick={() => openNewProductModal(row.produto)}
+                              className="flex items-center gap-1 text-orange-600 hover:text-orange-700 font-bold"
+                            >
+                              <Plus size={14} />
+                              <span className="text-[10px]">Cadastrar</span>
+                            </button>
                           ) : (
                             <div className="flex items-center gap-1 text-red-500" title={row.error}>
                               <AlertCircle size={16} />
@@ -502,6 +647,115 @@ export function ImportPage() {
                 className="flex-1 py-2.5 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-all shadow-lg shadow-orange-200"
               >
                 Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Product Modal */}
+      {showNewProductModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 text-orange-600">
+                <Package size={24} />
+                <h3 className="font-black text-xl">Novo Produto</h3>
+              </div>
+              <button onClick={() => setShowNewProductModal(false)} className="p-2 hover:bg-neutral-100 rounded-full transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-1">Nome do Produto</label>
+                <input
+                  type="text"
+                  value={newProductData.produto}
+                  onChange={(e) => setNewProductData(prev => ({ ...prev, produto: e.target.value }))}
+                  className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-1">Família do Produto</label>
+                <select
+                  value={newProductData.familia}
+                  onChange={(e) => handleFamilyChange(e.target.value)}
+                  className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
+                >
+                  <option value="">Selecione a Família</option>
+                  {families.map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-1">Custo Total</label>
+                  <input
+                    type="number"
+                    value={newProductData.custo_total}
+                    onChange={(e) => setNewProductData(prev => ({ ...prev, custo_total: parseFloat(e.target.value) }))}
+                    className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-1">Custo Unitário</label>
+                  <input
+                    type="number"
+                    value={newProductData.custo_und}
+                    onChange={(e) => setNewProductData(prev => ({ ...prev, custo_und: parseFloat(e.target.value) }))}
+                    className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-1">Sugestão</label>
+                  <input
+                    type="number"
+                    value={newProductData.sugestao}
+                    onChange={(e) => setNewProductData(prev => ({ ...prev, sugestao: parseFloat(e.target.value) }))}
+                    className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-1">Peso Emb.</label>
+                  <input
+                    type="number"
+                    value={newProductData.peso_embalagem}
+                    onChange={(e) => setNewProductData(prev => ({ ...prev, peso_embalagem: parseFloat(e.target.value) }))}
+                    className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-1">Qtd Emb.</label>
+                  <input
+                    type="number"
+                    value={newProductData.quant_embalagem}
+                    onChange={(e) => setNewProductData(prev => ({ ...prev, quant_embalagem: parseInt(e.target.value) }))}
+                    className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button
+                onClick={() => setShowNewProductModal(false)}
+                className="flex-1 py-3 bg-neutral-100 text-neutral-700 rounded-xl font-bold hover:bg-neutral-200 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveNewProduct}
+                disabled={savingNewProduct}
+                className="flex-1 py-3 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-all shadow-lg shadow-orange-200 flex items-center justify-center gap-2"
+              >
+                {savingNewProduct ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+                Salvar e Continuar
               </button>
             </div>
           </div>
