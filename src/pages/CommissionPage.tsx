@@ -50,7 +50,8 @@ export function CommissionPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   
   // Filters
-  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [selectedYears, setSelectedYears] = useState<number[]>([new Date().getFullYear()]);
+  const [selectedMonths, setSelectedMonths] = useState<number[]>([]); // Empty = all months
   const [useCustomRange, setUseCustomRange] = useState(false);
   const [customRange, setCustomRange] = useState({
     start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
@@ -60,6 +61,15 @@ export function CommissionPage() {
   const [selectedProdutoId, setSelectedProdutoId] = useState('');
   const [selectedFamilia, setSelectedFamilia] = useState('');
   const [groupBy, setGroupBy] = useState<GroupBy>('cliente');
+
+  const [showYearDropdown, setShowYearDropdown] = useState(false);
+  const [showMonthDropdown, setShowMonthDropdown] = useState(false);
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [showFamilyDropdown, setShowFamilyDropdown] = useState(false);
+
+  const [clientSearch, setClientSearch] = useState('');
+  const [productSearch, setProductSearch] = useState('');
 
   const [allHistoryVendas, setAllHistoryVendas] = useState<CommissionData[]>([]);
 
@@ -134,32 +144,26 @@ export function CommissionPage() {
     fetchData();
   }, []);
 
-  const currentRange = useMemo(() => {
-    if (useCustomRange) {
-      return {
-        start: parseISO(customRange.start),
-        end: parseISO(customRange.end)
-      };
-    }
-    const date = parseISO(`${selectedMonth}-01`);
-    return {
-      start: startOfMonth(date),
-      end: endOfMonth(date)
-    };
-  }, [useCustomRange, customRange, selectedMonth]);
-
   const filteredVendas = useMemo(() => {
     return allHistoryVendas.filter(v => {
       const vDate = parseISO(v.faturamento);
-      const isWithinDate = vDate >= currentRange.start && vDate <= currentRange.end;
-      if (!isWithinDate) return false;
+      
+      if (useCustomRange) {
+        const start = parseISO(customRange.start);
+        const end = parseISO(customRange.end);
+        if (vDate < start || vDate > end) return false;
+      } else {
+        const yearMatch = selectedYears.length === 0 || selectedYears.includes(vDate.getFullYear());
+        const monthMatch = selectedMonths.length === 0 || selectedMonths.includes(vDate.getMonth() + 1);
+        if (!yearMatch || !monthMatch) return false;
+      }
 
       const matchCliente = !selectedClienteId || v.cliente_id === selectedClienteId;
       const matchProduto = !selectedProdutoId || v.produto_id === selectedProdutoId;
       const matchFamilia = !selectedFamilia || v.familia === selectedFamilia;
       return matchCliente && matchProduto && matchFamilia;
     });
-  }, [allHistoryVendas, currentRange, selectedClienteId, selectedProdutoId, selectedFamilia]);
+  }, [allHistoryVendas, useCustomRange, customRange, selectedYears, selectedMonths, selectedClienteId, selectedProdutoId, selectedFamilia]);
 
   const monthlyComparisonData = useMemo(() => {
     const months = Array.from({ length: 12 }).map((_, i) => i);
@@ -194,16 +198,20 @@ export function CommissionPage() {
     const percentualMedio = totalVendido > 0 ? (totalComissao / totalVendido) * 100 : 0;
     const ticketMedio = totalPedidos > 0 ? totalVendido / totalPedidos : 0;
 
-    // Trend calculation
+    // Projection calculation (only relevant if single current month is selected)
     const now = new Date();
-    const monthStart = currentRange.start;
-    const deadline = parseISO(deadlineDate);
+    let projetadoComissao = totalComissao;
     
-    const daysPassed = Math.max(1, differenceInDays(now, monthStart) + 1);
-    const totalDays = Math.max(1, differenceInDays(deadline, monthStart) + 1);
-    
-    const projectionFactor = totalDays / daysPassed;
-    const projetadoComissao = totalComissao * projectionFactor;
+    if (!useCustomRange && selectedYears.length === 1 && selectedMonths.length === 1) {
+      const targetMonthStart = new Date(selectedYears[0], selectedMonths[0] - 1, 1);
+      const targetMonthEnd = endOfMonth(targetMonthStart);
+      
+      if (now >= targetMonthStart && now <= targetMonthEnd) {
+        const daysPassed = Math.max(1, differenceInDays(now, targetMonthStart) + 1);
+        const totalDays = Math.max(1, differenceInDays(targetMonthEnd, targetMonthStart) + 1);
+        projetadoComissao = totalComissao * (totalDays / daysPassed);
+      }
+    }
 
     return {
       totalVendido,
@@ -212,9 +220,9 @@ export function CommissionPage() {
       percentualMedio,
       ticketMedio,
       projetadoComissao,
-      isPositiveTrend: projetadoComissao >= totalComissao // Simple indicator
+      isPositiveTrend: projetadoComissao >= totalComissao
     };
-  }, [filteredVendas, selectedMonth, deadlineDate]);
+  }, [filteredVendas, useCustomRange, selectedYears, selectedMonths, deadlineDate]);
 
   const groupedData = useMemo(() => {
     const groups: Record<string, { label: string, total: number, comissao: number, peso: number }> = {};
@@ -271,117 +279,307 @@ export function CommissionPage() {
             Análise detalhada de vendas e comissões por período.
           </p>
         </div>
-
-        <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-neutral-200 shadow-sm">
-          <div className="flex items-center bg-neutral-100 rounded-lg p-0.5">
-            <button
-              onClick={() => setUseCustomRange(false)}
-              className={cn(
-                "px-3 py-1 text-[10px] font-bold rounded-md transition-all",
-                !useCustomRange ? "bg-white shadow-sm text-orange-600" : "text-neutral-500 hover:text-neutral-700"
-              )}
-            >
-              Mês
-            </button>
-            <button
-              onClick={() => setUseCustomRange(true)}
-              className={cn(
-                "px-3 py-1 text-[10px] font-bold rounded-md transition-all",
-                useCustomRange ? "bg-white shadow-sm text-orange-600" : "text-neutral-500 hover:text-neutral-700"
-              )}
-            >
-              Período
-            </button>
-          </div>
-          
-          {!useCustomRange ? (
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-transparent border-none outline-none text-sm font-bold px-3 py-1.5"
-            />
-          ) : (
-            <div className="flex items-center gap-2 px-2">
-              <input
-                type="date"
-                value={customRange.start}
-                onChange={(e) => setCustomRange(prev => ({ ...prev, start: e.target.value }))}
-                className="bg-transparent border-none outline-none text-[10px] font-bold"
-              />
-              <span className="text-neutral-300">|</span>
-              <input
-                type="date"
-                value={customRange.end}
-                onChange={(e) => setCustomRange(prev => ({ ...prev, end: e.target.value }))}
-                className="bg-transparent border-none outline-none text-[10px] font-bold"
-              />
-            </div>
-          )}
-        </div>
       </header>
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <label className="block text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-1">Cliente</label>
-          <select
-            value={selectedClienteId}
-            onChange={(e) => setSelectedClienteId(e.target.value)}
-            className="w-full p-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-orange-500"
-          >
-            <option value="">Todos os Clientes</option>
-            {clientes.map(c => (
-              <option key={c.id} value={c.id}>{c.cliente}</option>
-            ))}
-          </select>
-        </div>
+      <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Year Dropdown */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block">Anos</label>
+            <div className="relative">
+              <button 
+                onClick={() => setShowYearDropdown(!showYearDropdown)}
+                className="w-full flex items-center justify-between px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                <span className="truncate">
+                  {selectedYears.length === 0 ? "Todos os Anos" : `${selectedYears.length} selecionados`}
+                </span>
+                <ChevronDown size={16} className={cn("transition-transform", showYearDropdown && "rotate-180")} />
+              </button>
+              
+              {showYearDropdown && (
+                <>
+                  <div className="fixed inset-0 z-[60]" onClick={() => setShowYearDropdown(false)} />
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl z-[70] p-1">
+                    {[2024, 2025, 2026].map(y => (
+                      <button
+                        key={y}
+                        onClick={() => {
+                          setSelectedYears(prev => prev.includes(y) ? prev.filter(item => item !== y) : [...prev, y]);
+                          setUseCustomRange(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-neutral-50 flex items-center gap-3 text-sm font-medium"
+                      >
+                        <div className={cn(
+                          "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+                          selectedYears.includes(y) ? "bg-orange-500 border-orange-500" : "border-neutral-300"
+                        )}>
+                          {selectedYears.includes(y) && <TrendingUp size={10} className="text-white" strokeWidth={4} />}
+                        </div>
+                        <span>{y}</span>
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => {
+                        setSelectedYears([]);
+                        setUseCustomRange(false);
+                      }}
+                      className="w-full text-center py-2 text-[10px] font-black uppercase text-orange-600 hover:bg-orange-50 rounded-lg mt-1"
+                    >
+                      Limpar / Selecionar Todos
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
 
-        <div>
-          <label className="block text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-1">Produto</label>
-          <select
-            value={selectedProdutoId}
-            onChange={(e) => setSelectedProdutoId(e.target.value)}
-            className="w-full p-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-orange-500"
-          >
-            <option value="">Todos os Produtos</option>
-            {produtos.map(p => (
-              <option key={p.id} value={p.id}>{p.produto}</option>
-            ))}
-          </select>
-        </div>
+          {/* Month Dropdown */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block">Meses</label>
+            <div className="relative">
+              <button 
+                onClick={() => setShowMonthDropdown(!showMonthDropdown)}
+                className="w-full flex items-center justify-between px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                <span className="truncate">
+                  {selectedMonths.length === 0 ? "Todos os Meses" : `${selectedMonths.length} selecionados`}
+                </span>
+                <ChevronDown size={16} className={cn("transition-transform", showMonthDropdown && "rotate-180")} />
+              </button>
+              
+              {showMonthDropdown && (
+                <>
+                  <div className="fixed inset-0 z-[60]" onClick={() => setShowMonthDropdown(false)} />
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl z-[70] max-h-64 overflow-y-auto p-1">
+                    {Array.from({ length: 12 }).map((_, i) => (
+                      <button
+                        key={i + 1}
+                        onClick={() => {
+                          setSelectedMonths(prev => prev.includes(i + 1) ? prev.filter(m => m !== i + 1) : [...prev, i + 1]);
+                          setUseCustomRange(false);
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-neutral-50 flex items-center gap-3 text-sm font-medium"
+                      >
+                        <div className={cn(
+                          "w-4 h-4 rounded border flex items-center justify-center transition-colors",
+                          selectedMonths.includes(i + 1) ? "bg-orange-500 border-orange-500" : "border-neutral-300"
+                        )}>
+                          {selectedMonths.includes(i + 1) && <TrendingUp size={10} className="text-white" strokeWidth={4} />}
+                        </div>
+                        <span>{format(new Date(2024, i, 1), 'MMMM', { locale: ptBR })}</span>
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => {
+                        setSelectedMonths([]);
+                        setUseCustomRange(false);
+                      }}
+                      className="w-full text-center py-2 text-[10px] font-black uppercase text-orange-600 hover:bg-orange-50 rounded-lg mt-1"
+                    >
+                      Limpar / Selecionar Todos
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
 
-        <div>
-          <label className="block text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-1">Família</label>
-          <select
-            value={selectedFamilia}
-            onChange={(e) => setSelectedFamilia(e.target.value)}
-            className="w-full p-2 bg-neutral-50 border border-neutral-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-orange-500"
-          >
-            <option value="">Todas as Famílias</option>
-            {families.map(f => (
-              <option key={f} value={f}>{f}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-1">Agrupar Por</label>
-          <div className="flex gap-1">
-            {(['cliente', 'produto', 'familia'] as GroupBy[]).map((g) => (
-              <button
-                key={g}
-                onClick={() => setGroupBy(g)}
+          {/* Custom Date Range Toggle */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block">Período Customizado</label>
+            <div className="flex bg-neutral-100 p-1 rounded-xl border border-neutral-200 h-[42px]">
+              <button 
+                onClick={() => setUseCustomRange(false)}
                 className={cn(
-                  "flex-1 py-2 rounded-lg text-[10px] font-bold uppercase transition-all border",
-                  groupBy === g 
-                    ? "bg-orange-600 border-orange-600 text-white" 
-                    : "bg-white border-neutral-200 text-neutral-500 hover:bg-neutral-50"
+                  "flex-1 text-[10px] font-bold rounded-lg transition-all",
+                  !useCustomRange ? "bg-white text-orange-600 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
                 )}
               >
-                {g}
+                Anos/Meses
               </button>
-            ))}
+              <button 
+                onClick={() => setUseCustomRange(true)}
+                className={cn(
+                  "flex-1 text-[10px] font-bold rounded-lg transition-all",
+                  useCustomRange ? "bg-white text-orange-600 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+                )}
+              >
+                Datas Específicas
+              </button>
+            </div>
+          </div>
+
+          {/* Specific Dates Inputs */}
+          {useCustomRange ? (
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block">Datas</label>
+              <div className="flex gap-2">
+                <input 
+                  type="date" 
+                  value={customRange.start}
+                  onChange={(e) => setCustomRange(prev => ({ ...prev, start: e.target.value }))}
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 font-bold text-xs outline-none focus:ring-2 focus:ring-orange-500"
+                />
+                <input 
+                  type="date" 
+                  value={customRange.end}
+                  onChange={(e) => setCustomRange(prev => ({ ...prev, end: e.target.value }))}
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 font-bold text-xs outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-end h-[42px] mt-6">
+              <button 
+                onClick={() => {
+                  setSelectedYears([2024, 2025, 2026]);
+                  setSelectedMonths([]);
+                  setUseCustomRange(false);
+                }}
+                className="w-full h-[42px] bg-neutral-900 text-white rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-neutral-800 transition-colors flex items-center justify-center gap-2"
+              >
+                <Calendar size={14} />
+                Todo o Período
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-4 border-t border-neutral-100">
+          {/* Client Filter (Dropdown Style) */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block">Cliente</label>
+            <div className="relative">
+              <button 
+                onClick={() => setShowClientDropdown(!showClientDropdown)}
+                className="w-full flex items-center justify-between px-4 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-bold flex-1 truncate"
+              >
+                <span className="truncate">
+                  {selectedClienteId ? clientes.find(c => c.id === selectedClienteId)?.cliente : "Todos os Clientes"}
+                </span>
+                <ChevronDown size={14} />
+              </button>
+              {showClientDropdown && (
+                <>
+                  <div className="fixed inset-0 z-[60]" onClick={() => setShowClientDropdown(false)} />
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl z-[70] p-2 min-w-[280px]">
+                    <div className="p-2 border-b border-neutral-100 mb-2">
+                      <input 
+                        placeholder="Buscar cliente..." 
+                        value={clientSearch}
+                        onChange={(e) => setClientSearch(e.target.value)}
+                        className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    <div className="max-h-60 overflow-y-auto">
+                      <button 
+                        onClick={() => { setSelectedClienteId(''); setShowClientDropdown(false); }}
+                        className={cn("w-full text-left px-3 py-2 rounded-lg text-sm font-medium", !selectedClienteId ? "bg-orange-50 text-orange-600" : "hover:bg-neutral-50")}
+                      >
+                        Todos os Clientes
+                      </button>
+                      {clientes
+                        .filter(c => c.cliente.toLowerCase().includes(clientSearch.toLowerCase()))
+                        .map(c => (
+                        <button
+                          key={c.id}
+                          onClick={() => { setSelectedClienteId(c.id); setShowClientDropdown(false); }}
+                          className={cn("w-full text-left px-3 py-2 rounded-lg text-sm font-medium truncate", selectedClienteId === c.id ? "bg-orange-50 text-orange-600" : "hover:bg-neutral-50")}
+                        >
+                          {c.cliente}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Product Filter */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block">Produto</label>
+            <div className="relative">
+              <button 
+                onClick={() => setShowProductDropdown(!showProductDropdown)}
+                className="w-full flex items-center justify-between px-4 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-bold truncate"
+              >
+                <span className="truncate">
+                  {selectedProdutoId ? produtos.find(p => p.id === selectedProdutoId)?.produto : "Todos os Produtos"}
+                </span>
+                <ChevronDown size={14} />
+              </button>
+              {showProductDropdown && (
+                <>
+                  <div className="fixed inset-0 z-[60]" onClick={() => setShowProductDropdown(false)} />
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl z-[70] p-2 min-w-[280px]">
+                    <div className="p-2 border-b border-neutral-100 mb-2">
+                      <input 
+                        placeholder="Buscar produto..." 
+                        value={productSearch}
+                        onChange={(e) => setProductSearch(e.target.value)}
+                        className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+                    <div className="max-h-60 overflow-y-auto">
+                      <button 
+                        onClick={() => { setSelectedProdutoId(''); setShowProductDropdown(false); }}
+                        className={cn("w-full text-left px-3 py-2 rounded-lg text-sm font-medium", !selectedProdutoId ? "bg-orange-50 text-orange-600" : "hover:bg-neutral-50")}
+                      >
+                        Todos os Produtos
+                      </button>
+                      {produtos
+                        .filter(p => p.produto.toLowerCase().includes(productSearch.toLowerCase()))
+                        .map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => { setSelectedProdutoId(p.id); setShowProductDropdown(false); }}
+                          className={cn("w-full text-left px-3 py-2 rounded-lg text-sm font-medium truncate", selectedProdutoId === p.id ? "bg-orange-50 text-orange-600" : "hover:bg-neutral-50")}
+                        >
+                          {p.produto}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block">Família</label>
+            <select
+              value={selectedFamilia}
+              onChange={(e) => setSelectedFamilia(e.target.value)}
+              className="w-full p-2 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
+            >
+              <option value="">Todas as Famílias</option>
+              {families.map(f => (
+                <option key={f} value={f}>{f}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block">Agrupar Por</label>
+            <div className="flex bg-neutral-100 p-1 rounded-xl border border-neutral-200 h-[42px]">
+              {(['cliente', 'produto', 'familia'] as GroupBy[]).map((g) => (
+                <button
+                  key={g}
+                  onClick={() => setGroupBy(g)}
+                  className={cn(
+                    "flex-1 text-[10px] font-black uppercase transition-all rounded-lg",
+                    groupBy === g 
+                      ? "bg-white text-orange-600 shadow-sm" 
+                      : "text-neutral-500 hover:text-neutral-700"
+                  )}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
