@@ -273,14 +273,35 @@ export function StockCountPage() {
   }, [historico]);
 
   const families = useMemo(() => {
-    const list = Array.from(new Set(processedItems.map(item => item.familia)));
-    return ['Todas', ...list.sort()];
-  }, [processedItems]);
+    let list = processedItems;
+    if (selectedWeight !== 'Todos') {
+      list = list.filter(item => item.peso === Number(selectedWeight));
+    }
+    const unique = Array.from(new Set(list.map(item => item.familia)));
+    return ['Todas', ...unique.sort()];
+  }, [processedItems, selectedWeight]);
 
   const weights = useMemo(() => {
-    const list = Array.from(new Set(processedItems.map(item => item.peso)));
-    return ['Todos', ...(list as number[]).filter(w => w > 0).sort((a, b) => a - b)];
-  }, [processedItems]);
+    let list = processedItems;
+    if (selectedFamily !== 'Todas') {
+      list = list.filter(item => item.familia === selectedFamily);
+    }
+    const unique = Array.from(new Set(list.map(item => item.peso)));
+    return ['Todos', ...(unique as number[]).filter(w => w > 0).sort((a, b) => a - b)];
+  }, [processedItems, selectedFamily]);
+
+  // Handle cross-filter validation: reset if current selection is no longer available in the filtered list
+  useEffect(() => {
+    if (selectedFamily !== 'Todas' && !families.includes(selectedFamily)) {
+      setSelectedFamily('Todas');
+    }
+  }, [families, selectedFamily]);
+
+  useEffect(() => {
+    if (selectedWeight !== 'Todos' && !weights.includes(Number(selectedWeight) as any)) {
+      setSelectedWeight('Todos');
+    }
+  }, [weights, selectedWeight]);
 
   const updateQuantity = (produtoId: string, val: string | number) => {
     const num = typeof val === 'string' ? parseInt(val) : val;
