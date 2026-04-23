@@ -38,6 +38,7 @@ interface ItemEstoqueData {
   raw_estoque_ideal: number;
   ativo: boolean;
   quant_embalagem: number;
+  familia: string;
 }
 
 export function StockCountPage() {
@@ -53,6 +54,8 @@ export function StockCountPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedFamily, setSelectedFamily] = useState('Todas');
+  const [selectedWeight, setSelectedWeight] = useState('Todos');
   const [showInactive, setShowInactive] = useState(false);
   const [showCycle, setShowCycle] = useState(false);
   const [selectedProductHistory, setSelectedProductHistory] = useState<ItemEstoqueData | null>(null);
@@ -252,7 +255,8 @@ export function StockCountPage() {
           estoque_ideal: estoqueIdeal,
           raw_estoque_ideal: rawEstoqueIdeal,
           ativo: (produto?.ativo ?? true) && diasUltCompra <= 365,
-          quant_embalagem: quantEmbalagem
+          quant_embalagem: quantEmbalagem,
+          familia: produto?.familia || 'Sem Família'
         };
       })
       .filter((item): item is ItemEstoqueData => item !== null);
@@ -267,6 +271,16 @@ export function StockCountPage() {
     if (historico.length === 0) return 0;
     return differenceInDays(new Date(), parseISO(historico[0].faturamento));
   }, [historico]);
+
+  const families = useMemo(() => {
+    const list = Array.from(new Set(processedItems.map(item => item.familia)));
+    return ['Todas', ...list.sort()];
+  }, [processedItems]);
+
+  const weights = useMemo(() => {
+    const list = Array.from(new Set(processedItems.map(item => item.peso)));
+    return ['Todos', ...(list as number[]).filter(w => w > 0).sort((a, b) => a - b)];
+  }, [processedItems]);
 
   const updateQuantity = (produtoId: string, val: string | number) => {
     const num = typeof val === 'string' ? parseInt(val) : val;
@@ -432,15 +446,26 @@ export function StockCountPage() {
   };
 
   const filteredItems = useMemo(() => {
-    if (!searchTerm.trim()) return processedItems;
-    
-    const searchWords = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
-    
-    return processedItems.filter(item => {
-      const productName = item.produto_nome.toLowerCase();
-      return searchWords.every(word => productName.includes(word));
-    });
-  }, [processedItems, searchTerm]);
+    let result = processedItems;
+
+    if (searchTerm.trim()) {
+      const searchWords = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
+      result = result.filter(item => {
+        const productName = item.produto_nome.toLowerCase();
+        return searchWords.every(word => productName.includes(word));
+      });
+    }
+
+    if (selectedFamily !== 'Todas') {
+      result = result.filter(item => item.familia === selectedFamily);
+    }
+
+    if (selectedWeight !== 'Todos') {
+      result = result.filter(item => item.peso === Number(selectedWeight));
+    }
+
+    return result;
+  }, [processedItems, searchTerm, selectedFamily, selectedWeight]);
 
   if (loading) return <div className="p-8 text-center">Carregando...</div>;
 
@@ -486,7 +511,7 @@ export function StockCountPage() {
               <input 
                 type="text" 
                 placeholder="Filtrar itens positivados..."
-                className="w-full pl-10 pr-10 py-2 bg-neutral-100 rounded-lg outline-none text-sm"
+                className="w-full pl-10 pr-10 py-2 bg-neutral-100 rounded-lg outline-none text-sm font-bold text-neutral-800"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -499,7 +524,42 @@ export function StockCountPage() {
                 </button>
               )}
             </div>
-            <label className="flex items-center gap-2 px-3 py-2 bg-neutral-100 rounded-lg cursor-pointer hover:bg-neutral-200 transition-colors">
+
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <select
+                  value={selectedFamily}
+                  onChange={(e) => setSelectedFamily(e.target.value)}
+                  className="pl-3 pr-8 py-2 bg-neutral-100 rounded-lg outline-none text-[11px] font-bold text-neutral-600 appearance-none border border-neutral-200"
+                >
+                  {families.map(f => (
+                    <option key={f} value={f}>{f}</option>
+                  ))}
+                </select>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                  <Package size={12} />
+                </div>
+              </div>
+
+              <div className="relative">
+                <select
+                  value={selectedWeight}
+                  onChange={(e) => setSelectedWeight(e.target.value)}
+                  className="pl-3 pr-8 py-2 bg-neutral-100 rounded-lg outline-none text-[11px] font-bold text-neutral-600 appearance-none border border-neutral-200"
+                >
+                  {weights.map(w => (
+                    <option key={w} value={w}>
+                      {w === 'Todos' ? w : formatWeight(Number(w))}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                  <TrendingDown size={12} />
+                </div>
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2 px-3 py-2 bg-neutral-100 rounded-lg cursor-pointer hover:bg-neutral-200 transition-colors border border-neutral-200">
               <input 
                 type="checkbox" 
                 checked={showInactive}
