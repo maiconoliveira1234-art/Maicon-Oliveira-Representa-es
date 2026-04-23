@@ -15,9 +15,10 @@ import {
   ArrowUpRight,
   ArrowDownRight
 } from 'lucide-react';
-import { cn } from '../lib/utils';
-import { format, startOfMonth, endOfMonth, parseISO, eachDayOfInterval, isSameDay, differenceInDays } from 'date-fns';
+import { cn, deduplicateSales } from '../lib/utils';
+import { format, startOfMonth, endOfMonth, parseISO, eachDayOfInterval, isSameDay, differenceInDays, isAfter, isBefore, max } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { SALES_CUTOFF_DATE, SALES_CUTOFF_CLIENTS } from '../constants';
 import {
   BarChart,
   Bar,
@@ -79,13 +80,30 @@ export function CommissionPage() {
         if (produtosRes.error) throw produtosRes.error;
         if (clientesRes.error) throw clientesRes.error;
 
-        const productsMap = new Map(produtosRes.data.map(p => [p.id, p]));
+        // Deduplicate data
+        const uniqueVendas = deduplicateSales(vendasRes.data || []);
+
+        // Apply selective cutoff
+        const filteredVendasData = uniqueVendas.filter(v => {
+          const clientName = (v.cliente || '').trim().toUpperCase();
+          if (SALES_CUTOFF_CLIENTS.includes(clientName)) {
+            return v.faturamento >= SALES_CUTOFF_DATE;
+          }
+          return true;
+        });
+
+        // Create a more robust products map with name fallback
+        const productsMap = new Map();
+        (produtosRes.data || []).forEach(p => {
+          productsMap.set(p.id, p);
+          productsMap.set(p.produto.toLowerCase(), p);
+        });
         
-        const enrichedVendas: CommissionData[] = (vendasRes.data || []).map(v => {
-          const prod = productsMap.get(v.produto_id);
+        const enrichedVendas: CommissionData[] = filteredVendasData.map(v => {
+          const prod = productsMap.get(v.produto_id) || (v.produtos ? productsMap.get(v.produtos.toLowerCase()) : null);
           const comissao_percent = prod?.comissao || 0;
-          const comissao_valor = v["r$_total"] * comissao_percent;
-          const peso_venda = v.qtd * (prod?.peso_embalagem || 0);
+          const comissao_valor = (v["r$_total"] || 0) * comissao_percent;
+          const peso_venda = (v.qtd || 0) * (prod?.peso_embalagem || 0);
           
           return {
             ...v,
@@ -402,12 +420,12 @@ export function CommissionPage() {
               {groupedData?.map((g, idx) => (
                 <tr key={idx} className="hover:bg-neutral-50 transition-colors text-xs">
                   <td className="px-4 py-3 font-bold text-neutral-900">{g.label}</td>
-                  <td className="px-4 py-3 text-right font-medium">{g.peso.toFixed(1)} kg</td>
+                  <td className="px-4 py-3 text-right font-medium">{g.peso.toFixed(2)} kg</td>
                   <td className="px-4 py-3 text-right font-bold">
-                    R$ {g.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {g.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="px-4 py-3 text-right font-black text-orange-600">
-                    R$ {g.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {g.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="px-4 py-3 text-right text-neutral-500">
                     {((g.comissao / g.total) * 100).toFixed(2)}%
@@ -418,9 +436,9 @@ export function CommissionPage() {
             <tfoot className="bg-neutral-900 text-white">
               <tr className="text-xs font-bold">
                 <td className="px-4 py-3 uppercase tracking-widest opacity-70">Total</td>
-                <td className="px-4 py-3 text-right">{filteredVendas.reduce((acc, v) => acc + v.peso_venda, 0).toFixed(1)} kg</td>
-                <td className="px-4 py-3 text-right">R$ {stats.totalVendido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                <td className="px-4 py-3 text-right text-orange-400">R$ {stats.totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                <td className="px-4 py-3 text-right">{filteredVendas.reduce((acc, v) => acc + v.peso_venda, 0).toFixed(2)} kg</td>
+                <td className="px-4 py-3 text-right">R$ {stats.totalVendido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td className="px-4 py-3 text-right text-orange-400">R$ {stats.totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 <td className="px-4 py-3 text-right">{stats.percentualMedio.toFixed(2)}%</td>
               </tr>
             </tfoot>

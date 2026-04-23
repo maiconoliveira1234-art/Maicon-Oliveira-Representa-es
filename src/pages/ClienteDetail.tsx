@@ -37,6 +37,7 @@ import {
 
 import { MOCK_CLIENTES, MOCK_HISTORICO, MOCK_PRODUTOS } from '../lib/mockData';
 import { Produto } from '../types';
+import { SALES_CUTOFF_DATE, SALES_CUTOFF_CLIENTS } from '../constants';
 
 export function ClienteDetail() {
   const { id } = useParams();
@@ -186,6 +187,9 @@ export function ClienteDetail() {
   if (loading) return <div className="p-8 text-center">Carregando...</div>;
   if (!cliente) return <div className="p-8 text-center">Cliente não encontrado.</div>;
 
+  const clientName = (cliente.cliente || '').trim().toUpperCase();
+  const isCutoffClient = SALES_CUTOFF_CLIENTS.includes(clientName);
+
   // Calculations
   const now = new Date();
   const startOfCurrentMonth = startOfMonth(now);
@@ -194,6 +198,9 @@ export function ClienteDetail() {
   // Realizado (Current Month)
   const realizado = historico
     .filter(h => {
+      // Selective cutoff filter
+      if (isCutoffClient && h.faturamento < SALES_CUTOFF_DATE) return false;
+
       const date = parseISO(h.faturamento);
       return date >= startOfCurrentMonth && date <= endOfCurrentMonth;
     })
@@ -204,27 +211,33 @@ export function ClienteDetail() {
 
   // Média 6m (excluding current month)
   const sixMonthsAgo = startOfMonth(subMonths(now, 6));
-  const media6m = historico
+  const media6mData = historico
     .filter(h => {
+      // Selective cutoff filter
+      if (isCutoffClient && h.faturamento < SALES_CUTOFF_DATE) return false;
+
       const date = parseISO(h.faturamento);
       return date >= sixMonthsAgo && date < startOfCurrentMonth;
-    })
-    .reduce((acc, h) => {
-      const prod = produtosMap[h.produto_id];
-      return acc + (h.qtd * (prod?.peso_embalagem || 0));
-    }, 0) / 6;
+    });
+  const media6m = media6mData.reduce((acc, h) => {
+    const prod = produtosMap[h.produto_id];
+    return acc + (h.qtd * (prod?.peso_embalagem || 0));
+  }, 0) / 6;
 
   // Média 12m (excluding current month)
   const twelveMonthsAgo = startOfMonth(subMonths(now, 12));
-  const media12m = historico
+  const media12mData = historico
     .filter(h => {
+      // Selective cutoff filter
+      if (isCutoffClient && h.faturamento < SALES_CUTOFF_DATE) return false;
+
       const date = parseISO(h.faturamento);
       return date >= twelveMonthsAgo && date < startOfCurrentMonth;
-    })
-    .reduce((acc, h) => {
-      const prod = produtosMap[h.produto_id];
-      return acc + (h.qtd * (prod?.peso_embalagem || 0));
-    }, 0) / 12;
+    });
+  const media12m = media12mData.reduce((acc, h) => {
+    const prod = produtosMap[h.produto_id];
+    return acc + (h.qtd * (prod?.peso_embalagem || 0));
+  }, 0) / 12;
 
   // Ciclo de Compra
   let mediaCiclo = 0;

@@ -54,6 +54,7 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
+import { SALES_CUTOFF_DATE, SALES_CUTOFF_CLIENTS } from '../constants';
 
 // --- Types for Dashboard ---
 type DashboardFilters = {
@@ -241,6 +242,10 @@ export function Dashboard() {
       const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
       if (!prod) return false;
 
+      // Selective cutoff filter
+      const clientName = (h.cliente || '').trim().toUpperCase();
+      if (SALES_CUTOFF_CLIENTS.includes(clientName) && h.faturamento < SALES_CUTOFF_DATE) return false;
+
       const matchesClient = filters.clientIds.length === 0 || filters.clientIds.includes(h.cliente_id);
       const matchesFamily = filters.families.length === 0 || filters.families.includes(prod.familia);
       const matchesProduct = filters.productIds.length === 0 || (h.produto_id && filters.productIds.includes(h.produto_id));
@@ -282,6 +287,10 @@ export function Dashboard() {
       const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
       if (!prod) return false;
 
+      // Selective cutoff filter
+      const clientName = (h.cliente || '').trim().toUpperCase();
+      if (SALES_CUTOFF_CLIENTS.includes(clientName) && h.faturamento < SALES_CUTOFF_DATE) return false;
+
       const matchesClient = filters.clientIds.length === 0 || filters.clientIds.includes(h.cliente_id);
       const matchesFamily = filters.families.length === 0 || filters.families.includes(prod.familia);
       const matchesProduct = filters.productIds.length === 0 || (h.produto_id && filters.productIds.includes(h.produto_id));
@@ -298,6 +307,10 @@ export function Dashboard() {
     return allSalesData.filter(h => {
       const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
       if (!prod) return false;
+
+      // Selective cutoff filter
+      const clientName = (h.cliente || '').trim().toUpperCase();
+      if (SALES_CUTOFF_CLIENTS.includes(clientName) && h.faturamento < SALES_CUTOFF_DATE) return false;
 
       const matchesClient = filters.clientIds.length === 0 || filters.clientIds.includes(h.cliente_id);
       const matchesFamily = filters.families.length === 0 || filters.families.includes(prod.familia);
