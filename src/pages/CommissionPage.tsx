@@ -30,7 +30,8 @@ import {
   LineChart,
   Line,
   AreaChart,
-  Area
+  Area,
+  Legend
 } from 'recharts';
 
 interface CommissionData extends HistVenda {
@@ -50,10 +51,17 @@ export function CommissionPage() {
   
   // Filters
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [useCustomRange, setUseCustomRange] = useState(false);
+  const [customRange, setCustomRange] = useState({
+    start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
+    end: format(endOfMonth(new Date()), 'yyyy-MM-dd')
+  });
   const [selectedClienteId, setSelectedClienteId] = useState('');
   const [selectedProdutoId, setSelectedProdutoId] = useState('');
   const [selectedFamilia, setSelectedFamilia] = useState('');
   const [groupBy, setGroupBy] = useState<GroupBy>('cliente');
+
+  const [allHistoryVendas, setAllHistoryVendas] = useState<CommissionData[]>([]);
 
   const deadlineDate = useMemo(() => {
     return localStorage.getItem('metas_deadline_date') || format(endOfMonth(new Date()), 'yyyy-MM-dd');
@@ -63,15 +71,14 @@ export function CommissionPage() {
     async function fetchData() {
       setLoading(true);
       try {
-        const start = startOfMonth(parseISO(`${selectedMonth}-01`));
-        const end = endOfMonth(parseISO(`${selectedMonth}-01`));
-
+        // Fetch from 2024 to allow evolution chart
+        const startOfHistory = '2024-01-01';
+        
         const [vendasRes, produtosRes, clientesRes] = await Promise.all([
           supabase
             .from('hist_vendas')
             .select('*')
-            .gte('faturamento', format(start, 'yyyy-MM-dd'))
-            .lte('faturamento', format(end, 'yyyy-MM-dd')),
+            .gte('faturamento', startOfHistory),
           supabase.from('produtos').select('*'),
           supabase.from('clientes').select('*').order('cliente')
         ]);
@@ -83,15 +90,6 @@ export function CommissionPage() {
         // Deduplicate data
         const uniqueVendas = deduplicateSales(vendasRes.data || []);
 
-        // Apply selective cutoff
-        const filteredVendasData = uniqueVendas.filter(v => {
-          const clientName = (v.cliente || '').trim().toUpperCase();
-          if (SALES_CUTOFF_CLIENTS.includes(clientName)) {
-            return v.faturamento >= SALES_CUTOFF_DATE;
-          }
-          return true;
-        });
-
         // Create a more robust products map with name fallback
         const productsMap = new Map();
         (produtosRes.data || []).forEach(p => {
@@ -99,7 +97,7 @@ export function CommissionPage() {
           productsMap.set(p.produto.toLowerCase(), p);
         });
         
-        const enrichedVendas: CommissionData[] = filteredVendasData.map(v => {
+        const enrichedVendas: CommissionData[] = uniqueVendas.map(v => {
           const prod = productsMap.get(v.produto_id) || (v.produtos ? productsMap.get(v.produtos.toLowerCase()) : null);
           const comissao_percent = prod?.comissao || 0;
           const comissao_valor = (v["r$_total"] || 0) * comissao_percent;
@@ -114,7 +112,16 @@ export function CommissionPage() {
           };
         });
 
-        setVendas(enrichedVendas);
+        // Apply selective cutoff globally just to be safe with this data source
+        const finalEnriched = enrichedVendas.filter(v => {
+          const clientName = (v.cliente || '').trim().toUpperCase();
+          if (SALES_CUTOFF_CLIENTS.includes(clientName)) {
+            return v.faturamento >= SALES_CUTOFF_DATE;
+          }
+          return true;
+        });
+
+        setAllHistoryVendas(finalEnriched);
         setProdutos(produtosRes.data || []);
         setClientes(clientesRes.data || []);
       } catch (err) {
@@ -125,16 +132,60 @@ export function CommissionPage() {
     }
 
     fetchData();
-  }, [selectedMonth]);
+  }, []);
+
+  const currentRange = useMemo(() => {
+    if (useCustomRange) {
+      return {
+        start: parseISO(customRange.start),
+        end: parseISO(customRange.end)
+      };
+    }
+    const date = parseISO(`${selectedMonth}-01`);
+    return {
+      start: startOfMonth(date),
+      end: endOfMonth(date)
+    };
+  }, [useCustomRange, customRange, selectedMonth]);
 
   const filteredVendas = useMemo(() => {
-    return vendas.filter(v => {
+    return allHistoryVendas.filter(v => {
+      const vDate = parseISO(v.faturamento);
+      const isWithinDate = vDate >= currentRange.start && vDate <= currentRange.end;
+      if (!isWithinDate) return false;
+
       const matchCliente = !selectedClienteId || v.cliente_id === selectedClienteId;
       const matchProduto = !selectedProdutoId || v.produto_id === selectedProdutoId;
       const matchFamilia = !selectedFamilia || v.familia === selectedFamilia;
       return matchCliente && matchProduto && matchFamilia;
     });
-  }, [vendas, selectedClienteId, selectedProdutoId, selectedFamilia]);
+  }, [allHistoryVendas, currentRange, selectedClienteId, selectedProdutoId, selectedFamilia]);
+
+  const monthlyComparisonData = useMemo(() => {
+    const months = Array.from({ length: 12 }).map((_, i) => i);
+    const years = [2024, 2025, 2026];
+
+    return months.map(monthIndex => {
+      const monthName = format(new Date(2024, monthIndex, 1), 'MMM', { locale: ptBR });
+      const entry: any = { name: monthName };
+      
+      years.forEach(year => {
+        const yearMonthData = allHistoryVendas.filter(h => {
+          const d = parseISO(h.faturamento);
+          // Apply current filters (except date range)
+          const matchCliente = !selectedClienteId || h.cliente_id === selectedClienteId;
+          const matchProduto = !selectedProdutoId || h.produto_id === selectedProdutoId;
+          const matchFamilia = !selectedFamilia || h.familia === selectedFamilia;
+          
+          return d.getFullYear() === year && d.getMonth() === monthIndex && matchCliente && matchProduto && matchFamilia;
+        });
+        
+        entry[`comissao_${year}`] = yearMonthData.reduce((acc, h) => acc + (h.comissao_valor || 0), 0);
+      });
+
+      return entry;
+    });
+  }, [allHistoryVendas, selectedClienteId, selectedProdutoId, selectedFamilia]);
 
   const stats = useMemo(() => {
     const totalVendido = filteredVendas.reduce((acc, v) => acc + v["r$_total"], 0);
@@ -145,7 +196,7 @@ export function CommissionPage() {
 
     // Trend calculation
     const now = new Date();
-    const monthStart = startOfMonth(parseISO(`${selectedMonth}-01`));
+    const monthStart = currentRange.start;
     const deadline = parseISO(deadlineDate);
     
     const daysPassed = Math.max(1, differenceInDays(now, monthStart) + 1);
@@ -164,21 +215,6 @@ export function CommissionPage() {
       isPositiveTrend: projetadoComissao >= totalComissao // Simple indicator
     };
   }, [filteredVendas, selectedMonth, deadlineDate]);
-
-  const dailyData = useMemo(() => {
-    const start = startOfMonth(parseISO(`${selectedMonth}-01`));
-    const end = endOfMonth(parseISO(`${selectedMonth}-01`));
-    const days = eachDayOfInterval({ start, end });
-
-    return days.map(day => {
-      const dayVendas = filteredVendas.filter(v => isSameDay(parseISO(v.faturamento), day));
-      return {
-        date: format(day, 'dd/MM'),
-        vendas: dayVendas.reduce((acc, v) => acc + v["r$_total"], 0),
-        comissao: dayVendas.reduce((acc, v) => acc + v.comissao_valor, 0)
-      };
-    });
-  }, [filteredVendas, selectedMonth]);
 
   const groupedData = useMemo(() => {
     const groups: Record<string, { label: string, total: number, comissao: number, peso: number }> = {};
@@ -237,12 +273,51 @@ export function CommissionPage() {
         </div>
 
         <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-neutral-200 shadow-sm">
-          <input
-            type="month"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="bg-transparent border-none outline-none text-sm font-bold px-3 py-1.5"
-          />
+          <div className="flex items-center bg-neutral-100 rounded-lg p-0.5">
+            <button
+              onClick={() => setUseCustomRange(false)}
+              className={cn(
+                "px-3 py-1 text-[10px] font-bold rounded-md transition-all",
+                !useCustomRange ? "bg-white shadow-sm text-orange-600" : "text-neutral-500 hover:text-neutral-700"
+              )}
+            >
+              Mês
+            </button>
+            <button
+              onClick={() => setUseCustomRange(true)}
+              className={cn(
+                "px-3 py-1 text-[10px] font-bold rounded-md transition-all",
+                useCustomRange ? "bg-white shadow-sm text-orange-600" : "text-neutral-500 hover:text-neutral-700"
+              )}
+            >
+              Período
+            </button>
+          </div>
+          
+          {!useCustomRange ? (
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-transparent border-none outline-none text-sm font-bold px-3 py-1.5"
+            />
+          ) : (
+            <div className="flex items-center gap-2 px-2">
+              <input
+                type="date"
+                value={customRange.start}
+                onChange={(e) => setCustomRange(prev => ({ ...prev, start: e.target.value }))}
+                className="bg-transparent border-none outline-none text-[10px] font-bold"
+              />
+              <span className="text-neutral-300">|</span>
+              <input
+                type="date"
+                value={customRange.end}
+                onChange={(e) => setCustomRange(prev => ({ ...prev, end: e.target.value }))}
+                className="bg-transparent border-none outline-none text-[10px] font-bold"
+              />
+            </div>
+          )}
         </div>
       </header>
 
@@ -352,48 +427,61 @@ export function CommissionPage() {
         />
       </div>
 
-      {/* Chart */}
-      <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="font-black text-neutral-900 flex items-center gap-2">
-            <BarChart3 className="text-orange-600" size={20} />
-            Evolução Diária
-          </h3>
-        </div>
-        <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={dailyData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-              <XAxis 
-                dataKey="date" 
-                axisLine={false} 
-                tickLine={false} 
-                tick={{ fontSize: 10, fontWeight: 'bold', fill: '#a3a3a3' }}
-              />
-              <YAxis 
-                axisLine={false} 
-                tickLine={false} 
-                tick={{ fontSize: 10, fontWeight: 'bold', fill: '#a3a3a3' }}
-                tickFormatter={(val) => `R$ ${val >= 1000 ? (val/1000).toFixed(0) + 'k' : val}`}
-              />
-              <Tooltip 
-                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                formatter={(val: number) => [`R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, '']}
-              />
-              <Bar 
-                dataKey="vendas" 
-                fill="#ea580c" 
-                radius={[4, 4, 0, 0]} 
-                name="Vendas"
-              />
-              <Bar 
-                dataKey="comissao" 
-                fill="#8b5cf6" 
-                radius={[4, 4, 0, 0]} 
-                name="Comissão"
-              />
-            </BarChart>
-          </ResponsiveContainer>
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 gap-6">
+        {/* Evolution Chart */}
+        <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="font-black text-neutral-900 flex items-center gap-2">
+              <BarChart3 className="text-blue-600" size={20} />
+              Comparativo Mensal de Comissão
+            </h3>
+          </div>
+          <div className="h-80 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={monthlyComparisonData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <XAxis 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 9, fontWeight: 'bold', fill: '#a3a3a3' }}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 9, fontWeight: 'bold', fill: '#a3a3a3' }}
+                  tickFormatter={(val) => `R$ ${val >= 1000 ? (val/1000).toFixed(0) + 'k' : val}`}
+                />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px' }}
+                  formatter={(val: number) => [`R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, '']}
+                />
+                <Legend verticalAlign="top" align="center" iconType="circle" wrapperStyle={{ paddingBottom: '10px', fontSize: '9px', fontWeight: 'bold' }} />
+                <Bar 
+                  dataKey="comissao_2024" 
+                  name="2024" 
+                  fill="#3b82f6" 
+                  radius={[2, 2, 0, 0]} 
+                  barSize={20}
+                />
+                <Bar 
+                  dataKey="comissao_2025" 
+                  name="2025" 
+                  fill="#f97316" 
+                  radius={[2, 2, 0, 0]} 
+                  barSize={20}
+                />
+                <Bar 
+                  dataKey="comissao_2026" 
+                  name="2026" 
+                  fill="#10b981" 
+                  radius={[2, 2, 0, 0]} 
+                  barSize={20}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
 
