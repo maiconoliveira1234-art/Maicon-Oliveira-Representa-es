@@ -25,7 +25,6 @@ import {
   subMonths
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { SALES_CUTOFF_DATE, SALES_CUTOFF_CLIENTS } from '../constants';
 
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from '../lib/mockData';
 
@@ -181,10 +180,6 @@ export function MetasPage() {
     const daysPassed = Math.max(1, differenceInDays(now, start) + 1);
 
     const currentMonthVendas = historico.filter(h => {
-      // Selective cutoff filter
-      const clientName = (h.cliente || '').trim().toUpperCase();
-      if (SALES_CUTOFF_CLIENTS.includes(clientName) && h.faturamento < SALES_CUTOFF_DATE) return false;
-
       const date = parseISO(h.faturamento);
       return isWithinInterval(date, { start, end });
     });
@@ -211,10 +206,7 @@ export function MetasPage() {
     // Table Data
     const tableData = activeClientes.map(c => {
       const clienteVendas = historico.filter(h => h.cliente_id === c.id);
-      const clientName = (c.cliente || '').trim().toUpperCase();
-      const isCutoffClient = SALES_CUTOFF_CLIENTS.includes(clientName);
       const sortedVendas = [...clienteVendas]
-        .filter(h => !isCutoffClient || h.faturamento >= SALES_CUTOFF_DATE)
         .sort((a, b) => parseISO(b.faturamento).getTime() - parseISO(a.faturamento).getTime());
       
       // Med 6: Average weight per month over last 6 completed months (excluding current month)
@@ -222,9 +214,6 @@ export function MetasPage() {
       const sixMonthsAgo = startOfMonth(subMonths(now, 6));
       
       const last6MonthsVendas = clienteVendas.filter(v => {
-        // Selective cutoff filter
-        if (isCutoffClient && v.faturamento < SALES_CUTOFF_DATE) return false;
-
         const date = parseISO(v.faturamento);
         return date >= sixMonthsAgo && date < firstDayOfCurrentMonth;
       });
@@ -247,7 +236,6 @@ export function MetasPage() {
         
         // Get unique days of purchase
         const uniqueDays = new Set(clienteVendas
-          .filter(v => !isCutoffClient || v.faturamento >= SALES_CUTOFF_DATE)
           .map(v => format(parseISO(v.faturamento), 'yyyy-MM-dd')));
         const uniqueDaysCount = uniqueDays.size;
         
