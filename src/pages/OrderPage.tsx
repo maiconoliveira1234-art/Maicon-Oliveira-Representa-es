@@ -562,183 +562,183 @@ export function OrderPage() {
         </div>
       </header>
 
+<div 
+  className="fixed top-0 left-0 bg-white opacity-0 pointer-events-none z-[-100]" 
+  ref={receiptRef}
+  style={{ width: '800px', color: '#171717' }}
+>
+  {(() => {
+    // Sort items alphabetically by product name
+    const sortedItens = [...itens].sort((a, b) => {
+      const prodA = produtos.find(p => p.id === a.produto_id)?.produto || '';
+      const prodB = produtos.find(p => p.id === b.produto_id)?.produto || '';
+      return prodA.localeCompare(prodB);
+    });
+
+    // Smart pagination: First page fits less items due to header/client info
+    const chunks = [];
+    let i = 0;
+    let isFirstPage = true;
+    
+    while (i < sortedItens.length) {
+      const itemsLimit = isFirstPage ? 10 : 15;
+      chunks.push(sortedItens.slice(i, i + itemsLimit));
+      i += itemsLimit;
+      isFirstPage = false;
+    }
+
+    return chunks.map((chunk, pageIdx) => (
       <div 
-        className="fixed top-0 left-0 opacity-0 pointer-events-none z-[-100]" 
-        ref={receiptRef}
-        style={{ width: '800px' }}
+        key={pageIdx}
+        className="pdf-page w-[800px] h-[1130px] bg-white p-[40px] flex flex-col font-sans mb-10"
+        style={{ fontFamily: 'Arial, sans-serif', backgroundColor: '#ffffff', color: '#171717' }}
       >
-        {(() => {
-          // Sort items alphabetically by product name
-          const sortedItens = [...itens].sort((a, b) => {
-            const prodA = produtos.find(p => p.id === a.produto_id)?.produto || '';
-            const prodB = produtos.find(p => p.id === b.produto_id)?.produto || '';
-            return prodA.localeCompare(prodB);
-          });
+        {/* Header */}
+        <div className="flex justify-between items-start border-b-2 border-neutral-800 pb-6 mb-8" style={{ borderColor: '#262626' }}>
+          <div className="flex flex-col">
+            <h1 className="text-3xl font-black uppercase tracking-tighter" style={{ color: '#171717' }}>Resumo do Orçamento</h1>
+            <div className="mt-2 space-y-1">
+              <p className="text-sm font-bold" style={{ color: '#737373' }}>Data: {new Date().toLocaleDateString('pt-BR')}</p>
+              <p className="text-sm font-bold" style={{ color: '#737373' }}>Hora: {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+            </div>
+          </div>
+          <div className="flex flex-col items-end">
+            <img 
+              src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png" 
+              alt="ADIMAX" 
+              className="h-12 w-auto mb-1"
+              crossOrigin="anonymous"
+              referrerPolicy="no-referrer"
+            />
+            <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Parceiro Oficial</span>
+          </div>
+        </div>
 
-          // Smart pagination: First page fits less items due to header/client info
-          const chunks = [];
-          let i = 0;
-          let isFirstPage = true;
-          
-          while (i < sortedItens.length) {
-            const itemsLimit = isFirstPage ? 10 : 15;
-            chunks.push(sortedItens.slice(i, i + itemsLimit));
-            i += itemsLimit;
-            isFirstPage = false;
-          }
+        {/* Client Info (Only on first page) */}
+        {pageIdx === 0 && (
+          <div className="grid grid-cols-2 gap-8 mb-8">
+            <div className="p-4 rounded-lg border" style={{ backgroundColor: '#fafafa', borderColor: '#f5f5f5' }}>
+              <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: '#a3a3a3' }}>Cliente</p>
+              <p className="text-lg font-black leading-tight" style={{ color: '#171717' }}>{cliente?.cliente}</p>
+              <p className="text-sm font-bold mt-1" style={{ color: '#737373' }}>{cliente?.cidade}</p>
+            </div>
+            <div className="p-4 rounded-lg border" style={{ backgroundColor: '#fafafa', borderColor: '#f5f5f5' }}>
+              <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: '#a3a3a3' }}>Vendedor</p>
+              <p className="text-lg font-black leading-tight" style={{ color: '#171717' }}>MAICON OLIVEIRA</p>
+              <p className="text-sm font-bold mt-1" style={{ color: '#737373' }}>Representante Comercial</p>
+            </div>
+          </div>
+        )}
 
-          return chunks.map((chunk, pageIdx) => (
-            <div 
-              key={pageIdx}
-              className="pdf-page w-[800px] h-[1130px] bg-[#ffffff] p-[40px] flex flex-col font-sans text-[#171717] mb-10"
-              style={{ fontFamily: 'Arial, sans-serif' }}
-            >
-              {/* Header */}
-              <div className="flex justify-between items-start border-b-2 border-[#262626] pb-6 mb-8">
-                <div className="flex flex-col">
-                  <h1 className="text-3xl font-black uppercase tracking-tighter text-[#171717]">Resumo do Orçamento</h1>
-                  <div className="mt-2 space-y-1">
-                    <p className="text-sm font-bold text-[#737373]">Data: {new Date().toLocaleDateString('pt-BR')}</p>
-                    <p className="text-sm font-bold text-[#737373]">Hora: {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+        {/* Items Table */}
+        <div className="flex-1">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr style={{ backgroundColor: '#171717', color: '#ffffff' }}>
+                <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
+                <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Qtd</th>
+                <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Peso</th>
+                <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest">Unitário</th>
+                <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest rounded-tr-lg">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#f5f5f5]" style={{ borderColor: '#f5f5f5' }}>
+              {chunk.map((item, idx) => {
+                const produto = produtos.find(p => p.id === item.produto_id)!;
+                return (
+                  <tr key={idx} className="text-sm" style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
+                    <td className="py-4 px-4 font-bold leading-tight max-w-[300px] break-words" style={{ color: '#262626' }}>
+                      {produto.produto}
+                    </td>
+                    <td className="py-4 px-4 text-center font-black" style={{ color: '#525252' }}>
+                      {item.quantidade} {produto.quant_embalagem > 1 ? 'CX' : 'UN'}
+                    </td>
+                    <td className="py-4 px-4 text-center font-bold" style={{ color: '#737373' }}>
+                      {formatWeight(item.peso_total || 0)}
+                    </td>
+                    <td className="py-4 px-4 text-right font-bold" style={{ color: '#737373' }}>
+                      {formatCurrency(item.valor_unitario || 0)}
+                    </td>
+                    <td className="py-4 px-4 text-right font-black" style={{ color: '#171717' }}>
+                      {formatCurrency(item.valor_total || 0)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Summary Section (Only on last page) */}
+        {pageIdx === chunks.length - 1 && (
+          <div className="mt-8 pt-8 border-t-2" style={{ borderColor: '#f5f5f5' }}>
+            <div className="grid grid-cols-2 gap-12 items-stretch">
+              <div className="flex flex-col gap-4">
+                <div className="p-4 border rounded-xl" style={{ borderColor: '#e5e5e5' }}>
+                  <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: '#a3a3a3' }}>Condições de Pagamento</p>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm font-bold" style={{ color: '#525252' }}>Condição:</span>
+                      <span className="text-sm font-black" style={{ color: '#171717' }}>{selectedPrazo}</span>
+                    </div>
+                    {selectedPrazo && selectedPrazo !== 'À Vista' && (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-sm font-bold" style={{ color: '#525252' }}>Valor por Boleto:</span>
+                          <span className="text-sm font-black" style={{ color: '#171717' }}>{formatCurrency(installmentDetails.valorBoleto)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm font-bold" style={{ color: '#525252' }}>1º Vencimento (Estimado):</span>
+                          <span className="text-sm font-black" style={{ color: '#171717' }}>
+                            {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
-                <div className="flex flex-col items-end">
-                  <img 
-                    src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png" 
-                    alt="ADIMAX" 
-                    className="h-12 w-auto mb-1"
-                    crossOrigin="anonymous"
-                    referrerPolicy="no-referrer"
-                  />
-                  <span className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest">Parceiro Oficial</span>
-                </div>
+                
+                {observacoes && (
+                  <div className="p-5 border-2 rounded-xl" style={{ borderColor: '#ffedd5', backgroundColor: '#fff7ed' }}>
+                    <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: '#ea580c' }}>Observações Importantes</p>
+                    <p className="text-sm font-black leading-relaxed whitespace-pre-wrap uppercase" style={{ color: '#171717' }}>{observacoes}</p>
+                  </div>
+                )}
               </div>
 
-              {/* Client Info (Only on first page) */}
-              {pageIdx === 0 && (
-                <div className="grid grid-cols-2 gap-8 mb-8">
-                  <div className="p-4 bg-[#fafafa] rounded-lg border border-[#f5f5f5]">
-                    <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-1">Cliente</p>
-                    <p className="text-lg font-black text-[#171717] leading-tight">{cliente?.cliente}</p>
-                    <p className="text-sm font-bold text-[#737373] mt-1">{cliente?.cidade}</p>
-                  </div>
-                  <div className="p-4 bg-[#fafafa] rounded-lg border border-[#f5f5f5]">
-                    <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-1">Vendedor</p>
-                    <p className="text-lg font-black text-[#171717] leading-tight">MAICON OLIVEIRA</p>
-                    <p className="text-sm font-bold text-[#737373] mt-1">Representante Comercial</p>
+              <div className="flex flex-col justify-between">
+                <div className="space-y-4">
+                  {pesoConquistado > 0 && (
+                    <div className="flex justify-between items-center px-4 py-2 rounded-xl border opacity-60" style={{ backgroundColor: '#fafafa', borderColor: '#f5f5f5' }}>
+                      <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Peso Acumulado (28 dias)</span>
+                      <span className="text-sm font-bold" style={{ color: '#171717' }}>{formatWeight(pesoConquistado)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center p-4 rounded-xl border" style={{ backgroundColor: '#fafafa', borderColor: '#f5f5f5' }}>
+                    <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Peso do Pedido</span>
+                    <span className="text-xl font-black" style={{ color: '#171717' }}>{formatWeight(pesoTotal)}</span>
                   </div>
                 </div>
-              )}
-
-              {/* Items Table */}
-              <div className="flex-1">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-[#171717] text-[#ffffff]">
-                      <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
-                      <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Qtd</th>
-                      <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Peso</th>
-                      <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest">Unitário</th>
-                      <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest rounded-tr-lg">Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#f5f5f5]">
-                    {chunk.map((item, idx) => {
-                      const produto = produtos.find(p => p.id === item.produto_id)!;
-                      return (
-                        <tr key={idx} className={cn("text-sm", idx % 2 === 0 ? "bg-[#ffffff]" : "bg-[#fafafa]")}>
-                          <td className="py-4 px-4 font-bold text-[#262626] leading-tight max-w-[300px] break-words">
-                            {produto.produto}
-                          </td>
-                          <td className="py-4 px-4 text-center font-black text-[#525252]">
-                            {item.quantidade} {produto.quant_embalagem > 1 ? 'CX' : 'UN'}
-                          </td>
-                          <td className="py-4 px-4 text-center font-bold text-[#737373]">
-                            {formatWeight(item.peso_total || 0)}
-                          </td>
-                          <td className="py-4 px-4 text-right font-bold text-[#737373]">
-                            {formatCurrency(item.valor_unitario || 0)}
-                          </td>
-                          <td className="py-4 px-4 text-right font-black text-[#171717]">
-                            {formatCurrency(item.valor_total || 0)}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Summary Section (Only on last page) */}
-              {pageIdx === chunks.length - 1 && (
-                <div className="mt-8 pt-8 border-t-2 border-[#f5f5f5]">
-                  <div className="grid grid-cols-2 gap-12 items-stretch">
-                    <div className="flex flex-col gap-4">
-                      <div className="p-4 border border-[#e5e5e5] rounded-xl">
-                        <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-2">Condições de Pagamento</p>
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-sm font-bold text-[#525252]">Condição:</span>
-                            <span className="text-sm font-black text-[#171717]">{selectedPrazo}</span>
-                          </div>
-                          {selectedPrazo && selectedPrazo !== 'À Vista' && (
-                            <>
-                              <div className="flex justify-between">
-                                <span className="text-sm font-bold text-[#525252]">Valor por Boleto:</span>
-                                <span className="text-sm font-black text-[#171717]">{formatCurrency(installmentDetails.valorBoleto)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-sm font-bold text-[#525252]">1º Vencimento (Estimado):</span>
-                                <span className="text-sm font-black text-[#171717]">
-                                  {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
-                                </span>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {observacoes && (
-                        <div className="p-5 border-2 border-orange-100 bg-orange-50/30 rounded-xl">
-                          <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest mb-2">Observações Importantes</p>
-                          <p className="text-sm font-black text-[#171717] leading-relaxed whitespace-pre-wrap uppercase">{observacoes}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex flex-col justify-between">
-                      <div className="space-y-4">
-                        {pesoConquistado > 0 && (
-                          <div className="flex justify-between items-center px-4 py-2 bg-[#fafafa] rounded-xl border border-[#f5f5f5] opacity-60">
-                            <span className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest">Peso Acumulado (28 dias)</span>
-                            <span className="text-sm font-bold text-[#171717]">{formatWeight(pesoConquistado)}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between items-center p-4 bg-[#fafafa] rounded-xl border border-[#f5f5f5]">
-                          <span className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest">Peso do Pedido</span>
-                          <span className="text-xl font-black text-[#171717]">{formatWeight(pesoTotal)}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex justify-between items-center p-6 bg-[#171717] rounded-xl shadow-xl">
-                        <span className="text-xs font-black text-[#a3a3a3] uppercase tracking-widest">Valor Total do Orçamento</span>
-                        <span className="text-3xl font-black text-[#ffffff]">{formatCurrency(valorTotal)}</span>
-                      </div>
-                    </div>
-                  </div>
+                
+                <div className="flex justify-between items-center p-6 rounded-xl shadow-xl" style={{ backgroundColor: '#171717' }}>
+                  <span className="text-xs font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Valor Total do Orçamento</span>
+                  <span className="text-3xl font-black" style={{ color: '#ffffff' }}>{formatCurrency(valorTotal)}</span>
                 </div>
-              )}
-
-              {/* Footer */}
-              <div className="mt-12 text-center">
-                <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES</p>
-                <p className="text-[10px] font-bold text-[#a3a3a3] mt-2 italic uppercase tracking-wider">Este documento é um orçamento e não possui validade fiscal.</p>
-                <p className="text-[10px] font-bold text-[#a3a3a3] mt-4">Página {pageIdx + 1} de {chunks.length}</p>
               </div>
             </div>
-          ));
-        })()}
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="mt-12 text-center">
+          <p className="text-[10px] font-black uppercase tracking-[0.3em]" style={{ color: '#d4d4d4' }}>MAICON OLIVEIRA REPRESENTAÇÕES</p>
+          <p className="text-[10px] font-bold mt-2 italic uppercase tracking-wider" style={{ color: '#a3a3a3' }}>Este documento é um orçamento e não possui validade fiscal.</p>
+          <p className="text-[10px] font-bold mt-4" style={{ color: '#a3a3a3' }}>Página {pageIdx + 1} de {chunks.length}</p>
+        </div>
       </div>
+    ));
+  })()}
+</div>
 
       {/* Items List */}
       <div className="space-y-3">

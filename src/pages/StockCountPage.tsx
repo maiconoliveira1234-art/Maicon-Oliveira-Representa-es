@@ -900,112 +900,103 @@ export function StockCountPage() {
       </AnimatePresence>
 
       {/* Hidden Export View - Professional A4 Format */}
+<div 
+  className="fixed top-0 left-0 bg-white opacity-0 pointer-events-none z-[-100]" 
+  ref={exportRef}
+  style={{ width: '800px', color: '#171717' }}
+>
+  {(() => {
+    // Smart pagination: First page fits less items due to header/client info
+    const chunks = [];
+    let i = 0;
+    let isFirstPage = true;
+    
+    while (i < processedItems.length) {
+      const itemsLimit = isFirstPage ? 12 : 18;
+      chunks.push(processedItems.slice(i, i + itemsLimit));
+      i += itemsLimit;
+      isFirstPage = false;
+    }
+
+    return chunks.map((chunk, pageIdx) => (
       <div 
-        className="fixed top-0 left-0 opacity-0 pointer-events-none z-[-100]" 
-        ref={exportRef}
-        style={{ width: '800px' }}
+        key={pageIdx}
+        className="pdf-page w-[800px] h-[1130px] bg-white p-[40px] flex flex-col font-sans mb-10"
+        style={{ fontFamily: 'Arial, sans-serif', backgroundColor: '#ffffff', color: '#171717' }}
       >
-        {(() => {
-          // Smart pagination: First page fits less items due to header/client info
-          const chunks = [];
-          let i = 0;
-          let isFirstPage = true;
-          
-          while (i < processedItems.length) {
-            const itemsLimit = isFirstPage ? 12 : 18;
-            chunks.push(processedItems.slice(i, i + itemsLimit));
-            i += itemsLimit;
-            isFirstPage = false;
-          }
-
-          return chunks.map((chunk, pageIdx) => (
-            <div 
-              key={pageIdx}
-              className="pdf-page w-[800px] h-[1130px] bg-[#ffffff] p-[40px] flex flex-col font-sans text-[#171717] mb-10"
-              style={{ fontFamily: 'Arial, sans-serif' }}
-            >
-              {/* Header */}
-              <div className="flex justify-between items-start border-b-2 border-[#262626] pb-6 mb-8">
-                <div className="flex flex-col">
-                  <h1 className="text-3xl font-black uppercase tracking-tighter text-[#171717]">Contagem de Estoque</h1>
-                  <div className="mt-2 space-y-1">
-                    <p className="text-sm font-bold text-[#171717]">{cliente?.cliente}</p>
-                    <p className="text-sm font-bold text-[#737373]">Data: {new Date().toLocaleDateString('pt-BR')}</p>
-                  </div>
-                </div>
-                <div className="flex flex-col items-end">
-                  <img 
-                    src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png" 
-                    alt="ADIMAX" 
-                    className="h-12 w-auto mb-2"
-                    crossOrigin="anonymous"
-                    referrerPolicy="no-referrer"
-                  />
-                  <span className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest">Parceiro Oficial</span>
-                </div>
-              </div>
-
-              {/* Table */}
-              <div className="flex-1">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-[#171717] text-[#ffffff]">
-                      <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
-                      <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Ult. Contagem</th>
-                      <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Contagem Atual</th>
-                      <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Estoque Ideal</th>
-                      <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest rounded-tr-lg">Sugestão</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#f5f5f5]">
-                    {chunk.map((item, idx) => {
-                      const currentStock = estoqueMap[item.produto_id] ?? 0;
-                      const isBelowIdeal = item.estoque_ideal > 0;
-                      const sugestao = item.estoque_ideal;
-
-                      return (
-                        <tr key={item.produto_id} className={cn("text-sm", idx % 2 === 0 ? "bg-[#ffffff]" : "bg-[#fafafa]")}>
-                          <td className={cn(
-                            "py-4 px-4 font-bold leading-tight break-words",
-                            isBelowIdeal ? "text-[#dc2626]" : "text-[#262626]"
-                          )}>
-                            {item.produto_nome}
-                          </td>
-                          <td className="py-4 px-4 text-center font-bold text-[#a3a3a3]">
-                            {item.ultima_contagem_valor}
-                          </td>
-                          <td className={cn(
-                            "py-4 px-4 text-center font-black",
-                            isBelowIdeal ? "text-[#dc2626]" : "text-[#171717]"
-                          )}>
-                            {currentStock}
-                          </td>
-                          <td className="py-4 px-4 text-center font-bold text-[#737373]">
-                            {item.estoque_ideal}
-                          </td>
-                          <td className={cn(
-                            "py-4 px-4 text-center font-black",
-                            sugestao > 0 ? "text-[#dc2626]" : "text-[#a3a3a3]"
-                          )}>
-                            {sugestao > 0 ? sugestao : '-'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Footer */}
-              <div className="mt-12 pt-8 border-t border-[#f5f5f5] text-center">
-                <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-[0.3em]">MAICON OLIVEIRA REPRESENTAÇÕES</p>
-                <p className="text-[10px] font-bold text-[#a3a3a3] mt-2 italic uppercase tracking-wider">Este documento é uma contagem de estoque e não possui validade fiscal.</p>
-                <p className="text-[10px] font-bold text-[#a3a3a3] mt-4">Página {pageIdx + 1} de {chunks.length}</p>
-              </div>
+        {/* Header */}
+        <div className="flex justify-between items-start border-b-2 pb-6 mb-8" style={{ borderColor: '#262626' }}>
+          <div className="flex flex-col">
+            <h1 className="text-3xl font-black uppercase tracking-tighter" style={{ color: '#171717' }}>Contagem de Estoque</h1>
+            <div className="mt-2 space-y-1">
+              <p className="text-sm font-bold" style={{ color: '#171717' }}>{cliente?.cliente}</p>
+              <p className="text-sm font-bold" style={{ color: '#737373' }}>Data: {new Date().toLocaleDateString('pt-BR')}</p>
             </div>
-          ));
-        })()}
+          </div>
+          <div className="flex flex-col items-end">
+            <img 
+              src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png" 
+              alt="ADIMAX" 
+              className="h-12 w-auto mb-2"
+              crossOrigin="anonymous"
+              referrerPolicy="no-referrer"
+            />
+            <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Parceiro Oficial</span>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="flex-1">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr style={{ backgroundColor: '#171717', color: '#ffffff' }}>
+                <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
+                <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Ult. Contagem</th>
+                <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Contagem Atual</th>
+                <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Estoque Ideal</th>
+                <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest rounded-tr-lg">Sugestão</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y" style={{ borderColor: '#f5f5f5' }}>
+              {chunk.map((item, idx) => {
+                const currentStock = estoqueMap[item.produto_id] ?? 0;
+                const isBelowIdeal = item.estoque_ideal > 0;
+                const sugestao = item.estoque_ideal;
+
+                return (
+                  <tr key={item.produto_id} className="text-sm" style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
+                    <td className="py-4 px-4 font-bold leading-tight break-words" style={{ color: isBelowIdeal ? '#dc2626' : '#262626' }}>
+                      {item.produto_nome}
+                    </td>
+                    <td className="py-4 px-4 text-center font-bold" style={{ color: '#a3a3a3' }}>
+                      {item.ultima_contagem_valor}
+                    </td>
+                    <td className="py-4 px-4 text-center font-black" style={{ color: isBelowIdeal ? '#dc2626' : '#171717' }}>
+                      {currentStock}
+                    </td>
+                    <td className="py-4 px-4 text-center font-bold" style={{ color: '#737373' }}>
+                      {item.estoque_ideal}
+                    </td>
+                    <td className="py-4 px-4 text-center font-black" style={{ color: sugestao > 0 ? '#dc2626' : '#a3a3a3' }}>
+                      {sugestao > 0 ? sugestao : '-'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-12 pt-8 border-t text-center" style={{ borderColor: '#f5f5f5' }}>
+          <p className="text-[10px] font-black uppercase tracking-[0.3em]" style={{ color: '#d4d4d4' }}>MAICON OLIVEIRA REPRESENTAÇÕES</p>
+          <p className="text-[10px] font-bold mt-2 italic uppercase tracking-wider" style={{ color: '#a3a3a3' }}>Este documento é uma contagem de estoque e não possui validade fiscal.</p>
+          <p className="text-[10px] font-bold mt-4" style={{ color: '#a3a3a3' }}>Página {pageIdx + 1} de {chunks.length}</p>
+        </div>
       </div>
+    ));
+  })()}
+</div>
     </div>
   );
 }
