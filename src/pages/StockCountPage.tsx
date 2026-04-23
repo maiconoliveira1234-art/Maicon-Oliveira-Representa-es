@@ -505,13 +505,13 @@ export function StockCountPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex-1 relative">
+          <div className="space-y-3">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={16} />
               <input 
                 type="text" 
                 placeholder="Filtrar itens positivados..."
-                className="w-full pl-10 pr-10 py-2 bg-neutral-100 rounded-lg outline-none text-sm font-bold text-neutral-800"
+                className="w-full pl-10 pr-10 py-2.5 bg-neutral-100 rounded-xl outline-none text-sm font-bold text-neutral-800 border border-neutral-200 focus:ring-2 focus:ring-orange-500 transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -525,64 +525,68 @@ export function StockCountPage() {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <select
-                  value={selectedFamily}
-                  onChange={(e) => setSelectedFamily(e.target.value)}
-                  className="pl-3 pr-8 py-2 bg-neutral-100 rounded-lg outline-none text-[11px] font-bold text-neutral-600 appearance-none border border-neutral-200"
-                >
-                  {families.map(f => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
-                </select>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
-                  <Package size={12} />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <select
+                    value={selectedFamily}
+                    onChange={(e) => setSelectedFamily(e.target.value)}
+                    className="pl-3 pr-8 py-2 bg-neutral-100 rounded-lg outline-none text-[11px] font-bold text-neutral-600 appearance-none border border-neutral-200"
+                  >
+                    {families.map(f => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                    <Package size={12} />
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <select
+                    value={selectedWeight}
+                    onChange={(e) => setSelectedWeight(e.target.value)}
+                    className="pl-3 pr-8 py-2 bg-neutral-100 rounded-lg outline-none text-[11px] font-bold text-neutral-600 appearance-none border border-neutral-200"
+                  >
+                    {weights.map(w => (
+                      <option key={w} value={w}>
+                        {w === 'Todos' ? w : formatWeight(Number(w))}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                    <TrendingDown size={12} />
+                  </div>
                 </div>
               </div>
 
-              <div className="relative">
-                <select
-                  value={selectedWeight}
-                  onChange={(e) => setSelectedWeight(e.target.value)}
-                  className="pl-3 pr-8 py-2 bg-neutral-100 rounded-lg outline-none text-[11px] font-bold text-neutral-600 appearance-none border border-neutral-200"
-                >
-                  {weights.map(w => (
-                    <option key={w} value={w}>
-                      {w === 'Todos' ? w : formatWeight(Number(w))}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
-                  <TrendingDown size={12} />
-                </div>
-              </div>
+              <label className="flex items-center gap-2 px-3 py-2 bg-neutral-100 rounded-lg cursor-pointer hover:bg-neutral-200 transition-colors border border-neutral-200">
+                <input 
+                  type="checkbox" 
+                  checked={showInactive}
+                  onChange={(e) => setShowInactive(e.target.checked)}
+                  className="w-4 h-4 text-orange-600 border-neutral-300 rounded focus:ring-orange-500"
+                />
+                <span className="text-xs font-bold text-neutral-600">Inativos</span>
+              </label>
+              
+              <button 
+                onClick={handleClearAll}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-black hover:bg-red-700 transition-all flex items-center gap-2 shadow-sm active:scale-95"
+              >
+                <Trash2 size={14} /> Limpar
+              </button>
+              
+              <button 
+                onClick={() => setShowCycle(!showCycle)}
+                className={cn(
+                  "px-3 py-2 rounded-lg text-xs font-bold transition-colors",
+                  showCycle ? "bg-orange-600 text-white" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                )}
+              >
+                Ciclo
+              </button>
             </div>
-
-            <label className="flex items-center gap-2 px-3 py-2 bg-neutral-100 rounded-lg cursor-pointer hover:bg-neutral-200 transition-colors border border-neutral-200">
-              <input 
-                type="checkbox" 
-                checked={showInactive}
-                onChange={(e) => setShowInactive(e.target.checked)}
-                className="w-4 h-4 text-orange-600 border-neutral-300 rounded focus:ring-orange-500"
-              />
-              <span className="text-xs font-bold text-neutral-600">Inativos</span>
-            </label>
-            <button 
-              onClick={handleClearAll}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-black hover:bg-red-700 transition-all flex items-center gap-2 shadow-sm active:scale-95"
-            >
-              <Trash2 size={14} /> Limpar
-            </button>
-            <button 
-              onClick={() => setShowCycle(!showCycle)}
-              className={cn(
-                "px-3 py-2 rounded-lg text-xs font-bold transition-colors",
-                showCycle ? "bg-orange-600 text-white" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
-              )}
-            >
-              Ciclo
-            </button>
           </div>
         </div>
       </div>      <div className="w-full px-1 mt-2 flex-1 flex flex-col min-h-0">
