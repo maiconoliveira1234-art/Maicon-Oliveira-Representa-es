@@ -34,6 +34,7 @@ interface ItemEstoqueData {
   media_ciclo: number;
   tendencia: number;
   peso: number;
+  peso_unitario: number;
   estoque_ideal: number;
   raw_estoque_ideal: number;
   ativo: boolean;
@@ -252,6 +253,7 @@ export function StockCountPage() {
           media_ciclo: mediaCiclo,
           tendencia,
           peso: produto?.peso_embalagem || 0,
+          peso_unitario: (produto?.peso_embalagem || 0) / (produto?.quant_embalagem || 1),
           estoque_ideal: estoqueIdeal,
           raw_estoque_ideal: rawEstoqueIdeal,
           ativo: (produto?.ativo ?? true) && diasUltCompra <= 365,
@@ -275,7 +277,8 @@ export function StockCountPage() {
   const families = useMemo(() => {
     let list = processedItems;
     if (selectedWeight !== 'Todos') {
-      list = list.filter(item => item.peso === Number(selectedWeight));
+      const targetWeight = Number(selectedWeight);
+      list = list.filter(item => Math.abs(item.peso_unitario - targetWeight) < 0.001);
     }
     const unique = Array.from(new Set(list.map(item => item.familia)));
     return ['Todas', ...unique.sort()];
@@ -286,11 +289,11 @@ export function StockCountPage() {
     if (selectedFamily !== 'Todas') {
       list = list.filter(item => item.familia === selectedFamily);
     }
-    const unique = Array.from(new Set(list.map(item => item.peso)));
-    return ['Todos', ...(unique as number[]).filter(w => w > 0).sort((a, b) => a - b)];
+    const unique = Array.from(new Set(list.map(item => Number(item.peso_unitario.toFixed(3))))) as number[];
+    return ['Todos', ...unique.filter(w => w > 0).sort((a, b) => a - b)];
   }, [processedItems, selectedFamily]);
 
-  // Handle cross-filter validation: reset if current selection is no longer available in the filtered list
+  // Handle cross-filter validation
   useEffect(() => {
     if (selectedFamily !== 'Todas' && !families.includes(selectedFamily)) {
       setSelectedFamily('Todas');
@@ -298,7 +301,7 @@ export function StockCountPage() {
   }, [families, selectedFamily]);
 
   useEffect(() => {
-    if (selectedWeight !== 'Todos' && !weights.includes(Number(selectedWeight) as any)) {
+    if (selectedWeight !== 'Todos' && !weights.includes(Number(Number(selectedWeight).toFixed(3)) as any)) {
       setSelectedWeight('Todos');
     }
   }, [weights, selectedWeight]);
@@ -482,7 +485,8 @@ export function StockCountPage() {
     }
 
     if (selectedWeight !== 'Todos') {
-      result = result.filter(item => item.peso === Number(selectedWeight));
+      const targetWeight = Number(selectedWeight);
+      result = result.filter(item => Math.abs(item.peso_unitario - targetWeight) < 0.001);
     }
 
     return result;
