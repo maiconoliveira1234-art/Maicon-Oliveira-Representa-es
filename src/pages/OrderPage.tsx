@@ -663,8 +663,8 @@ export function OrderPage() {
               {/* Summary Section (Only on last page) */}
               {pageIdx === chunks.length - 1 && (
                 <div className="mt-8 pt-8 border-t-2 border-[#f5f5f5]">
-                  <div className="grid grid-cols-2 gap-12">
-                    <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-12 items-stretch">
+                    <div className="flex flex-col gap-4">
                       <div className="p-4 border border-[#e5e5e5] rounded-xl">
                         <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-2">Condições de Pagamento</p>
                         <div className="space-y-2">
@@ -690,18 +690,27 @@ export function OrderPage() {
                       </div>
                       
                       {observacoes && (
-                        <div className="p-4 border border-[#e5e5e5] rounded-xl">
-                          <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-2">Observações</p>
-                          <p className="text-xs font-bold text-[#404040] leading-relaxed whitespace-pre-wrap">{observacoes}</p>
+                        <div className="p-5 border-2 border-orange-100 bg-orange-50/30 rounded-xl">
+                          <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest mb-2">Observações Importantes</p>
+                          <p className="text-sm font-black text-[#171717] leading-relaxed whitespace-pre-wrap uppercase">{observacoes}</p>
                         </div>
                       )}
                     </div>
 
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center p-4 bg-[#fafafa] rounded-xl border border-[#f5f5f5]">
-                        <span className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest">Peso Total</span>
-                        <span className="text-xl font-black text-[#171717]">{formatWeight(Math.max(pesoTotal, pesoConquistado))}</span>
+                    <div className="flex flex-col justify-between">
+                      <div className="space-y-4">
+                        {pesoConquistado > 0 && (
+                          <div className="flex justify-between items-center px-4 py-2 bg-[#fafafa] rounded-xl border border-[#f5f5f5] opacity-60">
+                            <span className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest">Peso Acumulado (28 dias)</span>
+                            <span className="text-sm font-bold text-[#171717]">{formatWeight(pesoConquistado)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center p-4 bg-[#fafafa] rounded-xl border border-[#f5f5f5]">
+                          <span className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest">Peso do Pedido</span>
+                          <span className="text-xl font-black text-[#171717]">{formatWeight(pesoTotal)}</span>
+                        </div>
                       </div>
+                      
                       <div className="flex justify-between items-center p-6 bg-[#171717] rounded-xl shadow-xl">
                         <span className="text-xs font-black text-[#a3a3a3] uppercase tracking-widest">Valor Total do Orçamento</span>
                         <span className="text-3xl font-black text-[#ffffff]">{formatCurrency(valorTotal)}</span>
@@ -1082,8 +1091,8 @@ export function OrderPage() {
                         {/* Summary Section */}
                         {pageIdx === chunks.length - 1 && (
                           <div className="mt-6 pt-6 border-t-2 border-[#f5f5f5]">
-                            <div className="grid grid-cols-2 gap-8">
-                              <div className="space-y-3">
+                            <div className="grid grid-cols-2 gap-8 items-stretch">
+                              <div className="flex flex-col gap-3">
                                 <div className="p-3 border border-[#e5e5e5] rounded-xl">
                                   <p className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest mb-1.5">Condições de Pagamento</p>
                                   <div className="space-y-1">
@@ -1109,17 +1118,25 @@ export function OrderPage() {
                                 </div>
                                 
                                 {observacoes && (
-                                  <div className="p-3 border border-[#e5e5e5] rounded-xl">
-                                    <p className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest mb-1.5">Observações</p>
-                                    <p className="text-[9px] font-bold text-[#404040] leading-relaxed whitespace-pre-wrap">{observacoes}</p>
+                                  <div className="p-4 border-2 border-orange-100 bg-orange-50/30 rounded-xl">
+                                    <p className="text-[8px] font-black text-orange-600 uppercase tracking-widest mb-1.5">Observações Importantes</p>
+                                    <p className="text-[11px] font-black text-[#171717] leading-relaxed whitespace-pre-wrap uppercase">{observacoes}</p>
                                   </div>
                                 )}
                               </div>
 
-                              <div className="space-y-3">
-                                <div className="flex justify-between items-center p-3 bg-[#fafafa] rounded-xl border border-[#f5f5f5]">
-                                  <span className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest">Peso Total</span>
-                                  <span className="text-sm font-black text-[#171717]">{formatWeight(Math.max(pesoTotal, pesoConquistado))}</span>
+                              <div className="flex flex-col justify-between">
+                                <div className="space-y-3">
+                                  {pesoConquistado > 0 && (
+                                    <div className="flex justify-between items-center px-3 py-2 bg-[#fafafa] rounded-xl border border-[#f5f5f5] opacity-60">
+                                      <span className="text-[7px] font-black text-[#a3a3a3] uppercase tracking-widest">Peso Acumulado (28 dias)</span>
+                                      <span className="text-xs font-bold text-[#171717]">{formatWeight(pesoConquistado)}</span>
+                                    </div>
+                                  )}
+                                  <div className="flex justify-between items-center p-3 bg-[#fafafa] rounded-xl border border-[#f5f5f5]">
+                                    <span className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest">Peso do Pedido</span>
+                                    <span className="text-sm font-black text-[#171717]">{formatWeight(pesoTotal)}</span>
+                                  </div>
                                 </div>
                                 <div className="flex justify-between items-center p-4 bg-[#171717] rounded-xl shadow-lg">
                                   <span className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest">Total</span>
