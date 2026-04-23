@@ -450,7 +450,7 @@ export function StockCountPage() {
           windowWidth: 800
         });
         
-        const imgData = canvas.toDataURL('image/jpeg', 1.0);
+        const imgData = canvas.toDataURL('image/jpeg', 0.85);
         
         if (i > 0) pdf.addPage();
         
@@ -461,8 +461,28 @@ export function StockCountPage() {
         pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
       }
 
-      const fileName = `contagem-${cliente?.cliente || 'cliente'}-${new Date().toLocaleDateString()}.pdf`;
-      pdf.save(fileName);
+      const pdfBlob = pdf.output('blob');
+      const fileName = `contagem-${cliente?.cliente || 'cliente'}-${new Date().toLocaleDateString().replace(/\//g, '-')}.pdf`;
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+      // sharing logic
+      const shareData = {
+        files: [file],
+        title: 'CONTAGEM ESTOQUE',
+        text: `Contagem de estoque - ${cliente?.cliente}`
+      };
+
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+        try {
+          await navigator.share(shareData);
+        } catch (shareErr) {
+          if ((shareErr as Error).name !== 'AbortError') {
+            pdf.save(fileName);
+          }
+        }
+      } else {
+        pdf.save(fileName);
+      }
     } catch (err) {
       console.error('Erro ao exportar PDF:', err);
       alert('Erro ao exportar PDF.');
@@ -497,7 +517,7 @@ export function StockCountPage() {
   const isOverdueGlobal = diasDesdeUltimoPedidoGlobal > mediaCicloGlobal;
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] pb-32 flex flex-col">
+    <div className="min-h-screen bg-[#f8f9fa] pb-24 flex flex-col">
       {/* Spreadsheet Header */}
       <div className="bg-white border-b border-neutral-200 shadow-sm">
         <div className="w-full px-2 py-3">
@@ -617,7 +637,7 @@ export function StockCountPage() {
       </div>      <div className="w-full px-1 mt-2 flex-1 flex flex-col min-h-0">
         {/* Spreadsheet Table Container */}
         <div className="bg-white rounded-xl shadow-sm border border-neutral-200 flex flex-col overflow-hidden">
-          <div className="overflow-y-auto max-h-[calc(100vh-280px)]">
+          <div className="overflow-y-auto flex-1">
             <div className="w-full">
               <div 
                 className={cn(
@@ -754,7 +774,7 @@ export function StockCountPage() {
     </div>
 
       {/* Floating Buttons */}
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-full max-w-lg px-4 flex gap-2">
+      <div className="fixed bottom-16 md:bottom-8 left-1/2 -translate-x-1/2 w-full max-w-lg px-4 flex gap-2 z-40">
         <button 
           onClick={handleExportPDF}
           className="bg-neutral-800 text-white p-4 rounded-2xl font-bold shadow-2xl flex items-center justify-center gap-2 hover:bg-neutral-900 transition-all active:scale-95"
@@ -880,7 +900,11 @@ export function StockCountPage() {
       </AnimatePresence>
 
       {/* Hidden Export View - Professional A4 Format */}
-      <div className="fixed -left-[9999px] top-0" ref={exportRef}>
+      <div 
+        className="fixed top-0 left-0 opacity-0 pointer-events-none z-[-100]" 
+        ref={exportRef}
+        style={{ width: '800px' }}
+      >
         {(() => {
           // Smart pagination: First page fits less items due to header/client info
           const chunks = [];

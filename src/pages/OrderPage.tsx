@@ -487,7 +487,7 @@ export function OrderPage() {
             windowWidth: 800
           });
           
-          const imgData = canvas.toDataURL('image/jpeg', 1.0);
+          const imgData = canvas.toDataURL('image/jpeg', 0.85);
           
           if (i > 0) pdf.addPage();
           
@@ -499,16 +499,20 @@ export function OrderPage() {
         }
 
         const pdfBlob = pdf.output('blob');
-        const fileName = `ORÇAMENTO_${cliente?.cliente?.replace(/\s+/g, '_')}.pdf`;
+        const safeClientName = (cliente?.cliente || 'CLIENTE').replace(/[^a-zA-Z0-9]/g, '_');
+        const fileName = `ORCAMENTO_${safeClientName}.pdf`;
         const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
-        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        // sharing logic
+        const shareData = {
+          files: [file],
+          title: 'ORCAMENTO',
+          text: `ORCAMENTO - ${cliente?.cliente}`,
+        };
+
+        if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
           try {
-            await navigator.share({
-              files: [file],
-              title: 'ORÇAMENTO',
-              text: `ORÇAMENTO - ${cliente?.cliente}`,
-            });
+            await navigator.share(shareData);
           } catch (shareErr) {
             console.error('Error sharing:', shareErr);
             // Fallback to download if share fails or is cancelled
@@ -519,7 +523,9 @@ export function OrderPage() {
         } else {
           // Fallback for browsers that don't support file sharing
           pdf.save(fileName);
-          alert('PDF do pedido gerado! Como seu navegador não suporta compartilhamento direto de arquivos, o resumo foi baixado. Você pode enviá-lo manualmente pelo WhatsApp.');
+          if (navigator.share) {
+            alert('PDF gerado e baixado! Seu navegador não suportou o compartilhamento direto de arquivos (comum em alguns modelos ou versões antigas). Você pode enviar o arquivo baixado manualmente.');
+          }
         }
       }
 
@@ -545,7 +551,7 @@ export function OrderPage() {
   const currentFaixa = manualFaixa || faixaPreco;
 
   return (
-    <div className="space-y-6 pb-80">
+    <div className="space-y-6 pb-[500px] md:pb-80">
       <header className="flex items-center gap-4">
         <button onClick={() => navigate(-1)} className="p-2 hover:bg-white rounded-full transition-colors">
           <ArrowLeft size={24} />
@@ -556,8 +562,11 @@ export function OrderPage() {
         </div>
       </header>
 
-      {/* Hidden Receipt for Image Generation - Professional A4 Format */}
-      <div className="fixed -left-[9999px] top-0" ref={receiptRef}>
+      <div 
+        className="fixed top-0 left-0 opacity-0 pointer-events-none z-[-100]" 
+        ref={receiptRef}
+        style={{ width: '800px' }}
+      >
         {(() => {
           // Sort items alphabetically by product name
           const sortedItens = [...itens].sort((a, b) => {
@@ -805,34 +814,34 @@ export function OrderPage() {
       </div>
 
       {/* Bottom Section (Fixed) */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-t border-neutral-200 p-4 md:p-6 space-y-4 shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
-        <div className="max-w-4xl mx-auto space-y-4">
+      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-t border-neutral-200 p-3 md:p-6 space-y-3 md:space-y-4 shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
+        <div className="max-w-4xl mx-auto space-y-3 md:space-y-4">
           {/* Observations Field */}
-          <div className="space-y-2">
+          <div className="space-y-1 md:space-y-2">
             <div className="flex items-center gap-2">
-              <FileText className="text-orange-600" size={16} />
-              <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Observações do Pedido</h3>
+              <FileText className="text-orange-600" size={14} />
+              <h3 className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Observações do Pedido</h3>
             </div>
             <textarea 
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}
               placeholder="Digite aqui observações importantes para este pedido..."
-              className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-medium text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all resize-none h-20"
+              className="w-full p-2 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-medium text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all resize-none h-14 md:h-20"
             />
           </div>
 
-          <div className="flex flex-col md:flex-row gap-4 items-end">
+          <div className="flex flex-col md:flex-row gap-3 md:gap-4 items-end">
             {/* Payment Terms Selection */}
-            <div className="flex-1 w-full space-y-2">
+            <div className="flex-1 w-full space-y-1 md:space-y-2">
               <div className="flex items-center gap-2">
-                <Calendar className="text-orange-600" size={16} />
-                <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Condição de Pagamento</h3>
+                <Calendar className="text-orange-600" size={14} />
+                <h3 className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Condição de Pagamento</h3>
               </div>
               <div className="relative">
                 <select
                   value={selectedPrazo}
                   onChange={(e) => setSelectedPrazo(e.target.value)}
-                  className="w-full pl-4 pr-10 py-3 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all"
+                  className="w-full pl-4 pr-10 py-2.5 md:py-3 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all text-sm"
                 >
                   <option value="" disabled>Selecione...</option>
                   {availableTerms.map((prazo) => (
@@ -889,14 +898,14 @@ export function OrderPage() {
                 ) : (
                   <button 
                     onClick={() => setShowClearConfirm(true)}
-                    className="flex-1 bg-neutral-100 text-neutral-600 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-200 transition-all"
+                    className="flex-1 bg-neutral-100 text-neutral-600 py-3 md:py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-200 transition-all text-sm"
                   >
                     <Trash2 size={18} /> Limpar
                   </button>
                 )}
                 <button 
                   onClick={() => setShowPreview(true)}
-                  className="flex-1 bg-white border border-neutral-200 text-neutral-600 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-50 transition-all"
+                  className="flex-1 bg-white border border-neutral-200 text-neutral-600 py-3 md:py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-50 transition-all text-sm"
                 >
                   <Eye size={18} /> Visualizar
                 </button>
@@ -904,7 +913,7 @@ export function OrderPage() {
               <button 
                 onClick={() => handleSave(true)}
                 disabled={isGeneratingImage}
-                className="w-full md:w-64 bg-green-600 text-white py-4 rounded-2xl font-bold shadow-lg flex items-center justify-center gap-2 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
+                className="w-full md:w-64 bg-green-600 text-white py-3 md:py-4 rounded-2xl font-bold shadow-lg flex items-center justify-center gap-2 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 text-sm"
               >
                 {isGeneratingImage ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -917,24 +926,24 @@ export function OrderPage() {
           </div>
 
           {/* Summary Bar */}
-          <div className="bg-orange-600 text-white p-4 rounded-2xl shadow-lg flex justify-between items-center">
-            <div>
-              <p className="text-[10px] uppercase font-bold opacity-80">Peso Atual</p>
-              <p className="text-xl font-black">{formatWeight(pesoTotal)}</p>
+          <div className="bg-orange-600 text-white p-2.5 md:p-4 rounded-xl md:rounded-2xl shadow-lg flex justify-between items-center">
+            <div className="text-center md:text-left px-1">
+              <p className="text-[8px] md:text-[10px] uppercase font-bold opacity-80">Peso Atual</p>
+              <p className="text-sm md:text-xl font-black">{formatWeight(pesoTotal)}</p>
             </div>
             {pesoConquistado > 0 && (
-              <div className="text-center border-x border-white/20 px-4">
-                <p className="text-[10px] uppercase font-bold opacity-80">Recompra (28d)</p>
-                <p className="text-sm font-black">{formatWeight(pesoConquistado)}</p>
+              <div className="text-center border-x border-white/20 px-2 md:px-4">
+                <p className="text-[8px] md:text-[10px] uppercase font-bold opacity-80">Recompra</p>
+                <p className="text-[10px] md:text-sm font-black">{formatWeight(pesoConquistado)}</p>
               </div>
             )}
-            <div className="text-center">
-              <p className="text-[10px] uppercase font-bold opacity-80">Faixa</p>
-              <p className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-full">{faixaPreco}</p>
+            <div className="text-center px-1">
+              <p className="text-[8px] md:text-[10px] uppercase font-bold opacity-80">Faixa</p>
+              <p className="text-[9px] md:text-xs font-bold bg-white/20 px-1.5 md:px-2 py-0.5 rounded-full">{faixaPreco}</p>
             </div>
-            <div className="text-right">
-              <p className="text-[10px] uppercase font-bold opacity-80">Valor Total</p>
-              <p className="text-xl font-black">{formatCurrency(valorTotal)}</p>
+            <div className="text-right px-1">
+              <p className="text-[8px] md:text-[10px] uppercase font-bold opacity-80">Valor Total</p>
+              <p className="text-sm md:text-xl font-black">{formatCurrency(valorTotal)}</p>
             </div>
           </div>
         </div>

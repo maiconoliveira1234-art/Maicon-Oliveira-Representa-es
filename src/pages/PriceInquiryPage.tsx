@@ -272,7 +272,7 @@ export function PriceInquiryPage() {
           windowWidth: 800
         });
         
-        const imgData = canvas.toDataURL('image/jpeg', 1.0);
+        const imgData = canvas.toDataURL('image/jpeg', 0.85);
         
         if (i > 0) pdf.addPage();
         
@@ -287,14 +287,17 @@ export function PriceInquiryPage() {
       const fileName = `lista-precos-${new Date().getTime()}.pdf`;
       const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
+      // sharing logic
+      const shareData = {
+        files: [file],
+        title: 'Lista de Preços',
+        text: 'Segue nossa lista de preços atualizada.'
+      };
+
       // Check if sharing is supported
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
         try {
-          await navigator.share({
-            files: [file],
-            title: 'Lista de Preços',
-            text: 'Segue nossa lista de preços atualizada.'
-          });
+          await navigator.share(shareData);
         } catch (shareErr) {
           // If user cancels or share fails, fallback to download
           if ((shareErr as Error).name !== 'AbortError') {
@@ -598,8 +601,11 @@ export function PriceInquiryPage() {
         </div>
       </div>
 
-      {/* Hidden Export Area - Professional A4 Format */}
-      <div className="fixed -left-[9999px] top-0" ref={exportRef}>
+      <div 
+        className="fixed top-0 left-0 opacity-0 pointer-events-none z-[-100]" 
+        ref={exportRef}
+        style={{ width: '800px' }}
+      >
         {(() => {
           const itemsPerPage = 18;
           const chunks = [];
