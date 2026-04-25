@@ -551,7 +551,7 @@ export function OrderPage() {
   const currentFaixa = manualFaixa || faixaPreco;
 
   return (
-    <div className="space-y-6 pb-[500px] md:pb-80">
+    <div className="space-y-6 pb-[600px] md:pb-96">
       <header className="flex items-center gap-4">
         <button onClick={() => navigate(-1)} className="p-2 hover:bg-white rounded-full transition-colors">
           <ArrowLeft size={24} />
@@ -806,42 +806,42 @@ export function OrderPage() {
 
         <button 
           onClick={() => setShowProductSelector(true)}
-          className="w-full py-4 bg-white rounded-2xl border-2 border-dashed border-orange-200 text-orange-600 font-bold flex items-center justify-center gap-2 hover:bg-orange-50 transition-all active:scale-95"
+          className="w-full py-4 bg-white rounded-2xl border-2 border-dashed border-orange-200 text-orange-600 font-bold flex items-center justify-center gap-2 hover:bg-orange-50 transition-all active:scale-95 mt-4"
         >
           <Plus size={20} /> Adicionar Produto
         </button>
-        <div ref={itemsEndRef} className="h-12" />
+        <div ref={itemsEndRef} className="h-20" />
       </div>
 
       {/* Bottom Section (Fixed) */}
-      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-t border-neutral-200 p-3 md:p-6 space-y-3 md:space-y-4 shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
-        <div className="max-w-4xl mx-auto space-y-3 md:space-y-4">
+      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-t border-neutral-200 p-2 md:p-6 space-y-2 md:space-y-4 shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
+        <div className="max-w-4xl mx-auto space-y-2 md:space-y-4">
           {/* Observations Field */}
-          <div className="space-y-1 md:space-y-2">
+          <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <FileText className="text-orange-600" size={14} />
-              <h3 className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Observações do Pedido</h3>
+              <FileText className="text-orange-600" size={12} />
+              <h3 className="text-[9px] font-bold text-neutral-500 uppercase tracking-wider">Observações</h3>
             </div>
             <textarea 
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}
-              placeholder="Digite aqui observações importantes para este pedido..."
-              className="w-full p-2 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-medium text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all resize-none h-14 md:h-20"
+              placeholder="Digite aqui observações importantes..."
+              className="w-full p-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-medium text-neutral-800 outline-none focus:ring-1 focus:ring-orange-500 transition-all resize-none h-12 md:h-20"
             />
           </div>
 
-          <div className="flex flex-col md:flex-row gap-3 md:gap-4 items-end">
+          <div className="flex flex-col md:flex-row gap-2 md:gap-4 items-end">
             {/* Payment Terms Selection */}
-            <div className="flex-1 w-full space-y-1 md:space-y-2">
+            <div className="flex-1 w-full space-y-1">
               <div className="flex items-center gap-2">
-                <Calendar className="text-orange-600" size={14} />
-                <h3 className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Condição de Pagamento</h3>
+                <Calendar className="text-orange-600" size={12} />
+                <h3 className="text-[9px] font-bold text-neutral-500 uppercase tracking-wider">Pagamento</h3>
               </div>
               <div className="relative">
                 <select
                   value={selectedPrazo}
                   onChange={(e) => setSelectedPrazo(e.target.value)}
-                  className="w-full pl-4 pr-10 py-2.5 md:py-3 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all text-sm"
+                  className="w-full pl-3 pr-10 py-2 md:py-3 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-1 focus:ring-orange-500 appearance-none transition-all text-xs"
                 >
                   <option value="" disabled>Selecione...</option>
                   {availableTerms.map((prazo) => (
@@ -850,8 +850,8 @@ export function OrderPage() {
                     </option>
                   ))}
                 </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
-                  <ChevronDown size={20} />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                  <ChevronDown size={16} />
                 </div>
               </div>
 
@@ -860,15 +860,15 @@ export function OrderPage() {
                 <motion.div 
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex gap-4 p-3 bg-orange-50 border border-orange-100 rounded-xl"
+                  className="flex gap-4 p-2 bg-orange-50 border border-orange-100 rounded-xl"
                 >
                   <div className="flex-1">
-                    <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">Valor por Boleto</p>
-                    <p className="text-sm font-black text-neutral-900">{formatCurrency(installmentDetails.valorBoleto)}</p>
+                    <p className="text-[8px] font-bold text-orange-600 uppercase tracking-wider">Valor Boleto</p>
+                    <p className="text-xs font-black text-neutral-900">{formatCurrency(installmentDetails.valorBoleto)}</p>
                   </div>
                   <div className="flex-1 text-right">
-                    <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">1º Vencimento (Est.)</p>
-                    <p className="text-sm font-black text-neutral-900">
+                    <p className="text-[8px] font-bold text-orange-600 uppercase tracking-wider">1º Venc. (Est.)</p>
+                    <p className="text-xs font-black text-neutral-900">
                       {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
                     </p>
                   </div>
@@ -877,20 +877,20 @@ export function OrderPage() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
-              <div className="flex gap-3 w-full">
+            <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+              <div className="flex gap-2 w-full">
                 {showClearConfirm ? (
-                  <div className="flex-1 bg-white p-2 rounded-2xl border-2 border-red-200 shadow-lg flex gap-2 items-center">
-                    <p className="text-[10px] font-bold text-neutral-800 flex-1 px-2">Limpar pedido?</p>
+                  <div className="flex-1 bg-white p-1 rounded-2xl border-2 border-red-200 shadow-lg flex gap-2 items-center">
+                    <p className="text-[9px] font-bold text-neutral-800 flex-1 px-1">Limpar?</p>
                     <button 
                       onClick={() => setShowClearConfirm(false)}
-                      className="px-3 py-2 bg-neutral-100 text-neutral-600 rounded-xl font-bold text-[10px]"
+                      className="px-2 py-1.5 bg-neutral-100 text-neutral-600 rounded-lg font-bold text-[9px]"
                     >
                       Não
                     </button>
                     <button 
                       onClick={handleClearOrder}
-                      className="px-3 py-2 bg-red-600 text-white rounded-xl font-bold text-[10px]"
+                      className="px-2 py-1.5 bg-red-600 text-white rounded-lg font-bold text-[9px]"
                     >
                       Sim
                     </button>
@@ -898,27 +898,27 @@ export function OrderPage() {
                 ) : (
                   <button 
                     onClick={() => setShowClearConfirm(true)}
-                    className="flex-1 bg-neutral-100 text-neutral-600 py-3 md:py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-200 transition-all text-sm"
+                    className="flex-1 bg-neutral-100 text-neutral-600 py-2.5 md:py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-200 transition-all text-xs"
                   >
-                    <Trash2 size={18} /> Limpar
+                    <Trash2 size={16} /> Limpar
                   </button>
                 )}
                 <button 
                   onClick={() => setShowPreview(true)}
-                  className="flex-1 bg-white border border-neutral-200 text-neutral-600 py-3 md:py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-50 transition-all text-sm"
+                  className="flex-1 bg-white border border-neutral-200 text-neutral-600 py-2.5 md:py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-50 transition-all text-xs"
                 >
-                  <Eye size={18} /> Visualizar
+                  <Eye size={16} /> Ver
                 </button>
               </div>
               <button 
                 onClick={() => handleSave(true)}
                 disabled={isGeneratingImage}
-                className="w-full md:w-64 bg-green-600 text-white py-3 md:py-4 rounded-2xl font-bold shadow-lg flex items-center justify-center gap-2 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 text-sm"
+                className="w-full md:w-64 bg-green-600 text-white py-2.5 md:py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 text-xs"
               >
                 {isGeneratingImage ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
-                  <Save size={20} />
+                  <Save size={16} />
                 )}
                 <span>{isGeneratingImage ? 'Gerando...' : 'Finalizar Pedido'}</span>
               </button>
