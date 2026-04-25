@@ -570,40 +570,13 @@ export function StockCountPage() {
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <select
-                    value={selectedFamily}
-                    onChange={(e) => setSelectedFamily(e.target.value)}
-                    className="pl-3 pr-8 py-2 bg-neutral-100 rounded-lg outline-none text-[11px] font-bold text-neutral-600 appearance-none border border-neutral-200"
-                  >
-                    {families.map(f => (
-                      <option key={f} value={f}>{f}</option>
-                    ))}
-                  </select>
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
-                    <Package size={12} />
-                  </div>
-                </div>
-
-                <div className="relative">
-                  <select
-                    value={selectedWeight}
-                    onChange={(e) => setSelectedWeight(e.target.value)}
-                    className="pl-3 pr-8 py-2 bg-neutral-100 rounded-lg outline-none text-[11px] font-bold text-neutral-600 appearance-none border border-neutral-200"
-                  >
-                    {weights.map(w => (
-                      <option key={w} value={w}>
-                        {w === 'Todos' ? w : formatWeight(Number(w))}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
-                    <TrendingDown size={12} />
-                  </div>
-                </div>
-              </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button 
+                onClick={handleClearAll}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-black hover:bg-red-700 transition-all flex items-center gap-2 shadow-sm active:scale-95"
+              >
+                <Trash2 size={14} /> Limpar
+              </button>
 
               <label className="flex items-center gap-2 px-3 py-2 bg-neutral-100 rounded-lg cursor-pointer hover:bg-neutral-200 transition-colors border border-neutral-200">
                 <input 
@@ -614,14 +587,7 @@ export function StockCountPage() {
                 />
                 <span className="text-xs font-bold text-neutral-600">Inativos</span>
               </label>
-              
-              <button 
-                onClick={handleClearAll}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-black hover:bg-red-700 transition-all flex items-center gap-2 shadow-sm active:scale-95"
-              >
-                <Trash2 size={14} /> Limpar
-              </button>
-              
+
               <button 
                 onClick={() => setShowCycle(!showCycle)}
                 className={cn(
@@ -631,6 +597,38 @@ export function StockCountPage() {
               >
                 Ciclo
               </button>
+
+              <div className="relative">
+                <select
+                  value={selectedWeight}
+                  onChange={(e) => setSelectedWeight(e.target.value)}
+                  className="pl-3 pr-8 py-2 bg-neutral-100 rounded-lg outline-none text-[11px] font-bold text-neutral-600 appearance-none border border-neutral-200"
+                >
+                  {weights.map(w => (
+                    <option key={w} value={w}>
+                      {w === 'Todos' ? w : formatWeight(Number(w))}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                  <TrendingDown size={12} />
+                </div>
+              </div>
+
+              <div className="relative">
+                <select
+                  value={selectedFamily}
+                  onChange={(e) => setSelectedFamily(e.target.value)}
+                  className="pl-3 pr-8 py-2 bg-neutral-100 rounded-lg outline-none text-[11px] font-bold text-neutral-600 appearance-none border border-neutral-200"
+                >
+                  {families.map(f => (
+                    <option key={f} value={f}>{f}</option>
+                  ))}
+                </select>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                  <Package size={12} />
+                </div>
+              </div>
             </div>
           </div>
         </div>
