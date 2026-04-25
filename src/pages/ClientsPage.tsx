@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Cliente } from '../types';
-import { Loader2, Search, UserCheck, UserX, ChevronRight, Calendar, Filter, X, UserPlus, CheckCircle2 } from 'lucide-react';
+import { Loader2, Search, UserCheck, UserX, ChevronRight, Calendar, Filter, X, UserPlus, CheckCircle2, ShoppingCart } from 'lucide-react';
 import { cn, deduplicateSales } from '../lib/utils';
 import { differenceInDays, parseISO } from 'date-fns';
 import { NewClientModal } from '../components/NewClientModal';
@@ -13,6 +13,8 @@ export function ClientsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [filterRepurchase, setFilterRepurchase] = useState(false);
+  const [filterOpenOrders, setFilterOpenOrders] = useState(false);
+  const [openOrdersCount, setOpenOrdersCount] = useState<Record<string, boolean>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const navigate = useNavigate();
@@ -55,6 +57,19 @@ export function ClientsPage() {
         };
       });
 
+      // Check for open orders in localStorage
+      const openOrdersMap: Record<string, boolean> = {};
+      enrichedClientes.forEach(c => {
+        const saved = localStorage.getItem(`pedido_${c.id}`);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            const hasItems = parsed && parsed.items && Object.keys(parsed.items).length > 0;
+            if (hasItems) openOrdersMap[c.id] = true;
+          } catch (e) {}
+        }
+      });
+      setOpenOrdersCount(openOrdersMap);
       setClientes(enrichedClientes);
     } catch (err) {
       console.error('Erro ao carregar clientes:', err);
@@ -94,8 +109,9 @@ export function ClientsPage() {
     const matchesSearch = searchWords.length === 0 || searchWords.every(word => targetString.includes(word));
     const matchesStatus = showInactive ? true : c.ativo;
     const matchesRepurchase = filterRepurchase ? isWithinRepurchase(c) : true;
+    const matchesOpenOrders = filterOpenOrders ? openOrdersCount[c.id] : true;
     
-    return matchesSearch && matchesStatus && matchesRepurchase;
+    return matchesSearch && matchesStatus && matchesRepurchase && matchesOpenOrders;
   }).sort((a, b) => {
     if (filterRepurchase) {
       const dateA = a.ultima_compra || '9999-99-99';
@@ -147,6 +163,18 @@ export function ClientsPage() {
             {filterRepurchase ? "Ver Todos" : "Recompra"}
           </button>
           <button
+            onClick={() => setFilterOpenOrders(!filterOpenOrders)}
+            className={cn(
+              "px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 border",
+              filterOpenOrders 
+                ? "bg-orange-600 text-white border-orange-600 shadow-lg shadow-orange-200" 
+                : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50"
+            )}
+          >
+            <ShoppingCart size={18} />
+            {filterOpenOrders ? "Ver Todos" : "Pedido em Aberto"}
+          </button>
+          <button
             onClick={() => setShowInactive(!showInactive)}
             className={cn(
               "px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 border",
@@ -186,7 +214,7 @@ export function ClientsPage() {
             filteredClientes.map((cliente) => (
               <button
                 key={cliente.id}
-                onClick={() => navigate(`/cliente/${cliente.id}`)}
+                onClick={() => navigate(openOrdersCount[cliente.id] ? `/pedido/novo/${cliente.id}` : `/cliente/${cliente.id}`)}
                 className="w-full flex items-center justify-between p-4 hover:bg-neutral-50 transition-colors text-left group"
               >
                 <div className="flex items-center gap-4">
