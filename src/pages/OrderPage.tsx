@@ -551,7 +551,7 @@ export function OrderPage() {
   const currentFaixa = manualFaixa || faixaPreco;
 
   return (
-    <div className="space-y-6 pb-[600px] md:pb-96">
+    <div className="space-y-6 pb-[550px] md:pb-96">
       <header className="flex items-center gap-4">
         <button onClick={() => navigate(-1)} className="p-2 hover:bg-white rounded-full transition-colors">
           <ArrowLeft size={24} />
@@ -810,11 +810,11 @@ export function OrderPage() {
         >
           <Plus size={20} /> Adicionar Produto
         </button>
-        <div ref={itemsEndRef} className="h-20" />
+        <div ref={itemsEndRef} className="h-64" />
       </div>
 
       {/* Bottom Section (Fixed) */}
-      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-t border-neutral-200 p-2 md:p-6 space-y-2 md:space-y-4 shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-neutral-200 p-2 md:p-6 space-y-2 md:space-y-4 shadow-[0_-15px_30px_rgba(0,0,0,0.1)]">
         <div className="max-w-4xl mx-auto space-y-2 md:space-y-4">
           {/* Observations Field */}
           <div className="space-y-1">
