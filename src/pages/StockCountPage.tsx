@@ -179,6 +179,14 @@ export function StockCountPage() {
     return map;
   }, [historico, produtosMap]);
 
+  const lastOrderDate = useMemo(() => {
+    if (historico.length === 0) return null;
+    const sortedDates = [...new Set(historico.map(h => h.faturamento))].sort((a: string, b: string) => 
+      parseISO(b).getTime() - parseISO(a).getTime()
+    );
+    return sortedDates[0];
+  }, [historico]);
+
   const processedItems = useMemo(() => {
     const items: Record<string, HistVenda[]> = {};
     historico.forEach(h => {
@@ -223,11 +231,15 @@ export function StockCountPage() {
         // Tendencia (Column T in image) - Simplified logic: how many cycles passed
         const tendencia = mediaCiclo > 0 ? Math.floor(diasUltCompra / mediaCiclo) * -1 : 0;
 
+        // NEW: Only count quantity if it was in the VERY LAST order of the client
+        const lastOrderItems = sortedVendas.filter(v => v.faturamento === lastOrderDate);
+        const qtdUltCompraInLastOrder = lastOrderItems.reduce((acc, v) => acc + v.qtd, 0) * quantEmbalagem;
+
         return {
           produto_id: produtoId,
           produto_nome: ultVenda.produtos,
           dias_ult_compra: diasUltCompra,
-          qtd_ult_compra: ultVenda.qtd * quantEmbalagem,
+          qtd_ult_compra: qtdUltCompraInLastOrder, // Modified to last order only
           quantidade_atual: currentStock,
           ultima_contagem_valor: ultimaContagemMap[produtoId] || 0,
           media_qtd: Math.round(mediaQtd * quantEmbalagem),
@@ -248,7 +260,7 @@ export function StockCountPage() {
     return result
       .filter(item => showInactive || item.ativo)
       .sort((a, b) => a.produto_nome.localeCompare(b.produto_nome));
-  }, [historico, estoqueMap, ultimaContagemMap, produtosMap, mediaCicloGlobal, showInactive]);
+  }, [historico, estoqueMap, ultimaContagemMap, produtosMap, showInactive, lastOrderDate]);
 
   const diasDesdeUltimoPedidoGlobal = useMemo(() => {
     if (historico.length === 0) return 0;
@@ -945,8 +957,8 @@ export function StockCountPage() {
               <tr style={{ backgroundColor: '#171717', color: '#ffffff' }}>
                 <th className="py-3 px-2 text-left text-[9px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
                 <th className="py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest">Ult. Contagem</th>
-                <th className="py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest">Ult. Pedido</th>
-                <th className="py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest">Ult. Estoque</th>
+                <th className="py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest">Ult. Pedido ({diasDesdeUltimoPedidoGlobal}d)</th>
+                <th className="py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest" style={{ borderRight: '2px solid #e5e5e5' }}>Ult. Estoque</th>
                 <th className="py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest">Contagem Atual</th>
                 <th className="py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest rounded-tr-lg">Venda</th>
               </tr>
@@ -968,18 +980,19 @@ export function StockCountPage() {
                     <td className="py-3 px-2 text-center font-bold" style={{ color: '#737373' }}>
                       {item.qtd_ult_compra}
                     </td>
-                    <td className="py-3 px-2 text-center font-black" style={{ color: '#171717' }}>
+                    <td className="py-3 px-2 text-center font-black" style={{ borderRight: '2px solid #f5f5f5', color: '#171717' }}>
                       {ultEstoque}
                     </td>
                     <td className="py-3 px-2 text-center font-black" style={{ backgroundColor: 'rgba(255, 247, 237, 0.3)', color: '#171717' }}>
                       {currentStock}
                     </td>
-                    <td className="py-3 px-2 text-center font-black" style={{ color: venda > 0 ? '#16a34a' : (venda < 0 ? '#dc2626' : '#a3a3a3') }}>
+                    <td className="py-3 px-2 text-center font-black" style={{ color: venda > 0 ? '#dc2626' : (venda < 0 ? '#dc2626' : '#a3a3a3') }}>
                       {venda}
                     </td>
                   </tr>
                 );
               })}
+
             </tbody>
           </table>
         </div>
