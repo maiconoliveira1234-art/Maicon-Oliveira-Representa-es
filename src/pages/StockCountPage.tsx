@@ -510,13 +510,6 @@ export function StockCountPage() {
             <button onClick={() => navigate(-1)} className="p-2 hover:bg-neutral-100 rounded-full transition-colors mt-0.5">
               <ArrowLeft size={20} />
             </button>
-            <button 
-              onClick={() => navigate(`/cliente/${clienteId}`)}
-              className="p-2 bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95 mt-0.5"
-              title="Home do Cliente"
-            >
-              <Home size={18} />
-            </button>
             <h1 className="text-base font-bold text-neutral-800 flex-1 leading-tight pt-1.5">
               {cliente?.cliente}
             </h1>
@@ -539,6 +532,13 @@ export function StockCountPage() {
                   {formatWeight(totalPesoPedido)}
                 </p>
               </div>
+              <button 
+                onClick={() => navigate(`/cliente/${clienteId}`)}
+                className="p-2 bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
+                title="Home do Cliente"
+              >
+                <Home size={18} />
+              </button>
             </div>
           </div>
 
