@@ -1127,8 +1127,8 @@ export function OrderPage() {
                                 </div>
                                 
                                 {observacoes && (
-                                  <div className="p-4 border-2 border-orange-100 bg-orange-50/30 rounded-xl">
-                                    <p className="text-[8px] font-black text-orange-600 uppercase tracking-widest mb-1.5">Observações Importantes</p>
+                                  <div className="p-4 border-2 rounded-xl" style={{ borderColor: '#ffedd5', backgroundColor: 'rgba(255, 247, 237, 0.3)' }}>
+                                    <p className="text-[8px] font-black uppercase tracking-widest mb-1.5" style={{ color: '#ea580c' }}>Observações Importantes</p>
                                     <p className="text-[11px] font-black text-[#171717] leading-relaxed whitespace-pre-wrap uppercase">{observacoes}</p>
                                   </div>
                                 )}

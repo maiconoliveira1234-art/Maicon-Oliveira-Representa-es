@@ -920,7 +920,10 @@ export function StockCountPage() {
             <h1 className="text-3xl font-black uppercase tracking-tighter" style={{ color: '#171717' }}>Contagem de Estoque</h1>
             <div className="mt-2 space-y-1">
               <p className="text-sm font-bold" style={{ color: '#171717' }}>{cliente?.cliente}</p>
-              <p className="text-sm font-bold" style={{ color: '#737373' }}>Data: {new Date().toLocaleDateString('pt-BR')}</p>
+              <div className="flex gap-4">
+                <p className="text-sm font-bold" style={{ color: '#737373' }}>Data: {new Date().toLocaleDateString('pt-BR')}</p>
+                <p className="text-sm font-bold" style={{ color: '#737373' }}>Últ. Pedido: {diasDesdeUltimoPedidoGlobal} dias</p>
+              </div>
             </div>
           </div>
           <div className="flex flex-col items-end">
@@ -940,35 +943,39 @@ export function StockCountPage() {
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ backgroundColor: '#171717', color: '#ffffff' }}>
-                <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
-                <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Ult. Contagem</th>
-                <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Contagem Atual</th>
-                <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Estoque Ideal</th>
-                <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest rounded-tr-lg">Sugestão</th>
+                <th className="py-3 px-2 text-left text-[9px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
+                <th className="py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest">Ult. Contagem</th>
+                <th className="py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest">Ult. Pedido</th>
+                <th className="py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest">Ult. Estoque</th>
+                <th className="py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest">Contagem Atual</th>
+                <th className="py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest rounded-tr-lg">Venda</th>
               </tr>
             </thead>
             <tbody className="divide-y" style={{ borderColor: '#f5f5f5' }}>
               {chunk.map((item, idx) => {
                 const currentStock = estoqueMap[item.produto_id] ?? 0;
-                const isBelowIdeal = item.estoque_ideal > 0;
-                const sugestao = item.estoque_ideal;
+                const ultEstoque = item.ultima_contagem_valor + item.qtd_ult_compra;
+                const venda = ultEstoque - currentStock;
 
                 return (
-                  <tr key={item.produto_id} className="text-sm" style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
-                    <td className="py-4 px-4 font-bold leading-tight break-words" style={{ color: isBelowIdeal ? '#dc2626' : '#262626' }}>
+                  <tr key={item.produto_id} className="text-[11px]" style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
+                    <td className="py-3 px-2 font-bold leading-tight break-words max-w-[200px]" style={{ color: '#262626' }}>
                       {item.produto_nome}
                     </td>
-                    <td className="py-4 px-4 text-center font-bold" style={{ color: '#a3a3a3' }}>
+                    <td className="py-3 px-2 text-center font-bold" style={{ color: '#737373' }}>
                       {item.ultima_contagem_valor}
                     </td>
-                    <td className="py-4 px-4 text-center font-black" style={{ color: isBelowIdeal ? '#dc2626' : '#171717' }}>
+                    <td className="py-3 px-2 text-center font-bold" style={{ color: '#737373' }}>
+                      {item.qtd_ult_compra}
+                    </td>
+                    <td className="py-3 px-2 text-center font-black" style={{ color: '#171717' }}>
+                      {ultEstoque}
+                    </td>
+                    <td className="py-3 px-2 text-center font-black" style={{ backgroundColor: 'rgba(255, 247, 237, 0.3)', color: '#171717' }}>
                       {currentStock}
                     </td>
-                    <td className="py-4 px-4 text-center font-bold" style={{ color: '#737373' }}>
-                      {item.estoque_ideal}
-                    </td>
-                    <td className="py-4 px-4 text-center font-black" style={{ color: sugestao > 0 ? '#dc2626' : '#a3a3a3' }}>
-                      {sugestao > 0 ? sugestao : '-'}
+                    <td className="py-3 px-2 text-center font-black" style={{ color: venda > 0 ? '#16a34a' : (venda < 0 ? '#dc2626' : '#a3a3a3') }}>
+                      {venda}
                     </td>
                   </tr>
                 );
