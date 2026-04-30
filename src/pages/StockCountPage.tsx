@@ -262,12 +262,12 @@ export function StockCountPage() {
       list = list.filter(item => Math.abs(item.peso_unitario - targetWeight) < 0.001);
     }
     const unique = Array.from(new Set(list.map(item => item.familia)));
-    return ['Todas', ...unique.sort()];
+    return ['Todas', 'Não Contados', ...unique.sort()];
   }, [processedItems, selectedWeight]);
 
   const weights = useMemo(() => {
     let list = processedItems;
-    if (selectedFamily !== 'Todas') {
+    if (selectedFamily !== 'Todas' && selectedFamily !== 'Não Contados') {
       list = list.filter(item => item.familia === selectedFamily);
     }
     const unique = Array.from(new Set(list.map(item => Number(item.peso_unitario.toFixed(3))))) as number[];
@@ -276,7 +276,7 @@ export function StockCountPage() {
 
   // Handle cross-filter validation
   useEffect(() => {
-    if (selectedFamily !== 'Todas' && !families.includes(selectedFamily)) {
+    if (selectedFamily !== 'Todas' && selectedFamily !== 'Não Contados' && !families.includes(selectedFamily)) {
       setSelectedFamily('Todas');
     }
   }, [families, selectedFamily]);
@@ -482,7 +482,11 @@ export function StockCountPage() {
     }
 
     if (selectedFamily !== 'Todas') {
-      result = result.filter(item => item.familia === selectedFamily);
+      if (selectedFamily === 'Não Contados') {
+        result = result.filter(item => estoqueMap[item.produto_id] === undefined || estoqueMap[item.produto_id] === null);
+      } else {
+        result = result.filter(item => item.familia === selectedFamily);
+      }
     }
 
     if (selectedWeight !== 'Todos') {
@@ -491,7 +495,7 @@ export function StockCountPage() {
     }
 
     return result;
-  }, [processedItems, searchTerm, selectedFamily, selectedWeight]);
+  }, [processedItems, searchTerm, selectedFamily, selectedWeight, estoqueMap]);
 
   if (loading) return <StockCountSkeleton />;
 
