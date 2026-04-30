@@ -7,7 +7,12 @@ import { cn, deduplicateSales } from '../lib/utils';
 import { differenceInDays, parseISO } from 'date-fns';
 import { NewClientModal } from '../components/NewClientModal';
 
+import { useDataManager } from '../lib/dataManager';
+
+import { ClientPageSkeleton } from '../components/ui/Skeleton';
+
 export function ClientsPage() {
+  const { clientes: cachedClientes, loadingGlobal, loadInitialData, refreshClientes } = useDataManager();
   const [clientes, setClientes] = useState<(Cliente & { ultima_compra_peso?: number })[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -21,15 +26,17 @@ export function ClientsPage() {
 
   const fetchClientes = useCallback(async () => {
     try {
-      setLoading(true);
-      const [clientesRes, produtosRes, histRes] = await Promise.all([
-        supabase.from('clientes').select('*').order('cliente'),
+      // Don't show loading if we have cached data (mode: stale-while-revalidate)
+      if (cachedClientes.length === 0) {
+        setLoading(true);
+        await loadInitialData();
+      }
+
+      const [produtosRes, histRes] = await Promise.all([
         supabase.from('produtos').select('id, peso_embalagem'),
         supabase.from('hist_vendas').select('cliente_id, faturamento, produto_id, qtd').order('faturamento', { ascending: false })
       ]);
       
-      if (clientesRes.error) throw clientesRes.error;
-
       const productWeights: Record<string, number> = {};
       produtosRes.data?.forEach(p => {
         productWeights[p.id] = p.peso_embalagem || 0;
@@ -48,7 +55,7 @@ export function ClientsPage() {
         });
       }
 
-      const enrichedClientes = (clientesRes.data || []).map(c => {
+      const enrichedClientes = (cachedClientes.length > 0 ? cachedClientes : []).map(c => {
         const lastSale = latestSalesMap[c.id];
         return {
           ...c,
@@ -76,14 +83,14 @@ export function ClientsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cachedClientes, loadInitialData]);
 
   useEffect(() => {
     fetchClientes();
   }, [fetchClientes]);
 
   const handleSuccess = () => {
-    fetchClientes();
+    refreshClientes();
     setShowSuccessToast(true);
     setTimeout(() => setShowSuccessToast(false), 3000);
   };
@@ -107,7 +114,7 @@ export function ClientsPage() {
     const targetString = `${clienteName} ${clienteCidade}`.toLowerCase();
     
     const matchesSearch = searchWords.length === 0 || searchWords.every(word => targetString.includes(word));
-    const matchesStatus = showInactive ? true : c.ativo;
+    const matchesStatus = showInactive ? true : (c.ativo === true);
     const matchesRepurchase = filterRepurchase ? isWithinRepurchase(c) : true;
     const matchesOpenOrders = filterOpenOrders ? openOrdersCount[c.id] : true;
     
@@ -127,13 +134,7 @@ export function ClientsPage() {
     return 0; // Keep original order (by name from Supabase)
   });
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="animate-spin text-orange-600" size={32} />
-      </div>
-    );
-  }
+  if (loading) return <ClientPageSkeleton />;
 
   return (
     <div className="space-y-6 pb-12">

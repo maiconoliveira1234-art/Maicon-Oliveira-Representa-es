@@ -17,11 +17,15 @@ import { ImportPage } from './pages/ImportPage';
 import { CommissionPage } from './pages/CommissionPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { runAutomaticInactivation } from './lib/clientInactivation';
+import { DataManagerProvider, useDataManager } from './lib/dataManager';
 
-export default function App() {
+function AppContent() {
+  const { loadInitialData } = useDataManager();
+
   useEffect(() => {
     runAutomaticInactivation();
-  }, []);
+    loadInitialData();
+  }, [loadInitialData]);
 
   return (
     <BrowserRouter>
@@ -43,5 +47,13 @@ export default function App() {
         </Routes>
       </Layout>
     </BrowserRouter>
+  );
+}
+
+export default function App() {
+  return (
+    <DataManagerProvider>
+      <AppContent />
+    </DataManagerProvider>
   );
 }

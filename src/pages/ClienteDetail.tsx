@@ -39,10 +39,16 @@ import { MOCK_CLIENTES, MOCK_HISTORICO, MOCK_PRODUTOS } from '../lib/mockData';
 import { Produto } from '../types';
 import { SALES_CUTOFF_DATE, SALES_CUTOFF_CLIENTS } from '../constants';
 
+import { useDataManager } from '../lib/dataManager';
+
+import { StockCountSkeleton } from '../components/ui/Skeleton';
+
 export function ClienteDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { produtos: allProducts, clientCache, loadClientDetails, prefetchClientData } = useDataManager();
+  
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [historico, setHistorico] = useState<HistVenda[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
@@ -56,8 +62,13 @@ export function ClienteDetail() {
     async function loadClienteData() {
       if (!id) return;
       try {
+        setLoading(true);
         setError(null);
         
+        // Load details into cache
+        await loadClientDetails(id);
+        const cache = clientCache[id];
+
         // Fetch Clientes
         const { data: clienteData, error: cError } = await supabase
           .from('clientes')
@@ -85,43 +96,16 @@ export function ClienteDetail() {
           });
         }
 
-        // Fetch Historico
-        const { data: histData, error: hError } = await supabase
-          .from('hist_vendas')
-          .select('*')
-          .eq('cliente_id', id)
-          .order('faturamento', { ascending: false });
-        
-        if (hError) {
-          console.error('Supabase Error (historico):', hError.message);
-          setHistorico(MOCK_HISTORICO.filter(h => h.cliente_id === id));
-        } else if (!histData || histData.length === 0) {
-          setHistorico(MOCK_HISTORICO.filter(h => h.cliente_id === id));
+        // Use products from context
+        setProdutos(allProducts.length > 0 ? allProducts : MOCK_PRODUTOS);
+
+        if (cache) {
+          setHistorico(cache.historico);
+          setEstoque(cache.estoque);
         } else {
-          // Ensure unique items by composite key to prevent triplication if the database has duplicate rows with different IDs
-          const uniqueMap = new Map();
-          histData.forEach((h: HistVenda) => {
-            const key = `${h.faturamento}-${h.cliente_id}-${h.produto_id || h.produtos}-${h.qtd}-${h["r$_total"]}`;
-            if (!uniqueMap.has(key)) {
-              uniqueMap.set(key, h);
-            }
-          });
-          setHistorico(Array.from(uniqueMap.values()) as HistVenda[]);
+          // Fallback to mock history if not in cache
+          setHistorico(MOCK_HISTORICO.filter(h => h.cliente_id === id));
         }
-
-        // Fetch Produtos
-        const { data: pData } = await supabase
-          .from('produtos')
-          .select('*');
-        setProdutos(pData && pData.length > 0 ? pData : MOCK_PRODUTOS);
-
-        // Fetch Estoque
-        const { data: estData } = await supabase
-          .from('estoque_cliente')
-          .select('*')
-          .eq('cliente_id', id);
-        
-        if (estData) setEstoque(estData);
 
       } catch (err) {
         console.error('Erro ao carregar dados do cliente:', err);
@@ -133,7 +117,7 @@ export function ClienteDetail() {
       }
     }
     loadClienteData();
-  }, [id]);
+  }, [id, allProducts, loadClientDetails, clientCache?.[id || '']]);
 
   const produtosMap = React.useMemo(() => {
     return produtos.reduce((acc, p) => {
@@ -184,7 +168,7 @@ export function ClienteDetail() {
     return ordersByDate.find(o => o.date === selectedOrderDate);
   }, [ordersByDate, selectedOrderDate]);
 
-  if (loading) return <div className="p-8 text-center">Carregando...</div>;
+  if (loading) return <StockCountSkeleton />;
   if (!cliente) return <div className="p-8 text-center">Cliente não encontrado.</div>;
 
   const clientName = (cliente.cliente || '').trim().toUpperCase();
@@ -298,6 +282,7 @@ export function ClienteDetail() {
       <div className="grid grid-cols-2 gap-3">
         <button 
           onClick={() => navigate(`/pedido/novo/${cliente.id}`)}
+          onMouseEnter={() => prefetchClientData(cliente.id)}
           className="bg-orange-600 text-white p-4 rounded-2xl font-bold flex flex-col items-center gap-2 shadow-lg active:scale-95 transition-all"
         >
           <ShoppingCart size={24} />
@@ -305,6 +290,7 @@ export function ClienteDetail() {
         </button>
         <button 
           onClick={() => navigate(`/estoque/${cliente.id}`)}
+          onMouseEnter={() => prefetchClientData(cliente.id)}
           className="bg-white text-neutral-700 p-4 rounded-2xl font-bold flex flex-col items-center gap-2 border border-neutral-200 shadow-sm active:scale-95 transition-all"
         >
           <Package size={24} className="text-orange-600" />

@@ -13,7 +13,8 @@ import {
   Download,
   X,
   FileText,
-  Trash2
+  Trash2,
+  Home
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -42,10 +43,15 @@ interface ItemEstoqueData {
   familia: string;
 }
 
+import { useDataManager } from '../lib/dataManager';
+import { StockCountSkeleton } from '../components/ui/Skeleton';
+
 export function StockCountPage() {
   const { clienteId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { produtos, clientCache, loadClientDetails } = useDataManager();
+  
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [historico, setHistorico] = useState<HistVenda[]>([]);
   const [estoqueMap, setEstoqueMap] = useState<Record<string, number>>({});
@@ -70,7 +76,14 @@ export function StockCountPage() {
       
       try {
         setLoading(true);
-        // Load Cliente
+        
+        // Ensure initial data is loaded in context
+        await loadClientDetails(clienteId);
+        
+        // Get data from cache
+        const cache = clientCache[clienteId || ''];
+        
+        // Load Cliente (Still fetch if needed, or I could move client to cache too)
         const { data: clienteData } = await supabase
           .from('clientes')
           .select('*')
@@ -79,82 +92,50 @@ export function StockCountPage() {
         
         if (clienteData) setCliente(clienteData);
 
-        // Load Products
-        const { data: prodData } = await supabase
-          .from('produtos')
-          .select('*');
-        
-        if (prodData) {
+        // Use products from context
+        if (produtos.length > 0) {
           const pMap: Record<string, Produto> = {};
-          prodData.forEach(p => pMap[p.id] = p);
+          produtos.forEach(p => pMap[p.id] = p);
           setProdutosMap(pMap);
         }
 
-        // Load all historical sales for this client to calculate averages
-        const { data: histData } = await supabase
-          .from('hist_vendas')
-          .select('*')
-          .eq('cliente_id', clienteId)
-          .order('faturamento', { ascending: false });
-        
-        if (histData) {
-          const uniqueMap = new Map();
-          histData.forEach((h: HistVenda) => {
-            const key = `${h.faturamento}-${h.cliente_id}-${h.produto_id || h.produtos}-${h.qtd}-${h["r$_total"]}`;
-            if (!uniqueMap.has(key)) {
-              uniqueMap.set(key, h);
-            }
-          });
-          const uniqueHist = Array.from(uniqueMap.values()) as HistVenda[];
+        if (cache) {
+          setHistorico(cache.historico);
           
-          // Sort by date descending before setting state
-          const sortedHist = uniqueHist.sort((a, b) => 
-            new Date(b.faturamento).getTime() - new Date(a.faturamento).getTime()
-          );
-          setHistorico(sortedHist);
-        }
-
-        // Load current stock from DB
-        const { data: estoqueData } = await supabase
-          .from('estoque_cliente')
-          .select('*')
-          .eq('cliente_id', clienteId);
-        
-        const initialEstoque: Record<string, number> = {};
-        const uMap: Record<string, number> = {};
-        
-        if (estoqueData) {
-          estoqueData.forEach(e => {
+          const initialEstoque: Record<string, number> = {};
+          const uMap: Record<string, number> = {};
+          
+          cache.estoque.forEach(e => {
             initialEstoque[e.produto_id] = e.quantidade_atual;
             uMap[e.produto_id] = e.quantidade_atual;
           });
-        }
-        setUltimaContagemMap(uMap);
+          setUltimaContagemMap(uMap);
 
-        // Merge with localStorage
-        const savedEstoque = localStorage.getItem(`estoque_${clienteId}`);
-        const savedPedido = localStorage.getItem(`pedido_${clienteId}`);
-        
-        if (savedEstoque) {
-          try {
-            const parsed = JSON.parse(savedEstoque);
-            Object.assign(initialEstoque, parsed);
-          } catch (e) {
-            console.error('Error parsing saved estoque:', e);
-          }
-        }
-        setEstoqueMap(initialEstoque);
-
-        if (savedPedido) {
-          try {
-            const parsed = JSON.parse(savedPedido);
-            if (parsed && typeof parsed === 'object' && 'items' in parsed) {
-              setPedidoMap(parsed.items || {});
-            } else {
-              setPedidoMap(parsed || {});
+          // Merge with localStorage
+          const savedEstoque = localStorage.getItem(`estoque_${clienteId}`);
+          const savedPedido = localStorage.getItem(`pedido_${clienteId}`);
+          
+          if (savedEstoque) {
+            try {
+              const parsed = JSON.parse(savedEstoque);
+              Object.assign(initialEstoque, parsed);
+            } catch (e) {
+              console.error('Error parsing saved estoque:', e);
             }
-          } catch (e) {
-            console.error('Error parsing saved pedido:', e);
+          }
+          setEstoqueMap(initialEstoque);
+
+          if (savedPedido) {
+            try {
+              const parsed = JSON.parse(savedPedido);
+              if (parsed && typeof parsed === 'object' && 'items' in parsed) {
+                setPedidoMap(parsed.items || {});
+              } else {
+                setPedidoMap(parsed || {});
+              }
+            } catch (e) {
+              console.error('Error parsing saved pedido:', e);
+            }
           }
         }
 
@@ -166,7 +147,7 @@ export function StockCountPage() {
       }
     }
     loadData();
-  }, [clienteId]);
+  }, [clienteId, produtos, loadClientDetails, clientCache?.[clienteId || '']]);
 
   const mediaCicloGlobal = useMemo(() => {
     if (historico.length === 0) return 40;
@@ -512,7 +493,7 @@ export function StockCountPage() {
     return result;
   }, [processedItems, searchTerm, selectedFamily, selectedWeight]);
 
-  if (loading) return <div className="p-8 text-center">Carregando...</div>;
+  if (loading) return <StockCountSkeleton />;
 
   const isOverdueGlobal = diasDesdeUltimoPedidoGlobal > mediaCicloGlobal;
 
@@ -524,6 +505,13 @@ export function StockCountPage() {
           <div className="flex items-start gap-2 mb-4">
             <button onClick={() => navigate(-1)} className="p-2 hover:bg-neutral-100 rounded-full transition-colors mt-0.5">
               <ArrowLeft size={20} />
+            </button>
+            <button 
+              onClick={() => navigate(`/cliente/${clienteId}`)}
+              className="p-2 bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95 mt-0.5"
+              title="Home do Cliente"
+            >
+              <Home size={18} />
             </button>
             <h1 className="text-base font-bold text-neutral-800 flex-1 leading-tight pt-1.5">
               {cliente?.cliente}

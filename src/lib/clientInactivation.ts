@@ -36,9 +36,12 @@ export async function runAutomaticInactivation() {
       const lastPurchase = latestSalesMap[client.id];
       const hasRecentPurchase = lastPurchase && !isBefore(parseISO(lastPurchase), thresholdDate);
 
-      if (client.ativo && !hasRecentPurchase) {
+      // Handle null/undefined carefully
+      const isActuallyAtivo = client.ativo === true;
+
+      if (isActuallyAtivo && !hasRecentPurchase) {
         idsToInactivate.push(client.id);
-      } else if (!client.ativo && hasRecentPurchase) {
+      } else if (!isActuallyAtivo && hasRecentPurchase) {
         idsToReactivate.push(client.id);
       }
     });

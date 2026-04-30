@@ -19,7 +19,8 @@ import {
   Share2,
   X,
   FileText,
-  Eye
+  Eye,
+  Home
 } from 'lucide-react';
 import { Cliente, Produto, ItemPedido, PrecoFaixa } from '../types';
 import { supabase } from '../lib/supabase';
@@ -37,10 +38,15 @@ import { ptBR } from 'date-fns/locale';
 
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from '../lib/mockData';
 
+import { useDataManager } from '../lib/dataManager';
+import { StockCountSkeleton } from '../components/ui/Skeleton';
+
 export function OrderPage() {
   const { clienteId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { produtos: allProducts, clientCache, loadClientDetails } = useDataManager();
+  
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [itens, setItens] = useState<Partial<ItemPedido>[]>([]);
@@ -92,6 +98,13 @@ export function OrderPage() {
       if (!clienteId) return;
       
       try {
+        setLoading(true);
+        
+        // Ensure initial data is loaded in context
+        await loadClientDetails(clienteId);
+        
+        const cache = clientCache[clienteId || ''];
+
         // Load Cliente
         const { data: clienteData, error: cError } = await supabase
           .from('clientes')
@@ -108,47 +121,16 @@ export function OrderPage() {
           setCliente(clienteData);
         }
 
-        // Load Produtos
-        const { data: produtosData, error: pError } = await supabase
-          .from('produtos')
-          .select('*')
-          .order('produto');
-        
-        if (pError) {
-          console.error('Supabase Error (order produtos):', pError.message);
-          setProdutos(MOCK_PRODUTOS);
-        } else if (!produtosData || produtosData.length === 0) {
-          setProdutos(MOCK_PRODUTOS);
-        } else {
-          setProdutos(produtosData);
-        }
+        // Use products from context
+        const produtosData = allProducts.length > 0 ? allProducts : MOCK_PRODUTOS;
+        setProdutos(produtosData);
 
-        // Load Positivados and calculate Conquered Weight (last 28 days)
-        const { data: histDataRaw, error: hError } = await supabase
-          .from('hist_vendas')
-          .select('produto_id, produtos, qtd, faturamento, r$_total, cliente_id')
-          .eq('cliente_id', clienteId);
-        
-        // Deduplicate data to prevent tripled values from accidental multiple imports
-        const deduplicate = (data: any[] | null) => {
-          if (!data) return [];
-          const uniqueMap = new Map();
-          data.forEach(h => {
-            const key = `${h.faturamento}-${h.cliente_id}-${h.produto_id || h.produtos}-${h.qtd}-${h["r$_total"]}`;
-            if (!uniqueMap.has(key)) {
-              uniqueMap.set(key, h);
-            }
-          });
-          return Array.from(uniqueMap.values());
-        };
-
-        const histData = deduplicate(histDataRaw);
         const today = new Date();
         let totalPesoConquistado = 0;
 
-        if (!hError && histData && histData.length > 0) {
+        if (cache && cache.historico.length > 0) {
           const ids = new Set<string>();
-          histData.forEach(h => {
+          cache.historico.forEach(h => {
             // Positivados
             if (h.produto_id) ids.add(h.produto_id);
             else if (h.produtos) {
@@ -173,7 +155,7 @@ export function OrderPage() {
           setPositivadosIds(ids);
           setPesoConquistado(totalPesoConquistado);
         } else {
-          // Fallback to mock data
+          // Fallback to mock data if no history in cache and no error (could be first time)
           const mockIds = new Set();
           let mockPeso = 0;
           MOCK_HISTORICO
@@ -203,7 +185,7 @@ export function OrderPage() {
       }
     }
     loadData();
-  }, [clienteId]);
+  }, [clienteId, allProducts, loadClientDetails, clientCache?.[clienteId || '']]);
 
   const pesoTotal = useMemo(() => {
     return itens.reduce((acc, item) => acc + (item.peso_total || 0), 0);
@@ -546,19 +528,37 @@ export function OrderPage() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center">Carregando...</div>;
+  if (loading) return <StockCountSkeleton />;
 
   const currentFaixa = manualFaixa || faixaPreco;
 
   return (
     <div className="space-y-6 pb-[600px] md:pb-96">
-      <header className="flex items-center gap-4">
-        <button onClick={() => navigate(-1)} className="p-2 hover:bg-white rounded-full transition-colors">
-          <ArrowLeft size={24} />
-        </button>
-        <div>
-          <h2 className="text-xl font-bold text-neutral-900">Novo Pedido</h2>
-          <p className="text-sm text-neutral-500">{cliente?.cliente}</p>
+      <header className="flex justify-between items-center mb-6">
+        <div className="flex items-center gap-4">
+          <button onClick={() => navigate(-1)} className="p-2 hover:bg-white rounded-full transition-colors">
+            <ArrowLeft size={24} />
+          </button>
+          <div>
+            <h2 className="text-xl font-bold text-neutral-900">Novo Pedido</h2>
+            <p className="text-sm text-neutral-500">{cliente?.cliente}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => navigate(`/cliente/${clienteId}`)}
+            className="flex items-center gap-2 px-4 py-2 bg-white text-neutral-700 rounded-xl font-bold text-sm border border-neutral-200 shadow-sm hover:bg-neutral-50 transition-all active:scale-95"
+          >
+            <Home size={18} className="text-orange-600" />
+            <span>Home</span>
+          </button>
+          <button 
+            onClick={() => navigate(`/estoque/${clienteId}`)}
+            className="flex items-center gap-2 px-4 py-2 bg-white text-neutral-700 rounded-xl font-bold text-sm border border-neutral-200 shadow-sm hover:bg-neutral-50 transition-all active:scale-95"
+          >
+            <Package size={18} className="text-orange-600" />
+            <span>Contagem</span>
+          </button>
         </div>
       </header>
 
