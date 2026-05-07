@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Fundo Verde Escuro -->
+  <rect width="512" height="512" rx="112" fill="#0f2b1d"/>
+  
+  <!-- Sombra Suave (opcional para profundidade) -->
+  <path d="M256 110 L80 260 L80 440 L432 440 L432 260 Z" fill="rgba(0,0,0,0.1)" transform="translate(4,4)"/>
+  
+  <!-- Casinha de Cachorro (Creme) -->
+  <path d="M256 100 L60 260 V440 H452 V260 L256 100Z" fill="#f5e6d3"/>
+  
+  <!-- Entrada da Casinha (Arco) -->
+  <path d="M256 200 C180 200 160 300 160 440 H352 C352 300 332 200 256 200Z" fill="#0f2b1d"/>
+  
+  <!-- Cachorro (Simplificado e Amigável) -->
+  <!-- Rosto -->
+  <circle cx="256" cy="350" r="70" fill="#f5e6d3"/>
+  <!-- Orelhas -->
+  <path d="M186 320 Q160 280 160 360 Q160 400 190 380 Z" fill="#f5e6d3"/>
+  <path d="M326 320 Q352 280 352 360 Q352 400 322 380 Z" fill="#f5e6d3"/>
+  
+  <!-- Olhos de Cifrão ($) -->
+  <text x="228" y="365" font-family="Arial, sans-serif" font-size="48" font-weight="900" fill="#0f2b1d" text-anchor="middle">$</text>
+  <text x="284" y="365" font-family="Arial, sans-serif" font-size="48" font-weight="900" fill="#0f2b1d" text-anchor="middle">$</text>
+  
+  <!-- Focinho -->
+  <path d="M256 375 Q256 395 240 395 Q256 395 272 395 Q256 395 256 375Z" fill="#0f2b1d"/>
+  <circle cx="256" cy="385" r="12" fill="#0f2b1d"/>
+  
+  <!-- Sorriso -->
+  <path d="M236 405 Q256 415 276 405" fill="none" stroke="#0f2b1d" stroke-width="4" stroke-linecap="round"/>
+  
+  <!-- Patinhas -->
+  <circle cx="190" cy="450" r="25" fill="#f5e6d3"/>
+  <circle cx="322" cy="450" r="25" fill="#f5e6d3"/>
+</svg>
