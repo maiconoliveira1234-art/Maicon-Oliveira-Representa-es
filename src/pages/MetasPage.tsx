@@ -323,7 +323,7 @@ export function MetasPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-100px)] space-y-6 pb-4">
+    <div className="flex flex-col h-[calc(100vh-100px)] space-y-3 pb-4">
       <header className="flex items-center gap-4">
         <button onClick={() => navigate(-1)} className="p-2 hover:bg-neutral-100 rounded-full transition-colors">
           <ArrowLeft size={24} />
@@ -335,23 +335,23 @@ export function MetasPage() {
       </header>
 
       {/* Spreadsheet Style Summary Header */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-0 border border-neutral-300 rounded-xl overflow-hidden shadow-md bg-neutral-800 text-white">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-0 border border-neutral-300 rounded-xl overflow-hidden shadow-sm bg-neutral-800 text-white">
         {/* Group 1: Esperado & Atual */}
-        <div className="p-3 border-r border-b lg:border-b-0 border-neutral-600 flex flex-col justify-center gap-2 bg-neutral-700/50">
-          <div className="grid grid-cols-2 gap-3 px-1">
-            <div className="flex flex-col gap-1">
-              <p className="text-[9px] font-bold uppercase opacity-60">Esperado</p>
-              <p className="text-lg font-black text-blue-400 leading-none">{stats.esperadoPercent.toFixed(2)}%</p>
-              <div className="w-full h-1.5 bg-neutral-600 rounded-full overflow-hidden mt-1">
+        <div className="p-1.5 border-r border-b lg:border-b-0 border-neutral-600 flex flex-col justify-center gap-1 bg-neutral-700/50">
+          <div className="grid grid-cols-2 gap-2 px-1">
+            <div className="flex flex-col gap-0.5">
+              <p className="text-[8px] font-bold uppercase opacity-60">Esperado</p>
+              <p className="text-sm font-black text-blue-400 leading-none">{stats.esperadoPercent.toFixed(2)}%</p>
+              <div className="w-full h-1 bg-neutral-600 rounded-full overflow-hidden mt-1">
                 <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${Math.min(100, stats.esperadoPercent)}%` }} />
               </div>
             </div>
-            <div className="flex flex-col gap-1">
-              <p className="text-[9px] font-bold uppercase opacity-60">Atual</p>
-              <p className={cn("text-lg font-black leading-none", stats.percentualAtual >= stats.esperadoPercent ? "text-green-400" : "text-orange-400")}>
+            <div className="flex flex-col gap-0.5">
+              <p className="text-[8px] font-bold uppercase opacity-60">Atual</p>
+              <p className={cn("text-sm font-black leading-none", stats.percentualAtual >= stats.esperadoPercent ? "text-green-400" : "text-orange-400")}>
                 {stats.percentualAtual.toFixed(2)}%
               </p>
-              <div className="w-full h-1.5 bg-neutral-600 rounded-full overflow-hidden mt-1">
+              <div className="w-full h-1 bg-neutral-600 rounded-full overflow-hidden mt-1">
                 <div className={cn("h-full transition-all duration-500", stats.percentualAtual >= stats.esperadoPercent ? "bg-green-500" : "bg-orange-500")} style={{ width: `${Math.min(100, stats.percentualAtual)}%` }} />
               </div>
             </div>
@@ -359,56 +359,56 @@ export function MetasPage() {
         </div>
 
         {/* Group 2: Início & Prazo Final */}
-        <div className="p-3 border-r border-b lg:border-b-0 border-neutral-600 flex flex-col justify-center gap-2">
+        <div className="p-1.5 border-r border-b lg:border-b-0 border-neutral-600 flex flex-col justify-center gap-1">
           <div className="flex justify-between items-center px-2">
             <div className="text-center flex-1">
-              <p className="text-[9px] font-bold uppercase opacity-60 mb-1">Início</p>
+              <p className="text-[8px] font-bold uppercase opacity-60 mb-0.5">Início</p>
               <input 
                 type="date" 
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="bg-transparent text-white text-sm font-black outline-none cursor-pointer hover:text-orange-400 transition-colors text-center w-full"
+                className="bg-transparent text-white text-[11px] font-black outline-none cursor-pointer hover:text-orange-400 transition-colors text-center w-full"
               />
             </div>
-            <div className="h-8 w-[1px] bg-neutral-600 mx-2" />
+            <div className="h-6 w-[1px] bg-neutral-600 mx-1" />
             <div className="text-center flex-1">
-              <p className="text-[9px] font-bold uppercase opacity-60 mb-1">Prazo Final</p>
+              <p className="text-[8px] font-bold uppercase opacity-60 mb-0.5">Prazo Final</p>
               <input 
                 type="date" 
                 value={deadlineDate}
                 onChange={(e) => setDeadlineDate(e.target.value)}
-                className="bg-transparent text-white text-sm font-black outline-none cursor-pointer hover:text-orange-400 transition-colors text-center w-full"
+                className="bg-transparent text-white text-[11px] font-black outline-none cursor-pointer hover:text-orange-400 transition-colors text-center w-full"
               />
             </div>
           </div>
         </div>
 
         {/* Group 3: Projetado Hoje & Vendas */}
-        <div className="p-3 border-r border-b lg:border-b-0 border-neutral-600 flex flex-col justify-center gap-2 bg-neutral-700/50">
+        <div className="p-1.5 border-r border-neutral-600 flex flex-col justify-center gap-1 bg-neutral-700/50">
           <div className="flex justify-between items-center px-2">
             <div className="text-center">
-              <p className="text-[9px] font-bold uppercase opacity-60 mb-1">Projetado Hoje</p>
-              <p className="text-lg font-black text-neutral-300 leading-none">{formatWeight(stats.projetadoHoje)}</p>
+              <p className="text-[8px] font-bold uppercase opacity-60 mb-0.5">Projetado Hoje</p>
+              <p className="text-sm font-black text-neutral-300 leading-none">{formatWeight(stats.projetadoHoje)}</p>
             </div>
-            <div className="h-8 w-[1px] bg-neutral-600 mx-2" />
+            <div className="h-6 w-[1px] bg-neutral-600 mx-2" />
             <div className="text-center">
-              <p className="text-[9px] font-bold uppercase opacity-60 mb-1">Vendas</p>
-              <p className="text-lg font-black text-white leading-none">{formatWeight(stats.realizadoTotal)}</p>
+              <p className="text-[8px] font-bold uppercase opacity-60 mb-0.5">Vendas</p>
+              <p className="text-sm font-black text-white leading-none">{formatWeight(stats.realizadoTotal)}</p>
             </div>
           </div>
         </div>
 
         {/* Group 4: Meta & GAP */}
-        <div className="p-3 border-neutral-600 flex flex-col justify-center gap-2">
+        <div className="p-1.5 border-neutral-600 flex flex-col justify-center gap-1">
           <div className="flex justify-between items-center px-2">
             <div className="text-center">
-              <p className="text-[9px] font-bold uppercase opacity-60 mb-1">Meta Total</p>
-              <p className="text-lg font-black text-white leading-none">{formatWeight(stats.metaTotal)}</p>
+              <p className="text-[8px] font-bold uppercase opacity-60 mb-0.5">Meta Total</p>
+              <p className="text-sm font-black text-white leading-none">{formatWeight(stats.metaTotal)}</p>
             </div>
-            <div className="h-8 w-[1px] bg-neutral-600 mx-2" />
+            <div className="h-6 w-[1px] bg-neutral-600 mx-2" />
             <div className="text-center">
-              <p className="text-[9px] font-bold uppercase opacity-60 mb-1">GAP</p>
-              <p className={cn("text-lg font-black leading-none", stats.gapTotal >= 0 ? "text-green-400" : "text-red-400")}>
+              <p className="text-[8px] font-bold uppercase opacity-60 mb-0.5">GAP</p>
+              <p className={cn("text-sm font-black leading-none", stats.gapTotal >= 0 ? "text-green-400" : "text-red-400")}>
                 {formatWeight(stats.gapTotal)}
               </p>
             </div>
@@ -417,14 +417,14 @@ export function MetasPage() {
       </div>
 
       {/* Search and Filters */}
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+      <div className="flex flex-col md:flex-row gap-2 items-center justify-between">
         <div className="flex items-center gap-2 w-full md:w-auto">
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={16} />
             <input
               type="text"
               placeholder="Buscar cliente ou cidade..."
-              className="w-full pl-10 pr-10 py-2 bg-white border border-neutral-200 rounded-xl shadow-sm focus:ring-2 focus:ring-orange-500 outline-none"
+              className="w-full pl-9 pr-9 py-1.5 bg-white border border-neutral-200 rounded-lg shadow-sm focus:ring-2 focus:ring-orange-500 outline-none text-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
