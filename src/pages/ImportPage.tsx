@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Cliente, Produto, HistVenda } from '../types';
-import { Loader2, FileUp, Save, AlertCircle, CheckCircle2, Trash2, Plus, X, Package } from 'lucide-react';
+import { Loader2, FileUp, Save, AlertCircle, CheckCircle2, Trash2, Plus, X, Package, Search, ChevronDown } from 'lucide-react';
 import { cn, deduplicateSales } from '../lib/utils';
 import { format } from 'date-fns';
 
@@ -67,6 +67,8 @@ export function ImportPage() {
 
   // Form states
   const [selectedClienteId, setSelectedClienteId] = useState('');
+  const [clientSearch, setClientSearch] = useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const [orderDate, setOrderDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [rawData, setRawData] = useState('');
@@ -267,6 +269,30 @@ export function ImportPage() {
     return clientes.filter(c => c.ativo || showInactive);
   }, [clientes, showInactive]);
 
+  const clientSearchResults = useMemo(() => {
+    const search = clientSearch.toLowerCase().trim();
+    if (!search && !isDropdownOpen) return [];
+    if (!search) return filteredClientes;
+    
+    return filteredClientes.filter(c => 
+      c.cliente.toLowerCase().includes(search) || 
+      c.id.toLowerCase().includes(search)
+    );
+  }, [filteredClientes, clientSearch, isDropdownOpen]);
+
+  const selectedCliente = useMemo(() => 
+    clientes.find(c => c.id === selectedClienteId),
+  [clientes, selectedClienteId]);
+
+  // Sync search input with selected client initially or after reset
+  useEffect(() => {
+    if (selectedCliente) {
+      setClientSearch(selectedCliente.cliente);
+    } else {
+      setClientSearch('');
+    }
+  }, [selectedCliente]);
+
   const validRowsToSave = useMemo(() => processedRows.filter(r => r.isValid), [processedRows]);
 
   const totalPesoPreview = useMemo(() => {
@@ -406,7 +432,7 @@ export function ImportPage() {
         {/* Input Section */}
         <div className="lg:col-span-1 space-y-4">
           <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm space-y-4">
-            <div>
+            <div className="relative">
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-bold text-neutral-500 uppercase">Cliente</label>
                 <button 
@@ -421,16 +447,67 @@ export function ImportPage() {
                   {showInactive ? "Ocultar Inativos" : "Inativos"}
                 </button>
               </div>
-              <select
-                value={selectedClienteId}
-                onChange={(e) => setSelectedClienteId(e.target.value)}
-                className="w-full p-2.5 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm"
-              >
-                <option value="">Selecione o Cliente</option>
-                {filteredClientes.map(c => (
-                  <option key={c.id} value={c.id}>{c.cliente} {!c.ativo && '(Inativo)'}</option>
-                ))}
-              </select>
+              
+              <div className="relative">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Buscar cliente..."
+                    value={clientSearch}
+                    onChange={(e) => {
+                      setClientSearch(e.target.value);
+                      setIsDropdownOpen(true);
+                      if (!e.target.value) setSelectedClienteId('');
+                    }}
+                    onFocus={() => setIsDropdownOpen(true)}
+                    className="w-full p-2.5 pl-10 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm font-bold"
+                  />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
+                  <button 
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                  >
+                    <ChevronDown size={18} className={cn("transition-transform", isDropdownOpen && "rotate-180")} />
+                  </button>
+                </div>
+
+                {isDropdownOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        if (selectedCliente) setClientSearch(selectedCliente.cliente);
+                      }} 
+                    />
+                    <div className="absolute left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-xl shadow-xl z-20 max-h-60 overflow-y-auto">
+                      {clientSearchResults.length > 0 ? (
+                        clientSearchResults.map(c => (
+                          <button
+                            key={c.id}
+                            onClick={() => {
+                              setSelectedClienteId(c.id);
+                              setClientSearch(c.cliente);
+                              setIsDropdownOpen(false);
+                            }}
+                            className={cn(
+                              "w-full text-left px-4 py-2.5 text-sm hover:bg-orange-50 transition-colors flex flex-col gap-0.5",
+                              selectedClienteId === c.id && "bg-orange-50 text-orange-600"
+                            )}
+                          >
+                            <span className="font-bold">{c.cliente}</span>
+                            {!c.ativo && <span className="text-[10px] text-red-500 font-bold uppercase">Inativo</span>}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-sm text-neutral-500 italic">
+                          Nenhum cliente encontrado
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             <div>
