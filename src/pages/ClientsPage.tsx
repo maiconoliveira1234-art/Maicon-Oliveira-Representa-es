@@ -23,25 +23,9 @@ export function ClientsPage() {
       return;
     }
 
-    if (!cliente.ultima_compra) return;
-
-    const lastPurchaseDate = parseISO(cliente.ultima_compra);
-    const daysSince = differenceInDays(new Date(), lastPurchaseDate);
-    
-    // Regra da última semana (se completa 28 dias dentro desta mesma semana)
-    const targetDate = addDays(lastPurchaseDate, 28);
-    const today = new Date();
-    const isLastWeek = isWithinInterval(targetDate, {
-      start: startOfWeek(today),
-      end: endOfWeek(today)
-    });
-
-    const contactName = cliente.contato || 'Parceiro';
-    let message = `Olá ${contactName}, tudo bem? Estou passando para relembrar que já fazem ${daysSince} dias desde seu último pedido. A nossa tabela de preços ainda está garantida para você caso precise fazer alguma reposição.`;
-    
-    if (isLastWeek) {
-      message += ` Gostaria de salientar que esta é a última semana para aproveitar as condições atuais.`;
-    }
+    const rawName = cliente.contato || 'Parceiro';
+    const contactName = rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
+    const message = `Olá ${contactName} tudo bem? Passando pra avisar que essa é a última semana pra fazermos a reposição com a mesma tabela do último pedido. Caso precisar, me avise que passo na loja.`;
 
     const cleanPhone = String(cliente.telefone || '').replace(/\D/g, '');
     const encodedMessage = encodeURIComponent(message);
