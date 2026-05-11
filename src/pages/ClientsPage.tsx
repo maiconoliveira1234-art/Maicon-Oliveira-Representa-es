@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Cliente } from '../types';
-import { Loader2, Search, UserCheck, UserX, ChevronRight, Calendar, Filter, X, UserPlus, CheckCircle2, ShoppingCart, Power, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Loader2, Search, UserCheck, UserX, ChevronRight, Calendar, Filter, X, UserPlus, CheckCircle2, ShoppingCart, Power, ToggleLeft, ToggleRight, Edit3 } from 'lucide-react';
 import { cn, deduplicateSales } from '../lib/utils';
 import { differenceInDays, parseISO } from 'date-fns';
 import { NewClientModal } from '../components/NewClientModal';
@@ -23,6 +23,8 @@ export function ClientsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [isManageMode, setIsManageMode] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -91,8 +93,13 @@ export function ClientsPage() {
     fetchClientes();
   }, [fetchClientes]);
 
-  const handleSuccess = () => {
+  const [successMessage, setSuccessMessage] = useState('Cliente cadastrado com sucesso!');
+
+  const handleSuccess = (isEdit?: boolean) => {
+    setSuccessMessage(isEdit ? 'Cliente atualizado com sucesso!' : 'Cliente cadastrado com sucesso!');
     refreshClientes();
+    setEditingCliente(null);
+    setIsEditMode(false);
     setShowSuccessToast(true);
     setTimeout(() => setShowSuccessToast(false), 3000);
   };
@@ -174,6 +181,21 @@ export function ClientsPage() {
             Novo
           </button>
           <button
+            onClick={() => {
+              setIsEditMode(!isEditMode);
+              setIsManageMode(false);
+            }}
+            className={cn(
+              "px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 border",
+              isEditMode 
+                ? "bg-purple-600 text-white border-purple-600 shadow-lg shadow-purple-200" 
+                : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50"
+            )}
+          >
+            <Edit3 size={18} />
+            {isEditMode ? "Concluir" : "Editar"}
+          </button>
+          <button
             onClick={() => setFilterRepurchase(!filterRepurchase)}
             className={cn(
               "px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 border",
@@ -212,6 +234,7 @@ export function ClientsPage() {
           <button
             onClick={() => {
               setIsManageMode(!isManageMode);
+              setIsEditMode(false);
               if (!isManageMode) setShowInactive(true);
             }}
             className={cn(
@@ -255,6 +278,9 @@ export function ClientsPage() {
                 onClick={() => {
                   if (isManageMode) {
                     toggleClienteAtivo(cliente.id, cliente.ativo);
+                  } else if (isEditMode) {
+                    setEditingCliente(cliente);
+                    setIsModalOpen(true);
                   } else {
                     navigate(openOrdersCount[cliente.id] ? `/pedido/novo/${cliente.id}` : `/cliente/${cliente.id}`);
                   }
@@ -262,7 +288,8 @@ export function ClientsPage() {
                 disabled={togglingId === cliente.id}
                 className={cn(
                   "w-full flex items-center justify-between p-4 hover:bg-neutral-50 transition-colors text-left group border-l-4",
-                  isManageMode ? (cliente.ativo ? "border-green-500" : "border-red-500") : "border-transparent",
+                  isManageMode ? (cliente.ativo ? "border-green-500" : "border-red-500") : 
+                  isEditMode ? "border-purple-500" : "border-transparent",
                   togglingId === cliente.id && "opacity-50 pointer-events-none"
                 )}
               >
@@ -311,6 +338,10 @@ export function ClientsPage() {
                           <ToggleLeft size={28} className="text-neutral-400" />
                         )}
                       </div>
+                    ) : isEditMode ? (
+                      <div className="flex items-center gap-2 px-2">
+                        <Edit3 size={18} className="text-purple-500" />
+                      </div>
                     ) : (
                       <>
                         {!cliente.ativo && (
@@ -335,15 +366,19 @@ export function ClientsPage() {
 
       <NewClientModal 
         isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingCliente(null);
+        }} 
         onSuccess={handleSuccess}
+        editingCliente={editingCliente}
       />
 
       {showSuccessToast && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[300] animate-in fade-in slide-in-from-bottom-4 duration-300">
           <div className="bg-green-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 font-bold">
             <CheckCircle2 size={20} />
-            Cliente cadastrado com sucesso!
+            {successMessage}
           </div>
         </div>
       )}

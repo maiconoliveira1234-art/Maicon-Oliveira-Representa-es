@@ -6,6 +6,9 @@ export type Cliente = {
   ativo: boolean;
   ultima_compra?: string;
   meta: number;
+  contato?: string;
+  telefone?: string;
+  endereco?: string;
 };
 
 export type Produto = {
