@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Cliente } from '../types';
-import { Loader2, Search, UserCheck, UserX, ChevronRight, Calendar, Filter, X, UserPlus, CheckCircle2, ShoppingCart } from 'lucide-react';
+import { Loader2, Search, UserCheck, UserX, ChevronRight, Calendar, Filter, X, UserPlus, CheckCircle2, ShoppingCart, Power, ToggleLeft, ToggleRight } from 'lucide-react';
 import { cn, deduplicateSales } from '../lib/utils';
 import { differenceInDays, parseISO } from 'date-fns';
 import { NewClientModal } from '../components/NewClientModal';
@@ -22,6 +22,8 @@ export function ClientsPage() {
   const [openOrdersCount, setOpenOrdersCount] = useState<Record<string, boolean>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [isManageMode, setIsManageMode] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const fetchClientes = useCallback(async () => {
@@ -93,6 +95,26 @@ export function ClientsPage() {
     refreshClientes();
     setShowSuccessToast(true);
     setTimeout(() => setShowSuccessToast(false), 3000);
+  };
+
+  const toggleClienteAtivo = async (id: string, currentAtivo: boolean) => {
+    try {
+      setTogglingId(id);
+      const { error } = await supabase
+        .from('clientes')
+        .update({ ativo: !currentAtivo })
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      // Update local state immediately for better UX
+      setClientes(prev => prev.map(c => c.id === id ? { ...c, ativo: !currentAtivo } : c));
+      await refreshClientes(); 
+    } catch (err) {
+      console.error('Erro ao alternar status do cliente:', err);
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   const isWithinRepurchase = (cliente: Cliente) => {
@@ -187,6 +209,21 @@ export function ClientsPage() {
             {showInactive ? <UserCheck size={18} /> : <UserX size={18} />}
             {showInactive ? "Ocultar Inativos" : "Exibir Inativos"}
           </button>
+          <button
+            onClick={() => {
+              setIsManageMode(!isManageMode);
+              if (!isManageMode) setShowInactive(true);
+            }}
+            className={cn(
+              "px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 border",
+              isManageMode 
+                ? "bg-purple-600 text-white border-purple-600 shadow-lg shadow-purple-200" 
+                : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50"
+            )}
+          >
+            <Power size={18} />
+            {isManageMode ? "Concluir" : "Ativar/Inativar"}
+          </button>
         </div>
       </header>
 
@@ -215,8 +252,19 @@ export function ClientsPage() {
             filteredClientes.map((cliente) => (
               <button
                 key={cliente.id}
-                onClick={() => navigate(openOrdersCount[cliente.id] ? `/pedido/novo/${cliente.id}` : `/cliente/${cliente.id}`)}
-                className="w-full flex items-center justify-between p-4 hover:bg-neutral-50 transition-colors text-left group"
+                onClick={() => {
+                  if (isManageMode) {
+                    toggleClienteAtivo(cliente.id, cliente.ativo);
+                  } else {
+                    navigate(openOrdersCount[cliente.id] ? `/pedido/novo/${cliente.id}` : `/cliente/${cliente.id}`);
+                  }
+                }}
+                disabled={togglingId === cliente.id}
+                className={cn(
+                  "w-full flex items-center justify-between p-4 hover:bg-neutral-50 transition-colors text-left group border-l-4",
+                  isManageMode ? (cliente.ativo ? "border-green-500" : "border-red-500") : "border-transparent",
+                  togglingId === cliente.id && "opacity-50 pointer-events-none"
+                )}
               >
                 <div className="flex items-center gap-4">
                   <div className="relative">
@@ -253,15 +301,29 @@ export function ClientsPage() {
                     </div>
                   )}
                   <div className="flex items-center gap-2">
-                  {!cliente.ativo && (
-                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 bg-neutral-100 text-neutral-500 rounded-full">
-                      Inativo
-                    </span>
-                  )}
-                  <ChevronRight size={18} className="text-neutral-300 group-hover:text-orange-500 transition-colors" />
+                    {isManageMode ? (
+                      <div className="flex items-center gap-2 px-2">
+                        {togglingId === cliente.id ? (
+                          <Loader2 size={18} className="animate-spin text-neutral-400" />
+                        ) : cliente.ativo ? (
+                          <ToggleRight size={28} className="text-green-500" />
+                        ) : (
+                          <ToggleLeft size={28} className="text-neutral-400" />
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        {!cliente.ativo && (
+                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 bg-neutral-100 text-neutral-500 rounded-full">
+                            Inat.
+                          </span>
+                        )}
+                        <ChevronRight size={18} className="text-neutral-300 group-hover:text-orange-500 transition-colors" />
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
             ))
           ) : (
             <div className="p-12 text-center text-neutral-400">
