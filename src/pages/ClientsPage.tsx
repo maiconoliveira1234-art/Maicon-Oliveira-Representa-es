@@ -2,9 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Cliente } from '../types';
-import { Loader2, Search, UserCheck, UserX, ChevronRight, Calendar, Filter, X, UserPlus, CheckCircle2, ShoppingCart, Power, ToggleLeft, ToggleRight, Edit3 } from 'lucide-react';
+import { Loader2, Search, UserCheck, UserX, ChevronRight, Calendar, Filter, X, UserPlus, CheckCircle2, ShoppingCart, Power, ToggleLeft, ToggleRight, Edit3, MessageCircle } from 'lucide-react';
 import { cn, deduplicateSales } from '../lib/utils';
-import { differenceInDays, parseISO } from 'date-fns';
+import { differenceInDays, parseISO, startOfWeek, endOfWeek, isWithinInterval, addDays } from 'date-fns';
+
 import { NewClientModal } from '../components/NewClientModal';
 
 import { useDataManager } from '../lib/dataManager';
@@ -15,6 +16,37 @@ export function ClientsPage() {
   const { clientes: cachedClientes, loadingGlobal, loadInitialData, refreshClientes } = useDataManager();
   const [clientes, setClientes] = useState<(Cliente & { ultima_compra_peso?: number })[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const sendWhatsAppMessage = (cliente: Cliente) => {
+    if (!cliente.telefone) {
+      alert('Cliente sem telefone cadastrado.');
+      return;
+    }
+
+    if (!cliente.ultima_compra) return;
+
+    const lastPurchaseDate = parseISO(cliente.ultima_compra);
+    const daysSince = differenceInDays(new Date(), lastPurchaseDate);
+    
+    // Regra da última semana (se completa 28 dias dentro desta mesma semana)
+    const targetDate = addDays(lastPurchaseDate, 28);
+    const today = new Date();
+    const isLastWeek = isWithinInterval(targetDate, {
+      start: startOfWeek(today),
+      end: endOfWeek(today)
+    });
+
+    const contactName = cliente.contato || 'Parceiro';
+    let message = `Olá ${contactName}, tudo bem? Estou passando para relembrar que já fazem ${daysSince} dias desde seu último pedido. A nossa tabela de preços ainda está garantida para você caso precise fazer alguma reposição.`;
+    
+    if (isLastWeek) {
+      message += ` Gostaria de salientar que esta é a última semana para aproveitar as condições atuais.`;
+    }
+
+    const cleanPhone = String(cliente.telefone || '').replace(/\D/g, '');
+    const encodedMessage = encodeURIComponent(message);
+    window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
+  };
   const [searchTerm, setSearchTerm] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [filterRepurchase, setFilterRepurchase] = useState(false);
@@ -313,7 +345,21 @@ export function ClientsPage() {
                     )}>
                       {cliente.cliente}
                     </h3>
-                    <p className="text-xs text-neutral-500">{cliente.cidade}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-neutral-500">{cliente.cidade}</p>
+                      {filterRepurchase && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            sendWhatsAppMessage(cliente);
+                          }}
+                          className="flex items-center gap-1.5 px-2 py-0.5 bg-green-100 text-green-700 rounded-lg text-[10px] font-black uppercase hover:bg-green-200 transition-colors"
+                        >
+                          <MessageCircle size={12} fill="currentColor" className="text-green-600" />
+                          Relembrar Recompra
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
