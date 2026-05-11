@@ -28,21 +28,16 @@ export async function runAutomaticInactivation() {
     // 3. Define the threshold (6 months ago)
     const thresholdDate = subMonths(new Date(), 6);
     
-    // 4. Identify clients to inactivate and reactivate
+    // 4. Identify clients to inactivate (Never automatically reactivate to honor manual choices)
     const idsToInactivate: string[] = [];
-    const idsToReactivate: string[] = [];
 
     allClients.forEach(client => {
       const lastPurchase = latestSalesMap[client.id];
       const hasRecentPurchase = lastPurchase && !isBefore(parseISO(lastPurchase), thresholdDate);
 
-      // Handle null/undefined carefully
-      const isActuallyAtivo = client.ativo === true;
-
-      if (isActuallyAtivo && !hasRecentPurchase) {
+      // Only automatically inactivate those who are currently active but have no recent sales
+      if (client.ativo === true && !hasRecentPurchase) {
         idsToInactivate.push(client.id);
-      } else if (!isActuallyAtivo && hasRecentPurchase) {
-        idsToReactivate.push(client.id);
       }
     });
 
@@ -56,16 +51,7 @@ export async function runAutomaticInactivation() {
       if (inactivateError) throw inactivateError;
     }
 
-    if (idsToReactivate.length > 0) {
-      console.log(`Reactivating ${idsToReactivate.length} clients...`);
-      const { error: reactivateError } = await supabase
-        .from('clientes')
-        .update({ ativo: true })
-        .in('id', idsToReactivate);
-      if (reactivateError) throw reactivateError;
-    }
-
-    if (idsToInactivate.length === 0 && idsToReactivate.length === 0) {
+    if (idsToInactivate.length === 0) {
       console.log('No changes needed for client status.');
     } else {
       console.log('Automatic status update completed successfully.');

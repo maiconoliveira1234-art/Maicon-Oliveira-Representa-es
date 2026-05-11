@@ -23,7 +23,6 @@ function AppContent() {
   const { loadInitialData } = useDataManager();
 
   useEffect(() => {
-    runAutomaticInactivation();
     loadInitialData();
   }, [loadInitialData]);
 
