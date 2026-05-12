@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Visita, VisitaStatus } from '../../types/agenda';
 import { 
   MapPin, 
@@ -21,6 +22,8 @@ interface VisitaCardProps {
 }
 
 export const VisitaCard: React.FC<VisitaCardProps> = ({ visita, onStatusChange, isToday }) => {
+  const navigate = useNavigate();
+
   const openMaps = () => {
     const fullAddress = `${visita.endereco}, ${visita.bairro}, ${visita.cidade}`;
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`, '_blank');
@@ -74,22 +77,29 @@ export const VisitaCard: React.FC<VisitaCardProps> = ({ visita, onStatusChange, 
 
       <div className="space-y-4">
         <div>
-          <h3 className="text-lg font-black text-neutral-900 group-hover:text-orange-600 transition-colors leading-tight">
-            {visita.cliente_nome}
-          </h3>
+          <button 
+            onClick={() => {
+              if (visita.cliente_id) {
+                navigate(`/cliente/${visita.cliente_id}`);
+              }
+            }}
+            disabled={!visita.cliente_id}
+            className={cn(
+              "text-left group/name block w-full outline-none",
+              visita.cliente_id ? "cursor-pointer" : "cursor-help opacity-80"
+            )}
+            title={!visita.cliente_id ? "Cliente não vinculado ao cadastro" : "Ver detalhes do cliente"}
+          >
+            <h3 className={cn(
+              "text-lg font-black text-neutral-900 leading-tight transition-colors",
+              visita.cliente_id ? "group-hover/name:text-orange-600 group-hover/name:underline decoration-orange-300 underline-offset-4" : ""
+            )}>
+              {visita.cliente_nome}
+            </h3>
+          </button>
           <p className="text-xs font-bold text-neutral-500 mt-1 flex items-center gap-1">
             {visita.contato}
           </p>
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex items-start gap-2 text-neutral-500 text-xs font-medium bg-neutral-50 p-3 rounded-2xl overflow-hidden">
-            <MapPin size={16} className="shrink-0 mt-0.5 text-neutral-400" />
-            <div className="flex-1">
-              <p className="text-neutral-900 font-bold mb-0.5 truncate">{visita.endereco}</p>
-              <p className="text-[10px] opacity-75">{visita.bairro} • {visita.cidade}</p>
-            </div>
-          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2">

@@ -3,6 +3,7 @@ export type DiaSemana = 'Segunda' | 'Terça' | 'Quarta' | 'Quinta' | 'Sexta';
 
 export interface Visita {
   id: string;
+  cliente_id?: string;
   cliente_nome: string;
   contato: string;
   telefone: string;
