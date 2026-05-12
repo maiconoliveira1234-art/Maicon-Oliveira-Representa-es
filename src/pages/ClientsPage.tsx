@@ -25,8 +25,14 @@ export function ClientsPage() {
 
     const rawName = cliente.contato || 'Parceiro';
     const contactName = rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
-    const message = `Olá ${contactName} tudo bem? Passando pra avisar que essa é a última semana pra fazermos a reposição com a mesma tabela do último pedido. Caso precisar, me avise que passo na loja.`;
+    
+    // Saudação dinâmica baseada no horário
+    const hour = new Date().getHours();
+    let greeting = 'Bom dia';
+    if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+    else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
 
+    const message = `${greeting} ${contactName}, tudo bem?`;
     const cleanPhone = String(cliente.telefone || '').replace(/\D/g, '');
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');

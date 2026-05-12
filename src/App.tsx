@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
+import { AgendaPage } from './pages/AgendaPage';
 import { ClientsPage } from './pages/ClientsPage';
 import { PriceInquiryPage } from './pages/PriceInquiryPage';
 import { ClienteDetail } from './pages/ClienteDetail';
@@ -30,13 +31,12 @@ function AppContent() {
     <BrowserRouter>
       <Layout>
         <Routes>
-          <Route path="/" element={<ClientsPage />} />
+          <Route path="/" element={<AgendaPage />} />
+          <Route path="/clientes" element={<ClientsPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/clientes" element={<Navigate to="/" replace />} />
           <Route path="/consulta-preco" element={<PriceInquiryPage />} />
           <Route path="/cliente/:id" element={<ClienteDetail />} />
           <Route path="/estoque/:clienteId" element={<StockCountPage />} />
-          <Route path="/pedido/novo" element={<Navigate to="/" replace />} />
           <Route path="/pedido/novo/:clienteId" element={<OrderPage />} />
           <Route path="/metas" element={<MetasPage />} />
           <Route path="/comissoes" element={<CommissionPage />} />

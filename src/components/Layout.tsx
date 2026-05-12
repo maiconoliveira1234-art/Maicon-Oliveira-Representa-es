@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, Search, BarChart3, Settings, FileUp, ShoppingCart, PieChart } from 'lucide-react';
+import { LayoutDashboard, Users, Search, BarChart3, Settings, FileUp, ShoppingCart, PieChart, Calendar } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -12,7 +12,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <ShoppingCart className="text-orange-600" size={28} />
         </div>
         <nav className="flex-1 px-2 space-y-4 mt-4">
-          <NavItem to="/" icon={<Users size={24} />} label="" />
+          <NavItem to="/" icon={<Calendar size={24} />} label="" />
+          <NavItem to="/clientes" icon={<Users size={24} />} label="" />
           <NavItem to="/consulta-preco" icon={<Search size={24} />} label="" />
           <NavItem to="/metas" icon={<BarChart3 size={24} />} label="" />
           <NavItem to="/comissoes" icon={<PieChart size={24} />} label="" />
@@ -30,13 +31,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Bottom Nav Mobile */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 flex justify-around items-center h-16 z-50 px-2">
-        <MobileNavItem to="/" icon={<Users size={24} />} label="Clientes" />
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 flex justify-around items-center h-16 z-50 px-2 overflow-x-auto">
+        <MobileNavItem to="/" icon={<Calendar size={24} />} label="Agenda" />
+        <MobileNavItem to="/clientes" icon={<Users size={24} />} label="Clientes" />
         <MobileNavItem to="/consulta-preco" icon={<Search size={24} />} label="Preços" />
         <MobileNavItem to="/metas" icon={<BarChart3 size={24} />} label="Metas" />
-        <MobileNavItem to="/comissoes" icon={<PieChart size={24} />} label="Comissão" />
         <MobileNavItem to="/dashboard" icon={<LayoutDashboard size={24} />} label="Dash" />
-        <MobileNavItem to="/import" icon={<FileUp size={24} />} label="Importar" />
         <MobileNavItem to="/settings" icon={<Settings size={24} />} label="Config" />
       </nav>
     </div>
