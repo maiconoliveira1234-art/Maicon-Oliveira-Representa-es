@@ -27,6 +27,18 @@ export const agendaService = {
     return data as Visita;
   },
 
+  async updateObservacoes(id: string, observacoes: string) {
+    const { data, error } = await supabase
+      .from('agenda_visitas')
+      .update({ observacoes, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as Visita;
+  },
+
   async deleteVisita(id: string) {
     const { error } = await supabase
       .from('agenda_visitas')
