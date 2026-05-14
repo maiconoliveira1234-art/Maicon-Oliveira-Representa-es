@@ -30,6 +30,7 @@ import { agendaService } from '../services/agendaService';
 import { AgendaStats } from '../components/agenda/AgendaStats';
 import { VisitaCardCompact } from '../components/agenda/VisitaCardCompact';
 import { VisitaDrawer } from '../components/agenda/VisitaDrawer';
+import { AgendaDatePicker } from '../components/agenda/AgendaDatePicker';
 import { supabase } from '../lib/supabase';
 import { HistVenda } from '../types';
 
@@ -52,6 +53,7 @@ export function AgendaPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(startOfToday());
   const [selectedVisita, setSelectedVisita] = useState<Visita | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   
   // Filters
   const [showFilters, setShowFilters] = useState(false);
@@ -271,26 +273,20 @@ export function AgendaPage() {
             <div className="flex items-center gap-2">
               <div className="relative">
                 <button 
-                  onClick={() => {
-                    const picker = document.getElementById('date-picker') as any;
-                    if (picker && typeof picker.showPicker === 'function') {
-                      picker.showPicker();
-                    }
-                  }}
-                  className="w-10 h-10 rounded-2xl flex items-center justify-center border border-neutral-200 text-neutral-400 hover:bg-neutral-100 transition-all"
+                  onClick={() => setShowDatePicker(!showDatePicker)}
+                  className={cn(
+                    "w-10 h-10 rounded-2xl flex items-center justify-center border transition-all",
+                    showDatePicker ? "bg-orange-600 text-white border-orange-600" : "text-neutral-400 border-neutral-200 hover:bg-neutral-100"
+                  )}
                 >
                   <CalendarIcon size={18} />
                 </button>
-                <input 
-                  id="date-picker"
-                  type="date"
-                  className="absolute inset-0 opacity-0 pointer-events-none"
-                  value={format(selectedDate, 'yyyy-MM-dd')}
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setSelectedDate(new Date(e.target.value + 'T12:00:00'));
-                    }
-                  }}
+                <AgendaDatePicker 
+                  isOpen={showDatePicker}
+                  onClose={() => setShowDatePicker(false)}
+                  selectedDate={selectedDate}
+                  onSelect={setSelectedDate}
+                  visitas={visitas}
                 />
               </div>
               <button 
