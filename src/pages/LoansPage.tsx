@@ -33,6 +33,11 @@ export function LoansPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   
+  // Refs for focusing
+  const origemInputRef = React.useRef<HTMLInputElement>(null);
+  const destinoInputRef = React.useRef<HTMLInputElement>(null);
+  const produtoInputRef = React.useRef<HTMLInputElement>(null);
+  
   // Modal Active Field States
   const [activeField, setActiveField] = useState<'origem' | 'destino' | 'produto' | null>(null);
   const [searchOrigem, setSearchOrigem] = useState('');
@@ -75,7 +80,7 @@ export function LoansPage() {
     return clients
       .filter(c => {
         const matchesSearch = c.cliente.toLowerCase().includes(searchOrigem.toLowerCase());
-        const matchesStatus = showInactive || c.status === 'ativo';
+        const matchesStatus = showInactive || c.ativo;
         return matchesSearch && matchesStatus;
       })
       .slice(0, 10);
@@ -85,7 +90,7 @@ export function LoansPage() {
     return clients
       .filter(c => {
         const matchesSearch = c.cliente.toLowerCase().includes(searchDestino.toLowerCase());
-        const matchesStatus = showInactive || c.status === 'ativo';
+        const matchesStatus = showInactive || c.ativo;
         return matchesSearch && matchesStatus;
       })
       .slice(0, 10);
@@ -337,70 +342,81 @@ export function LoansPage() {
       </header>
 
       {/* Filters Bar */}
-      <div className="bg-white p-4 rounded-3xl border border-neutral-200 shadow-sm space-y-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
+      <div className="bg-white p-3 md:p-4 rounded-[2rem] border border-neutral-100 shadow-sm">
+        <div className="flex flex-col md:flex-row gap-4 items-center">
+          <div className="flex-1 w-full relative group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-orange-500 transition-colors" size={20} />
             <input 
               type="text" 
-              placeholder="Buscar por cliente ou produto..."
+              placeholder="Pesquisar por cliente, mercadoria ou data..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl text-sm font-bold text-neutral-900 placeholder:text-neutral-400 focus:border-orange-500 outline-none transition-all"
+              className="w-full pl-12 pr-4 py-4 bg-neutral-50 border border-neutral-100 rounded-2xl text-sm font-bold text-neutral-900 placeholder:text-neutral-400 focus:bg-white focus:border-orange-500 focus:shadow-sm focus:ring-4 focus:ring-orange-500/5 outline-none transition-all"
             />
           </div>
           
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 cursor-pointer group">
+          <div className="flex items-center gap-6 px-2">
+            <label className="flex items-center gap-3 cursor-pointer group">
               <div 
                 onClick={() => setShowPaid(!showPaid)}
                 className={cn(
-                  "w-12 h-6 rounded-full transition-all relative",
+                  "w-11 h-6 rounded-full transition-all relative ring-4 ring-transparent group-hover:ring-neutral-50",
                   showPaid ? "bg-orange-600" : "bg-neutral-200"
                 )}
               >
                 <div className={cn(
                   "absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm",
-                  showPaid ? "left-7" : "left-1"
+                  showPaid ? "left-6" : "left-1"
                 )} />
               </div>
-              <span className="text-xs font-black text-neutral-500 uppercase tracking-widest group-hover:text-neutral-900">Mostrar Pagos</span>
+              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest group-hover:text-neutral-900 transition-colors">Exibir Finalizados</span>
             </label>
           </div>
         </div>
       </div>
 
       {/* Loans Table */}
-      <div className="bg-white rounded-3xl border border-neutral-200 shadow-sm overflow-hidden overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-neutral-50 border-b border-neutral-100">
-              <th 
-                onClick={() => toggleSort('data_emprestimo')}
-                className="p-4 text-[10px] font-black text-neutral-400 uppercase tracking-widest cursor-pointer hover:text-orange-600 transition-colors"
-              >
-                <div className="flex items-center gap-1">
-                  Data
-                  {sortField === 'data_emprestimo' && (sortOrder === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
-                </div>
-              </th>
-              <th className="p-4 text-[10px] font-black text-neutral-400 uppercase tracking-widest">Origem</th>
-              <th className="p-4 text-[10px] font-black text-neutral-400 uppercase tracking-widest">Destino</th>
-              <th className="p-4 text-[10px] font-black text-neutral-400 uppercase tracking-widest">Mercadoria</th>
-              <th 
-                onClick={() => toggleSort('quantidade')}
-                className="p-4 text-[10px] font-black text-neutral-400 uppercase tracking-widest cursor-pointer hover:text-orange-600 transition-colors"
-              >
-                <div className="flex items-center gap-1">
-                  Qtd
-                  {sortField === 'quantidade' && (sortOrder === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />)}
-                </div>
-              </th>
-              <th className="p-4 text-[10px] font-black text-neutral-400 uppercase tracking-widest">Status</th>
-              <th className="p-4 text-right"></th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="bg-white rounded-[2rem] border border-neutral-100 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-neutral-50/50 border-b border-neutral-100">
+                <th 
+                  onClick={() => toggleSort('data_emprestimo')}
+                  className="p-5 text-[10px] font-black text-neutral-400 uppercase tracking-widest cursor-pointer hover:text-orange-600 transition-colors group"
+                >
+                  <div className="flex items-center gap-2">
+                    Data
+                    <div className={cn(
+                      "transition-all",
+                      sortField === 'data_emprestimo' ? "text-orange-600" : "opacity-0 group-hover:opacity-100"
+                    )}>
+                      {sortField === 'data_emprestimo' && sortOrder === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </div>
+                  </div>
+                </th>
+                <th className="p-5 text-[10px] font-black text-neutral-400 uppercase tracking-widest">Origem</th>
+                <th className="p-5 text-[10px] font-black text-neutral-400 uppercase tracking-widest">Destino</th>
+                <th className="p-5 text-[10px] font-black text-neutral-400 uppercase tracking-widest">Mercadoria</th>
+                <th 
+                  onClick={() => toggleSort('quantidade')}
+                  className="p-5 text-[10px] font-black text-neutral-400 uppercase tracking-widest cursor-pointer hover:text-orange-600 transition-colors group"
+                >
+                  <div className="flex items-center gap-2">
+                    Qtd
+                    <div className={cn(
+                      "transition-all",
+                      sortField === 'quantidade' ? "text-orange-600" : "opacity-0 group-hover:opacity-100"
+                    )}>
+                      {sortField === 'quantidade' && sortOrder === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </div>
+                  </div>
+                </th>
+                <th className="p-5 text-[10px] font-black text-neutral-400 uppercase tracking-widest">Status</th>
+                <th className="p-5 text-right"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-50">
             <AnimatePresence mode="popLayout">
               {loading ? (
                 <tr>
@@ -492,21 +508,25 @@ export function LoansPage() {
           </tbody>
         </table>
       </div>
+    </div>
 
       {/* Add Modal */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden"
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden"
             >
-              <div className="p-6 border-b border-neutral-100 flex justify-between items-center bg-neutral-50/50">
+              <div className="p-8 border-b border-neutral-100 flex justify-between items-center bg-neutral-50/30">
                 <div>
-                  <h3 className="text-xl font-black text-neutral-900">Novo Empréstimo</h3>
-                  <p className="text-[10px] font-black text-neutral-400 uppercase tracking-widest mt-1">Lançamento de movimentação</p>
+                  <h3 className="text-2xl font-black text-neutral-900 leading-none">Novo Empréstimo</h3>
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Registro de movimentação</p>
+                  </div>
                 </div>
                 <button 
                   onClick={() => {
@@ -516,81 +536,92 @@ export function LoansPage() {
                     setSearchProduto('');
                     setSelectedFamilia('');
                   }} 
-                  className="p-2 hover:bg-neutral-200 rounded-full transition-colors transition-all"
+                  className="p-3 hover:bg-neutral-100 rounded-2xl transition-all text-neutral-400 hover:text-neutral-900"
                 >
-                  <X size={24} className="text-neutral-400" />
+                  <X size={20} />
                 </button>
               </div>
 
-                <div className="px-8 flex items-center gap-2">
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <input 
-                      type="checkbox" 
-                      className="hidden"
-                      checked={showInactive}
-                      onChange={() => setShowInactive(!showInactive)}
-                    />
-                    <div className={cn(
-                      "w-4 h-4 rounded border flex items-center justify-center transition-all",
-                      showInactive ? "bg-orange-600 border-orange-600" : "bg-neutral-50 border-neutral-300"
-                    )}>
-                      {showInactive && <CheckCircle2 size={10} className="text-white" />}
-                    </div>
-                    <span className="text-[10px] font-black text-neutral-400 uppercase tracking-widest group-hover:text-orange-600 transition-colors">Exibir Inativos</span>
-                  </label>
-                </div>
+              <div className="p-8 space-y-8 max-h-[80vh] overflow-y-auto custom-scrollbar">
+                {/* Section: Participants */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[11px] font-black text-neutral-900 uppercase tracking-[0.2em] flex items-center gap-2">
+                      <span className="w-6 h-px bg-neutral-200" />
+                      Participantes
+                    </h4>
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <input 
+                        type="checkbox" 
+                        className="hidden"
+                        checked={showInactive}
+                        onChange={() => setShowInactive(!showInactive)}
+                      />
+                      <div className={cn(
+                        "w-4 h-4 rounded border flex items-center justify-center transition-all",
+                        showInactive ? "bg-orange-600 border-orange-600" : "bg-neutral-50 border-neutral-300"
+                      )}>
+                        {showInactive && <Plus size={10} className="text-white" />}
+                      </div>
+                      <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest group-hover:text-orange-600 transition-colors">Exibir Inativos</span>
+                    </label>
+                  </div>
 
-                <div className="p-8 space-y-6 pt-2">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Origin Client */}
                     <div className="space-y-2 relative">
-                      <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest ml-1">Quem Emprestou?</label>
-                      <button 
-                        onClick={() => {
-                          setActiveField(activeField === 'origem' ? null : 'origem');
-                          setFocusedIndex(-1);
-                        }}
-                        className={cn(
-                          "w-full flex items-center justify-between px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl text-left transition-all",
-                          activeField === 'origem' ? "border-orange-500 ring-4 ring-orange-500/10" : "hover:border-neutral-300"
-                        )}
-                      >
-                        <span className={cn("text-sm font-bold truncate", !selectedOrigemName && "text-neutral-400")}>
-                          {selectedOrigemName || "Selecionar cliente..."}
-                        </span>
-                        <ChevronDown size={16} className={cn("text-neutral-400 transition-transform", activeField === 'origem' && "rotate-180")} />
-                      </button>
+                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest ml-1">Quem Emprestou?</label>
+                      <div className={cn(
+                        "w-full flex items-center bg-neutral-50 border border-neutral-100 rounded-2xl transition-all focus-within:bg-white focus-within:shadow-sm",
+                        activeField === 'origem' ? "border-orange-500 ring-4 ring-orange-100" : "hover:border-neutral-200"
+                      )}>
+                        <input 
+                          ref={origemInputRef}
+                          type="text"
+                          placeholder="Buscar cliente..."
+                          value={activeField === 'origem' ? searchOrigem : selectedOrigemName}
+                          onChange={(e) => {
+                            setSearchOrigem(e.target.value);
+                            if (activeField !== 'origem') setActiveField('origem');
+                            setFocusedIndex(-1);
+                          }}
+                          onFocus={() => {
+                            setActiveField('origem');
+                            setFocusedIndex(-1);
+                          }}
+                          onKeyDown={(e) => handleKeyDown(e, 'origem', filteredOrigemClients)}
+                          className="flex-1 px-4 py-3 bg-transparent text-sm font-bold text-neutral-900 outline-none placeholder:text-neutral-400"
+                        />
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            const newActive = activeField === 'origem' ? null : 'origem';
+                            setActiveField(newActive);
+                            setFocusedIndex(-1);
+                            if (newActive) {
+                              setTimeout(() => origemInputRef.current?.focus(), 0);
+                            }
+                          }}
+                          className="px-3 py-3 text-neutral-400 hover:text-orange-600 transition-colors"
+                        >
+                          <ChevronDown size={16} className={cn("transition-transform", activeField === 'origem' && "rotate-180")} />
+                        </button>
+                      </div>
 
                       <AnimatePresence>
                         {activeField === 'origem' && (
                           <motion.div 
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 10 }}
-                            className="absolute z-20 top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-xl overflow-hidden"
+                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                            className="absolute z-[60] top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl overflow-hidden"
                           >
-                            <div className="p-2 border-b border-neutral-50">
-                              <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={14} />
-                                <input 
-                                  autoFocus
-                                  type="text"
-                                  placeholder="Buscar cliente..."
-                                  value={searchOrigem}
-                                  onChange={(e) => {
-                                    setSearchOrigem(e.target.value);
-                                    setFocusedIndex(-1);
-                                  }}
-                                  onKeyDown={(e) => handleKeyDown(e, 'origem', filteredOrigemClients)}
-                                  className="w-full bg-neutral-50 border-none rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-neutral-900 outline-none"
-                                />
-                              </div>
-                            </div>
-                            <div className="max-h-48 overflow-y-auto p-1">
+                            <div className="max-h-48 overflow-y-auto p-1.5" onMouseDown={(e) => e.preventDefault()}>
                               {filteredOrigemClients.length === 0 ? (
-                                <div className="p-3 text-center text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Nenhum cliente</div>
+                                <div className="p-4 text-center text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Nenhum resultado</div>
                               ) : filteredOrigemClients.map((c, idx) => (
                                 <button
+                                  type="button"
                                   key={c.id}
                                   onMouseEnter={() => setFocusedIndex(idx)}
                                   onClick={() => {
@@ -600,15 +631,15 @@ export function LoansPage() {
                                     setFocusedIndex(-1);
                                   }}
                                   className={cn(
-                                    "w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between",
+                                    "w-full text-left px-3 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-between",
                                     focusedIndex === idx 
-                                      ? "bg-orange-50 text-orange-600" 
+                                      ? "bg-orange-50 text-orange-600 shadow-sm" 
                                       : "text-neutral-600 hover:bg-neutral-50"
                                   )}
                                 >
                                   <span>{c.cliente}</span>
-                                  {c.status === 'inativo' && (
-                                    <span className="text-[8px] bg-neutral-100 px-1.5 py-0.5 rounded text-neutral-400">INATIVO</span>
+                                  {!c.ativo && (
+                                    <span className="text-[8px] bg-rose-50 px-2 py-0.5 rounded-full text-rose-500 font-black">INATIVO</span>
                                   )}
                                 </button>
                               ))}
@@ -620,53 +651,58 @@ export function LoansPage() {
 
                     {/* Destination Client */}
                     <div className="space-y-2 relative">
-                      <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest ml-1">Quem Recebeu?</label>
-                      <button 
-                        onClick={() => {
-                          setActiveField(activeField === 'destino' ? null : 'destino');
-                          setFocusedIndex(-1);
-                        }}
-                        className={cn(
-                          "w-full flex items-center justify-between px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl text-left transition-all",
-                          activeField === 'destino' ? "border-orange-500 ring-4 ring-orange-500/10" : "hover:border-neutral-300"
-                        )}
-                      >
-                        <span className={cn("text-sm font-bold truncate", !selectedDestinoName && "text-neutral-400")}>
-                          {selectedDestinoName || "Selecionar cliente..."}
-                        </span>
-                        <ChevronDown size={16} className={cn("text-neutral-400 transition-transform", activeField === 'destino' && "rotate-180")} />
-                      </button>
+                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest ml-1">Quem Recebeu?</label>
+                      <div className={cn(
+                        "w-full flex items-center bg-neutral-50 border border-neutral-100 rounded-2xl transition-all focus-within:bg-white focus-within:shadow-sm",
+                        activeField === 'destino' ? "border-orange-500 ring-4 ring-orange-100" : "hover:border-neutral-200"
+                      )}>
+                        <input 
+                          ref={destinoInputRef}
+                          type="text"
+                          placeholder="Buscar cliente..."
+                          value={activeField === 'destino' ? searchDestino : selectedDestinoName}
+                          onChange={(e) => {
+                            setSearchDestino(e.target.value);
+                            if (activeField !== 'destino') setActiveField('destino');
+                            setFocusedIndex(-1);
+                          }}
+                          onFocus={() => {
+                            setActiveField('destino');
+                            setFocusedIndex(-1);
+                          }}
+                          onKeyDown={(e) => handleKeyDown(e, 'destino', filteredDestinoClients)}
+                          className="flex-1 px-4 py-3 bg-transparent text-sm font-bold text-neutral-900 outline-none placeholder:text-neutral-400"
+                        />
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            const newActive = activeField === 'destino' ? null : 'destino';
+                            setActiveField(newActive);
+                            setFocusedIndex(-1);
+                            if (newActive) {
+                              setTimeout(() => destinoInputRef.current?.focus(), 0);
+                            }
+                          }}
+                          className="px-3 py-3 text-neutral-400 hover:text-orange-600 transition-colors"
+                        >
+                          <ChevronDown size={16} className={cn("transition-transform", activeField === 'destino' && "rotate-180")} />
+                        </button>
+                      </div>
 
                       <AnimatePresence>
                         {activeField === 'destino' && (
                           <motion.div 
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 10 }}
-                            className="absolute z-20 top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-xl overflow-hidden"
+                            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                            className="absolute z-[60] top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl overflow-hidden"
                           >
-                            <div className="p-2 border-b border-neutral-50">
-                              <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={14} />
-                                <input 
-                                  autoFocus
-                                  type="text"
-                                  placeholder="Buscar cliente..."
-                                  value={searchDestino}
-                                  onChange={(e) => {
-                                    setSearchDestino(e.target.value);
-                                    setFocusedIndex(-1);
-                                  }}
-                                  onKeyDown={(e) => handleKeyDown(e, 'destino', filteredDestinoClients)}
-                                  className="w-full bg-neutral-50 border-none rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-neutral-900 outline-none"
-                                />
-                              </div>
-                            </div>
-                            <div className="max-h-48 overflow-y-auto p-1">
+                            <div className="max-h-48 overflow-y-auto p-1.5" onMouseDown={(e) => e.preventDefault()}>
                               {filteredDestinoClients.length === 0 ? (
-                                <div className="p-3 text-center text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Nenhum cliente</div>
+                                <div className="p-4 text-center text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Nenhum resultado</div>
                               ) : filteredDestinoClients.map((c, idx) => (
                                 <button
+                                  type="button"
                                   key={c.id}
                                   onMouseEnter={() => setFocusedIndex(idx)}
                                   onClick={() => {
@@ -676,15 +712,15 @@ export function LoansPage() {
                                     setFocusedIndex(-1);
                                   }}
                                   className={cn(
-                                    "w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between",
+                                    "w-full text-left px-3 py-3 rounded-xl text-xs font-bold transition-all flex items-center justify-between",
                                     focusedIndex === idx 
-                                      ? "bg-orange-50 text-orange-600" 
+                                      ? "bg-orange-50 text-orange-600 shadow-sm" 
                                       : "text-neutral-600 hover:bg-neutral-50"
                                   )}
                                 >
                                   <span>{c.cliente}</span>
-                                  {c.status === 'inativo' && (
-                                    <span className="text-[8px] bg-neutral-100 px-1.5 py-0.5 rounded text-neutral-400">INATIVO</span>
+                                  {!c.ativo && (
+                                    <span className="text-[8px] bg-rose-50 px-2 py-0.5 rounded-full text-rose-500 font-black">INATIVO</span>
                                   )}
                                 </button>
                               ))}
@@ -694,138 +730,163 @@ export function LoansPage() {
                       </AnimatePresence>
                     </div>
                   </div>
+                </div>
 
-                {/* Product Selection */}
-                <div className="space-y-4 pt-2">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest ml-1">Família (Filtro)</label>
-                      <select 
-                        value={selectedFamilia}
-                        onChange={(e) => setSelectedFamilia(e.target.value)}
-                        className="w-full bg-neutral-50 border border-neutral-200 rounded-2xl p-3 text-sm font-bold text-neutral-900 outline-none focus:border-orange-500 transition-all"
-                      >
-                        <option value="">Todas as famílias</option>
-                        {familias.map(f => <option key={f} value={f}>{f}</option>)}
-                      </select>
-                    </div>
+                {/* Section: Merchandising */}
+                <div className="space-y-4">
+                  <h4 className="text-[11px] font-black text-neutral-900 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <span className="w-6 h-px bg-neutral-200" />
+                    Mercadoria
+                  </h4>
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest ml-1">Família (Filtro)</label>
+                        <select 
+                          value={selectedFamilia}
+                          onChange={(e) => setSelectedFamilia(e.target.value)}
+                          className="w-full bg-neutral-50 border border-neutral-100 rounded-2xl px-4 py-3 text-sm font-bold text-neutral-900 outline-none focus:bg-white focus:border-orange-500 focus:shadow-sm transition-all appearance-none cursor-pointer"
+                          style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%23a3a3a3%27%3E%3Cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1em' }}
+                        >
+                          <option value="">Todas as famílias</option>
+                          {familias.map(f => <option key={f} value={f}>{f}</option>)}
+                        </select>
+                      </div>
 
-                    <div className="space-y-2 relative">
-                      <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest ml-1">Mercadoria</label>
-                      <button 
-                        onClick={() => {
-                          setActiveField(activeField === 'produto' ? null : 'produto');
-                          setFocusedIndex(-1);
-                        }}
-                        className={cn(
-                          "w-full flex items-center justify-between px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl text-left transition-all",
-                          activeField === 'produto' ? "border-orange-500 ring-4 ring-orange-500/10" : "hover:border-neutral-300"
-                        )}
-                      >
-                        <span className={cn("text-sm font-bold truncate", !selectedProductName && "text-neutral-400")}>
-                          {selectedProductName || "Selecionar produto..."}
-                        </span>
-                        <ChevronDown size={16} className={cn("text-neutral-400 transition-transform", activeField === 'produto' && "rotate-180")} />
-                      </button>
-
-                      <AnimatePresence>
-                        {activeField === 'produto' && (
-                          <motion.div 
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 10 }}
-                            className="absolute z-20 top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-xl overflow-hidden"
+                      <div className="space-y-2 relative">
+                        <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest ml-1">Produto</label>
+                        <div className={cn(
+                          "w-full flex items-center bg-neutral-50 border border-neutral-100 rounded-2xl transition-all focus-within:bg-white focus-within:shadow-sm",
+                          activeField === 'produto' ? "border-orange-500 ring-4 ring-orange-100" : "hover:border-neutral-200"
+                        )}>
+                          <input 
+                            ref={produtoInputRef}
+                            type="text"
+                            placeholder="Buscar item..."
+                            value={activeField === 'produto' ? searchProduto : selectedProductName}
+                            onChange={(e) => {
+                              setSearchProduto(e.target.value);
+                              if (activeField !== 'produto') setActiveField('produto');
+                              setFocusedIndex(-1);
+                            }}
+                            onFocus={() => {
+                              setActiveField('produto');
+                              setFocusedIndex(-1);
+                            }}
+                            onKeyDown={(e) => handleKeyDown(e, 'produto', filteredProducts)}
+                            className="flex-1 px-4 py-3 bg-transparent text-sm font-bold text-neutral-900 outline-none placeholder:text-neutral-400"
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const newActive = activeField === 'produto' ? null : 'produto';
+                              setActiveField(newActive);
+                              setFocusedIndex(-1);
+                              if (newActive) {
+                                setTimeout(() => produtoInputRef.current?.focus(), 0);
+                              }
+                            }}
+                            className="px-3 py-3 text-neutral-400 hover:text-orange-600 transition-colors"
                           >
-                            <div className="p-2 border-b border-neutral-50">
-                              <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={14} />
-                                <input 
-                                  autoFocus
-                                  type="text"
-                                  placeholder="Buscar mercadoria..."
-                                  value={searchProduto}
-                                  onChange={(e) => {
-                                    setSearchProduto(e.target.value);
-                                    setFocusedIndex(-1);
-                                  }}
-                                  onKeyDown={(e) => handleKeyDown(e, 'produto', filteredProducts)}
-                                  className="w-full bg-neutral-50 border-none rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-neutral-900 outline-none"
-                                />
+                            <ChevronDown size={16} className={cn("transition-transform", activeField === 'produto' && "rotate-180")} />
+                          </button>
+                        </div>
+
+                        <AnimatePresence>
+                          {activeField === 'produto' && (
+                            <motion.div 
+                              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                              className="absolute z-[60] top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl overflow-hidden"
+                            >
+                              <div className="max-h-48 overflow-y-auto p-1.5" onMouseDown={(e) => e.preventDefault()}>
+                                {filteredProducts.length === 0 ? (
+                                  <div className="p-4 text-center text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Sem itens</div>
+                                ) : filteredProducts.map((p, idx) => (
+                                  <button
+                                    type="button"
+                                    key={p.id}
+                                    onMouseEnter={() => setFocusedIndex(idx)}
+                                    onClick={() => {
+                                      setForm({...form, produto_id: p.id});
+                                      setActiveField(null);
+                                      setSearchProduto('');
+                                      setFocusedIndex(-1);
+                                    }}
+                                    className={cn(
+                                      "w-full text-left px-3 py-3 rounded-xl text-xs font-bold transition-all",
+                                      focusedIndex === idx 
+                                        ? "bg-orange-50 text-orange-600 shadow-sm" 
+                                        : "text-neutral-600 hover:bg-neutral-50"
+                                    )}
+                                  >
+                                    {p.produto}
+                                  </button>
+                                ))}
                               </div>
-                            </div>
-                            <div className="max-h-48 overflow-y-auto p-1">
-                              {filteredProducts.length === 0 ? (
-                                <div className="p-3 text-center text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Nenhum produto</div>
-                              ) : filteredProducts.map((p, idx) => (
-                                <button
-                                  key={p.id}
-                                  onMouseEnter={() => setFocusedIndex(idx)}
-                                  onClick={() => {
-                                    setForm({...form, produto_id: p.id});
-                                    setActiveField(null);
-                                    setSearchProduto('');
-                                    setFocusedIndex(-1);
-                                  }}
-                                  className={cn(
-                                    "w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold transition-all",
-                                    focusedIndex === idx 
-                                      ? "bg-orange-50 text-orange-600" 
-                                      : "text-neutral-600 hover:bg-neutral-50"
-                                  )}
-                                >
-                                  {p.produto}
-                                </button>
-                              ))}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6 pt-2 border-t border-dashed border-neutral-100">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest ml-1">Quantidade</label>
-                    <div className="flex items-center bg-neutral-50 border border-neutral-200 rounded-2xl p-1 h-11 transition-all focus-within:border-orange-500">
-                      <button 
-                        onClick={() => adjustQuantity(-1)}
-                        className="w-9 h-full flex items-center justify-center text-neutral-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all"
-                      >
-                        <Minus size={18} />
-                      </button>
+                {/* Section: Logistics */}
+                <div className="space-y-4">
+                  <h4 className="text-[11px] font-black text-neutral-900 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <span className="w-6 h-px bg-neutral-200" />
+                    Logística & Data
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest ml-1">Quantidade</label>
+                      <div className="flex items-center bg-neutral-50 border border-neutral-100 rounded-2xl p-1 h-[52px] transition-all focus-within:bg-white focus-within:border-orange-500 focus-within:shadow-sm">
+                        <button 
+                          type="button"
+                          onClick={() => adjustQuantity(-1)}
+                          className="w-10 h-10 flex items-center justify-center text-neutral-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all"
+                        >
+                          <Minus size={18} />
+                        </button>
+                        <input 
+                          type="number"
+                          value={form.quantidade}
+                          onChange={(e) => setForm({...form, quantidade: e.target.value})}
+                          placeholder="0"
+                          className="flex-1 bg-transparent text-center text-base font-black text-neutral-900 outline-none placeholder:text-neutral-300"
+                        />
+                        <button 
+                          type="button"
+                          onClick={() => adjustQuantity(1)}
+                          className="w-10 h-10 flex items-center justify-center text-neutral-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all"
+                        >
+                          <Plus size={18} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest ml-1">Data do Registro</label>
                       <input 
-                        type="number"
-                        value={form.quantidade}
-                        onChange={(e) => setForm({...form, quantidade: e.target.value})}
-                        placeholder="0"
-                        className="flex-1 bg-transparent text-center text-sm font-black text-neutral-900 outline-none placeholder:text-neutral-300"
+                        type="date"
+                        value={form.data_emprestimo}
+                        onChange={(e) => setForm({...form, data_emprestimo: e.target.value})}
+                        className="w-full bg-neutral-50 border border-neutral-100 rounded-2xl px-4 h-[52px] text-sm font-bold text-neutral-900 outline-none focus:bg-white focus:border-orange-500 focus:shadow-sm transition-all"
                       />
-                      <button 
-                        onClick={() => adjustQuantity(1)}
-                        className="w-9 h-full flex items-center justify-center text-neutral-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all"
-                      >
-                        <Plus size={18} />
-                      </button>
                     </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest ml-1">Data</label>
-                    <input 
-                      type="date"
-                      value={form.data_emprestimo}
-                      onChange={(e) => setForm({...form, data_emprestimo: e.target.value})}
-                      className="w-full bg-neutral-50 border border-neutral-200 rounded-2xl p-3 text-sm font-bold text-neutral-900 outline-none focus:border-orange-500 transition-all h-11"
-                    />
                   </div>
                 </div>
 
-                <button 
-                  onClick={handleAddLoan}
-                  className="w-full bg-orange-600 text-white p-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-orange-600/20 hover:bg-orange-700 transition-all active:scale-[0.98] mt-4"
-                >
-                  Registrar Empréstimo
-                </button>
+                <div className="pt-4">
+                  <button 
+                    onClick={handleAddLoan}
+                    className="w-full h-16 bg-gradient-to-r from-orange-600 to-orange-500 text-white rounded-[1.25rem] font-black text-sm uppercase tracking-[0.2em] shadow-xl shadow-orange-600/20 hover:shadow-orange-600/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                  >
+                    <Plus size={20} />
+                    Confirmar Registro
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
