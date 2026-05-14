@@ -16,10 +16,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <NavItem to="/clientes" icon={<Users size={24} />} label="" />
           <NavItem to="/consulta-preco" icon={<Search size={24} />} label="" />
           <NavItem to="/metas" icon={<BarChart3 size={24} />} label="" />
-          <NavItem to="/emprestimos" icon={<ArrowLeftRight size={24} />} label="" />
           <NavItem to="/comissoes" icon={<PieChart size={24} />} label="" />
           <NavItem to="/dashboard" icon={<LayoutDashboard size={24} />} label="" />
           <NavItem to="/import" icon={<FileUp size={24} />} label="" />
+          <NavItem to="/emprestimos" icon={<ArrowLeftRight size={24} />} label="" />
         </nav>
         <div className="p-2 border-t border-neutral-200">
           <NavItem to="/settings" icon={<Settings size={24} />} label="" />
@@ -37,8 +37,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <MobileNavItem to="/clientes" icon={<Users size={24} />} label="Clientes" />
         <MobileNavItem to="/consulta-preco" icon={<Search size={24} />} label="Preços" />
         <MobileNavItem to="/metas" icon={<BarChart3 size={24} />} label="Metas" />
-        <MobileNavItem to="/emprestimos" icon={<ArrowLeftRight size={24} />} label="Trocas" />
         <MobileNavItem to="/dashboard" icon={<LayoutDashboard size={24} />} label="Dash" />
+        <MobileNavItem to="/emprestimos" icon={<ArrowLeftRight size={24} />} label="Trocas" />
         <MobileNavItem to="/settings" icon={<Settings size={24} />} label="Config" />
       </nav>
     </div>

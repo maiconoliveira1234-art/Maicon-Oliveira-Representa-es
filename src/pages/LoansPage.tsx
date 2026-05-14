@@ -33,6 +33,7 @@ export function LoansPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loanToPay, setLoanToPay] = useState<Emprestimo | null>(null);
+  const [loanToDelete, setLoanToDelete] = useState<Emprestimo | null>(null);
   
   // Refs for focusing
   const origemInputRef = React.useRef<HTMLInputElement>(null);
@@ -104,7 +105,7 @@ export function LoansPage() {
   }, [allProducts, selectedFamilia, searchProduto]);
   
   // Sort State
-  const [sortField, setSortField] = useState<'data_emprestimo' | 'quantidade'>('data_emprestimo');
+  const [sortField, setSortField] = useState<'data_emprestimo' | 'quantidade' | 'origem' | 'destino' | 'produto' | 'status'>('data_emprestimo');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const handleKeyDown = (e: React.KeyboardEvent, field: 'origem' | 'destino' | 'produto', options: any[]) => {
@@ -191,11 +192,26 @@ export function LoansPage() {
         if (sortField === 'data_emprestimo') {
           return (new Date(a.data_emprestimo).getTime() - new Date(b.data_emprestimo).getTime()) * factor;
         }
-        return (a.quantidade - b.quantidade) * factor;
+        if (sortField === 'quantidade') {
+          return (a.quantidade - b.quantidade) * factor;
+        }
+        if (sortField === 'origem') {
+          return (a.cliente_origem_nome || '').localeCompare(b.cliente_origem_nome || '') * factor;
+        }
+        if (sortField === 'destino') {
+          return (a.cliente_destino_nome || '').localeCompare(b.cliente_destino_nome || '') * factor;
+        }
+        if (sortField === 'produto') {
+          return (a.produto_nome || '').localeCompare(b.produto_nome || '') * factor;
+        }
+        if (sortField === 'status') {
+          return (a.status || '').localeCompare(b.status || '') * factor;
+        }
+        return 0;
       });
   }, [emprestimos, showPaid, searchTerm, sortField, sortOrder]);
 
-  const toggleSort = (field: 'data_emprestimo' | 'quantidade') => {
+  const toggleSort = (field: 'data_emprestimo' | 'quantidade' | 'origem' | 'destino' | 'produto' | 'status') => {
     if (sortField === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
     } else {
@@ -277,15 +293,20 @@ export function LoansPage() {
     }
   }
 
-  async function deleteLoan(id: string) {
-    if (!confirm('Deseja excluir este registro?')) return;
+  async function deleteLoan(loan: Emprestimo) {
+    setLoanToDelete(loan);
+  }
+
+  async function confirmDeleteLoan() {
+    if (!loanToDelete) return;
     try {
       const { error } = await supabase
         .from('emprestimos')
         .delete()
-        .eq('id', id);
+        .eq('id', loanToDelete.id);
 
       if (error) throw error;
+      setLoanToDelete(null);
       fetchLoans();
     } catch (err) {
       console.error('Erro ao excluir:', err);
@@ -406,9 +427,48 @@ export function LoansPage() {
                     </div>
                   </div>
                 </th>
-                <th className="p-5 text-[10px] font-black text-neutral-400 uppercase tracking-widest">Origem</th>
-                <th className="p-5 text-[10px] font-black text-neutral-400 uppercase tracking-widest">Destino</th>
-                <th className="p-5 text-[10px] font-black text-neutral-400 uppercase tracking-widest">Mercadoria</th>
+                <th 
+                  onClick={() => toggleSort('origem')}
+                  className="p-5 text-[10px] font-black text-neutral-400 uppercase tracking-widest cursor-pointer hover:text-orange-600 transition-all group"
+                >
+                  <div className="flex items-center gap-2">
+                    Origem
+                    <div className={cn(
+                      "transition-all",
+                      sortField === 'origem' ? "text-orange-600" : "opacity-0 group-hover:opacity-100"
+                    )}>
+                      {sortField === 'origem' && sortOrder === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </div>
+                  </div>
+                </th>
+                <th 
+                  onClick={() => toggleSort('destino')}
+                  className="p-5 text-[10px] font-black text-neutral-400 uppercase tracking-widest cursor-pointer hover:text-orange-600 transition-all group"
+                >
+                  <div className="flex items-center gap-2">
+                    Destino
+                    <div className={cn(
+                      "transition-all",
+                      sortField === 'destino' ? "text-orange-600" : "opacity-0 group-hover:opacity-100"
+                    )}>
+                      {sortField === 'destino' && sortOrder === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </div>
+                  </div>
+                </th>
+                <th 
+                  onClick={() => toggleSort('produto')}
+                  className="p-5 text-[10px] font-black text-neutral-400 uppercase tracking-widest cursor-pointer hover:text-orange-600 transition-all group"
+                >
+                  <div className="flex items-center gap-2">
+                    Mercadoria
+                    <div className={cn(
+                      "transition-all",
+                      sortField === 'produto' ? "text-orange-600" : "opacity-0 group-hover:opacity-100"
+                    )}>
+                      {sortField === 'produto' && sortOrder === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </div>
+                  </div>
+                </th>
                 <th 
                   onClick={() => toggleSort('quantidade')}
                   className="p-5 text-[10px] font-black text-neutral-400 uppercase tracking-widest cursor-pointer hover:text-orange-600 transition-colors group"
@@ -423,7 +483,20 @@ export function LoansPage() {
                     </div>
                   </div>
                 </th>
-                <th className="p-5 text-[10px] font-black text-neutral-400 uppercase tracking-widest">Status</th>
+                <th 
+                  onClick={() => toggleSort('status')}
+                  className="p-5 text-[10px] font-black text-neutral-400 uppercase tracking-widest cursor-pointer hover:text-orange-600 transition-all group"
+                >
+                  <div className="flex items-center gap-2">
+                    Status
+                    <div className={cn(
+                      "transition-all",
+                      sortField === 'status' ? "text-orange-600" : "opacity-0 group-hover:opacity-100"
+                    )}>
+                      {sortField === 'status' && sortOrder === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </div>
+                  </div>
+                </th>
                 <th className="p-5 text-right"></th>
               </tr>
             </thead>
@@ -505,7 +578,7 @@ export function LoansPage() {
                       </td>
                       <td className="p-4 text-right">
                         <button 
-                          onClick={() => deleteLoan(loan.id)}
+                          onClick={() => deleteLoan(loan)}
                           className="p-2 text-neutral-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
                         >
                           <Trash2 size={16} />
@@ -951,6 +1024,45 @@ export function LoansPage() {
                     Confirmar Pago
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {loanToDelete && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 text-center border-b border-neutral-100">
+                <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center text-rose-600 mx-auto mb-6 shadow-sm border border-rose-100">
+                  <Trash2 size={40} className="stroke-[2.5]" />
+                </div>
+                <h3 className="text-2xl font-black text-neutral-900 leading-tight">Excluir Registro?</h3>
+                <p className="text-neutral-500 font-medium mt-3 px-4">
+                  Esta ação não pode ser desfeita. Deseja realmente excluir este empréstimo de <span className="font-black text-neutral-900">{loanToDelete.produto_nome}</span>?
+                </p>
+              </div>
+              
+              <div className="p-8 bg-neutral-50/50 flex gap-3">
+                <button 
+                  onClick={() => setLoanToDelete(null)}
+                  className="flex-1 h-14 bg-white border border-neutral-200 text-neutral-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-neutral-50 transition-all active:scale-[0.98]"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={confirmDeleteLoan}
+                  className="flex-1 h-14 bg-rose-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:bg-rose-700 transition-all active:scale-[0.98]"
+                >
+                  Excluir
+                </button>
               </div>
             </motion.div>
           </div>
