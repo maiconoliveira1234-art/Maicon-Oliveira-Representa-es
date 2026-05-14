@@ -16,6 +16,7 @@ import { StockCountPage } from './pages/StockCountPage';
 import { MetasPage } from './pages/MetasPage';
 import { ImportPage } from './pages/ImportPage';
 import { CommissionPage } from './pages/CommissionPage';
+import { LoansPage } from './pages/LoansPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { runAutomaticInactivation } from './lib/clientInactivation';
 import { DataManagerProvider, useDataManager } from './lib/dataManager';
@@ -40,6 +41,7 @@ function AppContent() {
           <Route path="/pedido/novo/:clienteId" element={<OrderPage />} />
           <Route path="/metas" element={<MetasPage />} />
           <Route path="/comissoes" element={<CommissionPage />} />
+          <Route path="/emprestimos" element={<LoansPage />} />
           <Route path="/import" element={<ImportPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

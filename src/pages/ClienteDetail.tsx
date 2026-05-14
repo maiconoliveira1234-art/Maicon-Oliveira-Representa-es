@@ -10,7 +10,8 @@ import {
   Calendar,
   ChevronRight,
   AlertCircle,
-  XCircle
+  XCircle,
+  ArrowLeftRight
 } from 'lucide-react';
 import { Cliente, HistVenda, EstoqueCliente } from '../types';
 import { supabase } from '../lib/supabase';
@@ -40,6 +41,7 @@ import { Produto } from '../types';
 import { SALES_CUTOFF_DATE, SALES_CUTOFF_CLIENTS } from '../constants';
 
 import { useDataManager } from '../lib/dataManager';
+import { Emprestimo } from '../types';
 
 import { StockCountSkeleton } from '../components/ui/Skeleton';
 
@@ -47,12 +49,13 @@ export function ClienteDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { produtos: allProducts, clientCache, loadClientDetails, prefetchClientData } = useDataManager();
+  const { produtos: allProducts = [], clientCache, loadClientDetails, prefetchClientData } = useDataManager();
   
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [historico, setHistorico] = useState<HistVenda[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [estoque, setEstoque] = useState<EstoqueCliente[]>([]);
+  const [emprestimos, setEmprestimos] = useState<Emprestimo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedOrderDate, setSelectedOrderDate] = useState<string | null>(null);
@@ -98,6 +101,25 @@ export function ClienteDetail() {
 
         // Use products from context
         setProdutos(allProducts.length > 0 ? allProducts : MOCK_PRODUTOS);
+
+        // Fetch Loans
+        const { data: loanData } = await supabase
+          .from('emprestimos')
+          .select(`
+            *,
+            cliente_origem:clientes!cliente_origem_id(cliente),
+            produto:produtos!produto_id(produto)
+          `)
+          .eq('cliente_destino_id', id)
+          .eq('status', 'pendente');
+        
+        if (loanData) {
+          setEmprestimos(loanData.map((l: any) => ({
+            ...l,
+            cliente_origem_nome: l.cliente_origem?.cliente || 'N/A',
+            produto_nome: l.produto?.produto || 'N/A'
+          })));
+        }
 
         if (cache) {
           setHistorico(cache.historico);
@@ -276,6 +298,63 @@ export function ClienteDetail() {
           <AlertCircle size={20} />
           <p>{error}</p>
         </div>
+      )}
+      
+      {/* Loans Warnings */}
+      {emprestimos.length > 0 && (
+        <section className="space-y-3">
+          <h3 className="text-xs font-black text-neutral-400 uppercase tracking-widest px-1">Débitos de Empréstimo</h3>
+          <div className="space-y-2">
+            {emprestimos.map((loan) => {
+              const days = differenceInDays(new Date(), parseISO(loan.data_emprestimo));
+              const isUrgent = days >= 30;
+              const isWarning = days >= 10;
+              
+              return (
+                <div 
+                  key={loan.id}
+                  className={cn(
+                    "p-4 rounded-3xl flex items-center gap-4 border transition-all",
+                    isUrgent 
+                      ? "bg-rose-50 border-rose-200 text-rose-900 shadow-sm animate-pulse" 
+                      : isWarning 
+                        ? "bg-orange-50 border-orange-200 text-orange-900 shadow-sm"
+                        : "bg-white border-neutral-200 text-neutral-900"
+                  )}
+                >
+                  <div className={cn(
+                    "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0",
+                    isUrgent ? "bg-rose-200 text-rose-600" : isWarning ? "bg-orange-200 text-orange-600" : "bg-neutral-100 text-neutral-400"
+                  )}>
+                    <ArrowLeftRight size={20} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-black truncate leading-tight">
+                      {loan.quantidade} un de {loan.produto_nome}
+                    </p>
+                    <p className={cn(
+                      "text-[10px] font-bold uppercase mt-0.5",
+                      isUrgent ? "text-rose-500" : isWarning ? "text-orange-500" : "text-neutral-400"
+                    )}>
+                      Emprestado por: {loan.cliente_origem_nome} • Há {days} dias
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <button 
+                      onClick={() => navigate('/emprestimos')}
+                      className={cn(
+                        "text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border transition-all",
+                        isUrgent ? "bg-rose-600 text-white border-rose-600" : isWarning ? "bg-orange-600 text-white border-orange-600" : "bg-neutral-900 text-white border-neutral-900"
+                      )}
+                    >
+                      Ver Detalhes
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {/* Quick Actions */}

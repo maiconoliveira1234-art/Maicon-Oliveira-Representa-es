@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, Search, BarChart3, Settings, FileUp, ShoppingCart, PieChart, Calendar } from 'lucide-react';
+import { LayoutDashboard, Users, Search, BarChart3, Settings, FileUp, ShoppingCart, PieChart, Calendar, ArrowLeftRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -16,6 +16,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <NavItem to="/clientes" icon={<Users size={24} />} label="" />
           <NavItem to="/consulta-preco" icon={<Search size={24} />} label="" />
           <NavItem to="/metas" icon={<BarChart3 size={24} />} label="" />
+          <NavItem to="/emprestimos" icon={<ArrowLeftRight size={24} />} label="" />
           <NavItem to="/comissoes" icon={<PieChart size={24} />} label="" />
           <NavItem to="/dashboard" icon={<LayoutDashboard size={24} />} label="" />
           <NavItem to="/import" icon={<FileUp size={24} />} label="" />
@@ -36,6 +37,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <MobileNavItem to="/clientes" icon={<Users size={24} />} label="Clientes" />
         <MobileNavItem to="/consulta-preco" icon={<Search size={24} />} label="Preços" />
         <MobileNavItem to="/metas" icon={<BarChart3 size={24} />} label="Metas" />
+        <MobileNavItem to="/emprestimos" icon={<ArrowLeftRight size={24} />} label="Trocas" />
         <MobileNavItem to="/dashboard" icon={<LayoutDashboard size={24} />} label="Dash" />
         <MobileNavItem to="/settings" icon={<Settings size={24} />} label="Config" />
       </nav>

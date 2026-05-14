@@ -74,3 +74,17 @@ export type ItemPedido = {
 };
 
 export type PrecoFaixa = 'livre' | '200kg' | '500kg' | '1000kg' | '2000kg' | '4000kg';
+
+export type Emprestimo = {
+  id: string;
+  data_emprestimo: string;
+  cliente_origem_id: string;
+  cliente_destino_id: string;
+  produto_id: string;
+  quantidade: number;
+  status: 'pendente' | 'pago';
+  data_devolucao?: string;
+  cliente_origem_nome?: string;
+  cliente_destino_nome?: string;
+  produto_nome?: string;
+};
