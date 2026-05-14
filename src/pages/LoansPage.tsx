@@ -23,7 +23,7 @@ import { format, parseISO, differenceInDays } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { useDataManager } from '../lib/dataManager';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 export function LoansPage() {
   const { clientes: clients = [], produtos: allProducts = [] } = useDataManager();
@@ -32,6 +32,7 @@ export function LoansPage() {
   const [showPaid, setShowPaid] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loanToPay, setLoanToPay] = useState<Emprestimo | null>(null);
   
   // Refs for focusing
   const origemInputRef = React.useRef<HTMLInputElement>(null);
@@ -82,8 +83,7 @@ export function LoansPage() {
         const matchesSearch = c.cliente.toLowerCase().includes(searchOrigem.toLowerCase());
         const matchesStatus = showInactive || c.ativo;
         return matchesSearch && matchesStatus;
-      })
-      .slice(0, 10);
+      });
   }, [clients, searchOrigem, showInactive]);
 
   const filteredDestinoClients = useMemo(() => {
@@ -92,8 +92,7 @@ export function LoansPage() {
         const matchesSearch = c.cliente.toLowerCase().includes(searchDestino.toLowerCase());
         const matchesStatus = showInactive || c.ativo;
         return matchesSearch && matchesStatus;
-      })
-      .slice(0, 10);
+      });
   }, [clients, searchDestino, showInactive]);
 
   const filteredProducts = useMemo(() => {
@@ -101,7 +100,7 @@ export function LoansPage() {
       const matchesFamilia = !selectedFamilia || p.familia === selectedFamilia;
       const matchesSearch = p.produto.toLowerCase().includes(searchProduto.toLowerCase());
       return matchesFamilia && matchesSearch;
-    }).slice(0, 10);
+    });
   }, [allProducts, selectedFamilia, searchProduto]);
   
   // Sort State
@@ -247,9 +246,20 @@ export function LoansPage() {
   }
 
   async function toggleStatus(loan: Emprestimo) {
+    if (loan.status === 'pendente') {
+      setLoanToPay(loan);
+      return;
+    }
+    
+    // For reverting to pending, we can do it directly or add another confirm
+    processToggleStatus(loan);
+  }
+
+  async function processToggleStatus(loan: Emprestimo) {
     try {
-      const newStatus = loan.status === 'pendente' ? 'pago' : 'pendente';
-      const devDate = newStatus === 'pago' ? format(new Date(), 'yyyy-MM-dd') : null;
+      const isPaying = loan.status === 'pendente';
+      const newStatus = isPaying ? 'pago' : 'pendente';
+      const devDate = isPaying ? format(new Date(), 'yyyy-MM-dd') : null;
 
       const { error } = await supabase
         .from('emprestimos')
@@ -260,6 +270,7 @@ export function LoansPage() {
         .eq('id', loan.id);
 
       if (error) throw error;
+      setLoanToPay(null);
       fetchLoans();
     } catch (err) {
       console.error('Erro ao atualizar status:', err);
@@ -282,7 +293,7 @@ export function LoansPage() {
   }
 
   const exportPDF = () => {
-    const doc = new jsPDF() as any;
+    const doc = new jsPDF();
     
     doc.setFontSize(18);
     doc.text('Relatório de Empréstimos de Mercadoria', 14, 20);
@@ -300,7 +311,7 @@ export function LoansPage() {
       l.data_devolucao ? format(parseISO(l.data_devolucao), 'dd/MM/yyyy') : '-'
     ]);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: 35,
       head: [['Data', 'Origem', 'Destino', 'Produto', 'Qtd', 'Status', 'Devolução']],
       body: tableData,
@@ -477,18 +488,18 @@ export function LoansPage() {
                         <button 
                           onClick={() => toggleStatus(loan)}
                           className={cn(
-                            "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 border transition-all",
+                            "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border transition-all shadow-sm active:scale-95",
                             loan.status === 'pago' 
-                              ? "bg-emerald-50 text-emerald-600 border-emerald-100" 
-                              : "bg-amber-50 text-amber-600 border-amber-100"
+                              ? "bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100/50" 
+                              : "bg-amber-500 text-white border-amber-600 hover:bg-amber-600 shadow-amber-500/10"
                           )}
                         >
-                          {loan.status === 'pago' ? <CheckCircle2 size={12} /> : <Clock size={12} />}
-                          {loan.status === 'pago' ? 'Pago' : 'Pendente'}
+                          {loan.status === 'pago' ? <CheckCircle2 size={13} className="stroke-[3]" /> : <Clock size={13} className="stroke-[3]" />}
+                          {loan.status === 'pago' ? 'Pago' : 'Pagar'}
                         </button>
                         {loan.data_devolucao && (
-                          <div className="text-[8px] font-bold text-neutral-400 mt-1 uppercase">
-                            Pago em {format(parseISO(loan.data_devolucao), 'dd/MM/yyyy')}
+                          <div className="text-[8px] font-bold text-neutral-400 mt-1.5 ml-1 uppercase tracking-tighter">
+                            Devolvido em {format(parseISO(loan.data_devolucao), 'dd/MM/yyyy')}
                           </div>
                         )}
                       </td>
@@ -547,14 +558,10 @@ export function LoansPage() {
                 </button>
               </div>
 
-              <div className="p-8 space-y-8 max-h-[80vh] overflow-y-auto custom-scrollbar">
+              <div className="p-6 space-y-5 max-h-[90vh] overflow-y-auto custom-scrollbar">
                 {/* Section: Participants */}
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-[11px] font-black text-neutral-900 uppercase tracking-[0.2em] flex items-center gap-2">
-                      <span className="w-12 h-px bg-orange-200" />
-                      Participantes
-                    </h4>
+                  <div className="flex items-center justify-end">
                     <label className="flex items-center gap-2.5 cursor-pointer group px-3 py-1.5 rounded-xl hover:bg-neutral-50 transition-colors">
                       <input 
                         type="checkbox" 
@@ -572,17 +579,14 @@ export function LoansPage() {
                     </label>
                   </div>
 
-                  <div className="bg-neutral-50/50 p-6 rounded-[2rem] border border-neutral-100 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-neutral-50/50 p-4 rounded-[2rem] border border-neutral-100 grid grid-cols-1 md:grid-cols-2 gap-5">
                     {/* Origin Client */}
-                    <div className="space-y-3 relative">
+                    <div className="space-y-3 relative group">
                       <div className="flex items-center gap-2 ml-1">
                         <ArrowLeftRight size={12} className="text-orange-500" />
                         <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Quem Emprestou?</label>
                       </div>
-                      <div className={cn(
-                        "w-full flex items-center bg-white border rounded-2xl transition-all shadow-sm",
-                        activeField === 'origem' ? "border-orange-500 ring-4 ring-orange-500/10" : "border-neutral-100 hover:border-neutral-200"
-                      )}>
+                      <div className="relative">
                         <input 
                           ref={origemInputRef}
                           type="text"
@@ -598,19 +602,20 @@ export function LoansPage() {
                             setFocusedIndex(-1);
                           }}
                           onKeyDown={(e) => handleKeyDown(e, 'origem', filteredOrigemClients)}
-                          className="flex-1 px-4 py-3.5 bg-transparent text-sm font-bold text-neutral-900 outline-none placeholder:text-neutral-400"
+                          className={cn(
+                            "w-full pl-4 pr-12 py-3.5 bg-white border rounded-2xl transition-all shadow-sm outline-none text-sm font-bold text-neutral-900 placeholder:text-neutral-400",
+                            activeField === 'origem' ? "border-orange-500 ring-4 ring-orange-500/10" : "border-neutral-100 hover:border-neutral-200"
+                          )}
                         />
                         <button 
                           type="button"
-                          onClick={() => {
-                            const newActive = activeField === 'origem' ? null : 'origem';
-                            setActiveField(newActive);
-                            setFocusedIndex(-1);
-                            if (newActive) {
-                              setTimeout(() => origemInputRef.current?.focus(), 0);
-                            }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const isClosing = activeField === 'origem';
+                            setActiveField(isClosing ? null : 'origem');
+                            if (!isClosing) setTimeout(() => origemInputRef.current?.focus(), 10);
                           }}
-                          className="px-4 py-3.5 text-neutral-400 hover:text-orange-600 transition-colors"
+                          className="absolute right-0 top-0 bottom-0 px-4 text-neutral-400 hover:text-orange-600 transition-colors z-10"
                         >
                           <ChevronDown size={18} className={cn("transition-transform duration-300", activeField === 'origem' && "rotate-180")} />
                         </button>
@@ -658,15 +663,12 @@ export function LoansPage() {
                     </div>
 
                     {/* Destination Client */}
-                    <div className="space-y-3 relative">
+                    <div className="space-y-3 relative group">
                       <div className="flex items-center gap-2 ml-1">
                         <Plus size={12} className="text-orange-500" />
                         <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Quem Recebeu?</label>
                       </div>
-                      <div className={cn(
-                        "w-full flex items-center bg-white border rounded-2xl transition-all shadow-sm",
-                        activeField === 'destino' ? "border-orange-500 ring-4 ring-orange-500/10" : "border-neutral-100 hover:border-neutral-200"
-                      )}>
+                      <div className="relative">
                         <input 
                           ref={destinoInputRef}
                           type="text"
@@ -682,19 +684,20 @@ export function LoansPage() {
                             setFocusedIndex(-1);
                           }}
                           onKeyDown={(e) => handleKeyDown(e, 'destino', filteredDestinoClients)}
-                          className="flex-1 px-4 py-3.5 bg-transparent text-sm font-bold text-neutral-900 outline-none placeholder:text-neutral-400"
+                          className={cn(
+                            "w-full pl-4 pr-12 py-3.5 bg-white border rounded-2xl transition-all shadow-sm outline-none text-sm font-bold text-neutral-900 placeholder:text-neutral-400",
+                            activeField === 'destino' ? "border-orange-500 ring-4 ring-orange-500/10" : "border-neutral-100 hover:border-neutral-200"
+                          )}
                         />
                         <button 
                           type="button"
-                          onClick={() => {
-                            const newActive = activeField === 'destino' ? null : 'destino';
-                            setActiveField(newActive);
-                            setFocusedIndex(-1);
-                            if (newActive) {
-                              setTimeout(() => destinoInputRef.current?.focus(), 0);
-                            }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const isClosing = activeField === 'destino';
+                            setActiveField(isClosing ? null : 'destino');
+                            if (!isClosing) setTimeout(() => destinoInputRef.current?.focus(), 10);
                           }}
-                          className="px-4 py-3.5 text-neutral-400 hover:text-orange-600 transition-colors"
+                          className="absolute right-0 top-0 bottom-0 px-4 text-neutral-400 hover:text-orange-600 transition-colors z-10"
                         >
                           <ChevronDown size={18} className={cn("transition-transform duration-300", activeField === 'destino' && "rotate-180")} />
                         </button>
@@ -744,69 +747,62 @@ export function LoansPage() {
                 </div>
 
                 {/* Section: Merchandising */}
-                <div className="space-y-4">
-                  <h4 className="text-[11px] font-black text-neutral-900 uppercase tracking-[0.2em] flex items-center gap-2 text-orange-600">
-                    <span className="w-12 h-px bg-orange-200" />
-                    Mercadoria
-                  </h4>
-                  <div className="bg-neutral-50/50 p-6 rounded-[2rem] border border-neutral-100 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 ml-1">
-                        <Filter size={12} className="text-orange-500" />
-                        <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Família (Filtro)</label>
-                      </div>
-                      <select 
-                        value={selectedFamilia}
-                        onChange={(e) => setSelectedFamilia(e.target.value)}
-                        className="w-full bg-white border border-neutral-100 rounded-2xl px-4 py-3.5 text-sm font-bold text-neutral-900 outline-none focus:border-orange-500 focus:shadow-sm transition-all appearance-none cursor-pointer shadow-sm"
-                        style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%23a3a3a3%27%3E%3Cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1em' }}
-                      >
-                        <option value="">Todas as famílias</option>
-                        {familias.map(f => <option key={f} value={f}>{f}</option>)}
-                      </select>
+                <div className="bg-neutral-50/50 p-4 rounded-[2rem] border border-neutral-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 ml-1">
+                      <Filter size={12} className="text-orange-500" />
+                      <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Família (Filtro)</label>
                     </div>
+                    <select 
+                      value={selectedFamilia}
+                      onChange={(e) => setSelectedFamilia(e.target.value)}
+                      className="w-full bg-white border border-neutral-100 rounded-2xl px-4 py-3.5 text-sm font-bold text-neutral-900 outline-none focus:border-orange-500 focus:shadow-sm transition-all appearance-none cursor-pointer shadow-sm"
+                      style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%23a3a3a3%27%3E%3Cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1em' }}
+                    >
+                      <option value="">Todas as famílias</option>
+                      {familias.map(f => <option key={f} value={f}>{f}</option>)}
+                    </select>
+                  </div>
 
-                    <div className="space-y-3 relative">
-                      <div className="flex items-center gap-2 ml-1">
-                        <Search size={12} className="text-orange-500" />
-                        <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Produto</label>
-                      </div>
-                      <div className={cn(
-                        "w-full flex items-center bg-white border rounded-2xl transition-all shadow-sm",
-                        activeField === 'produto' ? "border-orange-500 ring-4 ring-orange-500/10" : "border-neutral-100 hover:border-neutral-200"
-                      )}>
-                        <input 
-                          ref={produtoInputRef}
-                          type="text"
-                          placeholder="Buscar item..."
-                          value={activeField === 'produto' ? searchProduto : selectedProductName}
-                          onChange={(e) => {
-                            setSearchProduto(e.target.value);
-                            if (activeField !== 'produto') setActiveField('produto');
-                            setFocusedIndex(-1);
-                          }}
-                          onFocus={() => {
-                            setActiveField('produto');
-                            setFocusedIndex(-1);
-                          }}
-                          onKeyDown={(e) => handleKeyDown(e, 'produto', filteredProducts)}
-                          className="flex-1 px-4 py-3.5 bg-transparent text-sm font-bold text-neutral-900 outline-none placeholder:text-neutral-400"
-                        />
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            const newActive = activeField === 'produto' ? null : 'produto';
-                            setActiveField(newActive);
-                            setFocusedIndex(-1);
-                            if (newActive) {
-                              setTimeout(() => produtoInputRef.current?.focus(), 0);
-                            }
-                          }}
-                          className="px-4 py-3.5 text-neutral-400 hover:text-orange-600 transition-colors"
-                        >
-                          <ChevronDown size={18} className={cn("transition-transform duration-300", activeField === 'produto' && "rotate-180")} />
-                        </button>
-                      </div>
+                  <div className="space-y-3 relative group">
+                    <div className="flex items-center gap-2 ml-1">
+                      <Search size={12} className="text-orange-500" />
+                      <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Produto</label>
+                    </div>
+                    <div className="relative">
+                      <input 
+                        ref={produtoInputRef}
+                        type="text"
+                        placeholder="Buscar item..."
+                        value={activeField === 'produto' ? searchProduto : selectedProductName}
+                        onChange={(e) => {
+                          setSearchProduto(e.target.value);
+                          if (activeField !== 'produto') setActiveField('produto');
+                          setFocusedIndex(-1);
+                        }}
+                        onFocus={() => {
+                          setActiveField('produto');
+                          setFocusedIndex(-1);
+                        }}
+                        onKeyDown={(e) => handleKeyDown(e, 'produto', filteredProducts)}
+                        className={cn(
+                          "w-full pl-4 pr-12 py-3.5 bg-white border rounded-2xl transition-all shadow-sm outline-none text-sm font-bold text-neutral-900 placeholder:text-neutral-400",
+                          activeField === 'produto' ? "border-orange-500 ring-4 ring-orange-500/10" : "border-neutral-100 hover:border-neutral-200"
+                        )}
+                      />
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const isClosing = activeField === 'produto';
+                          setActiveField(isClosing ? null : 'produto');
+                          if (!isClosing) setTimeout(() => produtoInputRef.current?.focus(), 10);
+                        }}
+                        className="absolute right-0 top-0 bottom-0 px-4 text-neutral-400 hover:text-orange-600 transition-colors z-10"
+                      >
+                        <ChevronDown size={18} className={cn("transition-transform duration-300", activeField === 'produto' && "rotate-180")} />
+                      </button>
+                    </div>
 
                       <AnimatePresence>
                         {activeField === 'produto' && (
@@ -846,52 +842,49 @@ export function LoansPage() {
                       </AnimatePresence>
                     </div>
                   </div>
-                </div>
 
                 {/* Section: Logistics */}
-                <div className="space-y-4 pb-4">
-                  <h4 className="text-[11px] font-black text-neutral-900 uppercase tracking-[0.2em] flex items-center gap-2 text-orange-600">
-                    <span className="w-12 h-px bg-orange-200" />
-                    Logística & Data
-                  </h4>
-                  <div className="bg-neutral-50/50 p-6 rounded-[2rem] border border-neutral-100 grid grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                      <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest ml-1">Quantidade</label>
-                      <div className="flex items-center bg-white border border-neutral-100 rounded-2xl p-1.5 h-14 transition-all focus-within:border-orange-500 focus-within:shadow-sm shadow-sm">
-                        <button 
-                          type="button"
-                          onClick={() => adjustQuantity(-1)}
-                          className="w-11 h-11 flex items-center justify-center text-neutral-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all"
-                        >
-                          <Minus size={18} />
-                        </button>
-                        <input 
-                          type="number"
-                          value={form.quantidade}
-                          onChange={(e) => setForm({...form, quantidade: e.target.value})}
-                          placeholder="0"
-                          className="flex-1 bg-transparent text-center text-lg font-black text-neutral-900 outline-none placeholder:text-neutral-200"
-                        />
-                        <button 
-                          type="button"
-                          onClick={() => adjustQuantity(1)}
-                          className="w-11 h-11 flex items-center justify-center text-neutral-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all"
-                        >
-                          <Plus size={18} />
-                        </button>
-                      </div>
+                <div className="bg-neutral-50/50 p-4 rounded-[2rem] border border-neutral-100 grid grid-cols-2 gap-5">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest ml-1">Quantidade</label>
+                    <div className="flex items-center bg-white border border-neutral-100 rounded-2xl p-1 h-14 transition-all focus-within:border-orange-500 focus-within:shadow-sm shadow-sm overflow-hidden">
+                      <button 
+                        type="button"
+                        onClick={() => adjustQuantity(-1)}
+                        className="w-10 h-10 flex-shrink-0 flex items-center justify-center text-neutral-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all"
+                      >
+                        <Minus size={18} />
+                      </button>
+                      <input 
+                        type="text"
+                        inputMode="decimal"
+                        value={form.quantidade}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/[^0-9.]/g, '');
+                          setForm({...form, quantidade: val});
+                        }}
+                        placeholder="0"
+                        className="flex-1 min-w-0 bg-transparent text-center text-lg font-black text-neutral-900 outline-none placeholder:text-neutral-200"
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => adjustQuantity(1)}
+                        className="w-10 h-10 flex-shrink-0 flex items-center justify-center text-neutral-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all"
+                      >
+                        <Plus size={18} />
+                      </button>
                     </div>
-                    <div className="space-y-3">
-                      <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest ml-1">Data do Registro</label>
-                      <div className="relative group shadow-sm rounded-2xl">
-                        <Calendar size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
-                        <input 
-                          type="date"
-                          value={form.data_emprestimo}
-                          onChange={(e) => setForm({...form, data_emprestimo: e.target.value})}
-                          className="w-full bg-white border border-neutral-100 rounded-2xl pl-12 pr-4 h-14 text-sm font-bold text-neutral-900 outline-none focus:border-orange-500 focus:shadow-sm transition-all"
-                        />
-                      </div>
+                  </div>
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest ml-1">Data do Registro</label>
+                    <div className="relative group shadow-sm rounded-2xl">
+                      <Calendar size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
+                      <input 
+                        type="date"
+                        value={form.data_emprestimo}
+                        onChange={(e) => setForm({...form, data_emprestimo: e.target.value})}
+                        className="w-full bg-white border border-neutral-100 rounded-2xl pl-12 pr-4 h-14 text-sm font-bold text-neutral-900 outline-none focus:border-orange-500 focus:shadow-sm transition-all"
+                      />
                     </div>
                   </div>
                 </div>
@@ -903,6 +896,59 @@ export function LoansPage() {
                   >
                     <Plus size={20} className="text-orange-100" />
                     Confirmar Registro
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Payment Confirmation Modal */}
+      <AnimatePresence>
+        {loanToPay && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 text-center border-b border-neutral-100">
+                <div className="w-20 h-20 bg-amber-50 rounded-3xl flex items-center justify-center text-amber-600 mx-auto mb-6 shadow-sm border border-amber-100">
+                  <CheckCircle2 size={40} className="stroke-[2.5]" />
+                </div>
+                <h3 className="text-2xl font-black text-neutral-900 leading-tight">Confirmar Devolução?</h3>
+                <p className="text-neutral-500 font-medium mt-3 px-4">
+                  Deseja registrar que <span className="font-black text-neutral-900">{loanToPay.cliente_destino_nome}</span> pagou a mercadoria para <span className="font-black text-neutral-900">{loanToPay.cliente_origem_nome}</span>?
+                </p>
+              </div>
+              
+              <div className="p-8 bg-neutral-50/50 space-y-4">
+                <div className="bg-white p-4 rounded-2xl border border-neutral-100 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-600 shrink-0">
+                    <ArrowLeftRight size={18} />
+                  </div>
+                  <div className="text-left overflow-hidden">
+                    <div className="text-[10px] font-black text-neutral-400 uppercase tracking-widest leading-none mb-1">Mercadoria</div>
+                    <div className="text-sm font-black text-neutral-900 truncate">
+                      {loanToPay.quantidade}x {loanToPay.produto_nome}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button 
+                    onClick={() => setLoanToPay(null)}
+                    className="h-14 bg-white border border-neutral-200 text-neutral-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-neutral-50 transition-all active:scale-[0.98]"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    onClick={() => processToggleStatus(loanToPay)}
+                    className="h-14 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-all active:scale-[0.98]"
+                  >
+                    Confirmar Pago
                   </button>
                 </div>
               </div>
