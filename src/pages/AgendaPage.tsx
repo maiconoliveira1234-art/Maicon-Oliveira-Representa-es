@@ -21,7 +21,10 @@ import {
   startOfYear,
   differenceInDays,
   parseISO,
-  subMonths
+  subMonths,
+  startOfMonth,
+  endOfMonth,
+  isWithinInterval
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '../lib/utils';
@@ -32,7 +35,7 @@ import { VisitaCardCompact } from '../components/agenda/VisitaCardCompact';
 import { VisitaDrawer } from '../components/agenda/VisitaDrawer';
 import { AgendaDatePicker } from '../components/agenda/AgendaDatePicker';
 import { supabase } from '../lib/supabase';
-import { HistVenda } from '../types';
+import { HistVenda, Produto } from '../types';
 
 const DIAS_MAP: Record<number, DiaSemana> = {
   1: 'Segunda',
@@ -46,6 +49,8 @@ export function AgendaPage() {
   // Data Flow
   const [visitas, setVisitas] = useState<Visita[]>([]);
   const [historico, setHistorico] = useState<HistVenda[]>([]);
+  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [metas, setMetas] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -82,12 +87,24 @@ export function AgendaPage() {
       setLoading(true);
       setError(null);
       
-      const [agendaData, histDataRes] = await Promise.all([
+      const [agendaData, histDataRes, produtosRes, metasRes] = await Promise.all([
         agendaService.getVisitas(),
-        supabase.from('hist_vendas').select('*').gte('faturamento', subMonths(new Date(), 12).toISOString())
+        supabase.from('hist_vendas').select('*').gte('faturamento', subMonths(new Date(), 12).toISOString()),
+        supabase.from('produtos').select('*'),
+        supabase.from('metas').select('cliente_id, meta')
       ]);
 
       setVisitas(agendaData);
+      
+      if (produtosRes.data) {
+        setProdutos(produtosRes.data);
+      }
+
+      if (metasRes.data) {
+        const map: Record<string, number> = {};
+        metasRes.data.forEach(m => map[m.cliente_id] = m.meta);
+        setMetas(map);
+      }
       
       if (histDataRes.data) {
         const uniqueMap = new Map();
@@ -190,6 +207,38 @@ export function AgendaPage() {
       return (a.horario_inicio || '').localeCompare(b.horario_inicio || '');
     });
   }, [visitas, selectedDate, searchTerm, filterCity, filterStatus, gapsMap]);
+
+  const agendaStatsData = useMemo(() => {
+    const start = startOfMonth(selectedDate);
+    const end = endOfMonth(selectedDate);
+    const todayClients = filteredVisitas.map(v => v.cliente_id).filter(Boolean) as string[];
+    
+    // Meta do dia: sum of goals for today's clients
+    const metaDia = todayClients.reduce((acc, cid) => acc + (metas[cid] || 0), 0);
+
+    // Pedidos realizados: sum of weights for today's clients in the current month
+    const produtosMap: Record<string, Produto> = {};
+    produtos.forEach(p => produtosMap[p.id] = p);
+
+    let realizadoTotal = 0;
+    const currentMonthVendas = historico.filter(h => {
+      const date = parseISO(h.faturamento);
+      return isWithinInterval(date, { start, end }) && todayClients.includes(h.cliente_id);
+    });
+
+    currentMonthVendas.forEach(v => {
+      const prod = produtosMap[v.produto_id];
+      if (prod) {
+        realizadoTotal += v.qtd * (prod.peso_embalagem || 0);
+      }
+    });
+
+    return {
+      visitasTotal: filteredVisitas.length,
+      metaDia,
+      realizadoTotal
+    };
+  }, [filteredVisitas, metas, historico, produtos, selectedDate]);
 
   const uniqueCities = Array.from(new Set(visitas.map(v => v.cidade))).sort();
 
@@ -311,7 +360,11 @@ export function AgendaPage() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-6 mt-4">
-        <AgendaStats visitas={filteredVisitas} />
+        <AgendaStats 
+          visitasTotal={agendaStatsData.visitasTotal} 
+          metaDia={agendaStatsData.metaDia}
+          realizadoTotal={agendaStatsData.realizadoTotal}
+        />
 
         {/* Filters Panel */}
         <AnimatePresence>
