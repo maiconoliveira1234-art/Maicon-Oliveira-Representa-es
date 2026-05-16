@@ -268,8 +268,8 @@ export function ClienteDetail() {
   const chartData = [
     { name: 'Média 12m', valor: media12m },
     { name: 'Média 6m', valor: media6m },
-    { name: 'Realizado', valor: realizado },
     { name: 'Meta', valor: cliente.meta },
+    { name: 'Realizado', valor: realizado },
   ];
 
   return (

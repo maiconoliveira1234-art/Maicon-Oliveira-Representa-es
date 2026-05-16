@@ -5,7 +5,7 @@ export type Cliente = {
   cidade: string;
   ativo: boolean;
   ultima_compra?: string;
-  meta: number;
+  meta?: number;
   contato?: string;
   telefone?: string;
   endereco?: string;

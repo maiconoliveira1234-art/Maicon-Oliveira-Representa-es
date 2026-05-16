@@ -89,7 +89,7 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
       } else {
         const { error: insertError } = await supabase
           .from('clientes')
-          .insert([{ ...clientData, meta: 0 }]);
+          .insert([clientData]);
 
         if (insertError) throw insertError;
         onSuccess(false);

@@ -51,7 +51,7 @@ export function CommissionPage() {
   
   // Filters
   const [selectedYears, setSelectedYears] = useState<number[]>([new Date().getFullYear()]);
-  const [selectedMonths, setSelectedMonths] = useState<number[]>([]); // Empty = all months
+  const [selectedMonths, setSelectedMonths] = useState<number[]>([new Date().getMonth() + 1]); // Default to current month
   const [useCustomRange, setUseCustomRange] = useState(false);
   const [customRange, setCustomRange] = useState({
     start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),

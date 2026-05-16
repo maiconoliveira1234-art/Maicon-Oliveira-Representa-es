@@ -104,11 +104,16 @@ const KpiCard: React.FC<{ kpi: KpiData, onClick?: () => void }> = ({ kpi, onClic
         })}>
           <kpi.icon size={18} />
         </div>
-        <div className={cn("flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full", 
-          isPositive ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"
-        )}>
-          {isPositive ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
-          {Math.abs(variation).toFixed(1)}%
+        <div className="flex flex-col items-end">
+          <div className={cn("flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full", 
+            isPositive ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"
+          )}>
+            {isPositive ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
+            {Math.abs(variation).toFixed(1)}%
+          </div>
+          <span className="text-[8px] font-bold text-neutral-400 mt-1 uppercase tracking-tighter">
+            {kpi.format(kpi.previousValue)}
+          </span>
         </div>
       </div>
       <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-0.5">{kpi.label}</p>
@@ -434,17 +439,17 @@ export function Dashboard() {
   const topProductsData = useMemo(() => {
     const map: Record<string, { revenue: number, weight: number }> = {};
     filteredHistorico.forEach(h => {
-      const prod = produtosMap[h.produto_id];
-      const name = prod?.produto || 'Desconhecido';
+      const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
+      const name = prod?.produto || h.produtos || 'Desconhecido';
       if (!map[name]) map[name] = { revenue: 0, weight: 0 };
-      map[name].revenue += h["r$_total"];
-      map[name].weight += h.qtd * (prod?.peso_embalagem || 0);
+      map[name].revenue += h["r$_total"] || 0;
+      map[name].weight += (h.qtd || 0) * (prod?.peso_embalagem || 0);
     });
     return Object.entries(map)
       .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .sort((a, b) => evolutionMetric === 'value' ? b.revenue - a.revenue : b.weight - a.weight)
       .slice(0, 10);
-  }, [filteredHistorico, produtosMap]);
+  }, [filteredHistorico, produtosMap, evolutionMetric]);
 
   const periodLabel = useMemo(() => {
     if (filters.useCustomRange) {
