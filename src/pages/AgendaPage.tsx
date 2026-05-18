@@ -295,7 +295,7 @@ export function AgendaPage() {
       <header className="sticky top-0 z-40 px-4 py-4 md:px-6 md:py-6">
         <div className="max-w-4xl mx-auto">
           {/* Main Control Card */}
-          <div className="bg-white rounded-[1.5rem] border border-neutral-200 shadow-lg shadow-neutral-200/50 p-4 md:p-5 relative overflow-hidden">
+          <div className="bg-white rounded-[1.5rem] border border-neutral-200 shadow-lg shadow-neutral-200/50 p-4 md:p-5 relative">
             {/* Background Accent */}
             <div className="absolute top-0 right-0 w-24 h-24 bg-orange-50 rounded-bl-[4rem] -z-10 opacity-50" />
             
@@ -354,11 +354,11 @@ export function AgendaPage() {
                   <button 
                     onClick={() => setShowDatePicker(!showDatePicker)}
                     className={cn(
-                      "w-10 h-10 rounded-xl flex items-center justify-center border transition-all",
+                      "w-11 h-11 rounded-2xl flex items-center justify-center border transition-all",
                       showDatePicker ? "bg-neutral-900 text-white border-neutral-900" : "text-neutral-400 border-neutral-200 bg-white hover:bg-neutral-50"
                     )}
                   >
-                    <CalendarIcon size={18} />
+                    <CalendarIcon size={20} />
                   </button>
                   <AgendaDatePicker 
                     isOpen={showDatePicker}
@@ -385,12 +385,6 @@ export function AgendaPage() {
                    )}
                 >
                   <MapIcon size={20} />
-                </button>
-                <button 
-                   onClick={fetchAgenda}
-                   className="w-11 h-11 rounded-2xl flex items-center justify-center border border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50 transition-all active:rotate-180 duration-500 shadow-sm"
-                >
-                  <RefreshCw size={20} />
                 </button>
               </div>
             </div>

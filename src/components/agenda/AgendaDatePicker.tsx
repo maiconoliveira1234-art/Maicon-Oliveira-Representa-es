@@ -55,6 +55,13 @@ export const AgendaDatePicker: React.FC<AgendaDatePickerProps> = ({
   const [currentMonth, setCurrentMonth] = useState(selectedDate);
   const [showYearPicker, setShowYearPicker] = useState(false);
 
+  // Sync current month when date picker is opened
+  React.useEffect(() => {
+    if (isOpen) {
+      setCurrentMonth(selectedDate);
+    }
+  }, [isOpen, selectedDate]);
+
   const getCycleWeek = (date: Date): 1 | 2 => {
     const anchor = startOfYear(date);
     const weeksSinceAnchor = differenceInWeeks(date, anchor);
@@ -100,7 +107,7 @@ export const AgendaDatePicker: React.FC<AgendaDatePickerProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm md:bg-transparent"
+            className="fixed inset-0 z-50 bg-neutral-900/10 md:bg-transparent"
           />
 
           {/* Picker Container */}
@@ -109,7 +116,7 @@ export const AgendaDatePicker: React.FC<AgendaDatePickerProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             className={cn(
-              "fixed z-[60] bg-white rounded-[2.5rem] shadow-2xl shadow-neutral-900/10 border border-neutral-100 overflow-hidden",
+              "fixed z-[60] bg-white rounded-[2.5rem] shadow-xl shadow-neutral-900/10 border border-neutral-100 overflow-hidden",
               "bottom-4 left-4 right-4 md:absolute md:bottom-auto md:left-auto md:right-0 md:top-full md:mt-4 md:w-80"
             )}
             onClick={(e) => e.stopPropagation()}
@@ -222,8 +229,8 @@ export const AgendaDatePicker: React.FC<AgendaDatePickerProps> = ({
                         
                         {hasPlannedVisits && (
                           <div className={cn(
-                            "absolute bottom-1 w-1 h-1 rounded-full",
-                            isSelected ? "bg-white/60" : "bg-orange-400"
+                            "absolute bottom-1.5 w-1.5 h-1.5 rounded-full shadow-sm",
+                            isSelected ? "bg-white" : "bg-orange-500"
                           )} />
                         )}
                       </button>

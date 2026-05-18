@@ -164,7 +164,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[100]"
+            className="fixed inset-0 bg-neutral-900/10 z-[100]"
           />
 
           <motion.div
@@ -175,7 +175,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
             className="fixed top-0 right-0 h-full w-full max-w-lg bg-white border-l border-neutral-200 shadow-2xl z-[101] overflow-y-auto"
           >
             {/* Header */}
-            <div className="sticky top-0 bg-white/80 backdrop-blur-md p-6 flex items-center justify-between border-b border-neutral-100 z-10">
+            <div className="sticky top-0 bg-white/90 backdrop-blur-sm p-6 flex items-center justify-between border-b border-neutral-100 z-10">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-orange-500/10 rounded-2xl flex items-center justify-center text-orange-600">
                   <ShoppingBag size={24} />
