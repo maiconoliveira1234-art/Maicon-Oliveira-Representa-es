@@ -273,57 +273,56 @@ export function AgendaPage() {
       <header className="sticky top-0 z-40 px-4 py-4 md:px-6 md:py-6">
         <div className="max-w-4xl mx-auto">
           {/* Main Control Card */}
-          <div className="bg-white rounded-[2.5rem] border border-neutral-200 shadow-xl shadow-neutral-200/50 p-6 md:p-8 relative overflow-hidden">
+          <div className="bg-white rounded-[1.5rem] border border-neutral-200 shadow-lg shadow-neutral-200/50 p-4 md:p-5 relative overflow-hidden">
             {/* Background Accent */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-bl-[5rem] -z-10 opacity-50" />
+            <div className="absolute top-0 right-0 w-24 h-24 bg-orange-50 rounded-bl-[4rem] -z-10 opacity-50" />
             
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               {/* Left: Title & Info */}
               <div className="flex flex-col">
-                <h1 className="text-2xl md:text-3xl font-black text-neutral-900 tracking-tighter uppercase leading-none">
+                <h1 className="text-lg md:text-xl font-black text-neutral-900 tracking-tighter uppercase leading-none">
                   {format(selectedDate, "EEEE, d 'de' MMMM", { locale: ptBR })}
                 </h1>
-                <div className="flex items-center gap-3 mt-2">
-                  <div className="px-3 py-1 bg-neutral-100 rounded-full text-[10px] font-black text-neutral-500 uppercase tracking-widest">
+                <div className="flex items-center gap-2 mt-1.5">
+                  <div className="px-2 py-0.5 bg-neutral-100 rounded-full text-[9px] font-black text-neutral-500 uppercase tracking-widest">
                     Ciclo: Semana {getCycleWeek(selectedDate)}
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                    <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Sistema Ativo</span>
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                    <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Sistema Ativo</span>
                   </div>
                 </div>
               </div>
 
               {/* Right: Primary Action (Optimization) and Nav */}
-              <div className="flex flex-col items-end gap-4">
-                <div className="flex items-center gap-1.5 bg-neutral-50 border border-neutral-200 p-1.5 rounded-[1.25rem]">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1 bg-neutral-50 border border-neutral-200 p-1 rounded-xl">
                   <button 
                     onClick={() => setSelectedDate(subDays(selectedDate, 1))}
-                    className="w-9 h-9 flex items-center justify-center text-neutral-400 hover:text-neutral-900 hover:bg-white rounded-lg transition-all"
+                    className="w-8 h-8 flex items-center justify-center text-neutral-400 hover:text-neutral-900 hover:bg-white rounded-lg transition-all"
                   >
-                    <ChevronLeft size={18} />
+                    <ChevronLeft size={16} />
                   </button>
                   <button 
                     onClick={() => setSelectedDate(startOfToday())}
-                    className="px-4 h-9 text-[10px] font-black text-neutral-600 bg-white border border-neutral-200 rounded-lg shadow-sm active:scale-95 transition-all uppercase tracking-widest"
+                    className="px-3 h-8 text-[9px] font-black text-neutral-600 bg-white border border-neutral-200 rounded-lg shadow-sm active:scale-95 transition-all uppercase tracking-widest"
                   >
                     Hoje
                   </button>
                   <button 
                     onClick={() => setSelectedDate(addDays(selectedDate, 1))}
-                    className="w-9 h-9 flex items-center justify-center text-neutral-400 hover:text-neutral-900 hover:bg-white rounded-lg transition-all"
+                    className="w-8 h-8 flex items-center justify-center text-neutral-400 hover:text-neutral-900 hover:bg-white rounded-lg transition-all"
                   >
-                    <ChevronRight size={18} />
+                    <ChevronRight size={16} />
                   </button>
                 </div>
               </div>
             </div>
 
             {/* Bottom Row: Secondary Tools */}
-            <div className="mt-8 pt-6 border-t border-neutral-100 flex items-center justify-between">
+            <div className="mt-4 pt-4 border-t border-neutral-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                 {/* Search/Filters Summary maybe? Or just keep it clean */}
-                 <div className="text-[11px] font-bold text-neutral-400">
+                 <div className="text-[10px] font-bold text-neutral-400">
                    {filteredVisitas.length} VISITAS PROGRAMADAS
                  </div>
               </div>
@@ -333,11 +332,11 @@ export function AgendaPage() {
                   <button 
                     onClick={() => setShowDatePicker(!showDatePicker)}
                     className={cn(
-                      "w-11 h-11 rounded-2xl flex items-center justify-center border transition-all",
+                      "w-10 h-10 rounded-xl flex items-center justify-center border transition-all",
                       showDatePicker ? "bg-neutral-900 text-white border-neutral-900" : "text-neutral-400 border-neutral-200 bg-white hover:bg-neutral-50"
                     )}
                   >
-                    <CalendarIcon size={20} />
+                    <CalendarIcon size={18} />
                   </button>
                   <AgendaDatePicker 
                     isOpen={showDatePicker}
