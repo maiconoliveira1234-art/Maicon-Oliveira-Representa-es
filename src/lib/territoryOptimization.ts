@@ -7,10 +7,59 @@ const DIAS_UTEIS: DiaSemana[] = ['Segunda', 'Terça', 'Quarta', 'Quinta'];
 export async function optimizeAllTerritories() {
   console.log('Iniciando otimização global de território (8 Grupos: Seg-Qui em 2 Semanas)...');
 
-  // 1. Buscar visitas e garantir que temos as coordenadas (fazendo join com clientes se necessário)
+  // 1. Sincronizar Clientes Ativos com a Agenda
+  console.log('Sincronizando clientes ativos...');
+  const { data: activeClients, error: clientError } = await supabase
+    .from('clientes')
+    .select('*')
+    .eq('ativo', true);
+
+  if (clientError) throw new Error(`Erro ao buscar clientes ativos: ${clientError.message}`);
+
+  const { data: existingVisits, error: visitError } = await supabase
+    .from('agenda_visitas')
+    .select('cliente_id');
+
+  if (visitError) throw new Error(`Erro ao buscar visitas existentes: ${visitError.message}`);
+
+  const existingClientIds = new Set(existingVisits.map(v => v.cliente_id));
+  const missingClients = activeClients.filter(c => !existingClientIds.has(c.id));
+
+  if (missingClients.length > 0) {
+    console.log(`Adicionando ${missingClients.length} clientes ativos à agenda...`);
+    const newVisits = missingClients.map(c => ({
+      cliente_id: c.id,
+      cliente_nome: c.cliente,
+      contato: c.contato || '',
+      telefone: c.telefone ? String(c.telefone) : '',
+      endereco: c.endereco || '',
+      bairro: c.bairro || '',
+      cidade: c.cidade || '',
+      latitude: c.latitude,
+      longitude: c.longitude,
+      semana: 1,
+      dia_semana: 'Segunda',
+      horario_inicio: '08:00',
+      horario_fim: '09:00',
+      ordem_visita: 1,
+      status: 'pendente'
+    }));
+
+    const { error: insertError } = await supabase
+      .from('agenda_visitas')
+      .insert(newVisits);
+
+    if (insertError) throw new Error(`Erro ao inserir novos clientes na agenda: ${insertError.message}`);
+  }
+
+  // Opcional: Remover inativos da agenda (pode ser perigoso se o usuário não quiser)
+  // Para ser fiel ao "OS CLIENTES QUE DEVEM ESTAR NA AGENDA SÃO OS ATIVOS", vamos considerar desativar ou remover?
+  // Vou apenas focar em ADICIONAR os que faltam por enquanto, pois é o problema mais comum.
+
+  // 2. Buscar visitas atualizadas e garantir que temos as coordenadas
   const { data: visitasRaw, error } = await supabase
     .from('agenda_visitas')
-    .select('*, clientes(latitude, longitude)');
+    .select('*, clientes(latitude, longitude, ativo)');
 
   if (error) {
     console.error('Erro na consulta Supabase:', error);
@@ -21,18 +70,34 @@ export async function optimizeAllTerritories() {
     throw new Error('Nenhuma visita encontrada na agenda para otimizar.');
   }
 
-  // Normalizar visitas (usar coordenada da visita ou do cliente como fallback)
-  const visitas = visitasRaw.map((v: any) => {
-    // Busca dados do cliente no objeto retornado pelo join. 
-    // Garante que pegamos latitude/longitude mesmo que venha como array
+  // Filtrar e remover inativos da agenda fisicamente se necessário
+  const inativos = visitasRaw.filter((v: any) => {
     const clientData = Array.isArray(v.clientes) ? v.clientes[0] : v.clientes;
-    
-    return {
-      ...v,
-      latitude: v.latitude || clientData?.latitude,
-      longitude: v.longitude || clientData?.longitude
-    };
-  }) as Visita[];
+    return clientData && clientData.ativo === false;
+  });
+
+  if (inativos.length > 0) {
+    console.log(`Removendo ${inativos.length} clientes inativos da agenda...`);
+    const inativosIds = inativos.map((v: any) => v.id);
+    await supabase.from('agenda_visitas').delete().in('id', inativosIds);
+  }
+
+  // Normalizar visitas (usar coordenada da visita ou do cliente como fallback)
+  // E filtrando apenas os que restaram (ativos)
+  const visitas = visitasRaw
+    .filter((v: any) => {
+      const clientData = Array.isArray(v.clientes) ? v.clientes[0] : v.clientes;
+      return clientData && clientData.ativo !== false;
+    })
+    .map((v: any) => {
+      const clientData = Array.isArray(v.clientes) ? v.clientes[0] : v.clientes;
+      
+      return {
+        ...v,
+        latitude: v.latitude || clientData?.latitude,
+        longitude: v.longitude || clientData?.longitude
+      };
+    }) as Visita[];
 
   const countWithCoords = visitas.filter(v => v.latitude && v.longitude).length;
   console.log(`Log de Otimização: Total=${visitas.length}, Com Coordenadas=${countWithCoords}`);

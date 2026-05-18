@@ -177,6 +177,28 @@ export function AgendaPage() {
     }
   }
 
+  async function handleAgendaUpdate(fields: Partial<Visita>) {
+    if (!selectedVisita) return;
+    try {
+      const updated = await agendaService.updateAgendaFields(selectedVisita.id, fields);
+      setVisitas(prev => prev.map(v => v.id === selectedVisita.id ? updated : v));
+      setSelectedVisita(updated);
+    } catch (err: any) {
+      alert('Erro ao atualizar agendamento: ' + err.message);
+    }
+  }
+
+  async function handleDeleteVisita(id: string) {
+    try {
+      await agendaService.deleteVisita(id);
+      setVisitas(prev => prev.filter(v => v.id !== id));
+      setSelectedVisita(null);
+      setIsDrawerOpen(false);
+    } catch (err: any) {
+      alert('Erro ao excluir visita: ' + err.message);
+    }
+  }
+
   const filteredVisitas = useMemo(() => {
     const currentWeek = getCycleWeek(selectedDate);
     const currentDay = getDayName(selectedDate);
@@ -521,6 +543,8 @@ export function AgendaPage() {
         onClose={() => setIsDrawerOpen(false)}
         onStatusChange={(status) => selectedVisita && handleStatusUpdate(selectedVisita.id, status)}
         onNoteChange={(note) => selectedVisita && handleNoteUpdate(selectedVisita.id, note)}
+        onAgendaUpdate={handleAgendaUpdate}
+        onDelete={handleDeleteVisita}
       />
     </div>
   );

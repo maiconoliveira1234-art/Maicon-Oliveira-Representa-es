@@ -39,8 +39,7 @@ export function sortByProximity<T extends { latitude?: number; longitude?: numbe
 }
 
 /**
- * Agrupa itens em clusters baseados em proximidade geográfica
- * Útil para dividir clientes entre os dias da semana (K-Means simplificado)
+ * Agrupa itens em clusters equilibrados geograficamente (K-Means com restrição de tamanho)
  */
 export function clusterByLocation<T extends { latitude?: number; longitude?: number }>(
   items: T[],
@@ -53,84 +52,75 @@ export function clusterByLocation<T extends { latitude?: number; longitude?: num
   const withoutCoords = items.filter(i => !i.latitude || !i.longitude);
 
   if (withCoords.length === 0) {
-    // Se nenhum tem coordenada, distribui rounds-robin
     const clusters: T[][] = Array.from({ length: k }, () => []);
     items.forEach((item, idx) => clusters[idx % k].push(item));
     return clusters;
   }
 
-  // 1. Inicializar centroides de forma mais espalhada (K-Means++)
-  let centroids = [];
-  
-  if (withCoords.length > 0) {
-    // Primeiro centroide aleatório
-    centroids.push({ lat: withCoords[0].latitude!, lng: withCoords[0].longitude! });
+  // 1. Inicializar centroides espalhados (K-Means++)
+  let centroids: { lat: number; lng: number }[] = [];
+  centroids.push({ lat: withCoords[0].latitude!, lng: withCoords[0].longitude! });
 
-    // Encontrar os próximos centroides mais distantes dos já escolhidos
-    while (centroids.length < k && centroids.length < withCoords.length) {
-      let maxDist = -1;
-      let nextCentroidIdx = 0;
-
-      withCoords.forEach((item, idx) => {
-        // Encontra a distância para o centroide mais próximo já escolhido
-        let minDistToCentroids = Math.min(...centroids.map(c => 
-          calculateDistance(item.latitude!, item.longitude!, c.lat, c.lng)
-        ));
-
-        if (minDistToCentroids > maxDist) {
-          maxDist = minDistToCentroids;
-          nextCentroidIdx = idx;
-        }
-      });
-
-      centroids.push({ lat: withCoords[nextCentroidIdx].latitude!, lng: withCoords[nextCentroidIdx].longitude! });
-    }
+  while (centroids.length < k && centroids.length < withCoords.length) {
+    let maxDist = -1;
+    let nextIdx = 0;
+    withCoords.forEach((item, idx) => {
+      const minDist = Math.min(...centroids.map(c => 
+        calculateDistance(item.latitude!, item.longitude!, c.lat, c.lng)
+      ));
+      if (minDist > maxDist) {
+        maxDist = minDist;
+        nextIdx = idx;
+      }
+    });
+    centroids.push({ lat: withCoords[nextIdx].latitude!, lng: withCoords[nextIdx].longitude! });
   }
 
-  // Preencher se sobrar k vazio
   while (centroids.length < k) {
-    centroids.push({ lat: -26.3045, lng: -48.8456 }); // Joinville default
+    centroids.push({ lat: -26.3045, lng: -48.8456 });
   }
 
+  // 2. Atribuição Equilibrada (Balanced Assignment)
+  const targetSize = Math.ceil(withCoords.length / k);
   let clusters: T[][] = Array.from({ length: k }, () => []);
-  let prevAssignments: string = '';
 
-  // 2. Iterar para refinar clusters (aumentado para 20 vezes)
-  for (let iter = 0; iter < 20; iter++) {
-    clusters = Array.from({ length: k }, () => []);
-    const assignments: number[] = [];
+  // Calcular preferências de cada ponto
+  const preferences = withCoords.map(item => {
+    const dists = centroids.map((c, idx) => ({
+      idx,
+      dist: calculateDistance(item.latitude!, item.longitude!, c.lat, c.lng)
+    })).sort((a, b) => a.dist - b.dist);
+    return { item, dists };
+  });
 
-    withCoords.forEach(item => {
-      let minDist = Infinity;
-      let clusterIdx = 0;
+  // Ordenar por "Arrependimento" (Regret): diferença entre a 1ª e 2ª melhor opção
+  // Quem tem maior diferença é priorizado (pois mudar de grupo custa mais geográficamente)
+  preferences.sort((a, b) => {
+    const diffA = (a.dists[1]?.dist || 0) - a.dists[0].dist;
+    const diffB = (b.dists[1]?.dist || 0) - b.dists[0].dist;
+    return diffB - diffA;
+  });
 
-      centroids.forEach((c, idx) => {
-        const d = calculateDistance(item.latitude!, item.longitude!, c.lat, c.lng);
-        if (d < minDist) {
-          minDist = d;
-          clusterIdx = idx;
-        }
-      });
+  // Atribuição com limites de tamanho
+  preferences.forEach(p => {
+    let assigned = false;
+    for (const d of p.dists) {
+      if (clusters[d.idx].length < targetSize) {
+        clusters[d.idx].push(p.item);
+        assigned = true;
+        break;
+      }
+    }
+    
+    // Fallback caso todos estejam cheios (devido ao arredondamento do targetSize)
+    if (!assigned) {
+      const smallestClusterIdx = clusters.reduce((minIdx, curr, idx, arr) => 
+        curr.length < arr[minIdx].length ? idx : minIdx, 0);
+      clusters[smallestClusterIdx].push(p.item);
+    }
+  });
 
-      clusters[clusterIdx].push(item);
-      assignments.push(clusterIdx);
-    });
-
-    const currentAssignments = assignments.join(',');
-    if (currentAssignments === prevAssignments) break;
-    prevAssignments = currentAssignments;
-
-    // 3. Atualizar centroides
-    centroids = clusters.map((cluster, idx) => {
-      if (cluster.length === 0) return centroids[idx]; // Mantém se vazio
-      return {
-        lat: cluster.reduce((sum, i) => sum + i.latitude!, 0) / cluster.length,
-        lng: cluster.reduce((sum, i) => sum + i.longitude!, 0) / cluster.length
-      };
-    });
-  }
-
-  // Distribuir itens sem coordenadas proporcionalmente
+  // 3. Distribuir itens sem coordenadas
   withoutCoords.forEach((item, idx) => {
     clusters[idx % k].push(item);
   });

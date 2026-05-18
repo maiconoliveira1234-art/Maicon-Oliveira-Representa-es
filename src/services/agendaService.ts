@@ -5,7 +5,8 @@ export const agendaService = {
   async getVisitas() {
     const { data, error } = await supabase
       .from('agenda_visitas')
-      .select('*')
+      .select('*, clientes!inner(ativo)')
+      .eq('clientes.ativo', true)
       .order('semana', { ascending: true })
       .order('dia_semana', { ascending: true })
       .order('horario_inicio', { ascending: true })
@@ -46,6 +47,18 @@ export const agendaService = {
       .eq('id', id);
 
     if (error) throw error;
+  },
+
+  async updateAgendaFields(id: string, fields: Partial<Pick<Visita, 'semana' | 'dia_semana' | 'horario_inicio' | 'horario_fim' | 'ordem_visita'>>) {
+    const { data, error } = await supabase
+      .from('agenda_visitas')
+      .update({ ...fields, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as Visita;
   },
 
   async deleteVisita(id: string) {

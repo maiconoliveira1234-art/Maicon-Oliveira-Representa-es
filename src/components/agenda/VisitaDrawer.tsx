@@ -14,7 +14,8 @@ import {
   StickyNote,
   Target,
   ShoppingBag,
-  Loader2
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { parseISO, isSameMonth, isSameYear } from 'date-fns';
@@ -29,15 +30,36 @@ interface VisitaDrawerProps {
   onClose: () => void;
   onStatusChange: (status: VisitaStatus) => void;
   onNoteChange: (note: string) => void;
+  onAgendaUpdate: (fields: Partial<Visita>) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }
 
-export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({ visita, isOpen, onClose, onStatusChange, onNoteChange }) => {
+export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({ 
+  visita, 
+  isOpen, 
+  onClose, 
+  onStatusChange, 
+  onNoteChange,
+  onAgendaUpdate,
+  onDelete
+}) => {
   const { loadClientDetails, clientCache, produtos } = useDataManager();
   const clientData = visita?.cliente_id ? clientCache[visita.cliente_id] : null;
 
   const [isEditingNote, setIsEditingNote] = React.useState(false);
+  const [isEditingSchedule, setIsEditingSchedule] = React.useState(false);
   const [tempNote, setTempNote] = React.useState('');
+  
+  const [tempSchedule, setTempSchedule] = React.useState({
+    semana: 1 as 1 | 2,
+    dia_semana: 'Segunda' as any,
+    horario_inicio: '08:00',
+    horario_fim: '09:00'
+  });
+
   const [isSavingNote, setIsSavingNote] = React.useState(false);
+  const [isSavingSchedule, setIsSavingSchedule] = React.useState(false);
+  const [isDeleting, setIsDeleting] = React.useState(false);
   const [clientMeta, setClientMeta] = React.useState<number>(0);
 
   useEffect(() => {
@@ -59,6 +81,13 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({ visita, isOpen, onCl
     }
     if (isOpen && visita) {
       setTempNote(visita.observacoes || '');
+      setTempSchedule({
+        semana: visita.semana || 1,
+        dia_semana: visita.dia_semana || 'Segunda',
+        horario_inicio: visita.horario_inicio?.substring(0, 5) || '08:00',
+        horario_fim: visita.horario_fim?.substring(0, 5) || '09:00'
+      });
+      setIsEditingSchedule(false);
     }
   }, [isOpen, visita?.cliente_id, visita, loadClientDetails]);
 
@@ -298,17 +327,112 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({ visita, isOpen, onCl
                 </div>
 
                 <div className="bg-white border border-neutral-200 shadow-sm rounded-[2rem] p-3 lg:p-4 space-y-3">
-                   <div className="flex items-center gap-2">
-                     <Clock size={16} className="text-emerald-500" />
-                     <span className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Visita</span>
+                   <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-2">
+                       <Clock size={16} className="text-emerald-500" />
+                       <span className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Agendamento</span>
+                     </div>
+                     {!isEditingSchedule && (
+                       <button 
+                         onClick={() => setIsEditingSchedule(true)}
+                         className="text-[9px] font-black text-orange-600 uppercase tracking-widest hover:underline"
+                       >
+                         Editar
+                       </button>
+                     )}
                    </div>
-                   <div>
-                     <p className="text-sm font-black text-neutral-900">{(visita.horario_inicio || '').substring(0,5)} - {(visita.horario_fim || '').substring(0,5)}</p>
-                     <p className="text-[10px] font-bold text-neutral-500 mt-1 uppercase">{visita.dia_semana}</p>
-                   </div>
-                   <div className="pt-2 border-t border-neutral-100">
-                      <span className="text-[9px] font-black text-[#f54900] uppercase tracking-widest">Ordem: {visita.ordem_visita}º do dia</span>
-                   </div>
+
+                   {isEditingSchedule ? (
+                     <div className="space-y-3 pb-2">
+                       <div className="grid grid-cols-2 gap-2">
+                         <div className="space-y-1">
+                           <label className="text-[8px] font-black text-neutral-400 uppercase">Semana</label>
+                           <select 
+                             value={tempSchedule.semana}
+                             onChange={(e) => setTempSchedule({...tempSchedule, semana: parseInt(e.target.value) as 1 | 2})}
+                             className="w-full bg-neutral-50 border border-neutral-200 rounded-lg p-1.5 text-xs font-bold"
+                           >
+                             <option value={1}>Semana 1</option>
+                             <option value={2}>Semana 2</option>
+                           </select>
+                         </div>
+                         <div className="space-y-1">
+                           <label className="text-[8px] font-black text-neutral-400 uppercase">Dia</label>
+                           <select 
+                             value={tempSchedule.dia_semana}
+                             onChange={(e) => setTempSchedule({...tempSchedule, dia_semana: e.target.value})}
+                             className="w-full bg-neutral-50 border border-neutral-200 rounded-lg p-1.5 text-xs font-bold"
+                           >
+                             <option value="Segunda">Segunda</option>
+                             <option value="Terça">Terça</option>
+                             <option value="Quarta">Quarta</option>
+                             <option value="Quinta">Quinta</option>
+                           </select>
+                         </div>
+                       </div>
+
+                       <div className="grid grid-cols-2 gap-2">
+                         <div className="space-y-1">
+                           <label className="text-[8px] font-black text-neutral-400 uppercase">Início</label>
+                           <input 
+                             type="time" 
+                             value={tempSchedule.horario_inicio}
+                             onChange={(e) => setTempSchedule({...tempSchedule, horario_inicio: e.target.value})}
+                             className="w-full bg-neutral-50 border border-neutral-200 rounded-lg p-1.5 text-xs font-bold"
+                           />
+                         </div>
+                         <div className="space-y-1">
+                           <label className="text-[8px] font-black text-neutral-400 uppercase">Fim</label>
+                           <input 
+                             type="time" 
+                             value={tempSchedule.horario_fim}
+                             onChange={(e) => setTempSchedule({...tempSchedule, horario_fim: e.target.value})}
+                             className="w-full bg-neutral-50 border border-neutral-200 rounded-lg p-1.5 text-xs font-bold"
+                           />
+                         </div>
+                       </div>
+
+                       <div className="flex gap-2">
+                         <button 
+                           onClick={async () => {
+                             setIsSavingSchedule(true);
+                             await onAgendaUpdate(tempSchedule);
+                             setIsSavingSchedule(false);
+                             setIsEditingSchedule(false);
+                           }}
+                           disabled={isSavingSchedule}
+                           className="flex-1 py-1.5 bg-orange-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest disabled:opacity-50"
+                         >
+                           {isSavingSchedule ? 'Salvando...' : 'Confirmar'}
+                         </button>
+                         <button 
+                           onClick={() => {
+                             setTempSchedule({
+                               semana: visita.semana || 1,
+                               dia_semana: visita.dia_semana || 'Segunda',
+                               horario_inicio: visita.horario_inicio?.substring(0, 5) || '08:00',
+                               horario_fim: visita.horario_fim?.substring(0, 5) || '09:00'
+                             });
+                             setIsEditingSchedule(false);
+                           }}
+                           disabled={isSavingSchedule}
+                           className="px-3 py-1.5 bg-neutral-100 text-neutral-500 rounded-lg text-[9px] font-black uppercase tracking-widest"
+                         >
+                           X
+                         </button>
+                       </div>
+                     </div>
+                   ) : (
+                     <>
+                       <div>
+                         <p className="text-sm font-black text-neutral-900">{(visita.horario_inicio || '').substring(0,5)} - {(visita.horario_fim || '').substring(0,5)}</p>
+                         <p className="text-[10px] font-bold text-neutral-500 mt-1 uppercase">{visita.dia_semana} • Semana {visita.semana}</p>
+                       </div>
+                       <div className="pt-2 border-t border-neutral-100">
+                          <span className="text-[9px] font-black text-[#f54900] uppercase tracking-widest">Ordem: {visita.ordem_visita}º do dia</span>
+                       </div>
+                     </>
+                   )}
                 </div>
               </section>
 
@@ -342,7 +466,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({ visita, isOpen, onCl
                   </button>
 
                   <button 
-                    onClick={() => onStatusChange('reagendada')}
+                    onClick={() => setIsEditingSchedule(true)}
                     className="flex items-center gap-3 p-4 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold text-xs text-neutral-700 hover:bg-neutral-100 transition-all"
                   >
                     <Repeat size={18} className="text-amber-600" />
@@ -365,6 +489,24 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({ visita, isOpen, onCl
                   >
                     <XCircle size={18} className="text-rose-500" />
                     Cancelar
+                  </button>
+                </div>
+
+                <div className="pt-4 border-t border-neutral-100">
+                  <button 
+                    onClick={async () => {
+                      if (window.confirm('Tem certeza que deseja remover este cliente da agenda?')) {
+                        setIsDeleting(true);
+                        await onDelete(visita.id);
+                        setIsDeleting(false);
+                        onClose();
+                      }
+                    }}
+                    disabled={isDeleting}
+                    className="w-full flex items-center justify-center gap-3 p-4 bg-white border border-rose-200 rounded-2xl font-black uppercase text-[10px] tracking-widest text-rose-600 hover:bg-rose-50 transition-all disabled:opacity-50"
+                  >
+                    <Trash2 size={18} />
+                    {isDeleting ? 'Excluindo...' : 'Remover da Agenda'}
                   </button>
                 </div>
               </section>
