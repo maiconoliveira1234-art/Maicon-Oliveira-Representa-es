@@ -9,6 +9,8 @@ export type Cliente = {
   contato?: string;
   telefone?: string;
   endereco?: string;
+  latitude?: number;
+  longitude?: number;
 };
 
 export type Produto = {

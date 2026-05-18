@@ -17,6 +17,8 @@ export interface Visita {
   ordem_visita: number;
   status: VisitaStatus;
   observacoes: string;
+  latitude?: number;
+  longitude?: number;
   created_at: string;
   updated_at: string;
 }

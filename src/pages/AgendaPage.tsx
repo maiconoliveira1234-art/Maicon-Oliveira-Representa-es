@@ -1,15 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Search, 
-  Filter, 
-  ChevronLeft, 
-  ChevronRight, 
-  Calendar as CalendarIcon, 
-  AlertCircle,
-  RefreshCw,
-  Loader2,
-  CalendarDays
-} from 'lucide-react';
+import { Search, Filter, ChevronLeft, ChevronRight, Calendar as CalendarIcon, AlertCircle, RefreshCw, Loader2, CalendarDays, Map as MapIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   format, 
@@ -32,10 +22,12 @@ import { Visita, VisitaStatus, DiaSemana } from '../types/agenda';
 import { agendaService } from '../services/agendaService';
 import { AgendaStats } from '../components/agenda/AgendaStats';
 import { VisitaCardCompact } from '../components/agenda/VisitaCardCompact';
+import { AgendaMap } from '../components/agenda/AgendaMap';
 import { VisitaDrawer } from '../components/agenda/VisitaDrawer';
 import { AgendaDatePicker } from '../components/agenda/AgendaDatePicker';
 import { supabase } from '../lib/supabase';
 import { HistVenda, Produto } from '../types';
+import { MapPin } from 'lucide-react';
 
 const DIAS_MAP: Record<number, DiaSemana> = {
   1: 'Segunda',
@@ -65,6 +57,7 @@ export function AgendaPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCity, setFilterCity] = useState('');
   const [filterStatus, setFilterStatus] = useState<VisitaStatus | 'todos'>('todos');
+  const [viewType, setViewType] = useState<'list' | 'map'>('list');
 
   // Cycle Helper
   const getCycleWeek = (date: Date): 1 | 2 => {
@@ -277,82 +270,108 @@ export function AgendaPage() {
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50 pb-0 selection:bg-orange-500 selection:text-white">
       {/* Top Header */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-neutral-200 px-6 py-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between gap-6">
-            <div className="flex items-center gap-6">
+      <header className="sticky top-0 z-40 px-4 py-4 md:px-6 md:py-6">
+        <div className="max-w-4xl mx-auto">
+          {/* Main Control Card */}
+          <div className="bg-white rounded-[2.5rem] border border-neutral-200 shadow-xl shadow-neutral-200/50 p-6 md:p-8 relative overflow-hidden">
+            {/* Background Accent */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-bl-[5rem] -z-10 opacity-50" />
+            
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              {/* Left: Title & Info */}
               <div className="flex flex-col">
-                <h1 className="text-2xl font-black text-neutral-900 tracking-tighter flex items-center gap-2">
-                  Agenda
-                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                </h1>
-              </div>
-
-              <div className="hidden md:flex items-center gap-1 bg-neutral-100 border border-neutral-200 p-1 rounded-2xl">
-                <button 
-                  onClick={() => setSelectedDate(subDays(selectedDate, 1))}
-                  className="p-2 text-neutral-400 hover:text-neutral-900 hover:bg-white rounded-xl transition-all"
-                >
-                  <ChevronLeft size={20} />
-                </button>
-                <button 
-                  onClick={() => setSelectedDate(startOfToday())}
-                  className="px-4 py-2 text-xs font-black text-white bg-orange-600 rounded-xl shadow-lg shadow-orange-500/20 active:scale-95 transition-all"
-                >
-                  HOJE
-                </button>
-                <button 
-                  onClick={() => setSelectedDate(addDays(selectedDate, 1))}
-                  className="p-2 text-neutral-400 hover:text-neutral-900 hover:bg-white rounded-xl transition-all"
-                >
-                  <ChevronRight size={20} />
-                </button>
-              </div>
-
-              <div className="flex flex-col ml-2">
-                <div className="text-sm font-black text-neutral-900 uppercase tracking-wider">
+                <h1 className="text-2xl md:text-3xl font-black text-neutral-900 tracking-tighter uppercase leading-none">
                   {format(selectedDate, "EEEE, d 'de' MMMM", { locale: ptBR })}
+                </h1>
+                <div className="flex items-center gap-3 mt-2">
+                  <div className="px-3 py-1 bg-neutral-100 rounded-full text-[10px] font-black text-neutral-500 uppercase tracking-widest">
+                    Ciclo: Semana {getCycleWeek(selectedDate)}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                    <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Sistema Ativo</span>
+                  </div>
                 </div>
-                <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-[0.15em]">
-                   Ciclo: Semana {getCycleWeek(selectedDate)}
+              </div>
+
+              {/* Right: Primary Action (Optimization) and Nav */}
+              <div className="flex flex-col items-end gap-4">
+                <div className="flex items-center gap-1.5 bg-neutral-50 border border-neutral-200 p-1.5 rounded-[1.25rem]">
+                  <button 
+                    onClick={() => setSelectedDate(subDays(selectedDate, 1))}
+                    className="w-9 h-9 flex items-center justify-center text-neutral-400 hover:text-neutral-900 hover:bg-white rounded-lg transition-all"
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button 
+                    onClick={() => setSelectedDate(startOfToday())}
+                    className="px-4 h-9 text-[10px] font-black text-neutral-600 bg-white border border-neutral-200 rounded-lg shadow-sm active:scale-95 transition-all uppercase tracking-widest"
+                  >
+                    Hoje
+                  </button>
+                  <button 
+                    onClick={() => setSelectedDate(addDays(selectedDate, 1))}
+                    className="w-9 h-9 flex items-center justify-center text-neutral-400 hover:text-neutral-900 hover:bg-white rounded-lg transition-all"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <button 
-                  onClick={() => setShowDatePicker(!showDatePicker)}
-                  className={cn(
-                    "w-10 h-10 rounded-2xl flex items-center justify-center border transition-all",
-                    showDatePicker ? "bg-orange-600 text-white border-orange-600" : "text-neutral-400 border-neutral-200 hover:bg-neutral-100"
-                  )}
-                >
-                  <CalendarIcon size={18} />
-                </button>
-                <AgendaDatePicker 
-                  isOpen={showDatePicker}
-                  onClose={() => setShowDatePicker(false)}
-                  selectedDate={selectedDate}
-                  onSelect={setSelectedDate}
-                  visitas={visitas}
-                />
+            {/* Bottom Row: Secondary Tools */}
+            <div className="mt-8 pt-6 border-t border-neutral-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                 {/* Search/Filters Summary maybe? Or just keep it clean */}
+                 <div className="text-[11px] font-bold text-neutral-400">
+                   {filteredVisitas.length} VISITAS PROGRAMADAS
+                 </div>
               </div>
-              <button 
-                 onClick={() => setShowFilters(!showFilters)}
-                 className={cn(
-                   "w-10 h-10 rounded-2xl flex items-center justify-center border transition-all",
-                   showFilters ? "bg-neutral-900 text-white border-neutral-900" : "text-neutral-400 border-neutral-200 hover:bg-neutral-100"
-                 )}
-              >
-                <Filter size={18} />
-              </button>
-              <button 
-                 onClick={fetchAgenda}
-                 className="w-10 h-10 rounded-2xl flex items-center justify-center border border-neutral-200 text-neutral-400 hover:bg-neutral-100 transition-all active:rotate-180 duration-500"
-              >
-                <RefreshCw size={18} />
-              </button>
+
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowDatePicker(!showDatePicker)}
+                    className={cn(
+                      "w-11 h-11 rounded-2xl flex items-center justify-center border transition-all",
+                      showDatePicker ? "bg-neutral-900 text-white border-neutral-900" : "text-neutral-400 border-neutral-200 bg-white hover:bg-neutral-50"
+                    )}
+                  >
+                    <CalendarIcon size={20} />
+                  </button>
+                  <AgendaDatePicker 
+                    isOpen={showDatePicker}
+                    onClose={() => setShowDatePicker(false)}
+                    selectedDate={selectedDate}
+                    onSelect={setSelectedDate}
+                    visitas={visitas}
+                  />
+                </div>
+                <button 
+                   onClick={() => setShowFilters(!showFilters)}
+                   className={cn(
+                     "w-11 h-11 rounded-2xl flex items-center justify-center border transition-all",
+                     showFilters ? "bg-neutral-900 text-white border-neutral-900" : "text-neutral-400 border-neutral-200 bg-white hover:bg-neutral-50"
+                   )}
+                >
+                  <Filter size={20} />
+                </button>
+                <button 
+                   onClick={() => setViewType(viewType === 'list' ? 'map' : 'list')}
+                   className={cn(
+                     "w-11 h-11 rounded-2xl flex items-center justify-center border transition-all",
+                     viewType === 'map' ? "bg-orange-600 text-white border-orange-600 shadow-lg shadow-orange-500/20" : "text-neutral-400 border-neutral-200 bg-white hover:bg-neutral-50"
+                   )}
+                >
+                  <MapIcon size={20} />
+                </button>
+                <button 
+                   onClick={fetchAgenda}
+                   className="w-11 h-11 rounded-2xl flex items-center justify-center border border-neutral-200 bg-white text-neutral-400 hover:bg-neutral-50 transition-all active:rotate-180 duration-500 shadow-sm"
+                >
+                  <RefreshCw size={20} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -365,6 +384,17 @@ export function AgendaPage() {
           metaDia={agendaStatsData.metaDia}
           realizadoTotal={agendaStatsData.realizadoTotal}
         />
+
+        {viewType === 'map' && (
+          <AgendaMap 
+            visitas={filteredVisitas}
+            selectedVisita={selectedVisita}
+            onSelectVisita={(v) => {
+              setSelectedVisita(v);
+              setIsDrawerOpen(true);
+            }}
+          />
+        )}
 
         {/* Filters Panel */}
         <AnimatePresence>

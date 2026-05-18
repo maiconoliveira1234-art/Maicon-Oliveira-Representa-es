@@ -39,6 +39,15 @@ export const agendaService = {
     return data as Visita;
   },
 
+  async updateOrdem(id: string, ordem: number) {
+    const { error } = await supabase
+      .from('agenda_visitas')
+      .update({ ordem_visita: ordem })
+      .eq('id', id);
+
+    if (error) throw error;
+  },
+
   async deleteVisita(id: string) {
     const { error } = await supabase
       .from('agenda_visitas')

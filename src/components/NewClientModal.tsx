@@ -3,6 +3,7 @@ import { X, Save, Loader2, UserPlus, Edit3, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { Cliente } from '../types';
+import { geocodeAddress } from '../services/geocodingService';
 
 interface NewClientModalProps {
   isOpen: boolean;
@@ -68,7 +69,7 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
         return;
       }
 
-      const clientData = {
+      const clientData: any = {
         cliente: formData.cliente,
         dia_visita: formData.dia_visita,
         cidade: formData.cidade,
@@ -77,6 +78,25 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
         telefone: formData.telefone || null,
         endereco: formData.endereco,
       };
+
+      // Automatic Geocoding if address is provided
+      if (formData.endereco && formData.cidade) {
+        const needsGeocode = !editingCliente || 
+                           editingCliente.endereco !== formData.endereco || 
+                           editingCliente.cidade !== formData.cidade ||
+                           !editingCliente.latitude;
+        
+        if (needsGeocode) {
+          const coords = await geocodeAddress(formData.endereco, formData.cidade);
+          if (coords) {
+            clientData.latitude = coords.lat;
+            clientData.longitude = coords.lng;
+          }
+        } else if (editingCliente) {
+          clientData.latitude = editingCliente.latitude;
+          clientData.longitude = editingCliente.longitude;
+        }
+      }
 
       if (editingCliente) {
         const { error: updateError } = await supabase

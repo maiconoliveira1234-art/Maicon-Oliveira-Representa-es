@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
-import { Settings, Info, Shield, Database, Smartphone, RefreshCw, UserX, Loader2, CheckCircle2 } from 'lucide-react';
+import { Settings, Info, Shield, Database, Smartphone, RefreshCw, UserX, Loader2, CheckCircle2, Route } from 'lucide-react';
 import { APP_VERSION } from '../constants';
 import { runAutomaticInactivation } from '../lib/clientInactivation';
+import { optimizeAllTerritories } from '../lib/territoryOptimization';
 
 export function SettingsPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const [isInactivating, setIsInactivating] = useState(false);
   const [inactivateSuccess, setInactivateSuccess] = useState(false);
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [geocodeSuccess, setGeocodeSuccess] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optSuccess, setOptSuccess] = useState(false);
 
   const handleUpdate = () => {
     setIsUpdating(true);
@@ -77,6 +82,90 @@ export function SettingsPage() {
                   'Executar'
                 )}
                 {inactivateSuccess ? 'Concluído' : isInactivating ? 'Processando' : ''}
+              </button>
+            </div>
+
+            <div className="flex justify-between items-center pt-4 border-t border-neutral-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                  <RefreshCw size={20} />
+                </div>
+                <div className="max-w-[200px] md:max-w-none">
+                  <p className="font-bold text-neutral-900">Geocodificação Inicial</p>
+                  <p className="text-xs text-neutral-500">Gera coordenadas para endereços existentes</p>
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  setIsGeocoding(true);
+                  const { bulkGeocodeClients } = await import('../lib/bulkGeocode');
+                  alert('Iniciando. Acompanhe o log (F12). O Nominatim permite 1 requisição por segundo.');
+                  await bulkGeocodeClients();
+                  setIsGeocoding(false);
+                  setGeocodeSuccess(true);
+                  setTimeout(() => setGeocodeSuccess(false), 3000);
+                  alert('Processamento concluído!');
+                }}
+                disabled={isGeocoding}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                  geocodeSuccess 
+                    ? 'bg-green-100 text-green-600' 
+                    : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95 disabled:opacity-50'
+                }`}
+              >
+                {isGeocoding ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : geocodeSuccess ? (
+                  <CheckCircle2 size={14} />
+                ) : (
+                  'Iniciar'
+                )}
+                {geocodeSuccess ? 'Concluído' : isGeocoding ? 'Processando' : ''}
+              </button>
+            </div>
+
+            <div className="flex justify-between items-center pt-4 border-t border-neutral-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                  <Route size={20} />
+                </div>
+                <div className="max-w-[200px] md:max-w-none">
+                  <p className="font-bold text-neutral-900">Otimização de Território</p>
+                  <p className="text-xs text-neutral-500">Redistribui visitas entre os dias por proximidade</p>
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  if (!confirm('Esta ação irá redistribuir TODOS os clientes entre as 2 semanas (Segunda a Quinta) para agrupar por proximidade geográfica. Deseja continuar?')) return;
+                  
+                  setIsOptimizing(true);
+                  try {
+                    await optimizeAllTerritories();
+                    setOptSuccess(true);
+                    setTimeout(() => setOptSuccess(false), 3000);
+                    alert('Otimização concluída!');
+                  } catch (err) {
+                    console.error('Erro na otimização:', err);
+                    alert('Erro: ' + (err instanceof Error ? err.message : 'Erro desconhecido'));
+                  } finally {
+                    setIsOptimizing(false);
+                  }
+                }}
+                disabled={isOptimizing}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                  optSuccess 
+                    ? 'bg-green-100 text-green-600' 
+                    : 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95 disabled:opacity-50'
+                }`}
+              >
+                {isOptimizing ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : optSuccess ? (
+                  <CheckCircle2 size={14} />
+                ) : (
+                  'Otimizar 8 Dias'
+                )}
+                {optSuccess ? 'Concluído' : isOptimizing ? 'Processando' : ''}
               </button>
             </div>
           </div>
