@@ -16,6 +16,20 @@ export default defineConfig(({mode}) => {
         env.VITE_GOOGLE_MAPS_PLATFORM_KEY ||
         ''
       ),
+      'process.env.VITE_GOOGLE_MAPS_PLATFORM_KEY': JSON.stringify(
+        process.env.GOOGLE_MAPS_PLATFORM_KEY ||
+        env.GOOGLE_MAPS_PLATFORM_KEY ||
+        process.env.VITE_GOOGLE_MAPS_PLATFORM_KEY ||
+        env.VITE_GOOGLE_MAPS_PLATFORM_KEY ||
+        ''
+      ),
+      'import.meta.env.VITE_GOOGLE_MAPS_PLATFORM_KEY': JSON.stringify(
+        process.env.GOOGLE_MAPS_PLATFORM_KEY ||
+        env.GOOGLE_MAPS_PLATFORM_KEY ||
+        process.env.VITE_GOOGLE_MAPS_PLATFORM_KEY ||
+        env.VITE_GOOGLE_MAPS_PLATFORM_KEY ||
+        ''
+      ),
       'process.env.NEXT_PUBLIC_SUPABASE_URL': JSON.stringify(env.NEXT_PUBLIC_SUPABASE_URL),
       'process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY': JSON.stringify(env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
       'process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY': JSON.stringify(env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY),
