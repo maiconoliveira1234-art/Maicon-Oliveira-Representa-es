@@ -20,6 +20,14 @@ import { LoansPage } from './pages/LoansPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { runAutomaticInactivation } from './lib/clientInactivation';
 import { DataManagerProvider, useDataManager } from './lib/dataManager';
+import { APIProvider } from '@vis.gl/react-google-maps';
+
+const API_KEY =
+  process.env.GOOGLE_MAPS_PLATFORM_KEY ||
+  (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY ||
+  (globalThis as any).GOOGLE_MAPS_PLATFORM_KEY ||
+  '';
+const hasValidKey = Boolean(API_KEY) && API_KEY !== 'YOUR_API_KEY';
 
 function AppContent() {
   const { loadInitialData } = useDataManager();
@@ -52,9 +60,19 @@ function AppContent() {
 }
 
 export default function App() {
-  return (
+  const appContent = (
     <DataManagerProvider>
       <AppContent />
     </DataManagerProvider>
   );
+
+  if (hasValidKey) {
+    return (
+      <APIProvider apiKey={API_KEY} version="weekly" libraries={['places', 'geocoding']}>
+        {appContent}
+      </APIProvider>
+    );
+  }
+
+  return appContent;
 }

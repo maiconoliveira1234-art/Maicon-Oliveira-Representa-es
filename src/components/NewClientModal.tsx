@@ -3,7 +3,7 @@ import { X, Save, Loader2, UserPlus, Edit3, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { Cliente } from '../types';
-import { geocodeAddress } from '../services/geocodingService';
+import { geocodeAddress, getAddressSuggestions, PlaceSuggestion } from '../services/geocodingService';
 
 interface NewClientModalProps {
   isOpen: boolean;
@@ -24,6 +24,9 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
     telefone: '',
     endereco: '',
   });
+
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   useEffect(() => {
     if (editingCliente) {
@@ -47,7 +50,52 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
         endereco: '',
       });
     }
+    setSuggestions([]);
+    setShowSuggestions(false);
   }, [editingCliente, isOpen]);
+
+  // Debounced Address Suggestion Lookup (500ms)
+  useEffect(() => {
+    const term = formData.endereco;
+    if (!term || term.trim().length < 3) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const handler = setTimeout(async () => {
+      const results = await getAddressSuggestions(term);
+      setSuggestions(results);
+      setShowSuggestions(results.length > 0);
+    }, 500); // 500ms DEBOUNCE
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [formData.endereco]);
+
+  const handleSelectSuggestion = (suggestion: PlaceSuggestion) => {
+    const parts = suggestion.description.split(',');
+    
+    setFormData((prev) => {
+      const updated = { ...prev };
+      // Save full address for accurate geocoding
+      updated.endereco = suggestion.description.toUpperCase();
+      
+      // Auto-extract city if SC cities are found in the suggested address components
+      const scCities = ['JOINVILLE', 'SÃO FRANCISCO DO SUL', 'ARAQUARI', 'GARUVA', 'ITAJAÍ', 'BALNEÁRIO CAMBORIÚ', 'SÃO BENTO DO SUL', 'FLORIANÓPOLIS', 'BLUMENAU', 'JARAGUÁ DO SUL', 'TIMBÓ', 'POMERODE', 'BARRA VELHA', 'PENHA', 'PIÇARRAS', 'BALNEÁRIO PIÇARRAS'];
+      for (const p of parts) {
+        const cleanPart = p.trim().toUpperCase();
+        if (scCities.includes(cleanPart)) {
+          updated.cidade = cleanPart;
+          break;
+        }
+      }
+      return updated;
+    });
+
+    setShowSuggestions(false);
+  };
 
   if (!isOpen) return null;
 
@@ -220,15 +268,38 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
               />
             </div>
 
-            <div className="space-y-1.5 md:col-span-2">
+            <div className="space-y-1.5 md:col-span-2 relative">
               <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest ml-1">Endereço</label>
               <input
                 type="text"
                 value={formData.endereco}
                 onChange={(e) => setFormData({ ...formData, endereco: e.target.value.toUpperCase() })}
+                onFocus={() => {
+                  if (suggestions.length > 0) setShowSuggestions(true);
+                }}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                 className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold text-neutral-900"
-                placeholder="RUA, NÚMERO, BAIRRO..."
+                placeholder="REGISTRE A RUA E NÚMERO..."
+                autoComplete="off"
               />
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1 max-h-[220px] overflow-y-auto bg-white border border-neutral-200 rounded-2xl shadow-xl z-[400] divide-y divide-neutral-100 animate-in fade-in duration-100">
+                  {suggestions.map((suggestion) => (
+                    <button
+                      key={suggestion.placeId}
+                      type="button"
+                      onMouseDown={(e) => {
+                        // Prevent prompt blur from hiding the popup before click completes
+                        e.preventDefault();
+                      }}
+                      onClick={() => handleSelectSuggestion(suggestion)}
+                      className="w-full text-left px-4 py-3 hover:bg-neutral-50 text-xs font-semibold text-neutral-800 transition-colors block"
+                    >
+                      {suggestion.description}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="space-y-1.5 md:col-span-2">

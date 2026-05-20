@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow, useAdvancedMarkerRef } from '@vis.gl/react-google-maps';
+import { Map, AdvancedMarker, Pin, InfoWindow, useAdvancedMarkerRef } from '@vis.gl/react-google-maps';
 import { Visita } from '../../types/agenda';
 import { cn } from '../../lib/utils';
 import { MapPin } from 'lucide-react';
@@ -115,27 +115,25 @@ export const AgendaMap: React.FC<AgendaMapProps> = ({ visitas, selectedVisita, o
 
   return (
     <div className="w-full h-[400px] rounded-[2.5rem] overflow-hidden border border-neutral-200 shadow-sm mb-6 z-0">
-      <APIProvider apiKey={API_KEY} version="weekly">
-        <Map
-          center={mapCenter}
-          zoom={12}
-          mapId="agenda_map_view"
-          internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
-          style={{ width: '100%', height: '100%' }}
-        >
-          {visitas.map(v => {
-            if (!v.latitude || !v.longitude) return null;
-            return (
-              <VisitaMarker
-                key={v.id}
-                visita={v}
-                isSelected={selectedVisita?.id === v.id}
-                onSelect={() => onSelectVisita(v)}
-              />
-            );
-          })}
-        </Map>
-      </APIProvider>
+      <Map
+        center={mapCenter}
+        zoom={12}
+        mapId="agenda_map_view"
+        internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
+        style={{ width: '100%', height: '100%' }}
+      >
+        {visitas.map(v => {
+          if (!v.latitude || !v.longitude) return null;
+          return (
+            <VisitaMarker
+              key={v.id}
+              visita={v}
+              isSelected={selectedVisita?.id === v.id}
+              onSelect={() => onSelectVisita(v)}
+            />
+          );
+        })}
+      </Map>
     </div>
   );
 };
