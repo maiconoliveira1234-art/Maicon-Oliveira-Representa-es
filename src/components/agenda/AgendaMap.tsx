@@ -17,10 +17,48 @@ const API_KEY =
   '';
 const hasValidKey = Boolean(API_KEY) && API_KEY !== 'YOUR_API_KEY';
 
+const getStatusBadgeClass = (status: string) => {
+  switch (status) {
+    case 'concluida': return 'text-emerald-600 bg-emerald-50 border-emerald-100';
+    case 'pendente': return 'text-orange-600 bg-orange-50 border-orange-100';
+    case 'reagendada': return 'text-amber-600 bg-amber-50 border-amber-100';
+    case 'cancelada': return 'text-rose-600 bg-rose-50 border-rose-100';
+    default: return 'text-slate-600 bg-slate-50 border-slate-100';
+  }
+};
+
+const getStatusLabel = (status: string) => {
+  switch (status) {
+    case 'concluida': return 'CONCLUÍDA';
+    case 'pendente': return 'PENDENTE';
+    case 'reagendada': return 'REAGENDADA';
+    case 'cancelada': return 'CANCELADA';
+    default: return status.toUpperCase();
+  }
+};
+
 const getMarkerColors = (status: string, isSelected: boolean) => {
-  if (status === 'concluida') return { bg: '#10b981', glyph: '#ffffff', border: '#ffffff' };
-  if (isSelected) return { bg: '#f97316', glyph: '#ffffff', border: '#ffffff' };
-  return { bg: '#3b82f6', glyph: '#ffffff', border: '#ffffff' };
+  let bg = '#64748b'; // default Slate 500
+  switch (status) {
+    case 'concluida':
+      bg = '#10b981'; // Emerald 500
+      break;
+    case 'pendente':
+      bg = '#f97316'; // Orange 500
+      break;
+    case 'reagendada':
+      bg = '#f59e0b'; // Amber 500
+      break;
+    case 'cancelada':
+      bg = '#f43f5e'; // Rose 500
+      break;
+  }
+  
+  return {
+    bg,
+    glyph: '#ffffff',
+    border: isSelected ? '#171717' : '#ffffff'
+  };
 };
 
 const VisitaMarker: React.FC<{
@@ -47,10 +85,10 @@ const VisitaMarker: React.FC<{
             <p className="text-[10px] text-neutral-500 m-0">{visita.cidade}</p>
             <div className="mt-2 flex items-center justify-between gap-2 border-t border-neutral-100 pt-1.5">
               <span className={cn(
-                "text-[9px] font-black tracking-wider px-1.5 py-0.5 rounded-full uppercase",
-                visita.status === 'concluida' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                "text-[8px] font-black tracking-tight px-1.5 py-0.5 rounded border uppercase",
+                getStatusBadgeClass(visita.status)
               )}>
-                {visita.status}
+                {getStatusLabel(visita.status)}
               </span>
               <span className="text-[10px] font-bold text-neutral-700">{visita.horario_inicio}</span>
             </div>

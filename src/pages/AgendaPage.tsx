@@ -199,11 +199,49 @@ export function AgendaPage() {
     }
   }
 
+  const processedVisitas = useMemo(() => {
+    const startMetaStr = localStorage.getItem('metas_start_date') || format(startOfMonth(new Date()), 'yyyy-MM-dd');
+    const endMetaStr = localStorage.getItem('metas_deadline_date') || format(endOfMonth(new Date()), 'yyyy-MM-dd');
+    
+    let startMeta: Date;
+    let endMeta: Date;
+    try {
+      startMeta = parseISO(startMetaStr);
+      endMeta = parseISO(endMetaStr);
+    } catch (e) {
+      startMeta = startOfMonth(new Date());
+      endMeta = endOfMonth(new Date());
+    }
+    
+    const clientsWithPurchases = new Set<string>();
+    historico.forEach(h => {
+      if (!h.cliente_id) return;
+      try {
+        const date = parseISO(h.faturamento);
+        if (isWithinInterval(date, { start: startMeta, end: endMeta })) {
+          clientsWithPurchases.add(h.cliente_id);
+        }
+      } catch (e) {
+        // Safe catch
+      }
+    });
+    
+    return visitas.map(v => {
+      if (v.cliente_id && clientsWithPurchases.has(v.cliente_id)) {
+        return {
+          ...v,
+          status: 'concluida' as VisitaStatus
+        };
+      }
+      return v;
+    });
+  }, [visitas, historico]);
+
   const filteredVisitas = useMemo(() => {
     const currentWeek = getCycleWeek(selectedDate);
     const currentDay = getDayName(selectedDate);
 
-    return visitas.filter(v => {
+    return processedVisitas.filter(v => {
       const matchesDay = v.semana === currentWeek && v.dia_semana === currentDay;
       const matchesSearch = (v.cliente_nome || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (v.cidade || '').toLowerCase().includes(searchTerm.toLowerCase());
@@ -212,6 +250,13 @@ export function AgendaPage() {
 
       return matchesDay && matchesSearch && matchesCity && matchesStatus;
     }).sort((a, b) => {
+      const isConcluidaA = a.status === 'concluida';
+      const isConcluidaB = b.status === 'concluida';
+
+      if (isConcluidaA !== isConcluidaB) {
+        return isConcluidaA ? 1 : -1;
+      }
+
       // Prioritize by Gap (Overdue first - higher gap is more overdue)
       const gapA = a.cliente_id ? (gapsMap[a.cliente_id] || -999) : -999;
       const gapB = b.cliente_id ? (gapsMap[b.cliente_id] || -999) : -999;
@@ -221,7 +266,7 @@ export function AgendaPage() {
       // Fallback to time (earlier first)
       return (a.horario_inicio || '').localeCompare(b.horario_inicio || '');
     });
-  }, [visitas, selectedDate, searchTerm, filterCity, filterStatus, gapsMap]);
+  }, [processedVisitas, selectedDate, searchTerm, filterCity, filterStatus, gapsMap]);
 
   const agendaStatsData = useMemo(() => {
     const start = startOfMonth(selectedDate);
@@ -255,7 +300,7 @@ export function AgendaPage() {
     };
   }, [filteredVisitas, metas, historico, produtos, selectedDate]);
 
-  const uniqueCities = Array.from(new Set(visitas.map(v => v.cidade))).sort();
+  const uniqueCities = Array.from(new Set(processedVisitas.map(v => v.cidade))).sort();
 
   if (loading) {
     return (
@@ -365,7 +410,7 @@ export function AgendaPage() {
                     onClose={() => setShowDatePicker(false)}
                     selectedDate={selectedDate}
                     onSelect={setSelectedDate}
-                    visitas={visitas}
+                    visitas={processedVisitas}
                   />
                 </div>
                 <button 
@@ -533,7 +578,7 @@ export function AgendaPage() {
       {/* Drawer */}
       <VisitaDrawer 
         isOpen={isDrawerOpen}
-        visita={selectedVisita}
+        visita={selectedVisita ? (processedVisitas.find(pv => pv.id === selectedVisita.id) || selectedVisita) : null}
         onClose={() => setIsDrawerOpen(false)}
         onStatusChange={(status) => selectedVisita && handleStatusUpdate(selectedVisita.id, status)}
         onNoteChange={(note) => selectedVisita && handleNoteUpdate(selectedVisita.id, note)}
