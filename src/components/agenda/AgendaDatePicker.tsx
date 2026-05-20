@@ -116,27 +116,27 @@ export const AgendaDatePicker: React.FC<AgendaDatePickerProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             className={cn(
-              "fixed z-[60] bg-white rounded-[2.5rem] shadow-xl shadow-neutral-900/10 border border-neutral-100 overflow-hidden",
-              "bottom-4 left-4 right-4 md:absolute md:bottom-auto md:left-auto md:right-0 md:top-full md:mt-4 md:w-80"
+              "fixed z-[60] bg-white rounded-[2rem] shadow-xl shadow-neutral-900/10 border border-neutral-100 overflow-hidden",
+              "bottom-4 left-1/2 -translate-x-1/2 w-72 md:absolute md:bottom-auto md:left-auto md:right-0 md:top-full md:translate-x-0 md:mt-3"
             )}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="p-6 pb-4 flex items-center justify-between border-b border-neutral-50">
+            <div className="p-5 pb-3.5 flex items-center justify-between border-b border-neutral-50">
               <div className="flex flex-col">
                 <button 
                   onClick={() => setShowYearPicker(!showYearPicker)}
                   className="flex items-center gap-1 group text-left"
                 >
-                  <span className="text-lg font-black text-neutral-900 capitalize leading-none">
+                  <span className="text-base font-black text-neutral-900 capitalize leading-none">
                     {format(currentMonth, 'MMMM', { locale: ptBR })}
                   </span>
                   <ChevronDown className={cn(
                     "text-neutral-400 group-hover:text-orange-500 transition-all",
                     showYearPicker && "rotate-180"
-                  )} size={16} />
+                  )} size={14} />
                 </button>
-                <span className="text-[10px] font-black text-neutral-400 uppercase tracking-widest mt-1">
+                <span className="text-[9px] font-black text-neutral-400 uppercase tracking-widest mt-1">
                   {format(currentMonth, 'yyyy')}
                 </span>
               </div>
@@ -144,15 +144,15 @@ export const AgendaDatePicker: React.FC<AgendaDatePickerProps> = ({
               <div className="flex items-center gap-1">
                 <button 
                   onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 transition-all"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 transition-all"
                 >
-                  <ChevronLeft size={18} />
+                  <ChevronLeft size={16} />
                 </button>
                 <button 
                   onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 transition-all"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 transition-all"
                 >
-                  <ChevronRight size={18} />
+                  <ChevronRight size={16} />
                 </button>
               </div>
             </div>
@@ -165,7 +165,7 @@ export const AgendaDatePicker: React.FC<AgendaDatePickerProps> = ({
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
-                    className="absolute inset-0 z-10 bg-white p-4 grid grid-cols-3 gap-2 overflow-y-auto max-h-[320px]"
+                    className="absolute inset-0 z-10 bg-white p-3 grid grid-cols-3 gap-1.5 overflow-y-auto max-h-[280px]"
                   >
                     {years.map((year) => (
                       <button
@@ -175,7 +175,7 @@ export const AgendaDatePicker: React.FC<AgendaDatePickerProps> = ({
                           setShowYearPicker(false);
                         }}
                         className={cn(
-                          "py-3 rounded-2xl text-xs font-black transition-all",
+                          "py-2 px-1 rounded-xl text-xs font-black transition-all",
                           year === getYear(currentMonth)
                             ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
                             : "text-neutral-500 hover:bg-neutral-50"
@@ -189,8 +189,8 @@ export const AgendaDatePicker: React.FC<AgendaDatePickerProps> = ({
               </AnimatePresence>
 
               {/* Main Calendar Grid */}
-              <div className="p-6 pt-4">
-                <div className="grid grid-cols-7 mb-2">
+              <div className="p-5 pt-3.5">
+                <div className="grid grid-cols-7 mb-1.5">
                   {weekDays.map((day, idx) => (
                     <div 
                       key={idx} 
@@ -219,7 +219,7 @@ export const AgendaDatePicker: React.FC<AgendaDatePickerProps> = ({
                           "relative aspect-square rounded-full flex flex-col items-center justify-center text-xs transition-all",
                           !isCurrentMonth && "opacity-20",
                           isSelected 
-                            ? "bg-orange-600 text-white font-black shadow-lg shadow-orange-600/30 scale-110 z-10" 
+                            ? "bg-orange-600 text-white font-black shadow-lg shadow-orange-600/30 scale-105 z-10" 
                             : isToday 
                               ? "bg-orange-50 text-orange-600 font-bold border border-orange-100" 
                               : "text-neutral-900 font-medium hover:bg-neutral-50 active:scale-90"
@@ -229,7 +229,7 @@ export const AgendaDatePicker: React.FC<AgendaDatePickerProps> = ({
                         
                         {hasPlannedVisits && (
                           <div className={cn(
-                            "absolute bottom-1.5 w-1.5 h-1.5 rounded-full shadow-sm",
+                            "absolute bottom-1 w-1.5 h-1.5 rounded-full shadow-sm",
                             isSelected ? "bg-white" : "bg-orange-500"
                           )} />
                         )}
@@ -241,13 +241,13 @@ export const AgendaDatePicker: React.FC<AgendaDatePickerProps> = ({
             </div>
 
             {/* Footer */}
-            <div className="p-4 bg-neutral-50 flex items-center justify-center">
+            <div className="p-3 bg-neutral-50 flex items-center justify-center">
               <button 
                 onClick={() => {
                   onSelect(startOfToday());
                   onClose();
                 }}
-                className="text-[10px] font-black text-neutral-400 hover:text-orange-600 uppercase tracking-widest transition-colors"
+                className="text-[9px] font-black text-neutral-400 hover:text-orange-600 uppercase tracking-widest transition-colors"
               >
                 Voltar para Hoje
               </button>
