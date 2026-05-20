@@ -231,6 +231,46 @@ export function SettingsPage() {
                 Conectado
               </span>
             </div>
+
+            <div className="flex justify-between items-center pt-4 border-t border-neutral-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
+                  <Route size={20} />
+                </div>
+                <div>
+                  <p className="font-bold text-neutral-900">Google Maps Platform</p>
+                  <p className="text-xs text-neutral-500">
+                    {(() => {
+                      const key = process.env.GOOGLE_MAPS_PLATFORM_KEY || (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY || (globalThis as any).GOOGLE_MAPS_PLATFORM_KEY || '';
+                      if (!key || key === 'YOUR_API_KEY') {
+                        return 'Nenhuma chave de API detectada';
+                      }
+                      const masked = key.length > 8 ? `${key.substring(0, 6)}...${key.substring(key.length - 4)}` : 'Chave configurada';
+                      return `Chave detectada: ${masked} (${key.length} caract.)`;
+                    })()}
+                  </p>
+                </div>
+              </div>
+              {(() => {
+                const key = process.env.GOOGLE_MAPS_PLATFORM_KEY || (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY || (globalThis as any).GOOGLE_MAPS_PLATFORM_KEY || '';
+                const hasKey = Boolean(key) && key !== 'YOUR_API_KEY';
+                if (hasKey) {
+                  return (
+                    <span className="flex items-center gap-1.5 text-green-600 font-bold text-sm">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-ping" />
+                      Configurado
+                    </span>
+                  );
+                } else {
+                  return (
+                    <span className="flex items-center gap-1.5 text-amber-500 font-bold text-sm animate-pulse">
+                      <div className="w-2 h-2 bg-amber-500 rounded-full" />
+                      Não Configurado
+                    </span>
+                  );
+                }
+              })()}
+            </div>
           </div>
         </section>
 
