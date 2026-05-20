@@ -295,9 +295,10 @@ export function ClientsPage() {
         <div className="divide-y divide-neutral-100">
           {filteredClientes.length > 0 ? (
             filteredClientes.map((cliente) => (
-              <button
+              <div
                 key={cliente.id}
                 onClick={() => {
+                  if (togglingId === cliente.id) return;
                   if (isManageMode) {
                     toggleClienteAtivo(cliente.id, cliente.ativo);
                   } else if (isEditMode) {
@@ -307,9 +308,8 @@ export function ClientsPage() {
                     navigate(openOrdersCount[cliente.id] ? `/pedido/novo/${cliente.id}` : `/cliente/${cliente.id}`);
                   }
                 }}
-                disabled={togglingId === cliente.id}
                 className={cn(
-                  "w-full flex items-center justify-between p-4 hover:bg-neutral-50 transition-colors text-left group border-l-4",
+                  "w-full flex items-center justify-between p-4 hover:bg-neutral-50 transition-colors text-left group border-l-4 cursor-pointer",
                   isManageMode ? (cliente.ativo ? "border-green-500" : "border-red-500") : 
                   isEditMode ? "border-purple-500" : "border-transparent",
                   togglingId === cliente.id && "opacity-50 pointer-events-none"
@@ -390,7 +390,7 @@ export function ClientsPage() {
                     )}
                   </div>
                 </div>
-              </button>
+              </div>
             ))
           ) : (
             <div className="p-12 text-center text-neutral-400">

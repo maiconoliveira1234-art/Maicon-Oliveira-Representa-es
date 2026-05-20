@@ -23,6 +23,7 @@ import { supabase } from '../lib/supabase';
 import { cn, formatWeight, formatCurrency } from '../lib/utils';
 import { differenceInDays, parseISO, format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
+import { FAMILY_PRIORITY_ORDER } from '../constants';
 
 interface ItemEstoqueData {
   produto_id: string;
@@ -69,6 +70,14 @@ export function StockCountPage() {
   const [isReady, setIsReady] = useState(false);
   const [touchedItems, setTouchedItems] = useState<Set<string>>(new Set());
   const exportRef = useRef<HTMLDivElement>(null);
+  
+  const familyPriorityMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    FAMILY_PRIORITY_ORDER.forEach((family, index) => {
+      map[family] = index;
+    });
+    return map;
+  }, []);
 
   useEffect(() => {
     async function loadData() {
@@ -256,11 +265,20 @@ export function StockCountPage() {
       })
       .filter((item): item is ItemEstoqueData => item !== null);
 
-    // Sort: Alphabetical and Active status
+    // Sort: Family Priority and then Alphabetical
     return result
       .filter(item => showInactive || item.ativo)
-      .sort((a, b) => a.produto_nome.localeCompare(b.produto_nome));
-  }, [historico, estoqueMap, ultimaContagemMap, produtosMap, showInactive, lastOrderDate]);
+      .sort((a, b) => {
+        const priorityA = familyPriorityMap[a.familia] ?? 999;
+        const priorityB = familyPriorityMap[b.familia] ?? 999;
+        
+        if (priorityA !== priorityB) {
+          return priorityA - priorityB;
+        }
+        
+        return a.produto_nome.localeCompare(b.produto_nome);
+      });
+  }, [historico, estoqueMap, ultimaContagemMap, produtosMap, showInactive, lastOrderDate, familyPriorityMap]);
 
   const diasDesdeUltimoPedidoGlobal = useMemo(() => {
     if (historico.length === 0) return 0;
@@ -274,8 +292,14 @@ export function StockCountPage() {
       list = list.filter(item => Math.abs(item.peso_unitario - targetWeight) < 0.001);
     }
     const unique = Array.from(new Set(list.map(item => item.familia)));
-    return ['Todas', 'Não Contados', ...unique.sort()];
-  }, [processedItems, selectedWeight]);
+    const sortedUnique = (unique as string[]).sort((a, b) => {
+      const priorityA = familyPriorityMap[a] ?? 999;
+      const priorityB = familyPriorityMap[b] ?? 999;
+      if (priorityA !== priorityB) return priorityA - priorityB;
+      return a.localeCompare(b);
+    });
+    return ['Todas', 'Não Contados', ...sortedUnique];
+  }, [processedItems, selectedWeight, familyPriorityMap]);
 
   const weights = useMemo(() => {
     let list = processedItems;
