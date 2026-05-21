@@ -197,6 +197,8 @@ export function OrderPage() {
     return getFaixaPreco(pesoEfetivo);
   }, [pesoTotal, pesoConquistado]);
 
+  const currentFaixa = manualFaixa || faixaPreco;
+
   const prefilledApplied = React.useRef(false);
   const initialLoadDone = React.useRef(false);
 
@@ -205,6 +207,7 @@ export function OrderPage() {
     initialLoadDone.current = false;
     setIsReady(false);
     prefilledApplied.current = false;
+    setManualFaixa(null);
   }, [clienteId]);
 
   // Load saved items when client or products change
@@ -221,6 +224,7 @@ export function OrderPage() {
             prefilled = savedData.items || {};
             if (savedData.prazo) setSelectedPrazo(savedData.prazo);
             if (savedData.obs) setObservacoes(savedData.obs);
+            if (savedData.manualFaixa) setManualFaixa(savedData.manualFaixa);
           } else {
             prefilled = savedData || {};
           }
@@ -282,12 +286,13 @@ export function OrderPage() {
       const dataToSave = {
         items: map,
         prazo: selectedPrazo,
-        obs: observacoes
+        obs: observacoes,
+        manualFaixa: manualFaixa
       };
       
       localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(dataToSave));
     }
-  }, [itens, clienteId, isReady, selectedPrazo, observacoes]);
+  }, [itens, clienteId, isReady, selectedPrazo, observacoes, manualFaixa]);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -296,6 +301,7 @@ export function OrderPage() {
 
   const handleClearOrder = () => {
     setItens([]);
+    setManualFaixa(null);
     setShowClearConfirm(false);
     if (clienteId) {
       localStorage.removeItem(`pedido_${clienteId}`);
@@ -322,7 +328,7 @@ export function OrderPage() {
     if (existing) {
       updateItem(produto.id, (existing.quantidade || 0) + 1);
     } else {
-      const discount = getValorUnitario(produto, faixaPreco) || 0;
+      const discount = getValorUnitario(produto, currentFaixa) || 0;
       const unitario = produto.custo_und * (1 - discount);
       const valorTotalItem = unitario * (produto.quant_embalagem || 1);
       
@@ -348,7 +354,7 @@ export function OrderPage() {
         if (item.produto_id === produtoId) {
           const produto = produtos.find(p => p.id === produtoId)!;
           const pesoItem = qtd * produto.peso_embalagem;
-          const discount = getValorUnitario(produto, faixaPreco) || 0;
+          const discount = getValorUnitario(produto, currentFaixa) || 0;
           const unitario = produto.custo_und * (1 - discount);
           const valorTotalItem = unitario * qtd * (produto.quant_embalagem || 1);
           
@@ -370,7 +376,7 @@ export function OrderPage() {
     setItens(prev => prev.map(item => {
       const produto = produtos.find(p => p.id === item.produto_id);
       if (!produto) return item;
-      const discount = getValorUnitario(produto, faixaPreco) || 0;
+      const discount = getValorUnitario(produto, currentFaixa) || 0;
       const unitario = produto.custo_und * (1 - discount);
       const valorTotalItem = unitario * (item.quantidade || 0) * (produto.quant_embalagem || 1);
       
@@ -380,7 +386,7 @@ export function OrderPage() {
         valor_total: valorTotalItem
       };
     }));
-  }, [faixaPreco, produtos]);
+  }, [currentFaixa, produtos]);
 
   // Scroll to bottom when items are added
   useEffect(() => {
@@ -529,8 +535,6 @@ export function OrderPage() {
   };
 
   if (loading) return <StockCountSkeleton />;
-
-  const currentFaixa = manualFaixa || faixaPreco;
 
   return (
     <div className="space-y-6 pb-[600px] md:pb-96">
