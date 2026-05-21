@@ -292,14 +292,9 @@ export function StockCountPage() {
       list = list.filter(item => Math.abs(item.peso_unitario - targetWeight) < 0.001);
     }
     const unique = Array.from(new Set(list.map(item => item.familia)));
-    const sortedUnique = (unique as string[]).sort((a, b) => {
-      const priorityA = familyPriorityMap[a] ?? 999;
-      const priorityB = familyPriorityMap[b] ?? 999;
-      if (priorityA !== priorityB) return priorityA - priorityB;
-      return a.localeCompare(b);
-    });
+    const sortedUnique = (unique as string[]).sort((a, b) => a.localeCompare(b));
     return ['Todas', 'Não Contados', ...sortedUnique];
-  }, [processedItems, selectedWeight, familyPriorityMap]);
+  }, [processedItems, selectedWeight]);
 
   const weights = useMemo(() => {
     let list = processedItems;

@@ -155,7 +155,7 @@ export const AgendaMap: React.FC<AgendaMapProps> = ({ visitas, selectedVisita, o
     <div className="w-full h-[400px] rounded-[2.5rem] overflow-hidden border border-neutral-200 shadow-sm mb-6 z-0">
       <Map
         center={mapCenter}
-        zoom={selectedVisita ? 16 : 14}
+        zoom={13}
         mapId="agenda_map_view"
         internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
         style={{ width: '100%', height: '100%' }}
