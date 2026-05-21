@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Map, AdvancedMarker, Pin, InfoWindow, useAdvancedMarkerRef } from '@vis.gl/react-google-maps';
+import { Map, AdvancedMarker, Pin, InfoWindow, useAdvancedMarkerRef, useMap } from '@vis.gl/react-google-maps';
 import { Visita } from '../../types/agenda';
 import { cn } from '../../lib/utils';
 import { MapPin } from 'lucide-react';
@@ -99,6 +99,46 @@ const VisitaMarker: React.FC<{
   );
 };
 
+const MapBoundsAdjuster: React.FC<{ visitas: Visita[] }> = ({ visitas }) => {
+  const map = useMap();
+
+  const coordsKey = useMemo(() => {
+    return visitas
+      .filter(v => v.latitude && v.longitude)
+      .map(v => `${v.id}:${v.latitude},${v.longitude}`)
+      .join('|');
+  }, [visitas]);
+
+  React.useEffect(() => {
+    if (typeof google === 'undefined' || !map) return;
+    const withCoords = visitas.filter(v => v.latitude && v.longitude);
+    if (withCoords.length === 0) return;
+
+    if (withCoords.length === 1) {
+      map.setCenter({ lat: withCoords[0].latitude!, lng: withCoords[0].longitude! });
+      map.setZoom(14);
+    } else {
+      const bounds = new google.maps.LatLngBounds();
+      withCoords.forEach(v => {
+        bounds.extend({ lat: v.latitude!, lng: v.longitude! });
+      });
+      map.fitBounds(bounds);
+
+      const listener = google.maps.event.addListenerOnce(map, 'idle', () => {
+        const currentZoom = map.getZoom();
+        if (currentZoom !== undefined && currentZoom > 14) {
+          map.setZoom(14);
+        }
+      });
+      return () => {
+        google.maps.event.removeListener(listener);
+      };
+    }
+  }, [map, coordsKey]);
+
+  return null;
+};
+
 export const AgendaMap: React.FC<AgendaMapProps> = ({ visitas, selectedVisita, onSelectVisita }) => {
   const center = useMemo<google.maps.LatLngLiteral>(() => {
     const withCoords = visitas.filter(v => v.latitude && v.longitude);
@@ -160,6 +200,7 @@ export const AgendaMap: React.FC<AgendaMapProps> = ({ visitas, selectedVisita, o
         internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
         style={{ width: '100%', height: '100%' }}
       >
+        <MapBoundsAdjuster visitas={visitas} />
         {visitas.map(v => {
           if (!v.latitude || !v.longitude) return null;
           return (
