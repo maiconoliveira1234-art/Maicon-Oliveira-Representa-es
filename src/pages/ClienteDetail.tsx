@@ -35,8 +35,13 @@ import {
   differenceInDays, 
   parseISO, 
   format,
-  isWithinInterval
+  isWithinInterval,
+  startOfToday,
+  addDays,
+  differenceInWeeks,
+  startOfYear
 } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 import { MOCK_CLIENTES, MOCK_HISTORICO, MOCK_PRODUTOS } from '../lib/mockData';
 import { Produto } from '../types';
@@ -58,6 +63,7 @@ export function ClienteDetail() {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [estoque, setEstoque] = useState<EstoqueCliente[]>([]);
   const [emprestimos, setEmprestimos] = useState<Emprestimo[]>([]);
+  const [visitaAgenda, setVisitaAgenda] = useState<{ semana: 1 | 2; dia_semana: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedOrderDate, setSelectedOrderDate] = useState<string | null>(null);
@@ -131,6 +137,27 @@ export function ClienteDetail() {
           setHistorico(MOCK_HISTORICO.filter(h => h.cliente_id === id));
         }
 
+        // Fetch Agenda
+        try {
+          const { data: agendaData } = await supabase
+            .from('agenda_visitas')
+            .select('semana, dia_semana, ativo')
+            .eq('cliente_id', id)
+            .maybeSingle();
+
+          if (agendaData && agendaData.ativo !== false) {
+            setVisitaAgenda({
+              semana: agendaData.semana as 1 | 2,
+              dia_semana: agendaData.dia_semana
+            });
+          } else {
+            setVisitaAgenda(null);
+          }
+        } catch (agendaErr) {
+          console.error('Erro ao buscar agenda_visitas:', agendaErr);
+          setVisitaAgenda(null);
+        }
+
       } catch (err) {
         console.error('Erro ao carregar dados do cliente:', err);
         setCliente(MOCK_CLIENTES.find(c => c.id === id) || null);
@@ -142,6 +169,58 @@ export function ClienteDetail() {
     }
     loadClienteData();
   }, [id, allProducts, loadClientDetails, clientCache?.[id || '']]);
+
+  const formattedNextVisit = React.useMemo(() => {
+    if (!visitaAgenda) return null;
+    
+    const getCycleWeek = (date: Date): 1 | 2 => {
+      const anchor = startOfYear(date);
+      const weeksSinceAnchor = differenceInWeeks(date, anchor);
+      return (weeksSinceAnchor % 2 === 0) ? 1 : 2;
+    };
+
+    const getDayName = (date: Date): string | null => {
+      const daysMap: Record<number, string> = {
+        1: 'Segunda',
+        2: 'Terça',
+        3: 'Quarta',
+        4: 'Quinta',
+        5: 'Sexta'
+      };
+      const dayIdx = date.getDay();
+      return daysMap[dayIdx] || null;
+    };
+
+    const today = startOfToday();
+    let computedDate: Date | null = null;
+    for (let i = 0; i <= 21; i++) {
+      const candidate = addDays(today, i);
+      const candidateWeek = getCycleWeek(candidate);
+      const candidateDayName = getDayName(candidate);
+      if (candidateWeek === visitaAgenda.semana && candidateDayName === visitaAgenda.dia_semana) {
+        computedDate = candidate;
+        break;
+      }
+    }
+
+    if (!computedDate) return null;
+
+    let rawFormatted = format(computedDate, "EEEE, dd/MM", { locale: ptBR });
+    const capitalized = rawFormatted.charAt(0).toUpperCase() + rawFormatted.slice(1);
+    
+    return {
+      date: computedDate,
+      label: capitalized
+    };
+  }, [visitaAgenda]);
+
+  const handleNextVisitClick = () => {
+    if (formattedNextVisit) {
+      navigate('/', { state: { selectedDate: format(formattedNextVisit.date, 'yyyy-MM-dd') } });
+    } else {
+      navigate('/');
+    }
+  };
 
   const produtosMap = React.useMemo(() => {
     return produtos.reduce((acc, p) => {
@@ -337,6 +416,19 @@ export function ClienteDetail() {
                 </span>
               </a>
             )}
+
+            <button 
+              onClick={handleNextVisitClick}
+              className="flex items-center gap-1.5 text-xs text-neutral-600 hover:text-orange-600 transition-colors group cursor-pointer text-left font-medium w-full sm:w-auto"
+              id="link-proxima-visita"
+            >
+              <Calendar size={14} className="text-orange-500 shrink-0 group-hover:scale-110 transition-transform" />
+              <span className="underline decoration-neutral-300 group-hover:decoration-orange-400">
+                {formattedNextVisit 
+                  ? `Próxima visita: ${formattedNextVisit.label}`
+                  : 'Próxima visita: Não agendada'}
+              </span>
+            </button>
           </div>
         </div>
       </header>

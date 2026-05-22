@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Search, Filter, ChevronLeft, ChevronRight, Calendar as CalendarIcon, AlertCircle, RefreshCw, Loader2, CalendarDays, Map as MapIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -38,6 +39,8 @@ const DIAS_MAP: Record<number, DiaSemana> = {
 };
 
 export function AgendaPage() {
+  const location = useLocation();
+  
   // Data Flow
   const [visitas, setVisitas] = useState<Visita[]>([]);
   const [historico, setHistorico] = useState<HistVenda[]>([]);
@@ -58,6 +61,19 @@ export function AgendaPage() {
   const [filterCity, setFilterCity] = useState('');
   const [filterStatus, setFilterStatus] = useState<VisitaStatus | 'todos'>('todos');
   const [viewType, setViewType] = useState<'list' | 'map'>('list');
+
+  useEffect(() => {
+    if (location.state && (location.state as any).selectedDate) {
+      try {
+        const parsed = parseISO((location.state as any).selectedDate);
+        if (!isNaN(parsed.getTime())) {
+          setSelectedDate(parsed);
+        }
+      } catch (e) {
+        console.error('Error parsing selectedDate state:', e);
+      }
+    }
+  }, [location.state]);
 
   // Cycle Helper
   const getCycleWeek = (date: Date): 1 | 2 => {
