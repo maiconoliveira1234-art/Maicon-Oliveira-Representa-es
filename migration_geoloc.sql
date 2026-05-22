@@ -48,19 +48,38 @@ COMMENT ON COLUMN public.agenda_visitas.longitude IS 'Longitude da visita (copia
 -- Execute estas linhas se o botão de otimizar não estiver salvando as alterações
 ALTER TABLE public.agenda_visitas ENABLE ROW LEVEL SECURITY;
 
--- Política para permitir que usuários autenticados vejam e editem a agenda
--- (Ajuste conforme sua lógica de multi-usuário se necessário)
-CREATE POLICY "Permitir update para usuários autenticados" 
+-- Políticas para permitir que usuários utilizem o aplicativo (tanto autenticados quanto anônimos)
+-- para ler, atualizar, inserir e deletar na agenda de visitas
+DROP POLICY IF EXISTS "Permitir update para usuários autenticados" ON public.agenda_visitas;
+DROP POLICY IF EXISTS "Permitir select para usuários autenticados" ON public.agenda_visitas;
+DROP POLICY IF EXISTS "Permitir select para todos os usuários" ON public.agenda_visitas;
+DROP POLICY IF EXISTS "Permitir update para todos os usuários" ON public.agenda_visitas;
+DROP POLICY IF EXISTS "Permitir insert para todos os usuários" ON public.agenda_visitas;
+DROP POLICY IF EXISTS "Permitir delete para todos os usuários" ON public.agenda_visitas;
+
+CREATE POLICY "Permitir select para todos os usuários" 
+ON public.agenda_visitas 
+FOR SELECT 
+TO public 
+USING (true);
+
+CREATE POLICY "Permitir update para todos os usuários" 
 ON public.agenda_visitas 
 FOR UPDATE 
-TO authenticated 
+TO public 
 USING (true) 
 WITH CHECK (true);
 
-CREATE POLICY "Permitir select para usuários autenticados" 
+CREATE POLICY "Permitir insert para todos os usuários" 
 ON public.agenda_visitas 
-FOR SELECT 
-TO authenticated 
+FOR INSERT 
+TO public 
+WITH CHECK (true);
+
+CREATE POLICY "Permitir delete para todos os usuários" 
+ON public.agenda_visitas 
+FOR DELETE 
+TO public 
 USING (true);
 
 -- 7. Função para reordenação automática baseada em proximidade (Greedy TSP)

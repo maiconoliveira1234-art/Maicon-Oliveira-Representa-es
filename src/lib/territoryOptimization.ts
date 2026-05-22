@@ -70,17 +70,9 @@ export async function optimizeAllTerritories() {
     throw new Error('Nenhuma visita encontrada na agenda para otimizar.');
   }
 
-  // Filtrar e remover inativos da agenda fisicamente se necessário
-  const inativos = visitasRaw.filter((v: any) => {
-    const clientData = Array.isArray(v.clientes) ? v.clientes[0] : v.clientes;
-    return clientData && clientData.ativo === false;
-  });
-
-  if (inativos.length > 0) {
-    console.log(`Removendo ${inativos.length} clientes inativos da agenda...`);
-    const inativosIds = inativos.map((v: any) => v.id);
-    await supabase.from('agenda_visitas').delete().in('id', inativosIds);
-  }
+  // Os clientes inativos são mantidos na agenda (agenda_visitas.ativo = false) para preservar
+  // o seu posicionamento do roteiro/dia caso sejam reativadosfuturamente (regra de negócio via triggers do BD).
+  // Portanto, a remoção física da agenda foi removida para garantir a estabilidade operacional.
 
   // Normalizar visitas (usar coordenada da visita ou do cliente como fallback)
   // E filtrando apenas os que restaram (ativos)

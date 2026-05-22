@@ -11,7 +11,9 @@ import {
   ChevronRight,
   AlertCircle,
   XCircle,
-  ArrowLeftRight
+  ArrowLeftRight,
+  MapPin,
+  Phone
 } from 'lucide-react';
 import { Cliente, HistVenda, EstoqueCliente } from '../types';
 import { supabase } from '../lib/supabase';
@@ -287,9 +289,55 @@ export function ClienteDetail() {
         >
           <ArrowLeft size={24} />
         </button>
-        <div>
-          <h2 className="text-xl font-bold text-neutral-900">{cliente.cliente}</h2>
-          <p className="text-sm text-neutral-500">{cliente.cidade}</p>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-xl font-bold text-neutral-900 truncate leading-tight mb-2" id="cliente-nome-header">
+            {cliente.cliente}
+          </h2>
+          
+          <div className="flex flex-col gap-1.5 mt-1" id="cliente-contact-info">
+            {cliente.endereco && (
+              <a 
+                href={
+                  cliente.latitude && cliente.longitude
+                    ? `https://www.google.com/maps/search/?api=1&query=${cliente.latitude},${cliente.longitude}`
+                    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${cliente.endereco}, ${cliente.cidade}`)}`
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-neutral-600 hover:text-orange-600 transition-colors group cursor-pointer"
+                id="link-gps-navegacao"
+              >
+                <MapPin size={14} className="text-orange-500 shrink-0 group-hover:scale-110 transition-transform" />
+                <span className="underline decoration-neutral-300 group-hover:decoration-orange-400 truncate">
+                  {cliente.endereco}
+                </span>
+              </a>
+            )}
+            
+            {cliente.telefone && (
+              <a 
+                href={(() => {
+                  const rawPhone = String(cliente.telefone || '');
+                  const digits = rawPhone.replace(/\D/g, '');
+                  const cleanedPhone = (digits.length <= 11 && digits.length > 0 && !digits.startsWith('55')) ? '55' + digits : digits;
+                  const contactName = cliente.contato || cliente.cliente;
+                  const hour = new Date().getHours();
+                  const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+                  const textMessage = `${greeting} ${contactName}, tudo bem?`;
+                  return `https://wa.me/${cleanedPhone}?text=${encodeURIComponent(textMessage)}`;
+                })()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-neutral-600 hover:text-orange-600 transition-colors group cursor-pointer"
+                id="link-whatsapp-mensagem"
+              >
+                <Phone size={14} className="text-emerald-500 shrink-0 group-hover:scale-110 transition-transform" />
+                <span className="underline decoration-neutral-300 group-hover:decoration-orange-400">
+                  {String(cliente.telefone)} {cliente.contato ? `(${cliente.contato})` : ''}
+                </span>
+              </a>
+            )}
+          </div>
         </div>
       </header>
 
@@ -362,17 +410,17 @@ export function ClienteDetail() {
         <button 
           onClick={() => navigate(`/pedido/novo/${cliente.id}`)}
           onMouseEnter={() => prefetchClientData(cliente.id)}
-          className="bg-orange-600 text-white p-4 rounded-2xl font-bold flex flex-col items-center gap-2 shadow-lg active:scale-95 transition-all"
+          className="bg-orange-600 text-white py-2 px-4 rounded-xl font-bold flex flex-row items-center justify-center gap-2 shadow-md active:scale-95 transition-all text-sm"
         >
-          <ShoppingCart size={24} />
+          <ShoppingCart size={16} />
           <span>Novo Pedido</span>
         </button>
         <button 
           onClick={() => navigate(`/estoque/${cliente.id}`)}
           onMouseEnter={() => prefetchClientData(cliente.id)}
-          className="bg-white text-neutral-700 p-4 rounded-2xl font-bold flex flex-col items-center gap-2 border border-neutral-200 shadow-sm active:scale-95 transition-all"
+          className="bg-white text-neutral-700 py-2 px-4 rounded-xl font-bold flex flex-row items-center justify-center gap-2 border border-neutral-200 shadow-xs active:scale-95 transition-all text-sm"
         >
-          <Package size={24} className="text-orange-600" />
+          <Package size={16} className="text-orange-600" />
           <span>Contar Estoque</span>
         </button>
       </div>
