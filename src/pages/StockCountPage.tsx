@@ -21,6 +21,7 @@ import html2canvas from 'html2canvas';
 import { Cliente, Produto, EstoqueCliente, HistVenda } from '../types';
 import { supabase } from '../lib/supabase';
 import { cn, formatWeight, formatCurrency } from '../lib/utils';
+import { classifySaleRecord } from '../lib/salesClassifier';
 import { differenceInDays, parseISO, format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { FAMILY_PRIORITY_ORDER } from '../constants';
@@ -199,6 +200,7 @@ export function StockCountPage() {
   const processedItems = useMemo(() => {
     const items: Record<string, HistVenda[]> = {};
     historico.forEach(h => {
+      if (!classifySaleRecord(h).influenciaConsumo) return;
       if (!items[h.produto_id]) items[h.produto_id] = [];
       items[h.produto_id].push(h);
     });

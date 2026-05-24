@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Cliente, Produto, HistVenda } from '../types';
-import { Loader2, FileUp, Save, AlertCircle, CheckCircle2, Trash2, Plus, X, Package, Search, ChevronDown } from 'lucide-react';
+import { Loader2, FileUp, Save, AlertCircle, CheckCircle2, Trash2, Plus, X, Package, Search, ChevronDown, ShieldAlert, Sparkles, TrendingDown, TrendingUp, Coins, EyeOff, Layers } from 'lucide-react';
 import { cn, deduplicateSales } from '../lib/utils';
 import { format } from 'date-fns';
+import { auditRowCost, CostAuditResult } from '../lib/costAuditer';
 
 interface RawRow {
   id: string;
@@ -75,6 +76,14 @@ export function ImportPage() {
 
   // Processed data
   const [processedRows, setProcessedRows] = useState<RawRow[]>([]);
+
+  // Intelligent Cost Auditing states
+  const [activeTab, setActiveTab] = useState<'pedido' | 'auditoria'>('pedido');
+  const [toleranceVal, setToleranceVal] = useState<number>(1.0); // Default ±1% tolerance
+  const [ignoredProductIds, setIgnoredProductIds] = useState<Set<string>>(new Set());
+  const [updatingProducts, setUpdatingProducts] = useState<Set<string>>(new Set());
+  const [isBatchUpdating, setIsBatchUpdating] = useState(false);
+  const [auditSuccessMessage, setAuditSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
@@ -298,6 +307,155 @@ export function ImportPage() {
   const totalPesoPreview = useMemo(() => {
     return processedRows.reduce((acc, row) => acc + (row.peso_total || 0), 0);
   }, [processedRows]);
+
+  // Computed audited list of items with price/cost discrepancies
+  const auditedItems = useMemo(() => {
+    const list: CostAuditResult[] = [];
+    processedRows.forEach(row => {
+      if (!row.isValid) return;
+      const prod = produtos.find(p => p.produto.toLowerCase() === row.produto.toLowerCase());
+      if (prod) {
+        const audit = auditRowCost(
+          {
+            produto: row.produto,
+            qtd: row.qtd,
+            valor_total: row.valor_total,
+            desconto: row.desconto,
+            tipo: row.tipo,
+            tabela: row.tabela,
+          },
+          prod,
+          toleranceVal
+        );
+        if (audit && (audit.status === 'DIVERGENTE' || audit.status === 'ALERTA_BONIF')) {
+          list.push(audit);
+        }
+      }
+    });
+
+    // De-duplicate by product ID to prevent multiple actions on the same product if it has duplicate rows
+    const uniqueItemsMap: Record<string, CostAuditResult> = {};
+    list.forEach(item => {
+      uniqueItemsMap[item.produtoId] = item;
+    });
+    return Object.values(uniqueItemsMap);
+  }, [processedRows, produtos, toleranceVal]);
+
+  // Non-ignored audited items (active alerts)
+  const activeAuditAlerts = useMemo(() => {
+    return auditedItems.filter(item => !ignoredProductIds.has(item.produtoId));
+  }, [auditedItems, ignoredProductIds]);
+
+  const handleUpdateCost = async (item: CostAuditResult) => {
+    setUpdatingProducts(prev => {
+      const s = new Set(prev);
+      s.add(item.produtoId);
+      return s;
+    });
+    setAuditSuccessMessage(null);
+    try {
+      const { error: updateErr } = await supabase
+        .from('produtos')
+        .update({
+          custo_total: item.custoCaculadoTotal,
+          custo_und: item.custoCalculadoUnd
+        })
+        .eq('id', item.produtoId);
+
+      if (updateErr) throw updateErr;
+
+      // Update local products list
+      setProdutos(prev => prev.map(p => 
+        p.id === item.produtoId 
+          ? { ...p, custo_total: item.custoCaculadoTotal, ...({ custo_und: item.custoCalculadoUnd }) }
+          : p
+      ));
+
+      setAuditSuccessMessage(`Cadastro do produto "${item.produtoNome}" atualizado com sucesso para Custo de R$ ${item.custoCaculadoTotal.toFixed(2)}.`);
+      
+      // Auto-ignore resolved product
+      setIgnoredProductIds(prev => {
+        const s = new Set(prev);
+        s.add(item.produtoId);
+        return s;
+      });
+    } catch (err: any) {
+      console.error('Erro ao atualizar custo do produto:', err);
+      alert(`Erro ao atualizar custo: ${err.message}`);
+    } finally {
+      setUpdatingProducts(prev => {
+        const s = new Set(prev);
+        s.delete(item.produtoId);
+        return s;
+      });
+    }
+  };
+
+  const handleBatchUpdateCosts = async (items: CostAuditResult[]) => {
+    setIsBatchUpdating(true);
+    setAuditSuccessMessage(null);
+    try {
+      const promises = items.map(async (item) => {
+        const { error } = await supabase
+          .from('produtos')
+          .update({
+            custo_total: item.custoCaculadoTotal,
+            custo_und: item.custoCalculadoUnd
+          })
+          .eq('id', item.produtoId);
+        if (error) throw error;
+        return item;
+      });
+
+      await Promise.all(promises);
+
+      // Update all local products
+      setProdutos(prev => {
+        const lookup = new Map(items.map(i => [i.produtoId, i]));
+        return prev.map(p => {
+          const item = lookup.get(p.id);
+          if (item) {
+            return {
+              ...p,
+              custo_total: item.custoCaculadoTotal,
+              custo_und: item.custoCalculadoUnd
+            };
+          }
+          return p;
+        });
+      });
+
+      setAuditSuccessMessage(`Lote de ${items.length} produtos atualizados com sucesso no cadastro!`);
+      
+      // Add all to ignored/done list
+      setIgnoredProductIds(prev => {
+        const s = new Set(prev);
+        items.forEach(i => s.add(i.produtoId));
+        return s;
+      });
+    } catch (err: any) {
+      console.error('Erro ao atualizar lote de produtos:', err);
+      alert(`Erro ao atualizar produtos em lote: ${err.message}`);
+    } finally {
+      setIsBatchUpdating(false);
+    }
+  };
+
+  const handleIgnoreProduct = (productId: string) => {
+    setIgnoredProductIds(prev => {
+      const s = new Set(prev);
+      s.add(productId);
+      return s;
+    });
+  };
+
+  const handleIgnoreAllProducts = (items: CostAuditResult[]) => {
+    setIgnoredProductIds(prev => {
+      const s = new Set(prev);
+      items.forEach(i => s.add(i.produtoId));
+      return s;
+    });
+  };
 
   const updateRow = (id: string, field: keyof RawRow, value: any) => {
     setProcessedRows(prev => prev.map(row => {
@@ -558,136 +716,354 @@ export function ImportPage() {
           )}
 
           {processedRows.length > 0 && (
-            <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden flex flex-col h-full max-h-[800px]">
+            <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden flex flex-col h-full max-h-[850px]">
               <div className="p-4 border-b border-neutral-100 bg-neutral-50 flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <h2 className="font-bold text-neutral-900">Preview ({processedRows.length} linhas)</h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setActiveTab('pedido')}
+                    className={cn(
+                      "px-4 py-2 text-xs font-black uppercase rounded-xl transition-all",
+                      activeTab === 'pedido'
+                        ? "bg-neutral-900 text-white shadow-sm"
+                        : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"
+                    )}
+                  >
+                    Itens do Pedido ({processedRows.length})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('auditoria')}
+                    className={cn(
+                      "px-4 py-2 text-xs font-black uppercase rounded-xl transition-all flex items-center gap-1.5",
+                      activeTab === 'auditoria'
+                        ? "bg-orange-600 text-white shadow-sm shadow-orange-100"
+                        : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"
+                    )}
+                  >
+                    <ShieldAlert size={14} />
+                    Auditoria de Custos
+                    {activeAuditAlerts.length > 0 && (
+                      <span className="bg-white text-orange-600 px-1.5 py-0.5 rounded-full text-[9px] font-black leading-none animate-pulse">
+                        {activeAuditAlerts.length}
+                      </span>
+                    )}
+                  </button>
                 </div>
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="px-6 py-2 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-all flex items-center gap-2 disabled:opacity-50"
-                >
-                  {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                  Salvar no Banco
-                </button>
+
+                {activeTab === 'pedido' ? (
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="px-6 py-2 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                    Salvar no Banco
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5 bg-white border border-neutral-200 px-3 py-1.5 rounded-xl text-xs font-bold text-neutral-600">
+                      <Layers size={13} className="text-neutral-400" />
+                      <span>Limiar Tolerância:</span>
+                      <select
+                        value={toleranceVal}
+                        onChange={(e) => setToleranceVal(parseFloat(e.target.value))}
+                        className="font-black text-neutral-900 bg-transparent outline-none cursor-pointer focus:underline"
+                      >
+                        <option value={0.5}>±0.5%</option>
+                        <option value={1.0}>±1.0%</option>
+                        <option value={2.0}>±2.0%</option>
+                        <option value={5.0}>±5.0%</option>
+                      </select>
+                    </div>
+                    {activeAuditAlerts.length > 0 && (
+                      <button
+                        onClick={() => handleBatchUpdateCosts(activeAuditAlerts)}
+                        disabled={isBatchUpdating}
+                        className="px-4 py-2 bg-orange-600 text-white rounded-xl text-xs font-black hover:bg-orange-700 transition-all flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+                      >
+                        {isBatchUpdating ? <Loader2 className="animate-spin" size={13} /> : <CheckCircle2 size={13} />}
+                        Corrigir Lote ({activeAuditAlerts.length})
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
-              <div className="overflow-auto flex-1">
-                <table className="w-full text-left border-collapse">
-                  <thead className="sticky top-0 bg-white z-10">
-                    <tr className="bg-neutral-50 text-[10px] uppercase font-bold text-neutral-500 border-b border-neutral-200">
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3 min-w-[450px]">Produto</th>
-                      <th className="px-4 py-3 text-right">Qtd</th>
-                      <th className="px-4 py-3 text-right">Peso Total</th>
-                      <th className="px-4 py-3 text-right">Valor Total</th>
-                      <th className="px-4 py-3">Tipo</th>
-                      <th className="px-4 py-3 text-right">Desc</th>
-                      <th className="px-4 py-3 text-right">Acresc</th>
-                      <th className="px-4 py-3">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-100">
-                    {processedRows.map((row) => (
-                      <tr key={row.id} className={cn("text-xs hover:bg-neutral-50 transition-colors", !row.isValid && "bg-red-50")}>
-                        <td className="px-4 py-2">
-                          {row.isValid ? (
-                            <CheckCircle2 className="text-green-500" size={16} />
-                          ) : row.isMissingProduct ? (
-                            <button 
-                              onClick={() => openNewProductModal(row.produto)}
-                              className="flex items-center gap-1 text-orange-600 hover:text-orange-700 font-bold"
-                            >
-                              <Plus size={14} />
-                              <span className="text-[10px]">Cadastrar</span>
-                            </button>
-                          ) : (
-                            <div className="flex items-center gap-1 text-red-500" title={row.error}>
-                              <AlertCircle size={16} />
-                              <span className="text-[10px] truncate max-w-[80px]">{row.error}</span>
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-2 min-w-[450px]">
-                          <input
-                            type="text"
-                            value={row.produto}
-                            onChange={(e) => updateRow(row.id, 'produto', e.target.value)}
-                            className="w-full bg-transparent outline-none focus:bg-white p-1 rounded border border-transparent focus:border-neutral-200"
-                          />
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <input
-                            type="number"
-                            value={row.qtd}
-                            onChange={(e) => updateRow(row.id, 'qtd', parseFloat(e.target.value))}
-                            className="w-16 bg-transparent outline-none focus:bg-white p-1 rounded border border-transparent focus:border-neutral-200 text-right"
-                          />
-                        </td>
-                        <td className="px-4 py-2 text-right font-bold text-orange-600">
-                          {row.peso_total.toFixed(2)}kg
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <input
-                            type="number"
-                            value={row.valor_total}
-                            onChange={(e) => updateRow(row.id, 'valor_total', parseFloat(e.target.value))}
-                            className="w-24 bg-transparent outline-none focus:bg-white p-1 rounded border border-transparent focus:border-neutral-200 text-right"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="text"
-                            value={row.tipo}
-                            onChange={(e) => updateRow(row.id, 'tipo', e.target.value)}
-                            className="w-24 bg-transparent outline-none focus:bg-white p-1 rounded border border-transparent focus:border-neutral-200"
-                          />
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <input
-                            type="number"
-                            value={row.desconto}
-                            onChange={(e) => updateRow(row.id, 'desconto', parseFloat(e.target.value))}
-                            className="w-16 bg-transparent outline-none focus:bg-white p-1 rounded border border-transparent focus:border-neutral-200 text-right"
-                          />
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <input
-                            type="number"
-                            value={row.acrescimo}
-                            onChange={(e) => updateRow(row.id, 'acrescimo', parseFloat(e.target.value))}
-                            className="w-16 bg-transparent outline-none focus:bg-white p-1 rounded border border-transparent focus:border-neutral-200 text-right"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <button
-                            onClick={() => removeRow(row.id)}
-                            className="p-1 text-neutral-400 hover:text-red-500 transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
+              {activeTab === 'pedido' ? (
+                <div className="overflow-auto flex-1">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="sticky top-0 bg-white z-10">
+                      <tr className="bg-neutral-50 text-[10px] uppercase font-bold text-neutral-500 border-b border-neutral-200">
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 min-w-[450px]">Produto</th>
+                        <th className="px-4 py-3 text-right">Qtd</th>
+                        <th className="px-4 py-3 text-right">Peso Total</th>
+                        <th className="px-4 py-3 text-right">Valor Total</th>
+                        <th className="px-4 py-3">Tipo</th>
+                        <th className="px-4 py-3 text-right">Desc</th>
+                        <th className="px-4 py-3 text-right">Acresc</th>
+                        <th className="px-4 py-3">Ações</th>
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="sticky bottom-0 bg-neutral-900 text-white z-10">
-                    <tr className="text-xs font-bold">
-                      <td colSpan={2} className="px-4 py-3 text-right uppercase tracking-wider opacity-70">Total Geral</td>
-                      <td className="px-4 py-3 text-right">
-                        {processedRows.reduce((acc, r) => acc + r.qtd, 0).toFixed(2)}
-                      </td>
-                      <td className="px-4 py-3 text-right text-orange-400">
-                        {totalPesoPreview.toFixed(2)}kg
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        R$ {processedRows.reduce((acc, r) => acc + r.valor_total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td colSpan={4}></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-100">
+                      {processedRows.map((row) => (
+                        <tr key={row.id} className={cn("text-xs hover:bg-neutral-50 transition-colors", !row.isValid && "bg-red-50")}>
+                          <td className="px-4 py-2">
+                            {row.isValid ? (
+                              <CheckCircle2 className="text-green-500" size={16} />
+                            ) : row.isMissingProduct ? (
+                              <button 
+                                onClick={() => openNewProductModal(row.produto)}
+                                className="flex items-center gap-1 text-orange-600 hover:text-orange-700 font-bold"
+                              >
+                                <Plus size={14} />
+                                <span className="text-[10px]">Cadastrar</span>
+                              </button>
+                            ) : (
+                              <div className="flex items-center gap-1 text-red-500" title={row.error}>
+                                <AlertCircle size={16} />
+                                <span className="text-[10px] truncate max-w-[80px]">{row.error}</span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 min-w-[450px]">
+                            <input
+                              type="text"
+                              value={row.produto}
+                              onChange={(e) => updateRow(row.id, 'produto', e.target.value)}
+                              className="w-full bg-transparent outline-none focus:bg-white p-1 rounded border border-transparent focus:border-neutral-200"
+                            />
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <input
+                              type="number"
+                              value={row.qtd}
+                              onChange={(e) => updateRow(row.id, 'qtd', parseFloat(e.target.value))}
+                              className="w-16 bg-transparent outline-none focus:bg-white p-1 rounded border border-transparent focus:border-neutral-200 text-right"
+                            />
+                          </td>
+                          <td className="px-4 py-2 text-right font-bold text-orange-600">
+                            {row.peso_total.toFixed(2)}kg
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <input
+                              type="number"
+                              value={row.valor_total}
+                              onChange={(e) => updateRow(row.id, 'valor_total', parseFloat(e.target.value))}
+                              className="w-24 bg-transparent outline-none focus:bg-white p-1 rounded border border-transparent focus:border-neutral-200 text-right"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="text"
+                              value={row.tipo}
+                              onChange={(e) => updateRow(row.id, 'tipo', e.target.value)}
+                              className="w-24 bg-transparent outline-none focus:bg-white p-1 rounded border border-transparent focus:border-neutral-200"
+                            />
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <input
+                              type="number"
+                              value={row.desconto}
+                              onChange={(e) => updateRow(row.id, 'desconto', parseFloat(e.target.value))}
+                              className="w-16 bg-transparent outline-none focus:bg-white p-1 rounded border border-transparent focus:border-neutral-200 text-right"
+                            />
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <input
+                              type="number"
+                              value={row.acrescimo}
+                              onChange={(e) => updateRow(row.id, 'acrescimo', parseFloat(e.target.value))}
+                              className="w-16 bg-transparent outline-none focus:bg-white p-1 rounded border border-transparent focus:border-neutral-200 text-right"
+                            />
+                          </td>
+                          <td className="px-4 py-2">
+                            <button
+                              onClick={() => removeRow(row.id)}
+                              className="p-1 text-neutral-400 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="sticky bottom-0 bg-neutral-900 text-white z-10">
+                      <tr className="text-xs font-bold">
+                        <td colSpan={2} className="px-4 py-3 text-right uppercase tracking-wider opacity-70">Total Geral</td>
+                        <td className="px-4 py-3 text-right">
+                          {processedRows.reduce((acc, r) => acc + r.qtd, 0).toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-orange-400">
+                          {totalPesoPreview.toFixed(2)}kg
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          R$ {processedRows.reduce((acc, r) => acc + r.valor_total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td colSpan={4}></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              ) : (
+                <div className="overflow-auto flex-1 p-6 space-y-6">
+                  {/* Summary / Info Banner */}
+                  <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 flex gap-3 text-neutral-600">
+                    <ShieldAlert size={20} className="text-orange-600 shrink-0 mt-0.5" />
+                    <div className="text-xs space-y-1">
+                      <p className="font-bold text-neutral-950 uppercase tracking-wide">Auditoria de Preços Comerciais vs. Custos</p>
+                      <p>
+                        Esta ferramenta analisa as linhas importadas de vendas para buscar inconsistências no custo de tabelas.
+                        Ela reconfigura o valor real do parceiro antes do desconto ERP (campo <strong>XDT</strong>) e compara com <strong>custo_total</strong> esperado do cadastro sem modificar nenhum outro fluxo.
+                      </p>
+                      <div className="flex flex-wrap gap-4 pt-2 text-[10px] font-bold uppercase text-neutral-500">
+                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-600"></span> Vendas: São validadas</span>
+                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500"></span> Bonificação: Alertas informativos</span>
+                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-neutral-400"></span> Brindes/Promo: São ignorados</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Audit alert messages */}
+                  {auditSuccessMessage && (
+                    <div className="bg-green-50 border border-green-200 text-green-700 p-3.5 rounded-xl text-xs font-bold flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <CheckCircle2 size={16} />
+                        {auditSuccessMessage}
+                      </span>
+                      <button onClick={() => setAuditSuccessMessage(null)} className="text-green-500 hover:text-green-800 font-bold">X</button>
+                    </div>
+                  )}
+
+                  {activeAuditAlerts.length === 0 ? (
+                    <div className="p-12 text-center bg-neutral-50 rounded-2xl border border-neutral-200/60 flex flex-col items-center justify-center space-y-3">
+                      <div className="bg-green-50 p-4 rounded-full text-green-600">
+                        <CheckCircle2 size={36} className="stroke-[3]" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-black text-neutral-900 uppercase tracking-widest">Preços e Custos Coerentes</h3>
+                        <p className="text-neutral-500 text-xs mt-1 max-w-sm leading-relaxed">
+                          Nenhuma divergência maior que ±{toleranceVal}% de custo cadastrado foi identificada nos itens faturados comercialmente!
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-black text-neutral-500 uppercase tracking-widest">
+                          Divergências Encontradas ({activeAuditAlerts.length})
+                        </h3>
+                        {activeAuditAlerts.length > 1 && (
+                          <button
+                            onClick={() => handleIgnoreAllProducts(activeAuditAlerts)}
+                            className="text-[10px] font-bold text-neutral-400 hover:text-neutral-600 flex items-center gap-1"
+                          >
+                            <EyeOff size={12} />
+                            Ignorar Todos os Alertas
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="border border-neutral-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-neutral-50 text-[10px] uppercase font-bold text-neutral-500 border-b border-neutral-200">
+                              <th className="px-4 py-3">Produto</th>
+                              <th className="px-4 py-3 text-right">Qtd</th>
+                              <th className="px-4 py-3 text-right">Faturado Und (ERP)</th>
+                              <th className="px-4 py-3 text-right">Desconto (XDT)</th>
+                              <th className="px-4 py-3 text-right font-semibold">Custo Total Atual</th>
+                              <th className="px-4 py-3 text-right font-bold text-orange-600">Custo Total Calculado</th>
+                              <th className="px-4 py-3 text-right">Diferença %</th>
+                              <th className="px-4 py-3 text-right">Diferença R$</th>
+                              <th className="px-4 py-3 text-right bg-neutral-50/50">Novo Custo Un.</th>
+                              <th className="px-4 py-3 text-center">Ações</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-neutral-100 font-medium text-neutral-700">
+                            {activeAuditAlerts.map((item) => {
+                              const isPositive = item.diferencaMonetaria > 0;
+                              const isBonif = item.status === 'ALERTA_BONIF';
+                              
+                              return (
+                                <tr key={item.produtoId} className="hover:bg-neutral-50 transition-colors">
+                                  <td className="px-4 py-3 font-bold text-neutral-900">
+                                    <div className="flex flex-col gap-0.5">
+                                      <span>{item.produtoNome}</span>
+                                      {isBonif && (
+                                        <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full w-max uppercase tracking-wider font-extrabold">
+                                          Bonificação Comercial
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-mono text-neutral-500">{item.qtdImportada}</td>
+                                  <td className="px-4 py-3 text-right font-mono text-neutral-600">
+                                    R$ {item.valorRealUnitImportado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-mono text-red-600">
+                                    {item.descontoAplicado > 0 ? `${item.descontoAplicado}%` : '0%'}
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-mono text-neutral-500">
+                                    R$ {item.custoTotalAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-mono font-black text-neutral-900 bg-orange-50/20">
+                                    R$ {item.custoCaculadoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-mono">
+                                    <span className={cn(
+                                      "inline-flex items-center gap-0.5 font-bold text-xs px-1.5 py-0.5 rounded-md",
+                                      isPositive 
+                                        ? "text-red-700 bg-red-50" 
+                                        : "text-blue-700 bg-blue-50"
+                                    )}>
+                                      {isPositive ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                                      {isPositive ? '+' : ''}{item.diferencaPercentual.toFixed(1)}%
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-mono">
+                                    <span className={isPositive ? "text-red-600" : "text-blue-600"}>
+                                      {isPositive ? '+' : ''}R$ {item.diferencaMonetaria.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3 text-right font-mono text-neutral-900 font-bold bg-neutral-50/50">
+                                    R$ {item.custoCalculadoUnd.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                                    <div className="text-[10px] text-neutral-400 font-normal">emb: {item.quantEmbalagem} un</div>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <div className="flex items-center justify-center gap-1 text-[11px]">
+                                      <button
+                                        onClick={() => handleUpdateCost(item)}
+                                        disabled={updatingProducts.has(item.produtoId)}
+                                        className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg font-bold flex items-center gap-1 transition-all disabled:opacity-50 inline-block w-full max-w-max"
+                                        title="Atualizar custo atual do produto no banco"
+                                      >
+                                        {updatingProducts.has(item.produtoId) ? (
+                                          <Loader2 className="animate-spin text-amber-700" size={11} />
+                                        ) : (
+                                          <Sparkles size={11} />
+                                        )}
+                                        Corrigir Cadastro
+                                      </button>
+                                      
+                                      <button
+                                        onClick={() => handleIgnoreProduct(item.produtoId)}
+                                        className="px-2 py-1 bg-neutral-50 hover:bg-neutral-100 text-neutral-500 border border-neutral-200 rounded-lg hover:text-neutral-700 transition-all font-bold"
+                                        title="Descartar este alerta pra recomeçar import"
+                                      >
+                                        Ignorar
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

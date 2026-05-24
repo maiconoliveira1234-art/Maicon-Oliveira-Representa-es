@@ -25,6 +25,7 @@ import {
   subMonths
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { classifySaleRecord } from '../lib/salesClassifier';
 
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from '../lib/mockData';
 
@@ -191,6 +192,7 @@ export function MetasPage() {
     const realizadoPorCliente: Record<string, number> = {};
 
     currentMonthVendas.forEach(v => {
+      if (!classifySaleRecord(v).entraMetas) return;
       const prod = produtosMap[v.produto_id];
       if (!prod) return;
       const weight = v.qtd * (prod.peso_embalagem || 0);
@@ -206,8 +208,6 @@ export function MetasPage() {
     // Table Data
     const tableData = activeClientes.map(c => {
       const clienteVendas = historico.filter(h => h.cliente_id === c.id);
-      const sortedVendas = [...clienteVendas]
-        .sort((a, b) => parseISO(b.faturamento).getTime() - parseISO(a.faturamento).getTime());
       
       // Med 6: Average weight per month over last 6 completed months (excluding current month)
       const firstDayOfCurrentMonth = startOfMonth(now);
@@ -215,7 +215,7 @@ export function MetasPage() {
       
       const last6MonthsVendas = clienteVendas.filter(v => {
         const date = parseISO(v.faturamento);
-        return date >= sixMonthsAgo && date < firstDayOfCurrentMonth;
+        return date >= sixMonthsAgo && date < firstDayOfCurrentMonth && classifySaleRecord(v).entraMetas;
       });
 
       const weightTotal6Meses = last6MonthsVendas.reduce((acc, v) => {
@@ -224,18 +224,23 @@ export function MetasPage() {
       }, 0);
       const med6 = weightTotal6Meses / 6;
       
+      // Use only commercial sales for purchase cycle (exclude merchandising / gifts)
+      const recompraVendas = clienteVendas.filter(v => classifySaleRecord(v).influenciaConsumo);
+      const sortedRecompraVendas = [...recompraVendas]
+        .sort((a, b) => parseISO(b.faturamento).getTime() - parseISO(a.faturamento).getTime());
+
       // Ult Ped: Days since last order
-      const ultVenda = sortedVendas[0];
+      const ultVenda = sortedRecompraVendas[0];
       const diasUltPedido = ultVenda ? differenceInDays(now, parseISO(ultVenda.faturamento)) : 0;
       
       // Méd Dias: Average cycle (Total days from first purchase to now / Number of unique purchase days)
       let medDias = 0;
-      if (sortedVendas.length > 0) {
-        const oldest = parseISO(sortedVendas[sortedVendas.length - 1].faturamento);
+      if (sortedRecompraVendas.length > 0) {
+        const oldest = parseISO(sortedRecompraVendas[sortedRecompraVendas.length - 1].faturamento);
         const totalDaysSinceFirst = differenceInDays(now, oldest);
         
         // Get unique days of purchase
-        const uniqueDays = new Set(clienteVendas
+        const uniqueDays = new Set(recompraVendas
           .map(v => format(parseISO(v.faturamento), 'yyyy-MM-dd')));
         const uniqueDaysCount = uniqueDays.size;
         

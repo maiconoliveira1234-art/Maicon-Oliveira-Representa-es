@@ -18,6 +18,7 @@ import {
 import { Cliente, HistVenda, EstoqueCliente } from '../types';
 import { supabase } from '../lib/supabase';
 import { cn, formatWeight, formatCurrency } from '../lib/utils';
+import { classifySaleRecord } from '../lib/salesClassifier';
 import { 
   BarChart, 
   Bar, 
@@ -51,6 +52,63 @@ import { useDataManager } from '../lib/dataManager';
 import { Emprestimo } from '../types';
 
 import { StockCountSkeleton } from '../components/ui/Skeleton';
+
+// Helper to determine order core category visual styling list
+const getOrderClassificationsList = (items: HistVenda[]) => {
+  const typesSet = new Set(items.map(item => classifySaleRecord(item).tipoOperacao));
+  const list: Array<{
+    type: 'VENDA' | 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING';
+    label: string;
+    dotColor: string;
+    textColor: string;
+    barBgColor: string;
+    bgColor: string;
+  }> = [];
+
+  if (typesSet.has('VENDA')) {
+    list.push({
+      type: 'VENDA',
+      label: 'Venda Normal',
+      dotColor: 'bg-blue-600',
+      textColor: 'text-blue-700 font-bold',
+      barBgColor: 'bg-blue-500',
+      bgColor: 'bg-blue-50/5'
+    });
+  }
+  if (typesSet.has('BONIFICACAO_COMERCIAL')) {
+    list.push({
+      type: 'BONIFICACAO_COMERCIAL',
+      label: 'Bonificação Comercial',
+      dotColor: 'bg-orange-500',
+      textColor: 'text-orange-700 font-bold',
+      barBgColor: 'bg-orange-500',
+      bgColor: 'bg-orange-50/5'
+    });
+  }
+  if (typesSet.has('MERCHANDISING')) {
+    list.push({
+      type: 'MERCHANDISING',
+      label: 'Merchandising / Brinde',
+      dotColor: 'bg-purple-600',
+      textColor: 'text-purple-700 font-bold',
+      barBgColor: 'bg-purple-500',
+      bgColor: 'bg-purple-50/5'
+    });
+  }
+
+  if (list.length === 0) {
+    list.push({
+      type: 'VENDA',
+      label: 'Venda Normal',
+      dotColor: 'bg-blue-600',
+      textColor: 'text-blue-700 font-bold',
+      barBgColor: 'bg-blue-500',
+      bgColor: 'bg-blue-50/5'
+    });
+  }
+
+  return list;
+};
 
 export function ClienteDetail() {
   const { id } = useParams();
@@ -289,7 +347,7 @@ export function ClienteDetail() {
       if (isCutoffClient && h.faturamento < SALES_CUTOFF_DATE) return false;
 
       const date = parseISO(h.faturamento);
-      return date >= startOfCurrentMonth && date <= endOfCurrentMonth;
+      return date >= startOfCurrentMonth && date <= endOfCurrentMonth && classifySaleRecord(h).entraMetas;
     })
     .reduce((acc, h) => {
       const prod = produtosMap[h.produto_id];
@@ -304,7 +362,7 @@ export function ClienteDetail() {
       if (isCutoffClient && h.faturamento < SALES_CUTOFF_DATE) return false;
 
       const date = parseISO(h.faturamento);
-      return date >= sixMonthsAgo && date < startOfCurrentMonth;
+      return date >= sixMonthsAgo && date < startOfCurrentMonth && classifySaleRecord(h).entraMetas;
     });
   const media6m = media6mData.reduce((acc, h) => {
     const prod = produtosMap[h.produto_id];
@@ -319,7 +377,7 @@ export function ClienteDetail() {
       if (isCutoffClient && h.faturamento < SALES_CUTOFF_DATE) return false;
 
       const date = parseISO(h.faturamento);
-      return date >= twelveMonthsAgo && date < startOfCurrentMonth;
+      return date >= twelveMonthsAgo && date < startOfCurrentMonth && classifySaleRecord(h).entraMetas;
     });
   const media12m = media12mData.reduce((acc, h) => {
     const prod = produtosMap[h.produto_id];
@@ -330,14 +388,15 @@ export function ClienteDetail() {
   let mediaCiclo = 0;
   let diasUltima = 0;
   
-  if (historico.length > 0) {
-    const sortedVendas = [...historico].sort((a, b) => parseISO(b.faturamento).getTime() - parseISO(a.faturamento).getTime());
+  const recompraHistorico = historico.filter(h => classifySaleRecord(h).influenciaConsumo);
+  if (recompraHistorico.length > 0) {
+    const sortedVendas = [...recompraHistorico].sort((a, b) => parseISO(b.faturamento).getTime() - parseISO(a.faturamento).getTime());
     const ultVenda = sortedVendas[0];
     diasUltima = differenceInDays(now, parseISO(ultVenda.faturamento));
 
     const oldest = parseISO(sortedVendas[sortedVendas.length - 1].faturamento);
     const totalDaysSinceFirst = differenceInDays(now, oldest);
-    const uniqueDays = new Set(historico.map(v => format(parseISO(v.faturamento), 'yyyy-MM-dd')));
+    const uniqueDays = new Set(recompraHistorico.map(v => format(parseISO(v.faturamento), 'yyyy-MM-dd')));
     if (uniqueDays.size > 0) {
       mediaCiclo = Math.round(totalDaysSinceFirst / uniqueDays.size);
     }
@@ -607,22 +666,61 @@ export function ClienteDetail() {
           </button>
         </div>
         
-        {ordersByDate.slice(0, 3).map((order) => (
-          <button 
-            key={order.date} 
-            onClick={() => setSelectedOrderDate(order.date)}
-            className="w-full bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm flex justify-between items-center hover:bg-neutral-50 transition-colors text-left"
-          >
-            <div>
-              <p className="font-bold text-neutral-900">Pedido em {format(parseISO(order.date), 'dd/MM/yyyy')}</p>
-              <p className="text-xs text-neutral-400">{order.items.length} itens • {formatWeight(order.totalWeight)}</p>
-            </div>
-            <div className="text-right flex items-center gap-2">
-              <p className="font-bold text-neutral-900">{formatCurrency(order.total)}</p>
-              <ChevronRight size={16} className="text-neutral-300" />
-            </div>
-          </button>
-        ))}
+        {ordersByDate.slice(0, 3).map((order) => {
+          const classifs = getOrderClassificationsList(order.items);
+          return (
+            <button 
+              key={order.date} 
+              onClick={() => setSelectedOrderDate(order.date)}
+              className="w-full bg-white p-4 pl-6 rounded-2xl border border-neutral-200 shadow-sm flex justify-between items-center transition-all text-left relative overflow-hidden hover:bg-neutral-50/80 active:scale-[0.99]"
+            >
+              {/* Custom multi-color indicator side bar */}
+              <div className="absolute left-0 top-0 bottom-0 w-1.5 flex flex-col overflow-hidden rounded-l-2xl">
+                {classifs.map((c) => (
+                  <div key={c.type} className={cn("flex-1", c.barBgColor)} />
+                ))}
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center -space-x-1">
+                    {classifs.map((c) => (
+                      <span 
+                        key={c.type} 
+                        className={cn("w-2.5 h-2.5 rounded-full border border-white ring-1 ring-neutral-200/50", c.dotColor)} 
+                        title={c.label} 
+                      />
+                    ))}
+                  </div>
+                  <p className="font-bold text-neutral-950">Pedido em {format(parseISO(order.date), 'dd/MM/yyyy')}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                  {classifs.map((c) => (
+                    <span 
+                      key={c.type} 
+                      className={cn(
+                        "text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border border-neutral-100/60",
+                        c.type === 'VENDA' && "bg-blue-50 text-blue-700",
+                        c.type === 'BONIFICACAO_COMERCIAL' && "bg-orange-50 text-orange-700",
+                        c.type === 'MERCHANDISING' && "bg-purple-50 text-purple-700"
+                      )}
+                    >
+                      {c.label}
+                    </span>
+                  ))}
+                  <span className="text-neutral-300 font-normal select-none">•</span>
+                  <span className="text-xs text-neutral-400 font-bold">{order.items.length} itens</span>
+                  <span className="text-neutral-300 font-normal select-none">•</span>
+                  <span className="text-xs text-neutral-400 font-bold">{formatWeight(order.totalWeight)}</span>
+                </div>
+              </div>
+              <div className="text-right flex items-center gap-2">
+                <p className="font-black text-neutral-900">{formatCurrency(order.total)}</p>
+                <ChevronRight size={16} className="text-neutral-300" />
+              </div>
+            </button>
+          );
+        })}
       </section>
 
       {/* Order Detail Modal */}
@@ -647,18 +745,38 @@ export function ClienteDetail() {
                 const prod = produtosMap[item.produto_id];
                 const pesoTotalLinha = item.qtd * (prod?.peso_embalagem || 0);
                 const valorUnitario = item.qtd > 0 ? item["r$_total"] / item.qtd : 0;
+                const classification = classifySaleRecord(item);
                 
                 return (
                   <div key={idx} className="flex justify-between items-start pb-4 border-b border-neutral-50 last:border-0">
                     <div className="flex-1 pr-4">
-                      <p className="font-bold text-neutral-900 leading-tight">{item.produtos}</p>
+                      <div className="flex flex-wrap items-center gap-1.5 leading-tight">
+                        <span className="font-bold text-neutral-900">{item.produtos}</span>
+                        {classification.tipoOperacao !== 'VENDA' && (
+                          <span className={cn(
+                            "text-[9px] font-bold px-2 py-0.5 rounded-full border shrink-0 uppercase tracking-wider",
+                            classification.badgeStyle
+                          )}>
+                            {classification.label}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-neutral-400 mt-1">
                         Qtd: {item.qtd} un • Peso Total: {formatWeight(pesoTotalLinha)}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-neutral-900">{formatCurrency(item["r$_total"])}</p>
-                      <p className="text-[10px] font-bold text-neutral-400 uppercase">Unit: {formatCurrency(valorUnitario)}</p>
+                      <p className={cn(
+                        "font-bold",
+                        classification.tipoOperacao === 'VENDA' ? "text-neutral-900" : classification.textStyle
+                      )}>
+                        {classification.tipoOperacao === 'VENDA' 
+                          ? formatCurrency(item["r$_total"])
+                          : classification.label}
+                      </p>
+                      {classification.tipoOperacao === 'VENDA' && (
+                        <p className="text-[10px] font-bold text-neutral-400 uppercase">Unit: {formatCurrency(valorUnitario)}</p>
+                      )}
                     </div>
                   </div>
                 );
@@ -696,22 +814,61 @@ export function ClienteDetail() {
           </header>
           
           <div className="flex-1 overflow-y-auto p-4 max-w-4xl mx-auto w-full space-y-3">
-            {ordersByDate.map((order) => (
-              <button 
-                key={order.date} 
-                onClick={() => setSelectedOrderDate(order.date)}
-                className="w-full bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm flex justify-between items-center text-left hover:bg-neutral-50 transition-colors"
-              >
-                <div>
-                  <p className="font-bold text-neutral-900">{format(parseISO(order.date), 'dd/MM/yyyy')}</p>
-                  <p className="text-xs text-neutral-400">{order.items.length} itens • {formatWeight(order.totalWeight)}</p>
-                </div>
-                <div className="text-right flex items-center gap-2">
-                  <p className="font-bold text-neutral-900">{formatCurrency(order.total)}</p>
-                  <ChevronRight size={16} className="text-neutral-300" />
-                </div>
-              </button>
-            ))}
+            {ordersByDate.map((order) => {
+              const classifs = getOrderClassificationsList(order.items);
+              return (
+                <button 
+                  key={order.date} 
+                  onClick={() => setSelectedOrderDate(order.date)}
+                  className="w-full bg-white p-4 pl-6 rounded-2xl border border-neutral-200 shadow-sm flex justify-between items-center text-left transition-all relative overflow-hidden hover:bg-neutral-50/80 active:scale-[0.99]"
+                >
+                  {/* Custom multi-color indicator side bar */}
+                  <div className="absolute left-0 top-0 bottom-0 w-1.5 flex flex-col overflow-hidden rounded-l-2xl">
+                    {classifs.map((c) => (
+                      <div key={c.type} className={cn("flex-1", c.barBgColor)} />
+                    ))}
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center -space-x-1">
+                        {classifs.map((c) => (
+                          <span 
+                            key={c.type} 
+                            className={cn("w-2.5 h-2.5 rounded-full border border-white ring-1 ring-neutral-200/50", c.dotColor)} 
+                            title={c.label} 
+                          />
+                        ))}
+                      </div>
+                      <p className="font-bold text-neutral-950">{format(parseISO(order.date), 'dd/MM/yyyy')}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                      {classifs.map((c) => (
+                        <span 
+                          key={c.type} 
+                          className={cn(
+                            "text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border border-neutral-100/60",
+                            c.type === 'VENDA' && "bg-blue-50 text-blue-700",
+                            c.type === 'BONIFICACAO_COMERCIAL' && "bg-orange-50 text-orange-700",
+                            c.type === 'MERCHANDISING' && "bg-purple-50 text-purple-700"
+                          )}
+                        >
+                          {c.label}
+                        </span>
+                      ))}
+                      <span className="text-neutral-300 font-normal select-none">•</span>
+                      <span className="text-xs text-neutral-400 font-bold">{order.items.length} itens</span>
+                      <span className="text-neutral-300 font-normal select-none">•</span>
+                      <span className="text-xs text-neutral-400 font-bold">{formatWeight(order.totalWeight)}</span>
+                    </div>
+                  </div>
+                  <div className="text-right flex items-center gap-2">
+                    <p className="font-black text-neutral-900">{formatCurrency(order.total)}</p>
+                    <ChevronRight size={16} className="text-neutral-300" />
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

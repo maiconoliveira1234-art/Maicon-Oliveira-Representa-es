@@ -16,6 +16,7 @@ import {
   ArrowDownRight
 } from 'lucide-react';
 import { cn, deduplicateSales } from '../lib/utils';
+import { classifySaleRecord } from '../lib/salesClassifier';
 import { format, startOfMonth, endOfMonth, parseISO, eachDayOfInterval, isSameDay, differenceInDays, isAfter, isBefore, max } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { SALES_CUTOFF_DATE, SALES_CUTOFF_CLIENTS } from '../constants';
@@ -108,13 +109,17 @@ export function CommissionPage() {
         });
         
         const enrichedVendas: CommissionData[] = uniqueVendas.map(v => {
+          const classification = classifySaleRecord(v);
           const prod = productsMap.get(v.produto_id) || (v.produtos ? productsMap.get(v.produtos.toLowerCase()) : null);
-          const comissao_percent = prod?.comissao || 0;
-          const comissao_valor = (v["r$_total"] || 0) * comissao_percent;
-          const peso_venda = (v.qtd || 0) * (prod?.peso_embalagem || 0);
           
+          const comissao_percent = classification.entraComissao ? (prod?.comissao || 0) : 0;
+          const rTotalCorrected = classification.entraFaturamento ? (v["r$_total"] || 0) : 0;
+          const comissao_valor = rTotalCorrected * comissao_percent;
+          const peso_venda = (v.qtd || 0) * (prod?.peso_embalagem || 0);
+
           return {
             ...v,
+            "r$_total": rTotalCorrected,
             comissao_percent,
             comissao_valor,
             familia: prod?.familia || 'Sem Família',

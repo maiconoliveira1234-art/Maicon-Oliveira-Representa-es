@@ -37,6 +37,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { Cliente, Produto, HistVenda } from '../types';
 import { cn, formatCurrency, formatWeight, deduplicateSales } from '../lib/utils';
+import { classifySaleRecord } from '../lib/salesClassifier';
 import { 
   startOfMonth, 
   endOfMonth, 
@@ -335,6 +336,9 @@ export function Dashboard() {
       const orders = new Set<string>();
 
       data.forEach(h => {
+        const classification = classifySaleRecord(h);
+        if (!classification.entraFaturamento) return;
+
         const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
         const val = h["r$_total"] || 0;
         const q = h.qtd || 0;
@@ -382,7 +386,7 @@ export function Dashboard() {
       years.forEach(year => {
         const yearMonthData = fullFilteredHistory.filter(h => {
           const d = parseISO(h.faturamento);
-          return d.getFullYear() === year && d.getMonth() === monthIndex;
+          return d.getFullYear() === year && d.getMonth() === monthIndex && classifySaleRecord(h).entraFaturamento;
         });
         
         const value = yearMonthData.reduce((acc, h) => acc + (h["r$_total"] || 0), 0);
@@ -402,6 +406,7 @@ export function Dashboard() {
   const revenueByClientData = useMemo(() => {
     const map: Record<string, { value: number, weight: number }> = {};
     filteredHistorico.forEach(h => {
+      if (!classifySaleRecord(h).entraFaturamento) return;
       if (!map[h.cliente]) map[h.cliente] = { value: 0, weight: 0 };
       const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
       map[h.cliente].value += h["r$_total"];
@@ -416,6 +421,7 @@ export function Dashboard() {
   const revenueByFamilyData = useMemo(() => {
     const map: Record<string, { value: number, weight: number }> = {};
     filteredHistorico.forEach(h => {
+      if (!classifySaleRecord(h).entraFaturamento) return;
       const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
       const family = prod?.familia || 'Outros';
       if (!map[family]) map[family] = { value: 0, weight: 0 };
@@ -439,6 +445,7 @@ export function Dashboard() {
   const topProductsData = useMemo(() => {
     const map: Record<string, { revenue: number, weight: number }> = {};
     filteredHistorico.forEach(h => {
+      if (!classifySaleRecord(h).entraFaturamento) return;
       const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
       const name = prod?.produto || h.produtos || 'Desconhecido';
       if (!map[name]) map[name] = { revenue: 0, weight: 0 };
