@@ -20,7 +20,8 @@ import {
   X,
   FileText,
   Eye,
-  Home
+  Home,
+  Coins
 } from 'lucide-react';
 import { Cliente, Produto, ItemPedido, PrecoFaixa } from '../types';
 import { supabase } from '../lib/supabase';
@@ -53,6 +54,8 @@ export function OrderPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showProductSelector, setShowProductSelector] = useState(false);
+  const [showFlexCard, setShowFlexCard] = useState(false);
+  const [productSelectorType, setProductSelectorType] = useState<'VENDA' | 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING'>('VENDA');
   const [selectedPrazo, setSelectedPrazo] = useState('');
   const [selectedFamily, setSelectedFamily] = useState('Todas');
   const [showOnlyPositivados, setShowOnlyPositivados] = useState(false);
@@ -61,6 +64,7 @@ export function OrderPage() {
   const [isReady, setIsReady] = useState(false);
   const [observacoes, setObservacoes] = useState('');
   const [manualFaixa, setManualFaixa] = useState<PrecoFaixa | null>(null);
+  const [descontoExtra, setDescontoExtra] = useState<number>(0);
   const itemsEndRef = React.useRef<HTMLDivElement>(null);
 
   const families = useMemo(() => {
@@ -199,6 +203,79 @@ export function OrderPage() {
 
   const currentFaixa = manualFaixa || faixaPreco;
 
+  const computedItens = useMemo(() => {
+    // 1. Separate normal sale items to compute unit values
+    const vendaItems = itens.filter(i => !i.tipo_operacao || i.tipo_operacao === 'VENDA');
+    const nonVendaItems = itens.filter(i => i.tipo_operacao && i.tipo_operacao !== 'VENDA');
+
+    // 2. Computed values for venda items
+    const processedVenda = vendaItems.map(item => {
+      const produto = produtos.find(p => p.id === item.produto_id);
+      if (!produto) return item;
+      const discount = getValorUnitario(produto, currentFaixa) || 0;
+      const unitario = produto.custo_und * (1 - discount);
+      const valorTotalItem = unitario * (item.quantidade || 0) * (produto.quant_embalagem || 1);
+      return {
+        ...item,
+        valor_unitario: unitario,
+        valor_total: valorTotalItem,
+        peso_total: (item.quantidade || 0) * produto.peso_embalagem
+      };
+    });
+
+    // 3. Computed values for bonificacao / merchandising items
+    const processedNonVenda = nonVendaItems.map(item => {
+      const produto = produtos.find(p => p.id === item.produto_id);
+      if (!produto) return item;
+      
+      const matchingVenda = processedVenda.find(v => v.produto_id === item.produto_id);
+      let unitario = 0;
+      
+      if (matchingVenda) {
+        unitario = matchingVenda.valor_unitario || 0;
+      } else {
+        unitario = produto.custo_und; // full price / cadastrado
+      }
+      
+      const valorTotalItem = unitario * (item.quantidade || 0) * (produto.quant_embalagem || 1);
+      
+      return {
+        ...item,
+        valor_unitario: unitario,
+        valor_total: valorTotalItem,
+        peso_total: (item.quantidade || 0) * produto.peso_embalagem
+      };
+    });
+
+    return [...processedVenda, ...processedNonVenda];
+  }, [itens, produtos, currentFaixa]);
+
+  const valorVendasSubtotal = useMemo(() => {
+    return computedItens
+      .filter(item => !item.tipo_operacao || item.tipo_operacao === 'VENDA')
+      .reduce((acc, item) => acc + (item.valor_total || 0), 0);
+  }, [computedItens]);
+
+  const verbaGeradaEstimada = useMemo(() => {
+    return valorVendasSubtotal * 0.02;
+  }, [valorVendasSubtotal]);
+
+  const totalBonificacoes = useMemo(() => {
+    return computedItens
+      .filter(item => item.tipo_operacao === 'BONIFICACAO_COMERCIAL')
+      .reduce((acc, item) => acc + (item.valor_total || 0), 0);
+  }, [computedItens]);
+
+  const totalMerchandising = useMemo(() => {
+    return computedItens
+      .filter(item => item.tipo_operacao === 'MERCHANDISING')
+      .reduce((acc, item) => acc + (item.valor_total || 0), 0);
+  }, [computedItens]);
+
+  const valorFinalCliente = useMemo(() => {
+    return Math.max(0, valorVendasSubtotal - descontoExtra);
+  }, [valorVendasSubtotal, descontoExtra]);
+
   const prefilledApplied = React.useRef(false);
   const initialLoadDone = React.useRef(false);
 
@@ -217,46 +294,61 @@ export function OrderPage() {
       if (saved) {
         try {
           const savedData = JSON.parse(saved);
-          let prefilled: Record<string, number> = {};
+          let loadedItemsList: Array<{ produto_id: string, quantidade: number, tipo_operacao?: 'VENDA' | 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' }> = [];
           
           // Handle both old format (Record<string, number>) and new format ({ items, prazo, obs })
           if (savedData && typeof savedData === 'object' && 'items' in savedData) {
-            prefilled = savedData.items || {};
+            if (Array.isArray(savedData.items)) {
+              loadedItemsList = savedData.items;
+            } else {
+              loadedItemsList = Object.entries(savedData.items || {}).map(([pId, qty]) => ({
+                produto_id: pId,
+                quantidade: qty as number,
+                tipo_operacao: 'VENDA'
+              }));
+            }
             if (savedData.prazo) setSelectedPrazo(savedData.prazo);
             if (savedData.obs) setObservacoes(savedData.obs);
             if (savedData.manualFaixa) setManualFaixa(savedData.manualFaixa);
-          } else {
-            prefilled = savedData || {};
+            if (typeof savedData.descontoExtra === 'number') setDescontoExtra(savedData.descontoExtra);
+          } else if (savedData && typeof savedData === 'object') {
+            loadedItemsList = Object.entries(savedData).map(([pId, qty]) => ({
+              produto_id: pId,
+              quantidade: qty as number,
+              tipo_operacao: 'VENDA'
+            }));
           }
 
           const newItens: Partial<ItemPedido>[] = [];
           
           // Calculate initial weight to get correct initial price range
           let tempPesoTotal = 0;
-          Object.entries(prefilled).forEach(([produtoId, extraQtd]) => {
-            const produto = produtos.find(p => p.id === produtoId);
-            if (produto && extraQtd > 0) {
-              tempPesoTotal += extraQtd * produto.peso_embalagem;
+          loadedItemsList.forEach(item => {
+            const produto = produtos.find(p => p.id === item.produto_id);
+            if (produto && (item.quantidade || 0) > 0) {
+              tempPesoTotal += (item.quantidade || 0) * produto.peso_embalagem;
             }
           });
 
           const tempFaixa = getFaixaPreco(Math.max(tempPesoTotal, pesoConquistado));
 
-          Object.entries(prefilled).forEach(([produtoId, extraQtd]) => {
-            const produto = produtos.find(p => p.id === produtoId);
+          loadedItemsList.forEach(item => {
+            const produto = produtos.find(p => p.id === item.produto_id);
             if (!produto) return;
 
+            const extraQtd = item.quantidade || 0;
             if (extraQtd > 0) {
               const discount = getValorUnitario(produto, tempFaixa) || 0;
               const unitario = produto.custo_und * (1 - discount);
               const valorTotalItem = unitario * extraQtd * (produto.quant_embalagem || 1);
 
               newItens.push({
-                produto_id: produtoId,
+                produto_id: item.produto_id,
                 quantidade: extraQtd,
                 peso_total: extraQtd * produto.peso_embalagem,
                 valor_unitario: unitario,
-                valor_total: valorTotalItem
+                valor_total: valorTotalItem,
+                tipo_operacao: item.tipo_operacao || 'VENDA'
               });
             }
           });
@@ -276,23 +368,23 @@ export function OrderPage() {
   // Persist items to localStorage
   useEffect(() => {
     if (isReady && clienteId) {
-      const map: Record<string, number> = {};
-      itens.forEach(item => {
-        if (item.produto_id && item.quantidade) {
-          map[item.produto_id] = item.quantidade;
-        }
-      });
+      const rawItemList = itens.map(item => ({
+        produto_id: item.produto_id,
+        quantidade: item.quantidade,
+        tipo_operacao: item.tipo_operacao || 'VENDA'
+      }));
       
       const dataToSave = {
-        items: map,
+        items: rawItemList,
         prazo: selectedPrazo,
         obs: observacoes,
-        manualFaixa: manualFaixa
+        manualFaixa: manualFaixa,
+        descontoExtra: descontoExtra
       };
       
       localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(dataToSave));
     }
-  }, [itens, clienteId, isReady, selectedPrazo, observacoes, manualFaixa]);
+  }, [itens, clienteId, isReady, selectedPrazo, observacoes, manualFaixa, descontoExtra]);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -309,8 +401,8 @@ export function OrderPage() {
   };
 
   const valorTotal = useMemo(() => {
-    return itens.reduce((acc, item) => acc + (item.valor_total || 0), 0);
-  }, [itens]);
+    return valorFinalCliente;
+  }, [valorFinalCliente]);
 
   const availableTerms = useMemo(() => {
     return getAvailableTerms(valorTotal);
@@ -323,10 +415,10 @@ export function OrderPage() {
     }
   }, [availableTerms, selectedPrazo]);
 
-  const addItem = (produto: Produto) => {
-    const existing = itens.find(i => i.produto_id === produto.id);
+  const addItem = (produto: Produto, tipoOps: 'VENDA' | 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' = 'VENDA') => {
+    const existing = itens.find(i => i.produto_id === produto.id && (i.tipo_operacao || 'VENDA') === tipoOps);
     if (existing) {
-      updateItem(produto.id, (existing.quantidade || 0) + 1);
+      updateItem(produto.id, (existing.quantidade || 0) + 1, tipoOps);
     } else {
       const discount = getValorUnitario(produto, currentFaixa) || 0;
       const unitario = produto.custo_und * (1 - discount);
@@ -337,21 +429,22 @@ export function OrderPage() {
         quantidade: 1,
         peso_total: produto.peso_embalagem,
         valor_unitario: unitario,
-        valor_total: valorTotalItem
+        valor_total: valorTotalItem,
+        tipo_operacao: tipoOps
       };
       setItens([...itens, novoItem]);
     }
     setShowProductSelector(false);
   };
 
-  const updateItem = (produtoId: string, qtd: number) => {
+  const updateItem = (produtoId: string, qtd: number, tipoOps: 'VENDA' | 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' = 'VENDA') => {
     setItens(prev => {
       if (qtd <= 0) {
-        return prev.filter(i => i.produto_id !== produtoId);
+        return prev.filter(i => !(i.produto_id === produtoId && (i.tipo_operacao || 'VENDA') === tipoOps));
       }
 
       return prev.map(item => {
-        if (item.produto_id === produtoId) {
+        if (item.produto_id === produtoId && (item.tipo_operacao || 'VENDA') === tipoOps) {
           const produto = produtos.find(p => p.id === produtoId)!;
           const pesoItem = qtd * produto.peso_embalagem;
           const discount = getValorUnitario(produto, currentFaixa) || 0;
@@ -368,6 +461,51 @@ export function OrderPage() {
         }
         return item;
       });
+    });
+  };
+
+  const updateItemType = (produtoId: string, currentType: string, newType: 'VENDA' | 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING') => {
+    setItens(prev => {
+      const existingNewTypeIdx = prev.findIndex(i => i.produto_id === produtoId && (i.tipo_operacao || 'VENDA') === newType);
+      const targetItemIdx = prev.findIndex(i => i.produto_id === produtoId && (i.tipo_operacao || 'VENDA') === currentType);
+      
+      if (targetItemIdx === -1) return prev;
+      
+      const targetItem = prev[targetItemIdx];
+      
+      if (existingNewTypeIdx !== -1 && existingNewTypeIdx !== targetItemIdx) {
+        const existingNewType = prev[existingNewTypeIdx];
+        const mergedQty = (existingNewType.quantidade || 0) + (targetItem.quantidade || 0);
+        
+        const nextList = prev.filter((_, idx) => idx !== targetItemIdx);
+        return nextList.map(item => {
+          if (item.produto_id === produtoId && (item.tipo_operacao || 'VENDA') === newType) {
+            const produto = produtos.find(p => p.id === produtoId)!;
+            const pesoItem = mergedQty * produto.peso_embalagem;
+            const discount = getValorUnitario(produto, currentFaixa) || 0;
+            const unitario = produto.custo_und * (1 - discount);
+            const valorTotalItem = unitario * mergedQty * (produto.quant_embalagem || 1);
+            return {
+              ...item,
+              quantidade: mergedQty,
+              peso_total: pesoItem,
+              valor_unitario: unitario,
+              valor_total: valorTotalItem
+            };
+          }
+          return item;
+        });
+      } else {
+        return prev.map((item, idx) => {
+          if (idx === targetItemIdx) {
+            return {
+              ...item,
+              tipo_operacao: newType
+            };
+          }
+          return item;
+        });
+      }
     });
   };
 
@@ -573,7 +711,7 @@ export function OrderPage() {
 >
   {(() => {
     // Sort items alphabetically by product name
-    const sortedItens = [...itens].sort((a, b) => {
+    const sortedItens = [...computedItens].sort((a, b) => {
       const prodA = produtos.find(p => p.id === a.produto_id)?.produto || '';
       const prodB = produtos.find(p => p.id === b.produto_id)?.produto || '';
       return prodA.localeCompare(prodB);
@@ -652,7 +790,12 @@ export function OrderPage() {
                 return (
                   <tr key={idx} className="text-sm" style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
                     <td className="py-4 px-4 font-bold leading-tight max-w-[300px] break-words" style={{ color: '#262626' }}>
-                      {produto.produto}
+                      <div>{produto?.produto}</div>
+                      {item.tipo_operacao && item.tipo_operacao !== 'VENDA' && (
+                        <div className="text-[9px] font-black tracking-widest text-orange-600 uppercase mt-0.5" style={{ color: '#ea580c' }}>
+                          {item.tipo_operacao === 'BONIFICACAO_COMERCIAL' ? '• Bonificação' : '• Merchandising / Brinde'}
+                        </div>
+                      )}
                     </td>
                     <td className="py-4 px-4 text-center font-black" style={{ color: '#525252' }}>
                       {item.quantidade} {produto.quant_embalagem > 1 ? 'CX' : 'UN'}
@@ -750,70 +893,229 @@ export function OrderPage() {
           <h3 className="font-bold text-neutral-800">Itens do Orçamento</h3>
         </div>
 
-        {itens.length === 0 ? (
-          <div className="bg-white p-12 rounded-2xl border border-dashed border-neutral-300 text-center text-neutral-400">
-            Nenhum item adicionado.
+        {itens.filter(item => !item.tipo_operacao || item.tipo_operacao === 'VENDA').length === 0 ? (
+          <div className="bg-white p-12 rounded-2xl border border-dashed border-neutral-300 text-center text-neutral-400 font-bold text-xs uppercase tracking-wider">
+            Nenhum item de venda adicionado.
           </div>
         ) : (
           <div className="space-y-3">
-            {itens.map(item => {
-              const produto = produtos.find(p => p.id === item.produto_id)!;
-              return (
-                <div key={item.produto_id} className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm flex items-center justify-between">
-                  <div className="flex-1">
-                    <h4 className="font-bold text-neutral-900">{produto.produto}</h4>
-                    <div className="flex gap-3 mt-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-                      <span>{(produto.peso_embalagem / (produto.quant_embalagem || 1)).toFixed(2)}kg / un</span>
-                      <span className="text-neutral-300">|</span>
-                      <span>Total: {formatWeight(item.peso_total || 0)}</span>
-                      <span className="text-neutral-300">|</span>
-                      <span>{formatCurrency(item.valor_unitario || 0)} / un</span>
+            {computedItens
+              .filter(item => !item.tipo_operacao || item.tipo_operacao === 'VENDA')
+              .map((item, index) => {
+                const produto = produtos.find(p => p.id === item.produto_id);
+                if (!produto) return null;
+                
+                const opType = item.tipo_operacao || 'VENDA';
+
+                return (
+                  <div key={`${item.produto_id}_${opType}`} className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 transition-all border-l-4 border-l-blue-500">
+                    <div className="flex-1">
+                      <h4 className="font-bold text-neutral-900">{produto.produto}</h4>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                        <span>{(produto.peso_embalagem / (produto.quant_embalagem || 1)).toFixed(2)}kg / un</span>
+                        <span className="text-neutral-300">|</span>
+                        <span>Total: {formatWeight(item.peso_total || 0)}</span>
+                        <span className="text-neutral-300">|</span>
+                        <span>{formatCurrency(item.valor_unitario || 0)} / un</span>
+                      </div>
+                      <p className="text-orange-600 font-bold mt-1">{formatCurrency(item.valor_total || 0)}</p>
                     </div>
-                    <p className="text-orange-600 font-bold mt-1">{formatCurrency(item.valor_total || 0)}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => updateItem(item.produto_id!, 0)}
-                      className="w-8 h-8 flex items-center justify-center bg-red-50 rounded-lg text-red-600 hover:bg-red-100 transition-colors"
-                      title="Remover item"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                    <div className="flex items-center gap-3 bg-neutral-50 p-1 rounded-xl border border-neutral-100">
+                    <div className="flex items-center gap-2 self-end md:self-auto">
                       <button 
-                        onClick={() => updateItem(item.produto_id!, (item.quantidade || 0) - 1)}
-                        className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm text-neutral-600"
+                        onClick={() => updateItem(item.produto_id!, 0, opType)}
+                        className="w-8 h-8 flex items-center justify-center bg-red-50 rounded-lg text-red-600 hover:bg-red-100 transition-colors"
+                        title="Remover item"
                       >
-                        <Minus size={16} />
+                        <Trash2 size={16} />
                       </button>
-                      <input 
-                        type="number" 
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        className="w-10 text-center font-bold text-neutral-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        value={item.quantidade || ''}
-                        onChange={(e) => updateItem(item.produto_id!, parseInt(e.target.value) || 0)}
-                      />
-                      <button 
-                        onClick={() => updateItem(item.produto_id!, (item.quantidade || 0) + 1)}
-                        className="w-8 h-8 flex items-center justify-center bg-orange-600 rounded-lg shadow-sm text-white"
-                      >
-                        <Plus size={16} />
-                      </button>
+                      <div className="flex items-center gap-3 bg-neutral-50 p-1 rounded-xl border border-neutral-100">
+                        <button 
+                          onClick={() => updateItem(item.produto_id!, (item.quantidade || 0) - 1, opType)}
+                          className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm text-neutral-600"
+                        >
+                          <Minus size={16} />
+                        </button>
+                        <input 
+                          type="number" 
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          className="w-10 text-center font-bold text-neutral-900 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          value={item.quantidade || ''}
+                          onChange={(e) => updateItem(item.produto_id!, parseInt(e.target.value) || 0, opType)}
+                        />
+                        <button 
+                          onClick={() => updateItem(item.produto_id!, (item.quantidade || 0) + 1, opType)}
+                          className="w-8 h-8 flex items-center justify-center bg-orange-600 rounded-lg shadow-sm text-white"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         )}
 
         <button 
-          onClick={() => setShowProductSelector(true)}
+          onClick={() => {
+            setProductSelectorType('VENDA');
+            setShowProductSelector(true);
+          }}
           className="w-full py-4 bg-white rounded-2xl border-2 border-dashed border-orange-200 text-orange-600 font-bold flex items-center justify-center gap-2 hover:bg-orange-50 transition-all active:scale-95 mt-4"
         >
           <Plus size={20} /> Adicionar Produto
         </button>
+
+        {/* Verba Flex Card Section */}
+        {showFlexCard && (
+          <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-200 shadow-xs space-y-3 mt-4">
+            <div className="flex justify-between items-center pb-2 border-b border-neutral-200">
+              <div className="flex items-center gap-2">
+                <Coins size={18} className="text-orange-600" />
+                <span className="text-xs font-black uppercase text-neutral-800 tracking-wider">Verba Flex Comercial</span>
+              </div>
+              <span className="text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold">Painel de Controle</span>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3 text-xs font-bold text-neutral-600">
+              <div className="p-2.5 bg-white border border-neutral-200/50 rounded-xl">
+                <p className="text-[10px] text-neutral-400 uppercase tracking-widest font-black">Saldo Acumulado</p>
+                <p className="text-sm font-extrabold text-neutral-900 mt-0.5">{formatCurrency(cliente?.flex_saldo || 0)}</p>
+              </div>
+              <div className="p-2.5 bg-white border border-neutral-200/50 rounded-xl">
+                <p className="text-[10px] text-neutral-400 uppercase tracking-widest font-black">Gerado no Faturamento</p>
+                <p className="text-sm font-extrabold text-green-600 mt-0.5">+{formatCurrency(verbaGeradaEstimada)} (2%)</p>
+              </div>
+            </div>
+
+            {/* Input for Desconto Financeiro on this Order */}
+            <div className="space-y-1 bg-white p-3 rounded-xl border border-neutral-100">
+              <label className="text-[10px] font-black uppercase text-neutral-500 tracking-wider flex justify-between">
+                <span>Desconto Extra (Max {formatCurrency(verbaGeradaEstimada)})</span>
+                <span className="text-neutral-400 font-bold">Usa apenas Verba Atual</span>
+              </label>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-neutral-400">R$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="flex-1 text-xs font-bold text-neutral-800 bg-neutral-50 p-1.5 border border-neutral-200 rounded-lg outline-none focus:ring-1 focus:ring-orange-500"
+                  placeholder="0,00"
+                  value={descontoExtra || ''}
+                  min={0}
+                  max={Number(verbaGeradaEstimada.toFixed(2))}
+                  onChange={(e) => {
+                    const val = Math.max(0, parseFloat(e.target.value) || 0);
+                    if (val > verbaGeradaEstimada) {
+                      setDescontoExtra(Number(verbaGeradaEstimada.toFixed(2)));
+                    } else {
+                      setDescontoExtra(val);
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Inserir Item Bonificado inside this Card */}
+            <div className="pt-2 border-t border-neutral-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase text-neutral-500 tracking-wider flex items-center gap-1">
+                  <Coins size={12} className="text-orange-500" />
+                  Itens Bonificados (Flex)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProductSelectorType('BONIFICACAO_COMERCIAL');
+                    setShowProductSelector(true);
+                  }}
+                  className="px-2.5 py-1 bg-orange-600 text-white rounded-lg text-xs font-bold hover:bg-orange-700 transition-all flex items-center gap-1 shadow-sm active:scale-95"
+                >
+                  <Plus size={12} />
+                  <span>Inserir Item Bonificado</span>
+                </button>
+              </div>
+
+              {itens.filter(item => (item.tipo_operacao || 'VENDA') === 'BONIFICACAO_COMERCIAL').length === 0 ? (
+                <p className="text-[11px] text-neutral-400 italic bg-white p-3 rounded-xl border border-neutral-100/50 text-center">
+                  Nenhum item bonificado adicionado ainda.
+                </p>
+              ) : (
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {computedItens
+                    .filter(item => (item.tipo_operacao || 'VENDA') === 'BONIFICACAO_COMERCIAL')
+                    .map(item => {
+                      const produto = produtos.find(p => p.id === item.produto_id);
+                      if (!produto) return null;
+                      return (
+                        <div key={item.produto_id} className="flex items-center justify-between p-2.5 bg-white border border-neutral-200/50 rounded-xl">
+                          <div className="flex-1 min-w-0 pr-2">
+                            <p className="text-[11px] font-bold text-neutral-800 truncate">{produto.produto}</p>
+                            <p className="text-[9px] text-neutral-400 font-medium">
+                              {item.quantidade} x R$ {(item.valor_unitario || 0).toFixed(2)} | Peso: {formatWeight(item.peso_total || 0)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => updateItem(item.produto_id!, (item.quantidade || 0) - 1, 'BONIFICACAO_COMERCIAL')}
+                              className="w-5 h-5 flex items-center justify-center bg-neutral-100 rounded text-neutral-600 hover:bg-neutral-200"
+                            >
+                              <Minus size={11} />
+                            </button>
+                            <span className="text-xs font-black min-w-[14px] text-center">{item.quantidade}</span>
+                            <button
+                              type="button"
+                              onClick={() => updateItem(item.produto_id!, (item.quantidade || 0) + 1, 'BONIFICACAO_COMERCIAL')}
+                              className="w-5 h-5 flex items-center justify-center bg-orange-600 rounded text-white hover:bg-orange-700"
+                            >
+                              <Plus size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateItem(item.produto_id!, 0, 'BONIFICACAO_COMERCIAL')}
+                              className="w-5 h-5 flex items-center justify-center bg-red-50 text-red-650 rounded hover:bg-red-100 ml-1"
+                              title="Remover bonificação"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+
+            {/* Consumption summaries */}
+            <div className="space-y-1.5 text-[11px] font-bold text-neutral-500 border-t border-dashed border-neutral-200 pt-2.5">
+              <div className="flex justify-between">
+                <span>Total Consumido por Bonificações:</span>
+                <span className="text-orange-600 font-extrabold">{formatCurrency(totalBonificacoes)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Total Consumido por Merchandising:</span>
+                <span className="text-purple-600 font-extrabold">{formatCurrency(totalMerchandising)}</span>
+              </div>
+              <div className="flex justify-between border-t border-neutral-100 pt-1 text-xs font-extrabold text-neutral-900">
+                <span>Projeção de Saldo Pós-Faturamento:</span>
+                <span className={cn(
+                  (cliente?.flex_saldo || 0) + verbaGeradaEstimada - totalBonificacoes - totalMerchandising - descontoExtra >= 0 
+                    ? "text-emerald-600" 
+                    : "text-rose-600 animate-pulse"
+                )}>
+                  {formatCurrency(Number(((cliente?.flex_saldo || 0) + verbaGeradaEstimada - totalBonificacoes - totalMerchandising - descontoExtra).toFixed(2)))}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[9px] font-semibold text-neutral-400 italic text-center leading-tight">
+              *Saldo sujeito a alteração devido a pedidos ainda não faturados pelo ERP.
+            </p>
+          </div>
+        )}
+
         <div ref={itemsEndRef} className="h-20" />
       </div>
 
@@ -900,12 +1202,27 @@ export function OrderPage() {
                     </button>
                   </div>
                 ) : (
-                  <button 
-                    onClick={() => setShowClearConfirm(true)}
-                    className="flex-1 bg-neutral-100 text-neutral-600 py-2.5 md:py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-200 transition-all text-xs"
-                  >
-                    <Trash2 size={16} /> Limpar
-                  </button>
+                  <>
+                    <button 
+                      onClick={() => setShowClearConfirm(true)}
+                      className="flex-1 bg-neutral-100 text-neutral-600 py-2.5 md:py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-200 transition-all text-xs"
+                    >
+                      <Trash2 size={16} /> Limpar
+                    </button>
+                    <button 
+                      onClick={() => setShowFlexCard(!showFlexCard)}
+                      className={cn(
+                        "px-4 py-2.5 md:py-4 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all text-xs shadow-sm",
+                        showFlexCard 
+                          ? "bg-orange-600 text-white ring-2 ring-orange-300" 
+                          : "bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-150"
+                      )}
+                      title="Verba Flex"
+                    >
+                      <Coins size={16} className={showFlexCard ? "animate-pulse" : ""} />
+                      <span>FX</span>
+                    </button>
+                  </>
                 )}
                 <button 
                   onClick={() => setShowPreview(true)}
@@ -1003,7 +1320,7 @@ export function OrderPage() {
               <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-neutral-200/50">
                 <div className="max-w-[800px] mx-auto shadow-2xl">
                   {(() => {
-                    const sortedItens = [...itens].sort((a, b) => {
+                    const sortedItens = [...computedItens].sort((a, b) => {
                       const prodA = produtos.find(p => p.id === a.produto_id)?.produto || '';
                       const prodB = produtos.find(p => p.id === b.produto_id)?.produto || '';
                       return prodA.localeCompare(prodB);
@@ -1080,7 +1397,12 @@ export function OrderPage() {
                                 return (
                                   <tr key={idx} className={cn("text-[10px]", idx % 2 === 0 ? "bg-[#ffffff]" : "bg-[#fafafa]")}>
                                     <td className="py-2 px-3 font-bold text-[#262626] leading-tight max-w-[200px] break-words">
-                                      {produto.produto}
+                                      <div>{produto?.produto}</div>
+                                      {item.tipo_operacao && item.tipo_operacao !== 'VENDA' && (
+                                        <div className="text-[8px] font-black tracking-widest text-[#ea580c] uppercase mt-0.5">
+                                          {item.tipo_operacao === 'BONIFICACAO_COMERCIAL' ? '• Bonificação' : '• Merchandising'}
+                                        </div>
+                                      )}
                                     </td>
                                     <td className="py-2 px-3 text-center font-black text-[#525252]">
                                       {item.quantidade} {produto.quant_embalagem > 1 ? 'CX' : 'UN'}
@@ -1192,7 +1514,9 @@ export function OrderPage() {
               className="bg-white w-full max-w-lg rounded-t-3xl md:rounded-3xl p-6 max-h-[80vh] overflow-hidden flex flex-col"
             >
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold">Selecionar Produto</h3>
+                <h3 className="text-xl font-bold">
+                  {productSelectorType === 'BONIFICACAO_COMERCIAL' ? 'Selecionar Produto Bonificado (Flex)' : 'Selecionar Produto'}
+                </h3>
                 <button onClick={() => setShowProductSelector(false)} className="p-2 text-neutral-400">
                   <X size={24} />
                 </button>
@@ -1274,7 +1598,7 @@ export function OrderPage() {
                 {filteredAndSortedProducts.map(produto => (
                   <button
                     key={produto.id}
-                    onClick={() => addItem(produto)}
+                    onClick={() => addItem(produto, productSelectorType)}
                     className="w-full text-left p-4 rounded-xl border border-neutral-100 hover:bg-orange-50 hover:border-orange-200 transition-all flex justify-between items-center"
                   >
                     <div>

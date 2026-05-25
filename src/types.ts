@@ -11,6 +11,7 @@ export type Cliente = {
   endereco?: string;
   latitude?: number;
   longitude?: number;
+  flex_saldo?: number;
 };
 
 export type Produto = {
@@ -73,6 +74,7 @@ export type ItemPedido = {
   peso_total: number;
   valor_unitario: number;
   valor_total: number;
+  tipo_operacao?: 'VENDA' | 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING';
 };
 
 export type PrecoFaixa = 'livre' | '200kg' | '500kg' | '1000kg' | '2000kg' | '4000kg';

@@ -13,7 +13,8 @@ import {
   XCircle,
   ArrowLeftRight,
   MapPin,
-  Phone
+  Phone,
+  Coins
 } from 'lucide-react';
 import { Cliente, HistVenda, EstoqueCliente } from '../types';
 import { supabase } from '../lib/supabase';
@@ -122,6 +123,7 @@ export function ClienteDetail() {
   const [estoque, setEstoque] = useState<EstoqueCliente[]>([]);
   const [emprestimos, setEmprestimos] = useState<Emprestimo[]>([]);
   const [visitaAgenda, setVisitaAgenda] = useState<{ semana: 1 | 2; dia_semana: string } | null>(null);
+  const [flexExtrato, setFlexExtrato] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedOrderDate, setSelectedOrderDate] = useState<string | null>(null);
@@ -216,6 +218,24 @@ export function ClienteDetail() {
           setVisitaAgenda(null);
         }
 
+        // Fetch Verba Flex Ledger Extrato
+        try {
+          const { data: extratoData, error: extratoError } = await supabase
+            .from('verba_flex_extrato')
+            .select('*')
+            .eq('cliente_id', id)
+            .order('criado_em', { ascending: false });
+
+          if (!extratoError && extratoData) {
+            setFlexExtrato(extratoData);
+          } else {
+            setFlexExtrato([]);
+          }
+        } catch (extratoErr) {
+          console.error('Erro ao buscar verba_flex_extrato:', extratoErr);
+          setFlexExtrato([]);
+        }
+
       } catch (err) {
         console.error('Erro ao carregar dados do cliente:', err);
         setCliente(MOCK_CLIENTES.find(c => c.id === id) || null);
@@ -227,6 +247,60 @@ export function ClienteDetail() {
     }
     loadClienteData();
   }, [id, allProducts, loadClientDetails, clientCache?.[id || '']]);
+
+  const handleResetTrimestral = async () => {
+    if (!id || !cliente) return;
+    const currentSaldo = cliente.flex_saldo || 0;
+    if (currentSaldo === 0) {
+      alert('O saldo acumulado já é R$ 0,00.');
+      return;
+    }
+    
+    if (!window.confirm(`Confirma o zeramento trimestral de R$ ${currentSaldo.toFixed(2)} do saldo flex deste cliente? O histórico completo de extratos será mantido para auditoria.`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const { error: updError } = await supabase
+        .from('clientes')
+        .update({ flex_saldo: 0 })
+        .eq('id', id);
+
+      if (updError) throw updError;
+
+      const { error: insError } = await supabase
+        .from('verba_flex_extrato')
+        .insert([{
+          cliente_id: id,
+          valor: -currentSaldo,
+          tipo: 'AJUSTE',
+          descricao: 'Zeramento Trimestral de Conta Flex Comercial'
+        }]);
+
+      if (insError) throw insError;
+
+      setCliente(prev => prev ? { ...prev, flex_saldo: 0 } : null);
+      
+      const { data: freshExtrato } = await supabase
+        .from('verba_flex_extrato')
+        .select('*')
+        .eq('cliente_id', id)
+        .order('criado_em', { ascending: false });
+        
+      if (freshExtrato) {
+        setFlexExtrato(freshExtrato);
+      }
+      
+      alert('Conta Flex zerada com sucesso e evento registrado no extrato histórico!');
+    } catch(err: any) {
+      console.error('Erro ao realizar zeramento trimestral:', err.message);
+      alert('Erro ao realizar zeramento trimestral: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formattedNextVisit = React.useMemo(() => {
     if (!visitaAgenda) return null;
@@ -648,6 +722,79 @@ export function ClienteDetail() {
               {statusCiclo}
             </p>
           </div>
+        </div>
+      </section>
+
+      {/* Conta de Verba Flex Comercial & Extrato de Auditoria (Interno CRM) */}
+      <section className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm space-y-4">
+        <div className="flex justify-between items-center pb-2 border-b border-neutral-100">
+          <h3 className="font-bold text-neutral-800 flex items-center gap-2">
+            <Coins className="text-orange-600" size={20} />
+            Conta Flex & Extrato Coerente
+          </h3>
+          <button
+            onClick={handleResetTrimestral}
+            className="text-[10px] bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-155 px-3 py-1 rounded-full font-bold transition-all active:scale-95"
+            title="Zera o saldo acumulado trimestral mantendo o extrato completo para fins de compliance."
+          >
+            Zerar Saldo Trimestral
+          </button>
+        </div>
+
+        <div className="bg-neutral-50 p-4 rounded-2xl flex justify-between items-center">
+          <div>
+            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Saldo Comercial Disponível</p>
+            <p className="text-2xl font-black text-neutral-900 mt-1">{formatCurrency(cliente?.flex_saldo || 0)}</p>
+          </div>
+          <span className="text-[9px] font-black uppercase text-neutral-400 border border-neutral-200 bg-white shadow-xs px-2.5 py-1 rounded-xl">
+            COMENTÁRIO INTERNO
+          </span>
+        </div>
+
+        <div className="space-y-2">
+          <h4 className="text-[10px] font-black uppercase text-neutral-400 tracking-wider">Histórico de Movimentações</h4>
+          {flexExtrato.length === 0 ? (
+            <p className="text-xs text-neutral-400 italic bg-neutral-50 p-4 rounded-xl text-center border border-dashed">
+              Nenhuma movimentação de verba flex registrada até o momento.
+            </p>
+          ) : (
+            <div className="max-h-60 overflow-y-auto space-y-2 rounded-xl border border-neutral-100 p-2">
+              {flexExtrato.map((item, idx) => {
+                const val = item.valor || 0;
+                const isPositive = val > 0;
+                
+                let valColor = "text-emerald-600 font-extrabold";
+                let badgeTxt = "Gerado";
+                let badgeColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
+                
+                if (val < 0) {
+                  const isAjuste = item.tipo === 'AJUSTE';
+                  valColor = isAjuste ? "text-purple-600 font-extrabold" : "text-rose-600 font-extrabold";
+                  badgeTxt = isAjuste ? "Zeramento" : "Consumido";
+                  badgeColor = isAjuste ? "bg-purple-50 text-purple-700 border-purple-100" : "bg-rose-50 text-rose-700 border-rose-100";
+                }
+
+                return (
+                  <div key={item.id || idx} className="flex justify-between items-center bg-white p-2.5 rounded-lg border border-neutral-100 text-xs shadow-3xs">
+                    <div className="space-y-0.5">
+                      <p className="font-bold text-neutral-800 leading-tight">{item.descricao || 'Lote faturado'}</p>
+                      <p className="text-[10px] text-neutral-400 font-medium">
+                        {item.criado_em ? format(parseISO(item.criado_em), "dd/MM/yyyy HH:mm", { locale: ptBR }) : 'Pendente'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={cn("text-[8px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-md border", badgeColor)}>
+                        {badgeTxt}
+                      </span>
+                      <span className={valColor}>
+                        {isPositive ? '+' : ''}{formatCurrency(val)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 

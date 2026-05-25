@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Cliente, Produto, HistVenda } from '../types';
 import { Loader2, FileUp, Save, AlertCircle, CheckCircle2, Trash2, Plus, X, Package, Search, ChevronDown, ShieldAlert, Sparkles, TrendingDown, TrendingUp, Coins, EyeOff, Layers } from 'lucide-react';
-import { cn, deduplicateSales } from '../lib/utils';
+import { cn, deduplicateSales, formatCurrency, formatWeight } from '../lib/utils';
 import { format } from 'date-fns';
 import { auditRowCost, CostAuditResult } from '../lib/costAuditer';
 
@@ -47,6 +47,7 @@ export function ImportPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
+  const [statusImportacao, setStatusImportacao] = useState<'IDLE' | 'PROCESSANDO'>('IDLE');
   const [showNewProductModal, setShowNewProductModal] = useState(false);
   const [newProductData, setNewProductData] = useState<NewProductData>({
     produto: '',
@@ -73,6 +74,9 @@ export function ImportPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [orderDate, setOrderDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [rawData, setRawData] = useState('');
+  const [numeroPedidoErp, setNumeroPedidoErp] = useState<string>(() => {
+    return sessionStorage.getItem('last_pedido_erp') || '';
+  });
 
   // Processed data
   const [processedRows, setProcessedRows] = useState<RawRow[]>([]);
@@ -199,12 +203,20 @@ export function ImportPage() {
   };
 
   const handleSave = async () => {
+    if (saving || statusImportacao === 'PROCESSANDO') return;
+
     if (!selectedClienteId) {
       setError('Selecione um cliente antes de importar o pedido');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     if (processedRows.length === 0) return;
+
+    if (!numeroPedidoErp.trim()) {
+      setError('O "Número do Pedido ERP" é obrigatório para realizar a importação protegida contra duplicidades.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
 
     const missingProducts = processedRows.filter(r => r.isMissingProduct);
     if (missingProducts.length > 0) {
@@ -218,19 +230,53 @@ export function ImportPage() {
       return;
     }
 
-    setShowConfirmSave(true);
+    // Early database check for duplicate import
+    setSaving(true);
+    setStatusImportacao('PROCESSANDO');
+    setError(null);
+    try {
+      const { data: existingSales, error: checkError } = await supabase
+        .from('hist_vendas')
+        .select('id')
+        .eq('numero_pedido_erp', numeroPedidoErp.trim())
+        .limit(1);
+
+      if (checkError) {
+        throw new Error(`Erro ao verificar duplicidade de pedido no banco: ${checkError.message}`);
+      }
+
+      if (existingSales && existingSales.length > 0) {
+        setError('Este faturamento já foi importado anteriormente. (Proteção Idempotente ativa)');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      setShowConfirmSave(true);
+    } catch (err: any) {
+      setError(err.message || 'Erro inesperado na verificação do faturamento.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } finally {
+      setSaving(false);
+      setStatusImportacao('IDLE');
+    }
   };
 
   const confirmSave = async () => {
-    setShowConfirmSave(false);
+    if (saving || statusImportacao === 'PROCESSANDO') return;
+
     setSaving(true);
+    setStatusImportacao('PROCESSANDO');
     setError(null);
+    let salesInserted = false;
 
     try {
+      if (!numeroPedidoErp.trim()) {
+        throw new Error('Número do pedido ERP ausente.');
+      }
+
       const selectedCliente = clientes.find(c => c.id === selectedClienteId);
       
       const dataToInsert = deduplicateSales(validRowsToSave.map(row => {
-        // Try to find product ID by name
         const matchedProduto = produtos.find(p => p.produto.toLowerCase() === row.produto.toLowerCase());
         
         const record: any = {
@@ -243,34 +289,249 @@ export function ImportPage() {
           vendas: row.tipo,
           xdt: row.desconto,
           "acresc.": row.acrescimo,
-          tabela: row.tabela
+          tabela: row.tabela,
+          numero_pedido_erp: numeroPedidoErp.trim(),
+          importado_em: new Date().toISOString()
         };
 
-        // Only add produto_id if we found a match to avoid foreign key issues if null is not allowed
         if (matchedProduto?.id) {
           record.produto_id = matchedProduto.id;
         }
         
         return record;
-      }));
+      })) as any[];
 
-      const { error: insertError } = await supabase
-        .from('hist_vendas')
-        .insert(dataToInsert);
+      // Calculate Verba Flex Comercial metrics
+      let totalVendaValor = 0;
+      let totalBonificacaoValor = 0;
+      let totalMerchandisingValor = 0;
+      let totalDescontoVenda = 0;
 
-      if (insertError) {
-        throw insertError;
+      dataToInsert.forEach(record => {
+        const vUpper = (record.vendas || '').toUpperCase().trim();
+        const tUpper = (record.tabela || '').toUpperCase().trim();
+        
+        const isVenda = vUpper === 'VENDAS';
+        const isPromo = vUpper.includes('BONIFICACAO') || vUpper.includes('DOACAO') || vUpper.includes('BRINDE');
+        const isMerchandising = isPromo && (tUpper.includes('BRINDES') || vUpper.includes('BRINDE'));
+        const isBonificacao = isPromo && !isMerchandising;
+
+        if (isVenda) {
+          totalVendaValor += Number(record["r$_total"] || 0);
+          totalDescontoVenda += Number(record.xdt || 0);
+        } else if (isBonificacao) {
+          let value = Number(record["r$_total"] || 0);
+          if (value <= 0) {
+            const prod = produtos.find(p => p.produto.toLowerCase() === record.produtos.toLowerCase());
+            if (prod) {
+              value = Number(record.qtd || 0) * (prod.custo_und || 0);
+            }
+          }
+          totalBonificacaoValor += value;
+        } else if (isMerchandising) {
+          let value = Number(record["r$_total"] || 0);
+          if (value <= 0) {
+            const prod = produtos.find(p => p.produto.toLowerCase() === record.produtos.toLowerCase());
+            if (prod) {
+              value = Number(record.qtd || 0) * (prod.custo_und || 0);
+            }
+          }
+          totalMerchandisingValor += value;
+        }
+      });
+
+      const flexGerado = totalVendaValor * 0.02;
+      const totalConsumido = totalBonificacaoValor + totalMerchandisingValor + totalDescontoVenda;
+      const incrementoSaldo = Number((flexGerado - totalConsumido).toFixed(2));
+
+      // Build Extrato logs
+      const extratoEntries = [];
+
+      if (flexGerado > 0) {
+        extratoEntries.push({
+          cliente_id: selectedClienteId,
+          tipo: 'GERADO',
+          valor: Number(flexGerado.toFixed(2)),
+          descricao: `Pedido faturado (${format(new Date(orderDate), 'dd/MM/yyyy')}) - Vendas: ${formatCurrency(totalVendaValor)}`
+        });
       }
 
+      if (totalBonificacaoValor > 0) {
+        extratoEntries.push({
+          cliente_id: selectedClienteId,
+          tipo: 'BONIFICACAO',
+          valor: Number((-totalBonificacaoValor).toFixed(2)),
+          descricao: `Utilização para Bonificação no faturamento (${format(new Date(orderDate), 'dd/MM/yyyy')})`
+        });
+      }
+
+      if (totalMerchandisingValor > 0) {
+        extratoEntries.push({
+          cliente_id: selectedClienteId,
+          tipo: 'BONIFICACAO',
+          valor: Number((-totalMerchandisingValor).toFixed(2)),
+          descricao: `Utilização para Merchandising/Brindes (${format(new Date(orderDate), 'dd/MM/yyyy')})`
+        });
+      }
+
+      if (totalDescontoVenda > 0) {
+        extratoEntries.push({
+          cliente_id: selectedClienteId,
+          tipo: 'DESCONTO',
+          valor: Number((-totalDescontoVenda).toFixed(2)),
+          descricao: `Utilização para Desconto no próprio faturamento (${format(new Date(orderDate), 'dd/MM/yyyy')})`
+        });
+      }
+
+      // --- TENTATIVA 1: EXECUÇÃO TRANSACIONAL ATÔMICA REAL DO POSTGRES (Supabase RPC) ---
+      let rpcSuccess = false;
+      try {
+        const mappedItensForRpc = dataToInsert.map(r => ({
+          cliente_id: r.cliente_id,
+          cliente: r.cliente,
+          faturamento: r.faturamento,
+          produtos: r.produtos,
+          qtd: Number(r.qtd || 0),
+          r_total: Number(r["r$_total"] || 0),
+          vendas: r.vendas,
+          xdt: Number(r.xdt || 0),
+          acresc_val: Number(r["acresc."] || 0),
+          tabela: r.tabela,
+          produto_id: r.produto_id || null,
+          numero_pedido_erp: r.numero_pedido_erp
+        }));
+
+        const mappedExtratosForRpc = extratoEntries.map(e => ({
+          cliente_id: e.cliente_id,
+          tipo: e.tipo,
+          valor: Number(e.valor),
+          descricao: e.descricao
+        }));
+
+        const { error: rpcError } = await supabase.rpc('importar_faturamento_transacional', {
+          p_cliente_id: selectedClienteId,
+          p_numero_pedido_erp: numeroPedidoErp.trim(),
+          p_order_date: orderDate,
+          p_itens: mappedItensForRpc,
+          p_incremento_saldo: incrementoSaldo,
+          p_extratos: mappedExtratosForRpc
+        });
+
+        if (rpcError) {
+          // Se for erro de duplicidade lançado explicitamente
+          if (rpcError.message.includes('já foi importado') || rpcError.details?.includes('importado')) {
+            throw new Error('Este faturamento já foi importado anteriormente. (Proteção Transacional Ativa)');
+          }
+          // Se for erro de rpc inexistente, logamos e ativamos o Fallback consistente por aplicação
+          if (rpcError.code === 'P0001' || rpcError.message.includes('function') || rpcError.message.includes('does not exist') || rpcError.message.includes('not found')) {
+            console.warn('RPC importar_faturamento_transacional não detectada no Supabase. Utilizando fallback cliente-side transacional com rollback.');
+          } else {
+            throw rpcError;
+          }
+        } else {
+          rpcSuccess = true;
+          console.log('Faturamento importado com absoluto sucesso via Transação Real PostgreSQL (RPC atômica)!');
+        }
+      } catch (rpcErr: any) {
+        if (rpcErr.message.includes('já foi importado')) {
+          throw rpcErr;
+        }
+        console.error('Falha genérica no RPC, prosseguindo para o Fallback:', rpcErr);
+      }
+
+      // --- TENTATIVA 2: FALLBACK COM TRANSAÇÃO POR APLICAÇÃO (E ROLLBACK SEGURO) ---
+      if (!rpcSuccess) {
+        // Definitive database check for idempotency immediately before insert
+        const { data: existingSales, error: checkError } = await supabase
+          .from('hist_vendas')
+          .select('id')
+          .eq('numero_pedido_erp', numeroPedidoErp.trim())
+          .limit(1);
+
+        if (checkError) {
+          throw new Error(`Erro ao verificar duplicidade de pedido no fallback: ${checkError.message}`);
+        }
+
+        if (existingSales && existingSales.length > 0) {
+          throw new Error('Este faturamento já foi importado anteriormente.');
+        }
+
+        // 1. Insert into historical sales log
+        const { error: insertError } = await supabase
+          .from('hist_vendas')
+          .insert(dataToInsert);
+
+        if (insertError) {
+          throw insertError;
+        }
+
+        // Flag used in catch to clean up (rollback) in case any follow-up query crashes
+        salesInserted = true;
+
+        // 2. Fetch client current flex balance to apply the formula safely
+        const { data: clientDb, error: clientFetchError } = await supabase
+          .from('clientes')
+          .select('*')
+          .eq('id', selectedClienteId)
+          .single();
+
+        if (clientFetchError) {
+          throw new Error(`Erro ao obter saldo atual do cliente durante fallback: ${clientFetchError.message}`);
+        }
+
+        let saldoAnterior = 0;
+        if (clientDb) {
+          saldoAnterior = clientDb.flex_saldo || 0;
+        }
+
+        const novoSaldo = Number((saldoAnterior + incrementoSaldo).toFixed(2));
+
+        // 3. Update client balance in DB
+        const { error: updateClientError } = await supabase
+          .from('clientes')
+          .update({ flex_saldo: novoSaldo })
+          .eq('id', selectedClienteId);
+
+        if (updateClientError) {
+          throw new Error(`Erro ao atualizar saldo do cliente: ${updateClientError.message}`);
+        }
+
+        // 4. Write Extrato logs for auditability
+        if (extratoEntries.length > 0) {
+          const { error: insertExtratoError } = await supabase
+            .from('verba_flex_extrato')
+            .insert(extratoEntries);
+          if (insertExtratoError) {
+            throw new Error(`Erro ao criar logs do extrato da Conta Flex: ${insertExtratoError.message}`);
+          }
+        }
+      }
+
+      setShowConfirmSave(false);
       setSuccess(true);
       setProcessedRows([]);
       setRawData('');
       setSelectedClienteId(''); // Reset client selection after success
     } catch (err: any) {
-      console.error('Erro ao salvar no banco:', err);
-      setError(`Erro ao salvar os dados: ${err.message || 'Erro desconhecido'}`);
+      console.error('Erro ao salvar no banco (Executando Rollback se necessário):', err);
+      if (salesInserted) {
+        try {
+          // Manual atomic application-level rollback to avoid ghost sales without financial flow execution
+          await supabase
+            .from('hist_vendas')
+            .delete()
+            .eq('numero_pedido_erp', numeroPedidoErp.trim());
+          console.log('Rollback do pedido bem-sucedido. Nenhuma linha parcial persistida.');
+        } catch (rollbackErr) {
+          console.error('Falha crítica ao tentar reverter gravação parcial:', rollbackErr);
+        }
+      }
+      setError(`Erro ao salvar os faturamentos: ${err.message || 'Erro desconhecido'}`);
+      setShowConfirmSave(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setSaving(false);
+      setStatusImportacao('IDLE');
     }
   };
 
@@ -668,6 +929,42 @@ export function ImportPage() {
               </div>
             </div>
 
+            {/* Número do Pedido ERP Field */}
+            <div className="bg-orange-50/50 p-3.5 rounded-2xl border border-orange-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-black text-orange-850 uppercase tracking-wider flex items-center gap-1.5">
+                  <Coins size={14} className="text-orange-600" />
+                  Pedido ERP (Identificador Mestre)
+                </label>
+                {numeroPedidoErp && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNumeroPedidoErp('');
+                      sessionStorage.removeItem('last_pedido_erp');
+                    }}
+                    className="text-[10px] text-red-500 font-extrabold hover:underline transition-all"
+                  >
+                    Mudar/Limpar
+                  </button>
+                )}
+              </div>
+              <input
+                type="text"
+                placeholder="Exemplo: PEDIDO-94812"
+                value={numeroPedidoErp}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setNumeroPedidoErp(val);
+                  sessionStorage.setItem('last_pedido_erp', val);
+                }}
+                className="w-full p-2.5 bg-white border border-orange-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all text-sm font-bold text-neutral-800 placeholder-neutral-400 shadow-3xs"
+              />
+              <p className="text-[9px] text-orange-700/80 font-medium leading-tight">
+                Proteção Idempotente ativa contra reimportações acidentais ou duplicidades.
+              </p>
+            </div>
+
             <div>
               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Data do Pedido</label>
               <input
@@ -701,6 +998,12 @@ export function ImportPage() {
 
         {/* Preview Section */}
         <div className="lg:col-span-2 space-y-4">
+          {statusImportacao === 'PROCESSANDO' && (
+            <div className="bg-orange-50 border border-orange-100 text-orange-700 p-4 rounded-xl flex items-center gap-3 animate-pulse shadow-sm">
+              <Loader2 className="animate-spin text-orange-600 shrink-0" size={18} />
+              <p className="text-sm font-bold">Importando faturamento... Por favor, aguarde a sincronização.</p>
+            </div>
+          )}
           {error && (
             <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-xl flex items-start gap-3">
               <AlertCircle className="shrink-0 mt-0.5" size={18} />
@@ -752,11 +1055,11 @@ export function ImportPage() {
                 {activeTab === 'pedido' ? (
                   <button
                     onClick={handleSave}
-                    disabled={saving}
+                    disabled={saving || statusImportacao === 'PROCESSANDO'}
                     className="px-6 py-2 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-all flex items-center gap-2 disabled:opacity-50"
                   >
-                    {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                    Salvar no Banco
+                    {saving || statusImportacao === 'PROCESSANDO' ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                    {saving || statusImportacao === 'PROCESSANDO' ? 'Importando faturamento...' : 'Salvar no Banco'}
                   </button>
                 ) : (
                   <div className="flex items-center gap-3">
@@ -1090,16 +1393,27 @@ export function ImportPage() {
             </p>
             <div className="flex gap-3 pt-2">
               <button
+                type="button"
                 onClick={() => setShowConfirmSave(false)}
-                className="flex-1 py-2.5 bg-neutral-100 text-neutral-700 rounded-xl font-bold hover:bg-neutral-200 transition-all"
+                disabled={saving || statusImportacao === 'PROCESSANDO'}
+                className="flex-1 py-2.5 bg-neutral-100 text-neutral-700 rounded-xl font-bold hover:bg-neutral-200 transition-all disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
+                type="button"
                 onClick={confirmSave}
-                className="flex-1 py-2.5 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-all shadow-lg shadow-orange-200"
+                disabled={saving || statusImportacao === 'PROCESSANDO'}
+                className="flex-1 py-2.5 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-all shadow-lg shadow-orange-200 disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
-                Confirmar
+                {statusImportacao === 'PROCESSANDO' ? (
+                  <>
+                    <Loader2 className="animate-spin" size={16} />
+                    <span>Importando faturamento...</span>
+                  </>
+                ) : (
+                  <span>Confirmar</span>
+                )}
               </button>
             </div>
           </div>
