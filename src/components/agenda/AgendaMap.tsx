@@ -7,7 +7,7 @@ import { MapPin } from 'lucide-react';
 interface AgendaMapProps {
   visitas: Visita[];
   selectedVisita: Visita | null;
-  onSelectVisita: (visita: Visita) => void;
+  onSelectVisita: (visita: Visita | null) => void;
 }
 
 const API_KEY =
@@ -65,7 +65,8 @@ const VisitaMarker: React.FC<{
   visita: Visita;
   isSelected: boolean;
   onSelect: () => void;
-}> = ({ visita, isSelected, onSelect }) => {
+  onClose: () => void;
+}> = ({ visita, isSelected, onSelect, onClose }) => {
   const [markerRef, marker] = useAdvancedMarkerRef();
   const colors = getMarkerColors(visita.status, isSelected);
 
@@ -79,7 +80,7 @@ const VisitaMarker: React.FC<{
         <Pin background={colors.bg} glyphColor={colors.glyph} borderColor={colors.border} />
       </AdvancedMarker>
       {isSelected && (
-        <InfoWindow anchor={marker} onCloseClick={() => {}}>
+        <InfoWindow anchor={marker} onCloseClick={onClose}>
           <div className="p-1 min-w-[150px]">
             <p className="text-xs font-black text-neutral-900 m-0">{visita.cliente_nome}</p>
             <p className="text-[10px] text-neutral-500 m-0">{visita.cidade}</p>
@@ -139,6 +140,17 @@ const MapBoundsAdjuster: React.FC<{ visitas: Visita[] }> = ({ visitas }) => {
   return null;
 };
 
+const MapCenterAdjuster: React.FC<{ selectedVisita: Visita | null }> = ({ selectedVisita }) => {
+  const map = useMap();
+
+  React.useEffect(() => {
+    if (!map || !selectedVisita?.latitude || !selectedVisita?.longitude) return;
+    map.panTo({ lat: selectedVisita.latitude, lng: selectedVisita.longitude });
+  }, [map, selectedVisita?.id]);
+
+  return null;
+};
+
 export const AgendaMap: React.FC<AgendaMapProps> = ({ visitas, selectedVisita, onSelectVisita }) => {
   const center = useMemo<google.maps.LatLngLiteral>(() => {
     const withCoords = visitas.filter(v => v.latitude && v.longitude);
@@ -148,13 +160,6 @@ export const AgendaMap: React.FC<AgendaMapProps> = ({ visitas, selectedVisita, o
     const lng = withCoords.reduce((acc, v) => acc + (v.longitude || 0), 0) / withCoords.length;
     return { lat, lng };
   }, [visitas]);
-
-  const mapCenter = useMemo<google.maps.LatLngLiteral>(() => {
-    if (selectedVisita?.latitude && selectedVisita?.longitude) {
-      return { lat: selectedVisita.latitude, lng: selectedVisita.longitude };
-    }
-    return center;
-  }, [selectedVisita, center]);
 
   if (!hasValidKey) {
     return (
@@ -194,13 +199,14 @@ export const AgendaMap: React.FC<AgendaMapProps> = ({ visitas, selectedVisita, o
   return (
     <div className="w-full h-[400px] rounded-[2.5rem] overflow-hidden border border-neutral-200 shadow-sm mb-6 z-0">
       <Map
-        center={mapCenter}
-        zoom={13}
+        defaultCenter={center}
+        defaultZoom={13}
         mapId="agenda_map_view"
         internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
         style={{ width: '100%', height: '100%' }}
       >
         <MapBoundsAdjuster visitas={visitas} />
+        <MapCenterAdjuster selectedVisita={selectedVisita} />
         {visitas.map(v => {
           if (!v.latitude || !v.longitude) return null;
           return (
@@ -209,6 +215,7 @@ export const AgendaMap: React.FC<AgendaMapProps> = ({ visitas, selectedVisita, o
               visita={v}
               isSelected={selectedVisita?.id === v.id}
               onSelect={() => onSelectVisita(v)}
+              onClose={() => onSelectVisita(null)}
             />
           );
         })}

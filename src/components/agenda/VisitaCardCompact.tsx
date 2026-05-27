@@ -8,9 +8,10 @@ interface VisitaCardCompactProps {
   visita: Visita;
   gap?: number;
   onClick: () => void;
+  isSelected?: boolean;
 }
 
-export const VisitaCardCompact: React.FC<VisitaCardCompactProps> = ({ visita, gap, onClick }) => {
+export const VisitaCardCompact: React.FC<VisitaCardCompactProps> = ({ visita, gap, onClick, isSelected }) => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'concluida': return 'bg-emerald-500';
@@ -43,7 +44,12 @@ export const VisitaCardCompact: React.FC<VisitaCardCompactProps> = ({ visita, ga
 
   return (
     <div
-      className="w-full bg-white hover:bg-neutral-50 border border-neutral-200 rounded-2xl p-2.5 lg:p-3 flex items-center gap-3 transition-all group shadow-sm"
+      className={cn(
+        "w-full transition-all group shadow-sm border rounded-2xl p-2.5 lg:p-3 flex items-center gap-3",
+        isSelected 
+          ? "bg-orange-50/70 border-orange-400 ring-4 ring-orange-500/10 shadow-md" 
+          : "bg-white hover:bg-neutral-50 border-neutral-200"
+      )}
     >
       {/* Time & Indicator */}
       <div className="flex flex-col items-center gap-1 pr-3 border-r border-neutral-100 min-w-[65px]">

@@ -467,7 +467,6 @@ export function AgendaPage() {
             selectedVisita={selectedVisita}
             onSelectVisita={(v) => {
               setSelectedVisita(v);
-              setIsDrawerOpen(true);
             }}
           />
         )}
@@ -557,6 +556,7 @@ export function AgendaPage() {
                 <VisitaCardCompact 
                   visita={v} 
                   gap={v.cliente_id ? gapsMap[v.cliente_id] : undefined}
+                  isSelected={selectedVisita?.id === v.id}
                   onClick={() => {
                     setSelectedVisita(v);
                     setIsDrawerOpen(true);
