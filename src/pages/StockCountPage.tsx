@@ -59,6 +59,7 @@ export function StockCountPage() {
   const [estoqueMap, setEstoqueMap] = useState<Record<string, number>>({});
   const [ultimaContagemMap, setUltimaContagemMap] = useState<Record<string, number>>({});
   const [pedidoMap, setPedidoMap] = useState<Record<string, number>>({});
+  const [nonVendaItems, setNonVendaItems] = useState<Array<{ produto_id: string, quantidade: number, tipo_operacao: 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' }>>([]);
   const [produtosMap, setProdutosMap] = useState<Record<string, Produto>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -138,10 +139,37 @@ export function StockCountPage() {
           if (savedPedido) {
             try {
               const parsed = JSON.parse(savedPedido);
+              const pMap: Record<string, number> = {};
+              const nonVenda: Array<{ produto_id: string, quantidade: number, tipo_operacao: 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' }> = [];
+              
               if (parsed && typeof parsed === 'object' && 'items' in parsed) {
-                setPedidoMap(parsed.items || {});
-              } else {
-                setPedidoMap(parsed || {});
+                if (Array.isArray(parsed.items)) {
+                  parsed.items.forEach((item: any) => {
+                    if (item && item.produto_id) {
+                      const type = item.tipo_operacao || 'VENDA';
+                      if (type === 'VENDA') {
+                        pMap[item.produto_id] = item.quantidade || 0;
+                      } else {
+                        nonVenda.push({
+                          produto_id: item.produto_id,
+                          quantidade: item.quantidade || 0,
+                          tipo_operacao: type as 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING'
+                        });
+                      }
+                    }
+                  });
+                } else if (parsed.items && typeof parsed.items === 'object') {
+                  Object.entries(parsed.items).forEach(([pId, qty]) => {
+                    pMap[pId] = qty as number;
+                  });
+                }
+                setPedidoMap(pMap);
+                setNonVendaItems(nonVenda);
+              } else if (parsed && typeof parsed === 'object') {
+                Object.entries(parsed).forEach(([pId, qty]) => {
+                  pMap[pId] = qty as number;
+                });
+                setPedidoMap(pMap);
               }
             } catch (e) {
               console.error('Error parsing saved pedido:', e);
@@ -354,24 +382,45 @@ export function StockCountPage() {
   useEffect(() => {
     if (isReady && clienteId) {
       const saved = localStorage.getItem(`pedido_${clienteId}`);
-      let dataToSave = { items: pedidoMap, prazo: '', obs: '' };
+      
+      // Build items list array formatted according to OrderPage expectations
+      const itemsList: Array<{ produto_id: string, quantidade: number, tipo_operacao: string }> = [];
+      Object.entries(pedidoMap).forEach(([prodId, qty]) => {
+        const q = qty as number;
+        if (q > 0) {
+          itemsList.push({
+            produto_id: prodId,
+            quantidade: q,
+            tipo_operacao: 'VENDA'
+          });
+        }
+      });
+      nonVendaItems.forEach(item => {
+        if (item.quantidade > 0) {
+          itemsList.push({
+            produto_id: item.produto_id,
+            quantidade: item.quantidade,
+            tipo_operacao: item.tipo_operacao
+          });
+        }
+      });
+
+      let dataToSave = { items: itemsList, prazo: '', obs: '' };
       
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (parsed && typeof parsed === 'object' && 'items' in parsed) {
-            dataToSave = { ...parsed, items: pedidoMap };
-          } else {
-            dataToSave = { items: pedidoMap, prazo: '', obs: '' };
+          if (parsed && typeof parsed === 'object') {
+            dataToSave = { ...parsed, items: itemsList };
           }
         } catch (e) {
-          dataToSave = { items: pedidoMap, prazo: '', obs: '' };
+          console.error('Error parsing saved storage:', e);
         }
       }
       
       localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(dataToSave));
     }
-  }, [pedidoMap, clienteId, isReady]);
+  }, [pedidoMap, nonVendaItems, clienteId, isReady]);
 
   const handleClearAll = () => {
     setEstoqueMap({});
@@ -814,12 +863,45 @@ export function StockCountPage() {
         </button>
         <button 
           onClick={() => {
-            const finalPedidoMap: Record<string, number> = {};
+            const itemsList: Array<{ produto_id: string, quantidade: number, tipo_operacao: string }> = [];
+            
+            // Add venda items from current page state
             processedItems.forEach(item => {
               const extraPackages = pedidoMap[item.produto_id] || 0;
-              if (extraPackages > 0) finalPedidoMap[item.produto_id] = extraPackages;
+              if (extraPackages > 0) {
+                itemsList.push({
+                  produto_id: item.produto_id,
+                  quantidade: extraPackages,
+                  tipo_operacao: 'VENDA'
+                });
+              }
             });
-            navigate(`/pedido/novo/${clienteId}`, { state: { prefilledItems: finalPedidoMap } });
+
+            // Preservation of non venda items
+            nonVendaItems.forEach(item => {
+              if (item.quantidade > 0) {
+                itemsList.push({
+                  produto_id: item.produto_id,
+                  quantidade: item.quantidade,
+                  tipo_operacao: item.tipo_operacao
+                });
+              }
+            });
+
+            // Update localStorage immediately before navigating
+            const saved = localStorage.getItem(`pedido_${clienteId}`);
+            let dataToSave = { items: itemsList, prazo: '', obs: '' };
+            if (saved) {
+              try {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object') {
+                  dataToSave = { ...parsed, items: itemsList };
+                }
+              } catch (e) {}
+            }
+            localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(dataToSave));
+
+            navigate(`/pedido/novo/${clienteId}`);
           }}
           className="flex-1 bg-orange-600 text-white py-4 rounded-2xl font-bold shadow-2xl flex items-center justify-center gap-2 hover:bg-orange-700 transition-all active:scale-95"
         >
