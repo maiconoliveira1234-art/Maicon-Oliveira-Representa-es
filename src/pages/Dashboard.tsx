@@ -802,7 +802,7 @@ export function Dashboard() {
               className={cn(visibleCharts.length === 1 || visibleCharts.length === 3 ? "lg:col-span-2" : "")}
             >
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyRevenueData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <BarChart data={monthlyRevenueData} barCategoryGap="35%" barGap={3} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#a3a3a3' }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#a3a3a3' }} />
@@ -816,21 +816,21 @@ export function Dashboard() {
                     name="2024" 
                     fill="#3b82f6" 
                     radius={[2, 2, 0, 0]} 
-                    barSize={20}
+                    barSize={12}
                   />
                   <Bar 
                     dataKey={`${evolutionMetric === 'value' ? 'faturamento' : 'peso'}_2025`} 
                     name="2025" 
                     fill="#f97316" 
                     radius={[2, 2, 0, 0]} 
-                    barSize={20}
+                    barSize={12}
                   />
                   <Bar 
                     dataKey={`${evolutionMetric === 'value' ? 'faturamento' : 'peso'}_2026`} 
                     name="2026" 
                     fill="#10b981" 
                     radius={[2, 2, 0, 0]} 
-                    barSize={20}
+                    barSize={12}
                   />
                 </BarChart>
               </ResponsiveContainer>

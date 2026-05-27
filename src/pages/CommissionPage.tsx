@@ -642,7 +642,7 @@ export function CommissionPage() {
           </div>
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyComparisonData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={monthlyComparisonData} barCategoryGap="35%" barGap={3} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                 <XAxis 
                   dataKey="name" 
@@ -666,21 +666,21 @@ export function CommissionPage() {
                   name="2024" 
                   fill="#3b82f6" 
                   radius={[2, 2, 0, 0]} 
-                  barSize={20}
+                  barSize={12}
                 />
                 <Bar 
                   dataKey="comissao_2025" 
                   name="2025" 
                   fill="#f97316" 
                   radius={[2, 2, 0, 0]} 
-                  barSize={20}
+                  barSize={12}
                 />
                 <Bar 
                   dataKey="comissao_2026" 
                   name="2026" 
                   fill="#10b981" 
                   radius={[2, 2, 0, 0]} 
-                  barSize={20}
+                  barSize={12}
                 />
               </BarChart>
             </ResponsiveContainer>
