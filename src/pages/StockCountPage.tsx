@@ -270,15 +270,15 @@ export function StockCountPage() {
         // Tendencia (Column T in image) - Simplified logic: how many cycles passed
         const tendencia = mediaCiclo > 0 ? Math.floor(diasUltCompra / mediaCiclo) * -1 : 0;
 
-        // NEW: Only count quantity if it was in the VERY LAST order of the client
-        const lastOrderItems = sortedVendas.filter(v => v.faturamento === lastOrderDate);
-        const qtdUltCompraInLastOrder = lastOrderItems.reduce((acc, v) => acc + v.qtd, 0) * quantEmbalagem;
+        // Get quantity in units of that item's own last purchase by the client
+        const lastPurchaseItems = sortedVendas.filter(v => v.faturamento === ultVenda.faturamento);
+        const qtdUltCompraInfo = lastPurchaseItems.reduce((acc, v) => acc + v.qtd, 0) * quantEmbalagem;
 
         return {
           produto_id: produtoId,
           produto_nome: ultVenda.produtos,
           dias_ult_compra: diasUltCompra,
-          qtd_ult_compra: qtdUltCompraInLastOrder, // Modified to last order only
+          qtd_ult_compra: qtdUltCompraInfo,
           quantidade_atual: currentStock,
           ultima_contagem_valor: ultimaContagemMap[produtoId] || 0,
           media_qtd: Math.round(mediaQtd * quantEmbalagem),
