@@ -15,7 +15,7 @@ interface DataManagerContextType {
   loadingGlobal: boolean;
   
   loadInitialData: () => Promise<void>;
-  loadClientDetails: (clientId: string, forceRefresh?: boolean) => Promise<void>;
+  loadClientDetails: (clientId: string, forceRefresh?: boolean) => Promise<ClientCache | undefined>;
   prefetchClientData: (clientId: string) => void;
   
   refreshClientes: () => Promise<void>;
@@ -58,13 +58,13 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     }
   }, []);
 
-  const loadClientDetails = useCallback(async (clientId: string, forceRefresh = false) => {
+  const loadClientDetails = useCallback(async (clientId: string, forceRefresh = false): Promise<ClientCache | undefined> => {
     const cached = clientCache[clientId];
     const now = Date.now();
     
     if (!forceRefresh && cached && (now - cached.lastUpdated < CACHE_TTL)) {
       console.log(`[Performance] Serving client ${clientId} from cache`);
-      return;
+      return cached;
     }
 
     const startTime = performance.now();
@@ -82,19 +82,23 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       });
       const uniqueHist = Array.from(uniqueMap.values()) as HistVenda[];
 
+      const newData = {
+        historico: uniqueHist,
+        estoque: estRes.data || [],
+        lastUpdated: now
+      };
+
       setClientCache(prev => ({
         ...prev,
-        [clientId]: {
-          historico: uniqueHist,
-          estoque: estRes.data || [],
-          lastUpdated: now
-        }
+        [clientId]: newData
       }));
 
       const endTime = performance.now();
       console.log(`[Performance] Client ${clientId} data load: ${(endTime - startTime).toFixed(2)}ms`);
+      return newData;
     } catch (error) {
       console.error(`Error loading details for client ${clientId}:`, error);
+      return undefined;
     }
   }, [clientCache]);
 

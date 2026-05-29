@@ -105,9 +105,7 @@ export function OrderPage() {
         setLoading(true);
         
         // Ensure initial data is loaded in context
-        await loadClientDetails(clienteId);
-        
-        const cache = clientCache[clienteId || ''];
+        const cache = await loadClientDetails(clienteId);
 
         // Load Cliente
         const { data: clienteData, error: cError } = await supabase

@@ -89,10 +89,7 @@ export function StockCountPage() {
         setLoading(true);
         
         // Ensure initial data is loaded in context
-        await loadClientDetails(clienteId);
-        
-        // Get data from cache
-        const cache = clientCache[clienteId || ''];
+        const cache = await loadClientDetails(clienteId);
         
         // Load Cliente (Still fetch if needed, or I could move client to cache too)
         const { data: clienteData } = await supabase

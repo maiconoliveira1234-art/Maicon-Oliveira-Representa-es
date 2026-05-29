@@ -137,8 +137,7 @@ export function ClienteDetail() {
         setError(null);
         
         // Load details into cache
-        await loadClientDetails(id);
-        const cache = clientCache[id];
+        const cache = await loadClientDetails(id);
 
         // Fetch Clientes
         const { data: clienteData, error: cError } = await supabase
