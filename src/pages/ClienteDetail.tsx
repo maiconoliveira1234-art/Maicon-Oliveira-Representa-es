@@ -278,7 +278,18 @@ export function ClienteDetail() {
           descricao: 'Zeramento Trimestral de Conta Flex Comercial'
         }]);
 
-      if (insError) throw insError;
+      if (insError) {
+        const errMsg = insError.message || '';
+        const isMissingTable = errMsg.includes('verba_flex_extrato') || 
+                               errMsg.includes('relation') || 
+                               errMsg.includes('schema cache') || 
+                               insError.code === '42P01';
+        if (isMissingTable) {
+          console.warn('Tabela verba_flex_extrato não encontrada no banco. Saldo flex foi zerado na tabela de clientes, mas log do extrato não pôde ser salvo.');
+        } else {
+          throw insError;
+        }
+      }
 
       setCliente(prev => prev ? { ...prev, flex_saldo: 0 } : null);
       

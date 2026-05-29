@@ -502,7 +502,16 @@ export function ImportPage() {
             .from('verba_flex_extrato')
             .insert(extratoEntries);
           if (insertExtratoError) {
-            throw new Error(`Erro ao criar logs do extrato da Conta Flex: ${insertExtratoError.message}`);
+            const errMsg = insertExtratoError.message || '';
+            const isMissingTable = errMsg.includes('verba_flex_extrato') || 
+                                   errMsg.includes('relation') || 
+                                   errMsg.includes('schema cache') || 
+                                   insertExtratoError.code === '42P01';
+            if (isMissingTable) {
+              console.warn('Tabela verba_flex_extrato não foi encontrada no banco. Pulando gravação de logs de verba flex.', insertExtratoError);
+            } else {
+              throw new Error(`Erro ao criar logs do extrato da Conta Flex: ${insertExtratoError.message}`);
+            }
           }
         }
       }
