@@ -33,6 +33,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
   const [loadingGlobal, setLoadingGlobal] = useState(false);
   
   const initialLoadStarted = useRef(false);
+  const inFlightRequests = useRef<Record<string, Promise<ClientCache | undefined>>>({});
 
   const loadInitialData = useCallback(async () => {
     if (initialLoadStarted.current) return;
@@ -59,6 +60,12 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
   }, []);
 
   const loadClientDetails = useCallback(async (clientId: string, forceRefresh = false): Promise<ClientCache | undefined> => {
+    // If there is already an active request in flight for this client, reuse its Promise
+    if (!forceRefresh && inFlightRequests.current[clientId]) {
+      console.log(`[Performance] Reusing active in-flight request for client ${clientId}`);
+      return inFlightRequests.current[clientId];
+    }
+
     const cached = clientCache[clientId];
     const now = Date.now();
     
@@ -67,39 +74,50 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       return cached;
     }
 
-    const startTime = performance.now();
-    try {
-      const [histRes, estRes] = await Promise.all([
-        supabase.from('hist_vendas').select('*').eq('cliente_id', clientId).order('faturamento', { ascending: false }),
-        supabase.from('estoque_cliente').select('*').eq('cliente_id', clientId)
-      ]);
+    const fetchPromise = (async (): Promise<ClientCache | undefined> => {
+      const startTime = performance.now();
+      try {
+        const [histRes, estRes] = await Promise.all([
+          supabase.from('hist_vendas').select('*').eq('cliente_id', clientId).order('faturamento', { ascending: false }),
+          supabase.from('estoque_cliente').select('*').eq('cliente_id', clientId)
+        ]);
 
-      // Deduplicate history
-      const uniqueMap = new Map();
-      (histRes.data || []).forEach((h: HistVenda) => {
-        const key = `${h.faturamento}-${h.cliente_id}-${h.produto_id || h.produtos}-${h.qtd}-${h["r$_total"]}`;
-        if (!uniqueMap.has(key)) uniqueMap.set(key, h);
-      });
-      const uniqueHist = Array.from(uniqueMap.values()) as HistVenda[];
+        // Deduplicate history
+        const uniqueMap = new Map();
+        (histRes.data || []).forEach((h: HistVenda) => {
+          const key = `${h.faturamento}-${h.cliente_id}-${h.produto_id || h.produtos}-${h.qtd}-${h["r$_total"]}`;
+          if (!uniqueMap.has(key)) uniqueMap.set(key, h);
+        });
+        const uniqueHist = Array.from(uniqueMap.values()) as HistVenda[];
 
-      const newData = {
-        historico: uniqueHist,
-        estoque: estRes.data || [],
-        lastUpdated: now
-      };
+        const newData = {
+          historico: uniqueHist,
+          estoque: estRes.data || [],
+          lastUpdated: Date.now()
+        };
 
-      setClientCache(prev => ({
-        ...prev,
-        [clientId]: newData
-      }));
+        setClientCache(prev => ({
+          ...prev,
+          [clientId]: newData
+        }));
 
-      const endTime = performance.now();
-      console.log(`[Performance] Client ${clientId} data load: ${(endTime - startTime).toFixed(2)}ms`);
-      return newData;
-    } catch (error) {
-      console.error(`Error loading details for client ${clientId}:`, error);
-      return undefined;
+        const endTime = performance.now();
+        console.log(`[Performance] Client ${clientId} data load: ${(endTime - startTime).toFixed(2)}ms`);
+        return newData;
+      } catch (error) {
+        console.error(`Error loading details for client ${clientId}:`, error);
+        return undefined;
+      } finally {
+        // Clean up the index so subsequent calls can trigger a new fetch if needed (e.g. if the cache TTL expires)
+        delete inFlightRequests.current[clientId];
+      }
+    })();
+
+    if (!forceRefresh) {
+      inFlightRequests.current[clientId] = fetchPromise;
     }
+
+    return fetchPromise;
   }, [clientCache]);
 
   const prefetchTimeout = useRef<Record<string, any>>({});
