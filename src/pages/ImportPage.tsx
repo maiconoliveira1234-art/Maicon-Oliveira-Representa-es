@@ -3,8 +3,10 @@ import { supabase } from '../lib/supabase';
 import { Cliente, Produto, HistVenda } from '../types';
 import { Loader2, FileUp, Save, AlertCircle, CheckCircle2, Trash2, Plus, X, Package, Search, ChevronDown, ShieldAlert, Sparkles, TrendingDown, TrendingUp, Coins, EyeOff, Layers } from 'lucide-react';
 import { cn, deduplicateSales, formatCurrency, formatWeight } from '../lib/utils';
-import { format } from 'date-fns';
+import { format, differenceInDays, parseISO } from 'date-fns';
 import { auditRowCost, CostAuditResult } from '../lib/costAuditer';
+import { useDataManager } from '../lib/dataManager';
+import { getFaixaPreco, getValorUnitario } from '../lib/calculations';
 
 interface RawRow {
   id: string;
@@ -39,6 +41,8 @@ interface NewProductData {
 }
 
 export function ImportPage() {
+  const { loadClientDetails, clientCache } = useDataManager();
+
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,6 +115,12 @@ export function ImportPage() {
     }
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (selectedClienteId) {
+      loadClientDetails(selectedClienteId);
+    }
+  }, [selectedClienteId, loadClientDetails]);
 
   const families = useMemo(() => {
     const fams = new Set(produtos.map(p => p.familia).filter(Boolean));
@@ -301,6 +311,45 @@ export function ImportPage() {
         return record;
       })) as any[];
 
+      // Ensure that client details are loaded for historical weight calculation
+      let cache = clientCache[selectedClienteId];
+      if (!cache) {
+        cache = await loadClientDetails(selectedClienteId);
+      }
+
+      // Calculate pesoConquistado in the 28 days preceding the order date
+      let pesoConquistado = 0;
+      if (cache && cache.historico && cache.historico.length > 0) {
+        const refDate = orderDate ? parseISO(orderDate) : new Date();
+        cache.historico.forEach(h => {
+          try {
+            const saleDate = parseISO(h.faturamento);
+            const daysSince = differenceInDays(refDate, saleDate);
+            if (daysSince >= 0 && daysSince <= 28) {
+              const prod = produtos.find(p => p.id === h.produto_id || p.produto.toLowerCase() === h.produtos?.toLowerCase());
+              if (prod) {
+                pesoConquistado += (h.qtd * prod.peso_embalagem);
+              }
+            }
+          } catch (e) {
+            console.error('Erro ao calcular peso conquistado do histórico de compras:', e);
+          }
+        });
+      }
+
+      // Calculate total weight of this newly imported order (using all valid items)
+      const pesoTotalOrder = dataToInsert.reduce((acc, row) => {
+        const prod = produtos.find(p => p.produto.toLowerCase() === row.produtos.toLowerCase());
+        if (prod) {
+          return acc + (row.qtd * prod.peso_embalagem);
+        }
+        return acc;
+      }, 0);
+
+      // Effective weight determines standard discount tier
+      const pesoEfetivo = Math.max(pesoTotalOrder, pesoConquistado);
+      const currentFaixa = getFaixaPreco(pesoEfetivo);
+
       // Calculate Verba Flex Comercial metrics
       let totalVendaValor = 0;
       let totalBonificacaoValor = 0;
@@ -318,7 +367,27 @@ export function ImportPage() {
 
         if (isVenda) {
           totalVendaValor += Number(record["r$_total"] || 0);
-          totalDescontoVenda += Number(record.xdt || 0);
+          
+          // Only count discount value towards flex subtraction IF it is beyond the standard discount of computed pricing range
+          const prod = produtos.find(p => p.produto.toLowerCase() === record.produtos.toLowerCase());
+          const xdtPercent = Number(record.xdt || 0); // Row discount percentage matching ERP XDT field (e.g. 12 means 12%)
+
+          if (prod && xdtPercent > 0) {
+            // Get standard discount percentage for this product at current active pricing tier (decimals multiplied by 100)
+            const standardDiscountPercent = (getValorUnitario(prod, currentFaixa) || 0) * 100;
+            
+            // Extra discount percentage above standard allowable limit
+            const extraDiscountPercent = Math.max(0, xdtPercent - standardDiscountPercent);
+            
+            if (extraDiscountPercent > 0) {
+              // Convert current total row valuation back to value before ERP discount to extract the extra discount amount
+              const divisor = 1 - (xdtPercent / 100);
+              const valorAntesDesconto = divisor > 0.001 ? Number(record["r$_total"] || 0) / divisor : Number(record["r$_total"] || 0);
+              const valorDescontoExtra = valorAntesDesconto * (extraDiscountPercent / 100);
+              
+              totalDescontoVenda += Number(valorDescontoExtra.toFixed(2));
+            }
+          }
         } else if (isBonificacao) {
           let value = Number(record["r$_total"] || 0);
           if (value <= 0) {
