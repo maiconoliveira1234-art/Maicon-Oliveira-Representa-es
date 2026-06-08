@@ -354,7 +354,7 @@ export function ImportPage() {
       let totalVendaValor = 0;
       let totalBonificacaoValor = 0;
       let totalMerchandisingValor = 0;
-      let totalDescontoVenda = 0;
+      const totalDescontoVenda = 0; // Removed discount consumption rule from orders
 
       dataToInsert.forEach(record => {
         const vUpper = (record.vendas || '').toUpperCase().trim();
@@ -367,27 +367,6 @@ export function ImportPage() {
 
         if (isVenda) {
           totalVendaValor += Number(record["r$_total"] || 0);
-          
-          // Only count discount value towards flex subtraction IF it is beyond the standard discount of computed pricing range
-          const prod = produtos.find(p => p.produto.toLowerCase() === record.produtos.toLowerCase());
-          const xdtPercent = Number(record.xdt || 0); // Row discount percentage matching ERP XDT field (e.g. 12 means 12%)
-
-          if (prod && xdtPercent > 0) {
-            // Get standard discount percentage for this product at current active pricing tier (decimals multiplied by 100)
-            const standardDiscountPercent = (getValorUnitario(prod, currentFaixa) || 0) * 100;
-            
-            // Extra discount percentage above standard allowable limit
-            const extraDiscountPercent = Math.max(0, xdtPercent - standardDiscountPercent);
-            
-            if (extraDiscountPercent > 0) {
-              // Convert current total row valuation back to value before ERP discount to extract the extra discount amount
-              const divisor = 1 - (xdtPercent / 100);
-              const valorAntesDesconto = divisor > 0.001 ? Number(record["r$_total"] || 0) / divisor : Number(record["r$_total"] || 0);
-              const valorDescontoExtra = valorAntesDesconto * (extraDiscountPercent / 100);
-              
-              totalDescontoVenda += Number(valorDescontoExtra.toFixed(2));
-            }
-          }
         } else if (isBonificacao) {
           let value = Number(record["r$_total"] || 0);
           if (value <= 0) {
@@ -410,7 +389,7 @@ export function ImportPage() {
       });
 
       const flexGerado = totalVendaValor * 0.02;
-      const totalConsumido = totalBonificacaoValor + totalMerchandisingValor + totalDescontoVenda;
+      const totalConsumido = totalBonificacaoValor + totalMerchandisingValor;
       const incrementoSaldo = Number((flexGerado - totalConsumido).toFixed(2));
 
       // Build Extrato logs
@@ -440,15 +419,6 @@ export function ImportPage() {
           tipo: 'BONIFICACAO',
           valor: Number((-totalMerchandisingValor).toFixed(2)),
           descricao: `Utilização para Merchandising/Brindes (${format(new Date(orderDate), 'dd/MM/yyyy')})`
-        });
-      }
-
-      if (totalDescontoVenda > 0) {
-        extratoEntries.push({
-          cliente_id: selectedClienteId,
-          tipo: 'DESCONTO',
-          valor: Number((-totalDescontoVenda).toFixed(2)),
-          descricao: `Utilização para Desconto no próprio faturamento (${format(new Date(orderDate), 'dd/MM/yyyy')})`
         });
       }
 

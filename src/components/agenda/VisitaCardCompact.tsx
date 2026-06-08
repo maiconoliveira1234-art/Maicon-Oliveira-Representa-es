@@ -61,10 +61,10 @@ export const VisitaCardCompact: React.FC<VisitaCardCompactProps> = ({ visita, ga
 
       {/* Main Info */}
       <div className="flex-1 min-w-0 pr-1">
-        <div className="flex items-center justify-between gap-2 mb-0.5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 mb-1.5 sm:mb-0.5">
           <Link 
             to={visita.cliente_id ? `/cliente/${visita.cliente_id}` : '#'}
-            className="text-sm font-bold text-neutral-900 truncate hover:text-orange-600 transition-colors cursor-pointer"
+            className="text-sm font-bold text-neutral-900 truncate hover:text-orange-600 transition-colors cursor-pointer block"
             onClick={(e) => {
               if (!visita.cliente_id) e.preventDefault();
             }}

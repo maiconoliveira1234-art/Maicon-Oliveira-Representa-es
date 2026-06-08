@@ -64,7 +64,8 @@ export function OrderPage() {
   const [isReady, setIsReady] = useState(false);
   const [observacoes, setObservacoes] = useState('');
   const [manualFaixa, setManualFaixa] = useState<PrecoFaixa | null>(null);
-  const [descontoExtra, setDescontoExtra] = useState<number>(0);
+  const descontoExtra = 0;
+  const setDescontoExtra = (_val: number) => {};
   const itemsEndRef = React.useRef<HTMLDivElement>(null);
 
   const families = useMemo(() => {
@@ -987,33 +988,7 @@ export function OrderPage() {
               </div>
             </div>
 
-            {/* Input for Desconto Financeiro on this Order */}
-            <div className="space-y-1 bg-white p-3 rounded-xl border border-neutral-100">
-              <label className="text-[10px] font-black uppercase text-neutral-500 tracking-wider flex justify-between">
-                <span>Desconto Extra (Max {formatCurrency(verbaGeradaEstimada)})</span>
-                <span className="text-neutral-400 font-bold">Usa apenas Verba Atual</span>
-              </label>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs text-neutral-400">R$</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="flex-1 text-xs font-bold text-neutral-800 bg-neutral-50 p-1.5 border border-neutral-200 rounded-lg outline-none focus:ring-1 focus:ring-orange-500"
-                  placeholder="0,00"
-                  value={descontoExtra || ''}
-                  min={0}
-                  max={Number(verbaGeradaEstimada.toFixed(2))}
-                  onChange={(e) => {
-                    const val = Math.max(0, parseFloat(e.target.value) || 0);
-                    if (val > verbaGeradaEstimada) {
-                      setDescontoExtra(Number(verbaGeradaEstimada.toFixed(2)));
-                    } else {
-                      setDescontoExtra(val);
-                    }
-                  }}
-                />
-              </div>
-            </div>
+            {/* Discount consumption from orders removed from Flex rules */}
 
             {/* Inserir Item Bonificado inside this Card */}
             <div className="pt-2 border-t border-neutral-200 space-y-2">
@@ -1099,11 +1074,11 @@ export function OrderPage() {
               <div className="flex justify-between border-t border-neutral-100 pt-1 text-xs font-extrabold text-neutral-900">
                 <span>Projeção de Saldo Pós-Faturamento:</span>
                 <span className={cn(
-                  (cliente?.flex_saldo || 0) + verbaGeradaEstimada - totalBonificacoes - totalMerchandising - descontoExtra >= 0 
+                  (cliente?.flex_saldo || 0) + verbaGeradaEstimada - totalBonificacoes - totalMerchandising >= 0 
                     ? "text-emerald-600" 
                     : "text-rose-600 animate-pulse"
                 )}>
-                  {formatCurrency(Number(((cliente?.flex_saldo || 0) + verbaGeradaEstimada - totalBonificacoes - totalMerchandising - descontoExtra).toFixed(2)))}
+                  {formatCurrency(Number(((cliente?.flex_saldo || 0) + verbaGeradaEstimada - totalBonificacoes - totalMerchandising).toFixed(2)))}
                 </span>
               </div>
             </div>
