@@ -9,6 +9,7 @@ import {
   Package, 
   Target, 
   TrendingUp, 
+  TrendingDown, 
   Calendar,
   Plus,
   Minus,
@@ -58,6 +59,7 @@ export function OrderPage() {
   const [productSelectorType, setProductSelectorType] = useState<'VENDA' | 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING'>('VENDA');
   const [selectedPrazo, setSelectedPrazo] = useState('');
   const [selectedFamily, setSelectedFamily] = useState('Todas');
+  const [selectedWeight, setSelectedWeight] = useState('Todos');
   const [showOnlyPositivados, setShowOnlyPositivados] = useState(false);
   const [positivadosIds, setPositivadosIds] = useState<Set<string>>(new Set());
   const [pesoConquistado, setPesoConquistado] = useState(0);
@@ -74,6 +76,24 @@ export function OrderPage() {
     return ['Todas', ...uniqueFamilies.sort()];
   }, [produtos]);
 
+  const weights = useMemo(() => {
+    let list = produtos.filter(p => p.ativo !== false);
+    if (selectedFamily !== 'Todas') {
+      list = list.filter(p => p.familia === selectedFamily);
+    }
+    const unique = Array.from(new Set(list.map(p => {
+      const pesoUnitario = (p.peso_embalagem || 0) / (p.quant_embalagem || 1);
+      return Number(pesoUnitario.toFixed(3));
+    }))) as number[];
+    return ['Todos', ...unique.filter(w => w > 0).sort((a, b) => a - b)];
+  }, [produtos, selectedFamily]);
+
+  useEffect(() => {
+    if (selectedWeight !== 'Todos' && !weights.includes(Number(selectedWeight))) {
+      setSelectedWeight('Todos');
+    }
+  }, [weights, selectedWeight]);
+
   const filteredAndSortedProducts = useMemo(() => {
     const searchWords = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
     
@@ -85,9 +105,13 @@ export function OrderPage() {
         
         const matchesSearch = searchWords.length === 0 || searchWords.every(word => targetString.includes(word));
         const matchesFamily = selectedFamily === 'Todas' || p.familia === selectedFamily;
+        
+        const pesoUnitario = (p.peso_embalagem || 0) / (p.quant_embalagem || 1);
+        const matchesWeight = selectedWeight === 'Todos' || Math.abs(pesoUnitario - Number(selectedWeight)) < 0.001;
+
         const matchesPositivados = !showOnlyPositivados || positivadosIds.has(p.id);
         const isActive = p.ativo !== false; // Only show active products
-        return matchesSearch && matchesFamily && matchesPositivados && isActive;
+        return matchesSearch && matchesFamily && matchesWeight && matchesPositivados && isActive;
       })
       .sort((a, b) => {
         // First sort by family
@@ -96,7 +120,7 @@ export function OrderPage() {
         // Then sort by product name
         return (a.produto || '').localeCompare(b.produto || '');
       });
-  }, [produtos, searchTerm, selectedFamily, showOnlyPositivados, positivadosIds]);
+  }, [produtos, searchTerm, selectedFamily, selectedWeight, showOnlyPositivados, positivadosIds]);
 
   useEffect(() => {
     async function loadData() {
@@ -1544,6 +1568,27 @@ export function OrderPage() {
                     </div>
                   </div>
 
+                  {/* Packaging / Embalagem Selector */}
+                  <div className="relative flex-1">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                      <TrendingDown size={16} />
+                    </div>
+                    <select
+                      value={selectedWeight}
+                      onChange={(e) => setSelectedWeight(e.target.value)}
+                      className="w-full pl-9 pr-8 py-3 bg-neutral-100 rounded-xl font-bold text-neutral-700 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all text-xs"
+                    >
+                      {weights.map(w => (
+                        <option key={w} value={w}>
+                          {w === 'Todos' ? 'Emb: Todos' : formatWeight(Number(w))}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                      <ChevronDown size={16} />
+                    </div>
+                  </div>
+
                   <div className="relative flex-1">
                     <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
                       <TrendingUp size={16} />
@@ -1553,12 +1598,12 @@ export function OrderPage() {
                       onChange={(e) => setManualFaixa(e.target.value as PrecoFaixa)}
                       className="w-full pl-9 pr-8 py-3 bg-orange-50 rounded-xl font-black text-orange-700 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all border border-orange-100 text-xs"
                     >
-                      <option value="livre">Tabela Livre</option>
-                      <option value="200kg">Tabela 200kg</option>
-                      <option value="500kg">Tabela 500kg</option>
-                      <option value="1000kg">Tabela 1000kg</option>
-                      <option value="2000kg">Tabela 2000kg</option>
-                      <option value="4000kg">Tabela 4000kg</option>
+                      <option value="livre">Livre</option>
+                      <option value="200kg">200kg</option>
+                      <option value="500kg">500kg</option>
+                      <option value="1000kg">1000kg</option>
+                      <option value="2000kg">2000kg</option>
+                      <option value="4000kg">4000kg</option>
                     </select>
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-orange-400">
                       <ChevronDown size={16} />
