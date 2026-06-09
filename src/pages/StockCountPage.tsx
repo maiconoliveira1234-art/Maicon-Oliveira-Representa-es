@@ -734,6 +734,7 @@ export function StockCountPage() {
                 const isTouched = touchedItems.has(item.produto_id);
                 const isBelowIdeal = item.estoque_ideal > 0;
                 const isZeroStock = item.quantidade_atual === 0;
+                const isLastOrder = item.dias_ult_compra === diasDesdeUltimoPedidoGlobal;
 
                 const rowStyle = isTouched 
                   ? (isZeroStock ? "text-red-600 font-black" : isBelowIdeal ? "font-black text-neutral-900" : "text-neutral-900 font-bold")
@@ -752,7 +753,13 @@ export function StockCountPage() {
                   >
                   <div className={cn(
                     "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10", 
-                    item.dias_ult_compra > 180 ? "text-red-600 font-black bg-red-50/50" : (isTouched && isBelowIdeal) ? "text-red-600 font-black" : ""
+                    item.dias_ult_compra > 180 
+                      ? "text-red-600 font-black bg-red-50/50" 
+                      : (isTouched && isBelowIdeal) 
+                        ? "text-red-600 font-black" 
+                        : isLastOrder
+                          ? "font-semibold text-neutral-950"
+                          : "text-neutral-400 font-normal opacity-70"
                   )}>
                     {item.dias_ult_compra}
                   </div>
