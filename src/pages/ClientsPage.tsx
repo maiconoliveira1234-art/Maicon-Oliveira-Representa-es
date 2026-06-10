@@ -41,7 +41,7 @@ export function ClientsPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [filterRepurchase, setFilterRepurchase] = useState(false);
   const [filterOpenOrders, setFilterOpenOrders] = useState(false);
-  const [openOrdersCount, setOpenOrdersCount] = useState<Record<string, boolean>>({});
+  const [openOrdersDates, setOpenOrdersDates] = useState<Record<string, string>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [isManageMode, setIsManageMode] = useState(false);
@@ -91,18 +91,31 @@ export function ClientsPage() {
       });
 
       // Check for open orders in localStorage
-      const openOrdersMap: Record<string, boolean> = {};
+      const openOrdersMap: Record<string, string> = {};
       enrichedClientes.forEach(c => {
         const saved = localStorage.getItem(`pedido_${c.id}`);
         if (saved) {
           try {
             const parsed = JSON.parse(saved);
-            const hasItems = parsed && parsed.items && Object.keys(parsed.items).length > 0;
-            if (hasItems) openOrdersMap[c.id] = true;
+            let hasItems = false;
+            if (parsed && typeof parsed === 'object') {
+              if ('items' in parsed) {
+                if (Array.isArray(parsed.items)) {
+                  hasItems = parsed.items.length > 0;
+                } else if (parsed.items && typeof parsed.items === 'object') {
+                  hasItems = Object.keys(parsed.items).length > 0;
+                }
+              } else {
+                hasItems = Object.keys(parsed).length > 0;
+              }
+            }
+            if (hasItems) {
+              openOrdersMap[c.id] = parsed.startedAt || new Date().toISOString();
+            }
           } catch (e) {}
         }
       });
-      setOpenOrdersCount(openOrdersMap);
+      setOpenOrdersDates(openOrdersMap);
       setClientes(enrichedClientes);
     } catch (err) {
       console.error('Erro ao carregar clientes:', err);
@@ -167,7 +180,7 @@ export function ClientsPage() {
     const matchesSearch = searchWords.length === 0 || searchWords.every(word => targetString.includes(word));
     const matchesStatus = showInactive ? true : (c.ativo === true);
     const matchesRepurchase = filterRepurchase ? isWithinRepurchase(c) : true;
-    const matchesOpenOrders = filterOpenOrders ? openOrdersCount[c.id] : true;
+    const matchesOpenOrders = filterOpenOrders ? !!openOrdersDates[c.id] : true;
     
     return matchesSearch && matchesStatus && matchesRepurchase && matchesOpenOrders;
   }).sort((a, b) => {
@@ -305,7 +318,7 @@ export function ClientsPage() {
                     setEditingCliente(cliente);
                     setIsModalOpen(true);
                   } else {
-                    navigate(openOrdersCount[cliente.id] ? `/pedido/novo/${cliente.id}` : `/cliente/${cliente.id}`);
+                    navigate(openOrdersDates[cliente.id] ? `/pedido/novo/${cliente.id}` : `/cliente/${cliente.id}`);
                   }
                 }}
                 className={cn(
@@ -335,8 +348,27 @@ export function ClientsPage() {
                     )}>
                       {cliente.cliente}
                     </h3>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 mt-0.5">
                       <p className="text-xs text-neutral-500">{cliente.cidade}</p>
+                      {openOrdersDates[cliente.id] && (
+                        <span className="text-[10px] bg-orange-50 text-orange-700 font-extrabold px-1.5 py-0.5 rounded-lg border border-orange-100 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                          Aberto em {(() => {
+                            try {
+                              const d = new Date(openOrdersDates[cliente.id]);
+                              if (isNaN(d.getTime())) return '';
+                              const day = String(d.getDate()).padStart(2, '0');
+                              const month = String(d.getMonth() + 1).padStart(2, '0');
+                              const year = d.getFullYear();
+                              const hours = String(d.getHours()).padStart(2, '0');
+                              const minutes = String(d.getMinutes()).padStart(2, '0');
+                              return `${day}/${month}/${year} ${hours}:${minutes}`;
+                            } catch (e) {
+                              return '';
+                            }
+                          })()}
+                        </span>
+                      )}
                       {filterRepurchase && (
                         <button
                           onClick={(e) => {

@@ -66,6 +66,7 @@ export function OrderPage() {
   const [isReady, setIsReady] = useState(false);
   const [observacoes, setObservacoes] = useState('');
   const [manualFaixa, setManualFaixa] = useState<PrecoFaixa | null>(null);
+  const [startedAt, setStartedAt] = useState<string | null>(null);
   const descontoExtra = 0;
   const setDescontoExtra = (_val: number) => {};
   const itemsEndRef = React.useRef<HTMLDivElement>(null);
@@ -308,6 +309,7 @@ export function OrderPage() {
     setIsReady(false);
     prefilledApplied.current = false;
     setManualFaixa(null);
+    setStartedAt(null);
   }, [clienteId]);
 
   // Load saved items when client or products change
@@ -334,6 +336,9 @@ export function OrderPage() {
             if (savedData.obs) setObservacoes(savedData.obs);
             if (savedData.manualFaixa) setManualFaixa(savedData.manualFaixa);
             if (typeof savedData.descontoExtra === 'number') setDescontoExtra(savedData.descontoExtra);
+            if (savedData.startedAt) {
+              setStartedAt(savedData.startedAt);
+            }
           } else if (savedData && typeof savedData === 'object') {
             loadedItemsList = Object.entries(savedData).map(([pId, qty]) => ({
               produto_id: pId,
@@ -379,18 +384,33 @@ export function OrderPage() {
         } catch (e) {
           console.error('Error parsing saved order:', e);
           setItens([]);
+          setStartedAt(null);
         }
       } else {
         setItens([]);
+        setStartedAt(null);
       }
       setIsReady(true);
       initialLoadDone.current = true;
     }
   }, [loading, produtos, clienteId, pesoConquistado]);
 
+  // Manage start date of the draft order
+  useEffect(() => {
+    if (isReady && itens.length > 0 && !startedAt) {
+      setStartedAt(new Date().toISOString());
+    } else if (isReady && itens.length === 0 && startedAt) {
+      setStartedAt(null);
+    }
+  }, [itens, startedAt, isReady]);
+
   // Persist items to localStorage
   useEffect(() => {
     if (isReady && clienteId) {
+      if (itens.length === 0) {
+        localStorage.removeItem(`pedido_${clienteId}`);
+        return;
+      }
       const rawItemList = itens.map(item => ({
         produto_id: item.produto_id,
         quantidade: item.quantidade,
@@ -402,12 +422,13 @@ export function OrderPage() {
         prazo: selectedPrazo,
         obs: observacoes,
         manualFaixa: manualFaixa,
-        descontoExtra: descontoExtra
+        descontoExtra: descontoExtra,
+        startedAt: startedAt || new Date().toISOString()
       };
       
       localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(dataToSave));
     }
-  }, [itens, clienteId, isReady, selectedPrazo, observacoes, manualFaixa, descontoExtra]);
+  }, [itens, clienteId, isReady, selectedPrazo, observacoes, manualFaixa, descontoExtra, startedAt]);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -417,6 +438,9 @@ export function OrderPage() {
   const handleClearOrder = () => {
     setItens([]);
     setManualFaixa(null);
+    setStartedAt(null);
+    setSelectedPrazo('');
+    setObservacoes('');
     setShowClearConfirm(false);
     if (clienteId) {
       localStorage.removeItem(`pedido_${clienteId}`);
@@ -706,7 +730,30 @@ export function OrderPage() {
           </button>
           <div>
             <h2 className="text-xl font-bold text-neutral-900">Novo Pedido</h2>
-            <p className="text-sm text-neutral-500">{cliente?.cliente}</p>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm text-neutral-500">
+              <span className="font-semibold">{cliente?.cliente}</span>
+              {startedAt && (
+                <>
+                  <span className="hidden sm:inline text-neutral-300">|</span>
+                  <span className="text-orange-600 font-extrabold flex items-center gap-1">
+                    Iniciado em: {(() => {
+                      try {
+                        const d = new Date(startedAt);
+                        if (isNaN(d.getTime())) return '';
+                        const day = String(d.getDate()).padStart(2, '0');
+                        const month = String(d.getMonth() + 1).padStart(2, '0');
+                        const year = d.getFullYear();
+                        const hours = String(d.getHours()).padStart(2, '0');
+                        const minutes = String(d.getMinutes()).padStart(2, '0');
+                        return `${day}/${month}/${year} às ${hours}:${minutes}`;
+                      } catch (e) {
+                        return '';
+                      }
+                    })()}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
