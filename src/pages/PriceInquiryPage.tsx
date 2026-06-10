@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Produto, PrecoFaixa, HistVenda } from '../types';
-import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle, Users, X, ChevronDown, History, TrendingUp } from 'lucide-react';
+import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle, Users, X, ChevronDown, History, TrendingUp, Pencil } from 'lucide-react';
 import { cn, deduplicateSales } from '../lib/utils';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -21,6 +21,42 @@ export function PriceInquiryPage() {
   const [clientLastPricesByName, setClientLastPricesByName] = useState<Record<string, number>>({});
   const [exporting, setExporting] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState<Produto | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveProduct = async () => {
+    if (!editForm) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from('produtos')
+        .update({
+          produto: editForm.produto,
+          ativo: editForm.ativo,
+          familia: editForm.familia,
+          custo_total: Number(editForm.custo_total || 0),
+          custo_und: Number(editForm.custo_und || 0),
+          sugestao: Number(editForm.sugestao || 0),
+          comissao: Number(editForm.comissao || 0),
+          peso_embalagem: Number(editForm.peso_embalagem || 0),
+          quant_embalagem: Number(editForm.quant_embalagem || 1),
+        })
+        .eq('id', editForm.id);
+
+      if (error) throw error;
+
+      // Update local state is crucial
+      setProdutos(prev => prev.map(p => p.id === editForm.id ? { ...p, ...editForm } : p));
+      setIsEditModalOpen(false);
+    } catch (err) {
+      console.error('Erro ao salvar produto:', err);
+      alert('Erro ao salvar alterações no produto.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Sales History States
   const [showHistory, setShowHistory] = useState(false);
@@ -336,6 +372,21 @@ export function PriceInquiryPage() {
           <p className="text-neutral-500 text-sm">Gere listas de preços</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {historyProductId && (
+            <button
+               onClick={() => {
+                 const prod = produtos.find(p => p.id === historyProductId);
+                 if (prod) {
+                   setEditForm({ ...prod });
+                   setIsEditModalOpen(true);
+                 }
+               }}
+               className="px-3 py-1.5 bg-neutral-900 border border-transparent text-white rounded-lg font-bold hover:bg-neutral-800 transition-all flex items-center gap-2 text-xs shadow-md"
+            >
+              <Pencil size={14} />
+              Editar Selecionado
+            </button>
+          )}
           <button
             onClick={() => setShowHistory(!showHistory)}
             className={cn(
@@ -574,7 +625,7 @@ export function PriceInquiryPage() {
                     <p className="text-[10px] text-neutral-400 font-bold uppercase">{produto.familia}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-4 md:gap-6">
                   <div className="text-right">
                     <p className="text-[10px] text-neutral-400 uppercase font-bold">Sugestão</p>
                     <p className="text-sm font-bold text-neutral-500">
@@ -590,6 +641,17 @@ export function PriceInquiryPage() {
                       ).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                   </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditForm({ ...produto });
+                      setIsEditModalOpen(true);
+                    }}
+                    className="p-2 bg-neutral-50 hover:bg-orange-50 text-neutral-400 hover:text-orange-600 rounded-xl transition-all border border-transparent hover:border-orange-200"
+                    title="Editar produto"
+                  >
+                    <Pencil size={15} />
+                  </button>
                 </div>
               </div>
             ))
@@ -684,6 +746,196 @@ export function PriceInquiryPage() {
     ));
   })()}
 </div>
+
+      {/* Elegant Edit Product Modal */}
+      {isEditModalOpen && editForm && (
+        <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
+            
+            {/* Modal Header */}
+            <div className="p-6 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
+              <div>
+                <h2 className="text-xl font-black text-neutral-900">Editar Produto</h2>
+                <p className="text-neutral-500 text-xs mt-0.5">Editando configurações do banco de dados</p>
+              </div>
+              <button 
+                onClick={() => setIsEditModalOpen(false)}
+                className="p-2 hover:bg-neutral-200 text-neutral-400 hover:text-neutral-700 rounded-full transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body / Form */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              
+              {/* Product Info Section */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-black text-neutral-400 uppercase tracking-wider">Identificação do Produto</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Name field */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-neutral-500 uppercase tracking-wider block">Nome do Produto</label>
+                    <input 
+                      type="text" 
+                      value={editForm.produto || ''} 
+                      onChange={(e) => setEditForm({ ...editForm, produto: e.target.value })}
+                      className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
+                      placeholder="Ex: MAGNUS BISCOITO ORIGINAL 10X4000G"
+                    />
+                  </div>
+
+                  {/* Family Field */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-neutral-500 uppercase tracking-wider block">Família</label>
+                    <input 
+                      type="text" 
+                      value={editForm.familia || ''} 
+                      onChange={(e) => setEditForm({...editForm, familia: e.target.value})}
+                      className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
+                      placeholder="Ex: MAGNUS"
+                    />
+                  </div>
+                </div>
+
+                {/* Ativo Status Toggle Block */}
+                <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-100 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-bold text-neutral-900">Produto Ativo</h4>
+                    <p className="text-neutral-400 text-xs mt-0.5">Se desativado, o produto é marcado como inativo no banco de dados</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditForm({...editForm, ativo: !editForm.ativo})}
+                    className={cn(
+                      "w-12 h-6 rounded-full p-1 transition-all duration-300 outline-none relative flex items-center",
+                      editForm.ativo ? "bg-orange-600 justify-end" : "bg-neutral-300 justify-start"
+                    )}
+                  >
+                    <span className="w-4 h-4 bg-white rounded-full shadow-md" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Finance Section */}
+              <div className="space-y-4 pt-4 border-t border-neutral-100">
+                <h3 className="text-xs font-black text-neutral-400 uppercase tracking-wider">Custos, Sugestão e Comissão</h3>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Custo Total */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-neutral-500 uppercase tracking-wider block">Custo Total (R$)</label>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      value={editForm.custo_total || 0} 
+                      onChange={(e) => setEditForm({...editForm, custo_total: parseFloat(e.target.value) || 0})}
+                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
+                    />
+                  </div>
+
+                  {/* Custo Und */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-neutral-500 uppercase tracking-wider block">Custo Unitário (R$)</label>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      value={editForm.custo_und || 0} 
+                      onChange={(e) => setEditForm({...editForm, custo_und: parseFloat(e.target.value) || 0})}
+                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
+                    />
+                  </div>
+
+                  {/* Sugestao */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-neutral-500 uppercase tracking-wider block">Sugestão (R$)</label>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      value={editForm.sugestao || 0} 
+                      onChange={(e) => setEditForm({...editForm, sugestao: parseFloat(e.target.value) || 0})}
+                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
+                    />
+                  </div>
+
+                  {/* Comissao */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-neutral-500 uppercase tracking-wider block">Comissão (%)</label>
+                    <input 
+                      type="number" 
+                      step="0.001"
+                      value={editForm.comissao || 0} 
+                      onChange={(e) => setEditForm({...editForm, comissao: parseFloat(e.target.value) || 0})}
+                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Packaging section */}
+              <div className="space-y-4 pt-4 border-t border-neutral-100">
+                <h3 className="text-xs font-black text-neutral-400 uppercase tracking-wider">Logística & Embalagem</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Peso Embalagem */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-neutral-500 uppercase tracking-wider block">Peso total da Embalagem (KG)</label>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      value={editForm.peso_embalagem || 0} 
+                      onChange={(e) => setEditForm({...editForm, peso_embalagem: parseFloat(e.target.value) || 0})}
+                      className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
+                    />
+                  </div>
+
+                  {/* Quantidade na Embalagem */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black text-neutral-500 uppercase tracking-wider block">Quantidade de Unidades na Embalagem</label>
+                    <input 
+                      type="number" 
+                      step="1"
+                      value={editForm.quant_embalagem || 1} 
+                      onChange={(e) => setEditForm({...editForm, quant_embalagem: parseInt(e.target.value) || 1})}
+                      className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Actions Footer */}
+            <div className="p-6 border-t border-neutral-100 bg-neutral-50 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                disabled={isSaving}
+                className="px-5 py-2.5 bg-white border border-neutral-200 hover:bg-neutral-50 text-neutral-700 font-bold rounded-xl transition-all text-sm disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveProduct}
+                disabled={isSaving}
+                className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl transition-all text-sm flex items-center gap-2 shadow-lg shadow-orange-100 disabled:opacity-50"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="animate-spin" size={16} />
+                    Salvando...
+                  </>
+                ) : (
+                  'Salvar Alterações'
+                )}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
