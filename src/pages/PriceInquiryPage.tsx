@@ -883,7 +883,7 @@ export function PriceInquiryPage() {
                     <label className="text-xs font-black text-neutral-500 uppercase tracking-wider block">Peso total da Embalagem (KG)</label>
                     <input 
                       type="number" 
-                      step="0.01"
+                      step="any"
                       value={editForm.peso_embalagem || 0} 
                       onChange={(e) => setEditForm({...editForm, peso_embalagem: parseFloat(e.target.value) || 0})}
                       className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
