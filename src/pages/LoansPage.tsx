@@ -602,19 +602,19 @@ export function LoansPage() {
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden"
+              className="bg-white w-full max-w-xl rounded-[2rem] md:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[85vh] md:max-h-[85vh]"
             >
-              <div className="p-8 border-b border-neutral-100 flex justify-between items-center bg-white">
+              <div className="p-5 md:p-8 border-b border-neutral-100 flex justify-between items-center bg-white shrink-0">
                 <div>
-                  <h3 className="text-2xl font-black text-neutral-900 leading-none flex items-center gap-3">
-                    <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center">
-                      <ArrowLeftRight className="text-orange-600" size={20} />
+                  <h3 className="text-lg md:text-2xl font-black text-neutral-900 leading-none flex items-center gap-2 md:gap-3">
+                    <div className="w-8 h-8 md:w-10 md:h-10 bg-orange-50 rounded-xl flex items-center justify-center shrink-0">
+                      <ArrowLeftRight className="text-orange-600" size={16} />
                     </div>
                     Novo Empréstimo
                   </h3>
-                  <div className="flex items-center gap-2 mt-2 ml-[52px]">
+                  <div className="flex items-center gap-2 mt-1.5 md:mt-2 ml-10 md:ml-[52px]">
                     <div className="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Painel de Registro</p>
+                    <p className="text-[8px] md:text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Painel de Registro</p>
                   </div>
                 </div>
                 <button 
@@ -625,13 +625,13 @@ export function LoansPage() {
                     setSearchProduto('');
                     setSelectedFamilia('');
                   }} 
-                  className="p-3.5 hover:bg-neutral-50 rounded-[1.25rem] transition-all text-neutral-400 hover:text-rose-600 hover:rotate-90 group"
+                  className="p-2 md:p-3.5 hover:bg-neutral-50 rounded-xl md:rounded-[1.25rem] transition-all text-neutral-400 hover:text-rose-600 hover:rotate-90 group"
                 >
-                  <X size={20} className="group-hover:scale-110 transition-transform" />
+                  <X size={18} className="group-hover:scale-110 transition-transform" />
                 </button>
               </div>
 
-              <div className="p-6 space-y-5 max-h-[90vh] overflow-y-auto custom-scrollbar">
+              <div className="p-5 md:p-6 space-y-4 md:space-y-5 flex-1 min-h-0 overflow-y-auto custom-scrollbar">
                 {/* Section: Participants */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-end">

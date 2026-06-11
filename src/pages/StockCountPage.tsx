@@ -585,7 +585,8 @@ export function StockCountPage() {
       {/* Spreadsheet Header */}
       <div className="bg-white border-b border-neutral-200 shadow-sm">
         <div className="w-full px-2 py-3">
-          <div className="flex items-start gap-2 mb-4">
+          {/* Desktop/Tablet Header */}
+          <div className="hidden md:flex items-start gap-2 mb-4">
             <button onClick={() => navigate(-1)} className="p-2 hover:bg-neutral-100 rounded-full transition-colors mt-0.5">
               <ArrowLeft size={20} />
             </button>
@@ -618,6 +619,46 @@ export function StockCountPage() {
               >
                 <Home size={18} />
               </button>
+            </div>
+          </div>
+
+          {/* Mobile Header */}
+          <div className="flex md:hidden flex-col gap-2 mb-3 px-1">
+            <div className="flex items-center gap-1.5">
+              <button onClick={() => navigate(-1)} className="p-1.5 hover:bg-neutral-100 rounded-full transition-colors shrink-0">
+                <ArrowLeft size={20} />
+              </button>
+              <h1 className="text-sm font-black text-neutral-800 flex-1 leading-tight line-clamp-1">
+                {cliente?.cliente}
+              </h1>
+              <button 
+                onClick={() => navigate(`/cliente/${clienteId}`)}
+                className="p-1.5 bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95 shrink-0"
+                title="Home do Cliente"
+              >
+                <Home size={16} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1 bg-neutral-50 p-2 rounded-xl border border-neutral-100 text-center">
+              <div className="border-r border-neutral-200">
+                <p className="text-[8px] font-bold text-neutral-400 uppercase leading-none">Ult. Pedido</p>
+                <p className={cn("text-xs font-black mt-0.5", isOverdueGlobal ? "text-red-600" : "text-neutral-800")}>
+                  {diasDesdeUltimoPedidoGlobal} dias
+                </p>
+              </div>
+              <div className="border-r border-neutral-200">
+                <p className="text-[8px] font-bold text-neutral-400 uppercase leading-none">Ciclo Médio</p>
+                <p className="text-xs font-black text-neutral-800 mt-0.5">
+                  {mediaCicloGlobal} dias
+                </p>
+              </div>
+              <div>
+                <p className="text-[8px] font-bold text-neutral-400 uppercase leading-none">Peso Pedido</p>
+                <p className="text-xs font-black text-orange-600 mt-0.5">
+                  {formatWeight(totalPesoPedido)}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -705,7 +746,7 @@ export function StockCountPage() {
         </div>
       </div>      <div className="w-full px-1 mt-2 flex-1 flex flex-col min-h-0">
         {/* Spreadsheet Table Container */}
-        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 flex flex-col overflow-hidden">
+        <div className="hidden md:flex bg-white rounded-xl shadow-sm border border-neutral-200 flex-col overflow-hidden">
           <div className="overflow-y-auto flex-1">
             <div className="w-full">
               <div 
@@ -846,6 +887,142 @@ export function StockCountPage() {
             </div>
           </div>
         </div>
+
+        {/* Mobile Touch-Friendly Card List */}
+        <div className="flex md:hidden flex-col gap-3 pb-32 px-1 z-10">
+          {filteredItems.map((item) => {
+            const isTouched = touchedItems.has(item.produto_id);
+            const isBelowIdeal = item.estoque_ideal > 0;
+            const isZeroStock = item.quantidade_atual === 0;
+
+            return (
+              <div 
+                key={item.produto_id}
+                className={cn(
+                  "p-3 bg-white rounded-xl border transition-all flex flex-col gap-2.5 shadow-sm",
+                  isTouched 
+                    ? (isZeroStock ? "border-red-200 bg-red-50/10" : "border-orange-200 bg-orange-50/10")
+                    : "border-neutral-200 hover:border-neutral-300"
+                )}
+                onClick={() => setSelectedProductHistory(item)}
+              >
+                {/* Product Name Header */}
+                <div className="flex justify-between items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <h3 className={cn("text-xs font-black text-neutral-800 leading-snug break-words", isTouched && isBelowIdeal && "text-red-700")}>
+                      {item.produto_nome}
+                    </h3>
+                    <p className="text-[10px] text-neutral-400 font-bold mt-0.5">
+                      {item.familia}
+                    </p>
+                  </div>
+                  {/* Indicators Badges */}
+                  <div className="flex flex-wrap gap-1 items-center shrink-0">
+                    <span 
+                      className={cn(
+                        "px-1.5 py-0.5 rounded text-[9px] font-bold uppercase whitespace-nowrap",
+                        item.dias_ult_compra > 180 ? "bg-red-100 text-red-700" : "bg-neutral-100 text-neutral-600"
+                      )}
+                    >
+                      {item.dias_ult_compra}d
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-neutral-100 text-neutral-600 whitespace-nowrap">
+                      Ult: {item.qtd_ult_compra}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Info & Ideal row */}
+                <div className="flex items-center justify-between text-[11px] font-black text-neutral-500 bg-neutral-50 p-2 rounded-lg border border-neutral-100">
+                  <div className="flex items-center gap-1">
+                    <span>Estoque Ideal:</span>
+                    <span className={cn("text-xs font-black", isBelowIdeal ? "text-red-600" : "text-neutral-700")}>
+                      {item.estoque_ideal}
+                    </span>
+                  </div>
+                  {showCycle && (
+                    <div className="flex items-center gap-2 text-[10px] text-neutral-400">
+                      <span>Média: {item.media_qtd}</span>
+                      <span>Ciclo: {item.media_ciclo}d</span>
+                    </div>
+                  )}
+                  {item.ultima_contagem_valor > 0 && (
+                    <div className="text-[10px] text-neutral-400">
+                      Ult. Cont: <span className="font-bold text-neutral-600">{item.ultima_contagem_valor}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Touch controls */}
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-dotted border-neutral-200">
+                  {/* Estoque */}
+                  <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+                    <span className="text-[9px] font-black text-neutral-400 uppercase tracking-wide">📦 Estoque</span>
+                    <div className="flex items-center">
+                      <button 
+                        onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) - 1)}
+                        className="w-10 h-8 flex items-center justify-center bg-white border border-neutral-300 rounded-l-lg text-neutral-600 hover:bg-neutral-50 active:scale-95 transition-transform"
+                      >
+                        <Minus size={14} />
+                      </button>
+                      <input 
+                        type="number" 
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        placeholder="0"
+                        className={cn(
+                          "w-full flex-1 border-y text-center font-black outline-none h-8 text-xs border-neutral-300 focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                          isBelowIdeal ? "bg-red-100 text-red-700" : "bg-orange-50 text-orange-700"
+                        )}
+                        value={estoqueMap[item.produto_id] ?? ''}
+                        onChange={(e) => updateQuantity(item.produto_id, e.target.value)}
+                      />
+                      <button 
+                        onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) + 1)}
+                        className="w-10 h-8 flex items-center justify-center bg-orange-600 text-white rounded-r-lg hover:bg-orange-700 active:scale-95 transition-transform"
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Pedido */}
+                  <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+                    <span className="text-[9px] font-black text-neutral-400 uppercase tracking-wide">🛍️ Pedido</span>
+                    <div className="flex items-center">
+                      <button 
+                        onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) - 1)}
+                        className="w-10 h-8 flex items-center justify-center bg-white border border-neutral-300 rounded-l-lg text-neutral-600 hover:bg-neutral-50 active:scale-95 transition-transform"
+                      >
+                        <Minus size={14} />
+                      </button>
+                      <input 
+                        type="number" 
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        placeholder="0"
+                        className="w-full flex-1 border-y text-center font-black text-green-700 bg-green-50 outline-none h-8 text-xs border-neutral-300 focus:ring-1 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        value={pedidoMap[item.produto_id] || ''}
+                        onChange={(e) => updatePedido(item.produto_id, e.target.value)}
+                      />
+                      <button 
+                        onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) + 1)}
+                        className="w-10 h-8 flex items-center justify-center bg-green-600 text-white rounded-r-lg hover:bg-green-700 active:scale-95 transition-transform"
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {filteredItems.length === 0 && (
+            <div className="p-8 text-center text-neutral-500 font-bold bg-white rounded-xl border border-neutral-200">
+              Nenhum item encontrado com os filtros atuais.
+            </div>
+          )}
+        </div>
       </div>
     </div>
 
@@ -942,7 +1119,7 @@ export function StockCountPage() {
               </div>
 
               <div className="flex-1 overflow-auto p-4">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full min-w-[550px] md:min-w-0 text-left border-collapse">
                   <thead>
                     <tr className="text-[10px] font-black text-neutral-400 uppercase tracking-wider border-b border-neutral-100">
                       <th className="pb-2 px-2">Data</th>

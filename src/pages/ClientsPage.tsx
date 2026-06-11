@@ -358,8 +358,8 @@ export function ClientsPage() {
                   togglingId === cliente.id && "opacity-50 pointer-events-none"
                 )}
               >
-                <div className="flex items-center gap-4">
-                  <div className="relative">
+                <div className="flex items-center gap-4 min-w-0 flex-1">
+                  <div className="relative shrink-0">
                     <div className={cn(
                       "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm",
                       cliente.ativo ? "bg-orange-100 text-orange-600" : "bg-neutral-100 text-neutral-400"
@@ -371,9 +371,9 @@ export function ClientsPage() {
                       isWithinRepurchase(cliente) ? "bg-green-500" : "bg-red-500"
                     )} />
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <h3 className={cn(
-                      "font-bold text-neutral-900",
+                      "font-bold text-neutral-900 truncate",
                       !cliente.ativo && "text-neutral-400"
                     )}>
                       {cliente.cliente}
