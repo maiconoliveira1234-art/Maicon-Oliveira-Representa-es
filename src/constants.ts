@@ -23,6 +23,33 @@ export const SALES_CUTOFF_CLIENTS = [
   'DOUGLAS FORBICE ME'
 ];
 
+export function shouldExcludeSale(clientNameRaw: string, faturamentoDateStr: string): boolean {
+  if (!clientNameRaw) return false;
+  
+  // Normalize to uppercase, trim and remove accents
+  const normalizeText = (text: string) => 
+    text.trim()
+        .toUpperCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, "");
+
+  const nameNormalized = normalizeText(clientNameRaw);
+
+  // Standard cutoff clients checking
+  const standardCutoffNormalized = SALES_CUTOFF_CLIENTS.map(normalizeText);
+  if (standardCutoffNormalized.includes(nameNormalized)) {
+    return faturamentoDateStr < SALES_CUTOFF_DATE;
+  }
+
+  // Racao Facil / Ração Fácil checking
+  // Rule applies from 2024 to today (June 11, 2026) -> faturamentoDateStr < '2026-06-11'
+  if (nameNormalized === 'RACAO FACIL' || nameNormalized.includes('RACAO FACIL')) {
+    return faturamentoDateStr < '2026-06-11';
+  }
+
+  return false;
+}
+
 export const FAMILY_PRIORITY_ORDER = [
   '49 - BISCOITOS',
   '50 - BIFINHO',

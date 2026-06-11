@@ -90,29 +90,59 @@ export function ClientsPage() {
         };
       });
 
-      // Check for open orders in localStorage
+      // Fetch open orders from Supabase first
+      let dbOpenOrders: any[] = [];
+      try {
+        const { data, error } = await supabase.from('pedidos_em_aberto').select('*');
+        if (!error && data) {
+          dbOpenOrders = data;
+        }
+      } catch (dbErr) {
+        console.error('Error fetching pedidos_em_aberto:', dbErr);
+      }
+
+      // Check for open orders in Supabase and fallback to localStorage
       const openOrdersMap: Record<string, string> = {};
+      
+      // 1. Populate from Supabase DB
+      dbOpenOrders.forEach(row => {
+        let hasItems = false;
+        if (row.items) {
+          if (Array.isArray(row.items)) {
+            hasItems = row.items.length > 0;
+          } else if (typeof row.items === 'object') {
+            hasItems = Object.keys(row.items).length > 0;
+          }
+        }
+        if (hasItems) {
+          openOrdersMap[row.cliente_id] = row.started_at || row.created_at || new Date().toISOString();
+        }
+      });
+
+      // 2. Fallback/merge with localStorage
       enrichedClientes.forEach(c => {
-        const saved = localStorage.getItem(`pedido_${c.id}`);
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            let hasItems = false;
-            if (parsed && typeof parsed === 'object') {
-              if ('items' in parsed) {
-                if (Array.isArray(parsed.items)) {
-                  hasItems = parsed.items.length > 0;
-                } else if (parsed.items && typeof parsed.items === 'object') {
-                  hasItems = Object.keys(parsed.items).length > 0;
+        if (!openOrdersMap[c.id]) {
+          const saved = localStorage.getItem(`pedido_${c.id}`);
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              let hasItems = false;
+              if (parsed && typeof parsed === 'object') {
+                if ('items' in parsed) {
+                  if (Array.isArray(parsed.items)) {
+                    hasItems = parsed.items.length > 0;
+                  } else if (parsed.items && typeof parsed.items === 'object') {
+                    hasItems = Object.keys(parsed.items).length > 0;
+                  }
+                } else {
+                  hasItems = Object.keys(parsed).length > 0;
                 }
-              } else {
-                hasItems = Object.keys(parsed).length > 0;
               }
-            }
-            if (hasItems) {
-              openOrdersMap[c.id] = parsed.startedAt || new Date().toISOString();
-            }
-          } catch (e) {}
+              if (hasItems) {
+                openOrdersMap[c.id] = parsed.startedAt || new Date().toISOString();
+              }
+            } catch (e) {}
+          }
         }
       });
       setOpenOrdersDates(openOrdersMap);

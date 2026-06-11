@@ -19,7 +19,7 @@ import { cn, deduplicateSales } from '../lib/utils';
 import { classifySaleRecord } from '../lib/salesClassifier';
 import { format, startOfMonth, endOfMonth, parseISO, eachDayOfInterval, isSameDay, differenceInDays, isAfter, isBefore, max } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { SALES_CUTOFF_DATE, SALES_CUTOFF_CLIENTS } from '../constants';
+import { shouldExcludeSale } from '../constants';
 import {
   BarChart,
   Bar,
@@ -129,11 +129,7 @@ export function CommissionPage() {
 
         // Apply selective cutoff globally just to be safe with this data source
         const finalEnriched = enrichedVendas.filter(v => {
-          const clientName = (v.cliente || '').trim().toUpperCase();
-          if (SALES_CUTOFF_CLIENTS.includes(clientName)) {
-            return v.faturamento >= SALES_CUTOFF_DATE;
-          }
-          return true;
+          return !shouldExcludeSale(v.cliente, v.faturamento);
         });
 
         setAllHistoryVendas(finalEnriched);

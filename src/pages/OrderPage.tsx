@@ -314,85 +314,128 @@ export function OrderPage() {
 
   // Load saved items when client or products change
   useEffect(() => {
-    if (!loading && produtos.length > 0 && clienteId && !initialLoadDone.current) {
-      const saved = localStorage.getItem(`pedido_${clienteId}`);
-      if (saved) {
+    let active = true;
+    const loadSavedOrder = async () => {
+      if (!loading && produtos.length > 0 && clienteId && !initialLoadDone.current) {
+        let savedData: any = null;
+        
+        // 1. Try Supabase first
         try {
-          const savedData = JSON.parse(saved);
-          let loadedItemsList: Array<{ produto_id: string, quantidade: number, tipo_operacao?: 'VENDA' | 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' }> = [];
-          
-          // Handle both old format (Record<string, number>) and new format ({ items, prazo, obs })
-          if (savedData && typeof savedData === 'object' && 'items' in savedData) {
-            if (Array.isArray(savedData.items)) {
-              loadedItemsList = savedData.items;
-            } else {
-              loadedItemsList = Object.entries(savedData.items || {}).map(([pId, qty]) => ({
+          const { data, error } = await supabase
+            .from('pedidos_em_aberto')
+            .select('*')
+            .eq('cliente_id', clienteId)
+            .maybeSingle();
+          if (!error && data) {
+            savedData = {
+              items: data.items,
+              prazo: data.prazo,
+              obs: data.obs,
+              manualFaixa: data.manual_faixa,
+              descontoExtra: Number(data.desconto_extra || 0),
+              startedAt: data.started_at
+            };
+          }
+        } catch (dbErr) {
+          console.error('Error fetching open order from DB:', dbErr);
+        }
+
+        // 2. Fallback to localStorage if not found/error
+        if (!savedData) {
+          const saved = localStorage.getItem(`pedido_${clienteId}`);
+          if (saved) {
+            try {
+              savedData = JSON.parse(saved);
+            } catch (e) {
+              console.error('Error parsing localStorage:', e);
+            }
+          }
+        }
+
+        if (!active) return;
+
+        if (savedData) {
+          try {
+            let loadedItemsList: Array<{ produto_id: string, quantidade: number, tipo_operacao?: 'VENDA' | 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' }> = [];
+            
+            // Handle both old format (Record<string, number>) and new format ({ items, prazo, obs })
+            if (savedData && typeof savedData === 'object' && 'items' in savedData) {
+              if (Array.isArray(savedData.items)) {
+                loadedItemsList = savedData.items;
+              } else {
+                loadedItemsList = Object.entries(savedData.items || {}).map(([pId, qty]) => ({
+                  produto_id: pId,
+                  quantidade: qty as number,
+                  tipo_operacao: 'VENDA'
+                }));
+              }
+              if (savedData.prazo) setSelectedPrazo(savedData.prazo);
+              if (savedData.obs) setObservacoes(savedData.obs);
+              if (savedData.manualFaixa) setManualFaixa(savedData.manualFaixa);
+              if (typeof savedData.descontoExtra === 'number') setDescontoExtra(savedData.descontoExtra);
+              if (savedData.startedAt) {
+                setStartedAt(savedData.startedAt);
+              }
+            } else if (savedData && typeof savedData === 'object') {
+              loadedItemsList = Object.entries(savedData).map(([pId, qty]) => ({
                 produto_id: pId,
                 quantidade: qty as number,
                 tipo_operacao: 'VENDA'
               }));
             }
-            if (savedData.prazo) setSelectedPrazo(savedData.prazo);
-            if (savedData.obs) setObservacoes(savedData.obs);
-            if (savedData.manualFaixa) setManualFaixa(savedData.manualFaixa);
-            if (typeof savedData.descontoExtra === 'number') setDescontoExtra(savedData.descontoExtra);
-            if (savedData.startedAt) {
-              setStartedAt(savedData.startedAt);
-            }
-          } else if (savedData && typeof savedData === 'object') {
-            loadedItemsList = Object.entries(savedData).map(([pId, qty]) => ({
-              produto_id: pId,
-              quantidade: qty as number,
-              tipo_operacao: 'VENDA'
-            }));
+
+            const newItens: Partial<ItemPedido>[] = [];
+            
+            // Calculate initial weight to get correct initial price range
+            let tempPesoTotal = 0;
+            loadedItemsList.forEach(item => {
+              const produto = produtos.find(p => p.id === item.produto_id);
+              if (produto && (item.quantidade || 0) > 0) {
+                tempPesoTotal += (item.quantidade || 0) * produto.peso_embalagem;
+              }
+            });
+
+            const tempFaixa = getFaixaPreco(Math.max(tempPesoTotal, pesoConquistado));
+
+            loadedItemsList.forEach(item => {
+              const produto = produtos.find(p => p.id === item.produto_id);
+              if (!produto) return;
+
+              const extraQtd = item.quantidade || 0;
+              if (extraQtd > 0) {
+                const discount = getValorUnitario(produto, tempFaixa) || 0;
+                const unitario = produto.custo_und * (1 - discount);
+                const valorTotalItem = unitario * extraQtd * (produto.quant_embalagem || 1);
+
+                newItens.push({
+                  produto_id: item.produto_id,
+                  quantidade: extraQtd,
+                  peso_total: extraQtd * produto.peso_embalagem,
+                  valor_unitario: unitario,
+                  valor_total: valorTotalItem,
+                  tipo_operacao: item.tipo_operacao || 'VENDA'
+                });
+              }
+            });
+            setItens(newItens);
+          } catch (e) {
+            console.error('Error parsing saved order:', e);
+            setItens([]);
+            setStartedAt(null);
           }
-
-          const newItens: Partial<ItemPedido>[] = [];
-          
-          // Calculate initial weight to get correct initial price range
-          let tempPesoTotal = 0;
-          loadedItemsList.forEach(item => {
-            const produto = produtos.find(p => p.id === item.produto_id);
-            if (produto && (item.quantidade || 0) > 0) {
-              tempPesoTotal += (item.quantidade || 0) * produto.peso_embalagem;
-            }
-          });
-
-          const tempFaixa = getFaixaPreco(Math.max(tempPesoTotal, pesoConquistado));
-
-          loadedItemsList.forEach(item => {
-            const produto = produtos.find(p => p.id === item.produto_id);
-            if (!produto) return;
-
-            const extraQtd = item.quantidade || 0;
-            if (extraQtd > 0) {
-              const discount = getValorUnitario(produto, tempFaixa) || 0;
-              const unitario = produto.custo_und * (1 - discount);
-              const valorTotalItem = unitario * extraQtd * (produto.quant_embalagem || 1);
-
-              newItens.push({
-                produto_id: item.produto_id,
-                quantidade: extraQtd,
-                peso_total: extraQtd * produto.peso_embalagem,
-                valor_unitario: unitario,
-                valor_total: valorTotalItem,
-                tipo_operacao: item.tipo_operacao || 'VENDA'
-              });
-            }
-          });
-          setItens(newItens);
-        } catch (e) {
-          console.error('Error parsing saved order:', e);
+        } else {
           setItens([]);
           setStartedAt(null);
         }
-      } else {
-        setItens([]);
-        setStartedAt(null);
+        setIsReady(true);
+        initialLoadDone.current = true;
       }
-      setIsReady(true);
-      initialLoadDone.current = true;
-    }
+    };
+
+    loadSavedOrder();
+    return () => {
+      active = false;
+    };
   }, [loading, produtos, clienteId, pesoConquistado]);
 
   // Manage start date of the draft order
@@ -404,13 +447,18 @@ export function OrderPage() {
     }
   }, [itens, startedAt, isReady]);
 
-  // Persist items to localStorage
+  // Persist items to localStorage and database (Supabase)
   useEffect(() => {
     if (isReady && clienteId) {
       if (itens.length === 0) {
         localStorage.removeItem(`pedido_${clienteId}`);
+        // Also clean up from Supabase DB asynchronously
+        supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId).then(({ error }) => {
+          if (error) console.error('Erro ao deletar do DB:', error);
+        });
         return;
       }
+
       const rawItemList = itens.map(item => ({
         produto_id: item.produto_id,
         quantidade: item.quantidade,
@@ -426,7 +474,33 @@ export function OrderPage() {
         startedAt: startedAt || new Date().toISOString()
       };
       
+      // Update localStorage instantly for snappiness
       localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(dataToSave));
+
+      // Debounce saving to Supabase (e.g. 1 second delay) to prevent database spam on fast interactions
+      const saveTimer = setTimeout(async () => {
+        try {
+          const { error } = await supabase
+            .from('pedidos_em_aberto')
+            .upsert({
+              cliente_id: clienteId,
+              items: rawItemList,
+              prazo: selectedPrazo || null,
+              obs: observacoes || null,
+              manual_faixa: manualFaixa || null,
+              desconto_extra: descontoExtra || 0,
+              started_at: startedAt || new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'cliente_id' });
+          if (error) {
+            console.error('Error upserting to DB:', error);
+          }
+        } catch (dbErr) {
+          console.error('Error saving open order to DB:', dbErr);
+        }
+      }, 1000);
+
+      return () => clearTimeout(saveTimer);
     }
   }, [itens, clienteId, isReady, selectedPrazo, observacoes, manualFaixa, descontoExtra, startedAt]);
 
@@ -444,6 +518,10 @@ export function OrderPage() {
     setShowClearConfirm(false);
     if (clienteId) {
       localStorage.removeItem(`pedido_${clienteId}`);
+      // Also clean up from Supabase DB
+      supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId).then(({ error }) => {
+        if (error) console.error('Erro ao deletar do DB:', error);
+      });
     }
   };
 
@@ -705,6 +783,10 @@ export function OrderPage() {
       if (shouldClear) {
         if (clienteId) {
           localStorage.removeItem(`pedido_${clienteId}`);
+          // Also clean up from Supabase DB
+          supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId).then(({ error }) => {
+            if (error) console.error('Erro ao deletar do DB ao finalizar:', error);
+          });
         }
         alert('Orçamento gerado com sucesso!');
         navigate(`/cliente/${clienteId}`);

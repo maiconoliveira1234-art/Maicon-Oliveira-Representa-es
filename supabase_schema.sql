@@ -183,4 +183,33 @@ $body$ LANGUAGE plpgsql SECURITY DEFINER;
 NOTIFY pgrst, 'reload schema';
 
 
+-- ------------------------------------------------------------------
+-- 10. TABELA DE PEDIDOS EM ABERTO (SINCRONIZAÇÃO ENTRE DISPOSITIVOS)
+-- ------------------------------------------------------------------
+-- Esta tabela armazena os rascunhos salvos temporariamente para que fiquem
+-- visíveis e sincronizados de forma cross-device.
+
+CREATE TABLE IF NOT EXISTS public.pedidos_em_aberto (
+    cliente_id UUID PRIMARY KEY REFERENCES public.clientes(id) ON DELETE CASCADE,
+    items JSONB NOT NULL DEFAULT '[]'::jsonb,
+    prazo TEXT,
+    obs TEXT,
+    manual_faixa JSONB,
+    desconto_extra NUMERIC(10, 2) DEFAULT 0.00,
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Habilitar RLS
+ALTER TABLE public.pedidos_em_aberto ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Acesso total pedidos em aberto" ON public.pedidos_em_aberto;
+CREATE POLICY "Acesso total pedidos em aberto" ON public.pedidos_em_aberto FOR ALL USING (true);
+
+COMMENT ON TABLE public.pedidos_em_aberto IS 'Guarda os rascunhos de pedidos em andamento sincronizados em tempo real entre múltiplos dispositivos.';
+
+-- Forçar recarregamento adicional do schema cache do PostgREST
+NOTIFY pgrst, 'reload schema';
+
+
 

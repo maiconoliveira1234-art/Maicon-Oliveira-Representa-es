@@ -55,7 +55,7 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
-import { SALES_CUTOFF_DATE, SALES_CUTOFF_CLIENTS } from '../constants';
+import { shouldExcludeSale } from '../constants';
 
 // --- Types for Dashboard ---
 type DashboardFilters = {
@@ -249,8 +249,7 @@ export function Dashboard() {
       if (!prod) return false;
 
       // Selective cutoff filter
-      const clientName = (h.cliente || '').trim().toUpperCase();
-      if (SALES_CUTOFF_CLIENTS.includes(clientName) && h.faturamento < SALES_CUTOFF_DATE) return false;
+      if (shouldExcludeSale(h.cliente, h.faturamento)) return false;
 
       const matchesClient = filters.clientIds.length === 0 || filters.clientIds.includes(h.cliente_id);
       const matchesFamily = filters.families.length === 0 || filters.families.includes(prod.familia);
@@ -294,12 +293,11 @@ export function Dashboard() {
       if (!prod) return false;
 
       // Selective cutoff filter
-      const clientName = (h.cliente || '').trim().toUpperCase();
-      if (SALES_CUTOFF_CLIENTS.includes(clientName) && h.faturamento < SALES_CUTOFF_DATE) return false;
+      if (shouldExcludeSale(h.cliente, h.faturamento)) return false;
 
       const matchesClient = filters.clientIds.length === 0 || filters.clientIds.includes(h.cliente_id);
       const matchesFamily = filters.families.length === 0 || filters.families.includes(prod.familia);
-      const matchesProduct = filters.productIds.length === 0 || (h.produto_id && filters.productIds.includes(h.produto_id));
+      const matchesProduct = filters.productIds.length === 0 || (h.produto_id && filters.productIds.includes(h.productIds));
       
       const d = parseISO(h.faturamento);
       const matchesDate = d >= prevStart && d <= prevEnd;
@@ -315,8 +313,7 @@ export function Dashboard() {
       if (!prod) return false;
 
       // Selective cutoff filter
-      const clientName = (h.cliente || '').trim().toUpperCase();
-      if (SALES_CUTOFF_CLIENTS.includes(clientName) && h.faturamento < SALES_CUTOFF_DATE) return false;
+      if (shouldExcludeSale(h.cliente, h.faturamento)) return false;
 
       const matchesClient = filters.clientIds.length === 0 || filters.clientIds.includes(h.cliente_id);
       const matchesFamily = filters.families.length === 0 || filters.families.includes(prod.familia);

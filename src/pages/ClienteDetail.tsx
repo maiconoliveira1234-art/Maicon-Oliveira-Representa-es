@@ -47,7 +47,7 @@ import { ptBR } from 'date-fns/locale';
 
 import { MOCK_CLIENTES, MOCK_HISTORICO, MOCK_PRODUTOS } from '../lib/mockData';
 import { Produto } from '../types';
-import { SALES_CUTOFF_DATE, SALES_CUTOFF_CLIENTS } from '../constants';
+import { shouldExcludeSale } from '../constants';
 
 import { useDataManager } from '../lib/dataManager';
 import { Emprestimo } from '../types';
@@ -416,9 +416,6 @@ export function ClienteDetail() {
   if (loading) return <StockCountSkeleton />;
   if (!cliente) return <div className="p-8 text-center">Cliente não encontrado.</div>;
 
-  const clientName = (cliente.cliente || '').trim().toUpperCase();
-  const isCutoffClient = SALES_CUTOFF_CLIENTS.includes(clientName);
-
   // Calculations
   const now = new Date();
   const startOfCurrentMonth = startOfMonth(now);
@@ -428,7 +425,7 @@ export function ClienteDetail() {
   const realizado = historico
     .filter(h => {
       // Selective cutoff filter
-      if (isCutoffClient && h.faturamento < SALES_CUTOFF_DATE) return false;
+      if (shouldExcludeSale(cliente.cliente, h.faturamento)) return false;
 
       const date = parseISO(h.faturamento);
       return date >= startOfCurrentMonth && date <= endOfCurrentMonth && classifySaleRecord(h).entraMetas;
@@ -443,7 +440,7 @@ export function ClienteDetail() {
   const media6mData = historico
     .filter(h => {
       // Selective cutoff filter
-      if (isCutoffClient && h.faturamento < SALES_CUTOFF_DATE) return false;
+      if (shouldExcludeSale(cliente.cliente, h.faturamento)) return false;
 
       const date = parseISO(h.faturamento);
       return date >= sixMonthsAgo && date < startOfCurrentMonth && classifySaleRecord(h).entraMetas;
@@ -458,7 +455,7 @@ export function ClienteDetail() {
   const media12mData = historico
     .filter(h => {
       // Selective cutoff filter
-      if (isCutoffClient && h.faturamento < SALES_CUTOFF_DATE) return false;
+      if (shouldExcludeSale(cliente.cliente, h.faturamento)) return false;
 
       const date = parseISO(h.faturamento);
       return date >= twelveMonthsAgo && date < startOfCurrentMonth && classifySaleRecord(h).entraMetas;
