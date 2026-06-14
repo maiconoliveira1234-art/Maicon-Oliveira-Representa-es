@@ -297,7 +297,7 @@ export function Dashboard() {
 
       const matchesClient = filters.clientIds.length === 0 || filters.clientIds.includes(h.cliente_id);
       const matchesFamily = filters.families.length === 0 || filters.families.includes(prod.familia);
-      const matchesProduct = filters.productIds.length === 0 || (h.produto_id && filters.productIds.includes(h.productIds));
+      const matchesProduct = filters.productIds.length === 0 || (h.produto_id && filters.productIds.includes(h.produto_id));
       
       const d = parseISO(h.faturamento);
       const matchesDate = d >= prevStart && d <= prevEnd;

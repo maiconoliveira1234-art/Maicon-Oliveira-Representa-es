@@ -17,7 +17,7 @@ interface RawRow {
   tipo: string;
   desconto: number;
   acrescimo: number;
-  peso_total: number;
+  peso_total?: number;
   isValid: boolean;
   isMissingProduct?: boolean;
   error?: string;

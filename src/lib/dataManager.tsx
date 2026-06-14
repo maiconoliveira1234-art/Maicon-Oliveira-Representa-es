@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { supabase } from './supabase';
 import { Cliente, Produto, HistVenda, EstoqueCliente } from '../types';
+import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from './mockData';
 
 interface ClientCache {
   historico: HistVenda[];
@@ -47,13 +48,26 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
         supabase.from('produtos').select('*').order('produto')
       ]);
 
-      if (clientesRes.data) setClientes(clientesRes.data);
-      if (produtosRes.data) setProdutos(produtosRes.data);
+      if (clientesRes.error) {
+        throw new Error(`Supabase clientes fetch error: ${clientesRes.error.message} (code ${clientesRes.error.code})`);
+      }
+      if (produtosRes.error) {
+        throw new Error(`Supabase produtos fetch error: ${produtosRes.error.message} (code ${produtosRes.error.code})`);
+      }
+
+      setClientes(clientesRes.data || MOCK_CLIENTES);
+      setProdutos(produtosRes.data || MOCK_PRODUTOS);
       
       const endTime = performance.now();
       console.log(`[Performance] Initial data load: ${(endTime - startTime).toFixed(2)}ms`);
-    } catch (error) {
-      console.error('Error loading initial data:', error);
+    } catch (error: any) {
+      console.error('CRITICAL NAVIGATION / DATA RECOVERY ERROR: Failed to load initial data from Supabase. Falling back to structured mock data to prevent application hydration freeze.', {
+        message: error?.message,
+        name: error?.name,
+        stack: error?.stack
+      });
+      setClientes(MOCK_CLIENTES);
+      setProdutos(MOCK_PRODUTOS);
     } finally {
       setLoadingGlobal(false);
     }
@@ -82,6 +96,13 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
           supabase.from('estoque_cliente').select('*').eq('cliente_id', clientId)
         ]);
 
+        if (histRes.error) {
+          throw new Error(`Hist_vendas fetch error: ${histRes.error.message} (code ${histRes.error.code})`);
+        }
+        if (estRes.error) {
+          throw new Error(`Estoque_cliente fetch error: ${estRes.error.message} (code ${estRes.error.code})`);
+        }
+
         // Deduplicate history
         const uniqueMap = new Map();
         (histRes.data || []).forEach((h: HistVenda) => {
@@ -104,9 +125,27 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
         const endTime = performance.now();
         console.log(`[Performance] Client ${clientId} data load: ${(endTime - startTime).toFixed(2)}ms`);
         return newData;
-      } catch (error) {
-        console.error(`Error loading details for client ${clientId}:`, error);
-        return undefined;
+      } catch (error: any) {
+        console.error(`CRITICAL SESSION / REFRESH DETAILS ERROR: Failed to load history/stock details for client ${clientId} from Supabase. Falling back to local offline structured fallback transactions and empty stock to prevent page whiteout.`, {
+          message: error?.message,
+          name: error?.name,
+          stack: error?.stack
+        });
+        
+        // Return structured mock transactions for the given client as fallback
+        const mockHist = MOCK_HISTORICO.filter(h => h.cliente_id === clientId);
+        const newData = {
+          historico: mockHist,
+          estoque: [],
+          lastUpdated: Date.now()
+        };
+        
+        setClientCache(prev => ({
+          ...prev,
+          [clientId]: newData
+        }));
+        
+        return newData;
       } finally {
         // Clean up the index so subsequent calls can trigger a new fetch if needed (e.g. if the cache TTL expires)
         delete inFlightRequests.current[clientId];

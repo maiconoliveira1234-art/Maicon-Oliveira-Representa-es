@@ -869,6 +869,24 @@ export function OrderPage() {
       return prodA.localeCompare(prodB);
     });
 
+    const orderDateStr = (() => {
+      try {
+        const d = startedAt ? new Date(startedAt) : new Date();
+        return d.toLocaleDateString('pt-BR');
+      } catch (e) {
+        return new Date().toLocaleDateString('pt-BR');
+      }
+    })();
+
+    const orderTimeStr = (() => {
+      try {
+        const d = startedAt ? new Date(startedAt) : new Date();
+        return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      } catch (e) {
+        return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      }
+    })();
+
     // Smart pagination: First page fits less items due to header/client info
     const chunks = [];
     let i = 0;
@@ -892,8 +910,8 @@ export function OrderPage() {
           <div className="flex flex-col">
             <h1 className="text-3xl font-black uppercase tracking-tighter" style={{ color: '#171717' }}>Resumo do Orçamento</h1>
             <div className="mt-2 space-y-1">
-              <p className="text-sm font-bold" style={{ color: '#737373' }}>Data: {new Date().toLocaleDateString('pt-BR')}</p>
-              <p className="text-sm font-bold" style={{ color: '#737373' }}>Hora: {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+              <p className="text-sm font-bold" style={{ color: '#737373' }}>Data: {orderDateStr}</p>
+              <p className="text-sm font-bold" style={{ color: '#737373' }}>Hora: {orderTimeStr}</p>
             </div>
           </div>
           <div className="flex flex-col items-end">
@@ -1452,6 +1470,24 @@ export function OrderPage() {
                       return prodA.localeCompare(prodB);
                     });
 
+                    const orderDateStr = (() => {
+                      try {
+                        const d = startedAt ? new Date(startedAt) : new Date();
+                        return d.toLocaleDateString('pt-BR');
+                      } catch (e) {
+                        return new Date().toLocaleDateString('pt-BR');
+                      }
+                    })();
+
+                    const orderTimeStr = (() => {
+                      try {
+                        const d = startedAt ? new Date(startedAt) : new Date();
+                        return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                      } catch (e) {
+                        return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                      }
+                    })();
+
                     const chunks = [];
                     let i = 0;
                     let isFirstPage = true;
@@ -1473,8 +1509,8 @@ export function OrderPage() {
                           <div className="flex flex-col">
                             <h1 className="text-2xl font-black uppercase tracking-tighter text-[#171717]">Resumo do Orçamento</h1>
                             <div className="mt-1 space-y-0.5">
-                              <p className="text-[10px] font-bold text-[#737373]">Data: {new Date().toLocaleDateString('pt-BR')}</p>
-                              <p className="text-[10px] font-bold text-[#737373]">Hora: {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                              <p className="text-[10px] font-bold text-[#737373]">Data: {orderDateStr}</p>
+                              <p className="text-[10px] font-bold text-[#737373]">Hora: {orderTimeStr}</p>
                             </div>
                           </div>
                           <div className="flex flex-col items-end">

@@ -21,6 +21,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { runAutomaticInactivation } from './lib/clientInactivation';
 import { DataManagerProvider, useDataManager } from './lib/dataManager';
 import { APIProvider } from '@vis.gl/react-google-maps';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const API_KEY =
   process.env.GOOGLE_MAPS_PLATFORM_KEY ||
@@ -37,25 +38,27 @@ function AppContent() {
   }, [loadInitialData]);
 
   return (
-    <BrowserRouter>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<AgendaPage />} />
-          <Route path="/clientes" element={<ClientsPage />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/consulta-preco" element={<PriceInquiryPage />} />
-          <Route path="/cliente/:id" element={<ClienteDetail />} />
-          <Route path="/estoque/:clienteId" element={<StockCountPage />} />
-          <Route path="/pedido/novo/:clienteId" element={<OrderPage />} />
-          <Route path="/metas" element={<MetasPage />} />
-          <Route path="/comissoes" element={<CommissionPage />} />
-          <Route path="/emprestimos" element={<LoansPage />} />
-          <Route path="/import" element={<ImportPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Layout>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<AgendaPage />} />
+            <Route path="/clientes" element={<ClientsPage />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/consulta-preco" element={<PriceInquiryPage />} />
+            <Route path="/cliente/:id" element={<ClienteDetail />} />
+            <Route path="/estoque/:clienteId" element={<StockCountPage />} />
+            <Route path="/pedido/novo/:clienteId" element={<OrderPage />} />
+            <Route path="/metas" element={<MetasPage />} />
+            <Route path="/comissoes" element={<CommissionPage />} />
+            <Route path="/emprestimos" element={<LoansPage />} />
+            <Route path="/import" element={<ImportPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Layout>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 
