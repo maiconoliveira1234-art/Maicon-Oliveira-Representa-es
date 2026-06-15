@@ -243,12 +243,28 @@ export function AgendaPage() {
     });
     
     return visitas.map(v => {
+      // 1. Se possuir compra no período de metas, status é automaticamente 'concluida'
       if (v.cliente_id && clientsWithPurchases.has(v.cliente_id)) {
         return {
           ...v,
           status: 'concluida' as VisitaStatus
         };
       }
+      
+      // 2. Se não possuir compra, muda automaticamente para 'pendente'
+      // EXCETO se o status foi alterado/concluído manualmente dentro do período determinado na tela de metas
+      if (v.status === 'concluida') {
+        const updatedAtDate = v.updated_at ? parseISO(v.updated_at) : null;
+        const wasUpdatedInPeriod = updatedAtDate && isWithinInterval(updatedAtDate, { start: startMeta, end: endMeta });
+        
+        if (!wasUpdatedInPeriod) {
+          return {
+            ...v,
+            status: 'pendente' as VisitaStatus
+          };
+        }
+      }
+      
       return v;
     });
   }, [visitas, historico]);
