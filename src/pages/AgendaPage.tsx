@@ -29,6 +29,7 @@ import { AgendaDatePicker } from '../components/agenda/AgendaDatePicker';
 import { supabase } from '../lib/supabase';
 import { HistVenda, Produto } from '../types';
 import { MapPin } from 'lucide-react';
+import { runAutoAgendaSyncIfEligible } from '../lib/autoAgendaSync';
 
 const DIAS_MAP: Record<number, DiaSemana> = {
   1: 'Segunda',
@@ -48,6 +49,8 @@ export function AgendaPage() {
   const [metas, setMetas] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [unscheduledClientCount, setUnscheduledClientCount] = useState(0);
+  const [syncingNewClients, setSyncingNewClients] = useState(false);
   
   // View State
   const [selectedDate, setSelectedDate] = useState<Date>(startOfToday());
@@ -95,12 +98,21 @@ export function AgendaPage() {
     try {
       setLoading(true);
       setError(null);
+
+      // Sincronização automática em background se for sábado/domingo de fim de ciclo da Semana 2
+      try {
+        await runAutoAgendaSyncIfEligible(false);
+      } catch (err) {
+        console.error('[BackgroundSync] Falha na sincronização em background:', err);
+      }
       
-      const [agendaData, histDataRes, produtosRes, metasRes] = await Promise.all([
+      const [agendaData, histDataRes, produtosRes, metasRes, activeClientsRes, existingVisitsRes] = await Promise.all([
         agendaService.getVisitas(),
         supabase.from('hist_vendas').select('*').gte('faturamento', subMonths(new Date(), 12).toISOString()),
         supabase.from('produtos').select('*'),
-        supabase.from('metas').select('cliente_id, meta')
+        supabase.from('metas').select('cliente_id, meta'),
+        supabase.from('clientes').select('id').eq('ativo', true),
+        supabase.from('agenda_visitas').select('cliente_id')
       ]);
 
       setVisitas(agendaData);
@@ -123,12 +135,32 @@ export function AgendaPage() {
         });
         setHistorico(Array.from(uniqueMap.values()) as HistVenda[]);
       }
+
+      // Calcula quantos clientes novos ainda não estão na agenda de visitas
+      if (activeClientsRes.data && existingVisitsRes.data) {
+        const scheduledIds = new Set(existingVisitsRes.data.map(v => v.cliente_id).filter(Boolean));
+        const unscheduled = activeClientsRes.data.filter(c => !scheduledIds.has(c.id)).length;
+        setUnscheduledClientCount(unscheduled);
+      }
     } catch (err: any) {
       setError(err.message || 'Erro ao carregar dados');
     } finally {
       setLoading(false);
     }
   }
+
+  const handleManualSync = async () => {
+    try {
+      setSyncingNewClients(true);
+      const res = await runAutoAgendaSyncIfEligible(true); // forceOverride = true
+      alert(res.message);
+      await fetchData();
+    } catch (err: any) {
+      alert('Erro na integração: ' + err.message);
+    } finally {
+      setSyncingNewClients(false);
+    }
+  };
 
   async function fetchAgenda() {
     fetchData();
@@ -382,7 +414,7 @@ export function AgendaPage() {
                 <h1 className="text-lg md:text-xl font-black text-neutral-900 tracking-tighter uppercase leading-none">
                   {format(selectedDate, "EEEE, d 'de' MMMM", { locale: ptBR })}
                 </h1>
-                <div className="flex items-center gap-2 mt-1.5">
+                <div className="flex flex-wrap items-center gap-2 mt-1.5">
                   <div className="px-2 py-0.5 bg-neutral-100 rounded-full text-[9px] font-black text-neutral-500 uppercase tracking-widest">
                     Ciclo: Semana {getCycleWeek(selectedDate)}
                   </div>
@@ -390,6 +422,17 @@ export function AgendaPage() {
                     <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                     <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Sistema Ativo</span>
                   </div>
+                  {unscheduledClientCount > 0 && (
+                    <button
+                      onClick={handleManualSync}
+                      disabled={syncingNewClients}
+                      className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 border border-amber-200 hover:bg-amber-100 active:scale-95 disabled:opacity-55 disabled:scale-100 rounded-full text-[9px] font-black text-amber-700 uppercase tracking-widest transition-all shadow-sm cursor-pointer"
+                      title="Novos clientes cadastrados serão geocodificados e integrados à agenda automaticamente no Sábado da Semana 2, ou clique aqui para processar imediatamente."
+                    >
+                      <RefreshCw size={10} className={syncingNewClients ? "animate-spin" : "animate-pulse"} />
+                      {syncingNewClients ? "Integrando..." : `${unscheduledClientCount} Novo(s) Cliente(s) Pendente(s)`}
+                    </button>
+                  )}
                 </div>
               </div>
 
