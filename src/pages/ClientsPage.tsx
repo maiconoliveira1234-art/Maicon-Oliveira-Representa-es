@@ -119,30 +119,37 @@ export function ClientsPage() {
         }
       });
 
-      // 2. Fallback/merge with localStorage
+      // 2. Fallback/merge with localStorage based on whichever is more recent
       enrichedClientes.forEach(c => {
-        if (!openOrdersMap[c.id]) {
-          const saved = localStorage.getItem(`pedido_${c.id}`);
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved);
-              let hasItems = false;
-              if (parsed && typeof parsed === 'object') {
-                if ('items' in parsed) {
-                  if (Array.isArray(parsed.items)) {
-                    hasItems = parsed.items.length > 0;
-                  } else if (parsed.items && typeof parsed.items === 'object') {
-                    hasItems = Object.keys(parsed.items).length > 0;
-                  }
-                } else {
-                  hasItems = Object.keys(parsed).length > 0;
+        const saved = localStorage.getItem(`pedido_${c.id}`);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            let hasItems = false;
+            if (parsed && typeof parsed === 'object') {
+              if ('items' in parsed) {
+                if (Array.isArray(parsed.items)) {
+                  hasItems = parsed.items.length > 0;
+                } else if (parsed.items && typeof parsed.items === 'object') {
+                  hasItems = Object.keys(parsed.items).length > 0;
                 }
+              } else {
+                hasItems = Object.keys(parsed).length > 0;
               }
-              if (hasItems) {
+            }
+            if (hasItems) {
+              const row = dbOpenOrders.find(r => r.cliente_id === c.id);
+              if (row) {
+                const supabaseTime = row.updated_at ? new Date(row.updated_at).getTime() : 0;
+                const localTime = parsed.updatedAt ? new Date(parsed.updatedAt).getTime() : 0;
+                if (localTime > supabaseTime) {
+                  openOrdersMap[c.id] = parsed.startedAt || new Date().toISOString();
+                }
+              } else {
                 openOrdersMap[c.id] = parsed.startedAt || new Date().toISOString();
               }
-            } catch (e) {}
-          }
+            }
+          } catch (e) {}
         }
       });
       setOpenOrdersDates(openOrdersMap);

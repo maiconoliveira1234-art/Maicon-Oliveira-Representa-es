@@ -318,6 +318,8 @@ export function OrderPage() {
     const loadSavedOrder = async () => {
       if (!loading && produtos.length > 0 && clienteId && !initialLoadDone.current) {
         let savedData: any = null;
+        let supabaseData: any = null;
+        let localData: any = null;
         
         // 1. Try Supabase first
         try {
@@ -327,29 +329,46 @@ export function OrderPage() {
             .eq('cliente_id', clienteId)
             .maybeSingle();
           if (!error && data) {
-            savedData = {
+            supabaseData = {
               items: data.items,
               prazo: data.prazo,
               obs: data.obs,
               manualFaixa: data.manual_faixa,
               descontoExtra: Number(data.desconto_extra || 0),
-              startedAt: data.started_at
+              startedAt: data.started_at,
+              updatedAt: data.updated_at
             };
           }
         } catch (dbErr) {
           console.error('Error fetching open order from DB:', dbErr);
         }
 
-        // 2. Fallback to localStorage if not found/error
-        if (!savedData) {
-          const saved = localStorage.getItem(`pedido_${clienteId}`);
-          if (saved) {
-            try {
-              savedData = JSON.parse(saved);
-            } catch (e) {
-              console.error('Error parsing localStorage:', e);
-            }
+        // 2. Load from localStorage
+        const saved = localStorage.getItem(`pedido_${clienteId}`);
+        if (saved) {
+          try {
+            localData = JSON.parse(saved);
+          } catch (e) {
+            console.error('Error parsing localStorage:', e);
           }
+        }
+
+        // 3. Select the most recent one based on updatedAt timestamps
+        if (supabaseData && localData) {
+          const supabaseTime = supabaseData.updatedAt ? new Date(supabaseData.updatedAt).getTime() : 0;
+          const localTime = localData.updatedAt ? new Date(localData.updatedAt).getTime() : 0;
+          
+          if (localTime >= supabaseTime) {
+            savedData = localData;
+            console.log(`[OrderPage] Loader matching: local storage is newer than supabase`);
+          } else {
+            savedData = supabaseData;
+            console.log(`[OrderPage] Loader matching: supabase is newer than local storage`);
+          }
+        } else if (localData) {
+          savedData = localData;
+        } else if (supabaseData) {
+          savedData = supabaseData;
         }
 
         if (!active) return;
@@ -465,13 +484,17 @@ export function OrderPage() {
         tipo_operacao: item.tipo_operacao || 'VENDA'
       }));
       
+      const currentStartedAt = startedAt || new Date().toISOString();
+      const currentUpdatedAt = new Date().toISOString();
+
       const dataToSave = {
         items: rawItemList,
         prazo: selectedPrazo,
         obs: observacoes,
         manualFaixa: manualFaixa,
         descontoExtra: descontoExtra,
-        startedAt: startedAt || new Date().toISOString()
+        startedAt: currentStartedAt,
+        updatedAt: currentUpdatedAt
       };
       
       // Update localStorage instantly for snappiness
@@ -489,8 +512,8 @@ export function OrderPage() {
               obs: observacoes || null,
               manual_faixa: manualFaixa || null,
               desconto_extra: descontoExtra || 0,
-              started_at: startedAt || new Date().toISOString(),
-              updated_at: new Date().toISOString()
+              started_at: currentStartedAt,
+              updated_at: currentUpdatedAt
             }, { onConflict: 'cliente_id' });
           if (error) {
             console.error('Error upserting to DB:', error);
