@@ -1,0 +1,16 @@
+{
+  "name": "ProMax",
+  "short_name": "ProMax",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f2b1d",
+  "theme_color": "#0f2b1d",
+  "icons": [
+    {
+      "src": "/icon-515.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

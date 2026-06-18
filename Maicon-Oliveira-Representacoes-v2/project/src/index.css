@@ -1,0 +1,43 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=DM+Sans:wght@400;500;700&display=swap');
+
+:root {
+  --brand: #ea580c;
+  --brand-light: #fff7ed;
+  --brand-mid: #fed7aa;
+  --sidebar-w: 72px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', 'DM Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: #f8f8f7;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d4d4d4; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #a3a3a3; }
+
+/* Smooth page transitions */
+.page-enter {
+  animation: pageIn 0.18s ease-out both;
+}
+
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Nav tooltip */
+.nav-tooltip {
+  pointer-events: none;
+  transition: opacity 0.15s, transform 0.15s;
+}
