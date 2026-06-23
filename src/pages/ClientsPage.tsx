@@ -7,6 +7,7 @@ import { cn, deduplicateSales } from '../lib/utils';
 import { differenceInDays, parseISO, startOfWeek, endOfWeek, isWithinInterval, addDays } from 'date-fns';
 
 import { NewClientModal } from '../components/NewClientModal';
+import { runAutoAgendaSyncIfEligible } from '../lib/autoAgendaSync';
 
 import { useDataManager } from '../lib/dataManager';
 
@@ -172,6 +173,15 @@ export function ClientsPage() {
   const toggleClienteAtivo = async (id: string, currentAtivo: boolean) => {
     try {
       setTogglingId(id);
+      
+      if (currentAtivo) {
+        // Se estamos desativando o cliente, removemos a visita correspondente da agenda de visitas
+        await supabase
+          .from('agenda_visitas')
+          .delete()
+          .eq('cliente_id', id);
+      }
+
       const { error } = await supabase
         .from('clientes')
         .update({ ativo: !currentAtivo })
@@ -182,6 +192,11 @@ export function ClientsPage() {
       // Update local state immediately for better UX
       setClientes(prev => prev.map(c => c.id === id ? { ...c, ativo: !currentAtivo } : c));
       await refreshClientes(); 
+
+      if (!currentAtivo) {
+        // Se estamos reativando o cliente, disparamos a sincronização inteligente da agenda na hora!
+        await runAutoAgendaSyncIfEligible(true);
+      }
     } catch (err) {
       console.error('Erro ao alternar status do cliente:', err);
     } finally {

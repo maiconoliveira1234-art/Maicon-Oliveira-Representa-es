@@ -49,6 +49,17 @@ export async function runAutomaticInactivation() {
         .update({ ativo: false })
         .in('id', idsToInactivate);
       if (inactivateError) throw inactivateError;
+
+      // Também remover visitas desses clientes da agenda
+      const { error: deleteVisitsError } = await supabase
+        .from('agenda_visitas')
+        .delete()
+        .in('cliente_id', idsToInactivate);
+      if (deleteVisitsError) {
+        console.error('Erro ao remover visitas de clientes inativados:', deleteVisitsError);
+      } else {
+        console.log(`Visitas removidas da agenda para os ${idsToInactivate.length} clientes inativados.`);
+      }
     }
 
     if (idsToInactivate.length === 0) {

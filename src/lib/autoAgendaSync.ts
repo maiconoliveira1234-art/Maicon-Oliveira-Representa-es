@@ -380,8 +380,8 @@ export async function runAutoAgendaSyncIfEligible(forceOverride: boolean = false
 
             const deviationImprovement = newDeviation - oldDeviation; // Negativo é melhoria
 
-            // Score: Menor distância e melhor proporção (peso de 8.0)
-            const score = dist + 8.0 * deviationImprovement;
+            // Score balanceado: Menor distância e melhor proporção (peso de 2.0 para evitar outliers geográficos)
+            const score = dist + 2.0 * deviationImprovement;
 
             if (!bestMove || score < bestMove.score) {
               bestMove = {

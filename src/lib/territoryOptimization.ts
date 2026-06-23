@@ -182,9 +182,11 @@ export async function optimizeAllTerritories() {
       }
     }
 
-    // Pesos: Semana balanceada e Proporção operacional são prioridades estritas.
-    // O custo geográfico age como o refinador de posicionamento territorial.
-    return 10000 * weekBalanceCost + 2000 * proportionCost + 1.0 * geoCost;
+    // Pesos balanceados de forma inteligente:
+    // O equilíbrio de semanas (semana 1 vs 2) é importante: peso 10000
+    // A proporção operacional ideal de dias (2:2:2:1) é uma diretriz: peso 1500
+    // O custo geográfico (consolidação territorial) é prioridade máxima para a eficiência de rota: peso 300.0
+    return 10000 * weekBalanceCost + 1500 * proportionCost + 300.0 * geoCost;
   };
 
   let currentCost = calculateTotalCost(assignment);

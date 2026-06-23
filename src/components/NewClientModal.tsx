@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { Cliente } from '../types';
 import { geocodeAddress, getAddressSuggestions, PlaceSuggestion } from '../services/geocodingService';
+import { runAutoAgendaSyncIfEligible } from '../lib/autoAgendaSync';
 
 interface NewClientModalProps {
   isOpen: boolean;
@@ -169,6 +170,22 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
             throw updateError;
           }
         }
+
+        // Lidar com alteração de status ativo/inativo
+        const statusChangedToInactive = (editingCliente.ativo !== false) && (formData.ativo === false);
+        const statusChangedToActive = (editingCliente.ativo === false) && (formData.ativo === true);
+
+        if (statusChangedToInactive) {
+          await supabase
+            .from('agenda_visitas')
+            .delete()
+            .eq('cliente_id', editingCliente.id);
+        } else if (statusChangedToActive) {
+          runAutoAgendaSyncIfEligible(true).catch(err => 
+            console.error('[Modal] Erro ao sincronizar agenda pós-reativação:', err)
+          );
+        }
+
         onSuccess(true);
       } else {
         const { error: insertError } = await supabase
@@ -187,6 +204,15 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
             throw insertError;
           }
         }
+
+        // Se criou um novo cliente ativo, sincroniza para agendá-lo no melhor lugar
+        if (formData.ativo) {
+          // Buscar o cliente recém inserido para obter o id gerado (como não temos o .select().single() acima, podemos disparar o sync diretamente)
+          runAutoAgendaSyncIfEligible(true).catch(err => 
+            console.error('[Modal] Erro ao sincronizar agenda pós-criação:', err)
+          );
+        }
+
         onSuccess(false);
       }
 
