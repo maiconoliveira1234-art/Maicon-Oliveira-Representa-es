@@ -55,12 +55,9 @@ export function StockCountPage() {
   const { produtos, clientCache, loadClientDetails } = useDataManager();
   
   const [cliente, setCliente] = useState<Cliente | null>(null);
-  const [historico, setHistorico] = useState<HistVenda[]>([]);
   const [estoqueMap, setEstoqueMap] = useState<Record<string, number>>({});
-  const [ultimaContagemMap, setUltimaContagemMap] = useState<Record<string, number>>({});
   const [pedidoMap, setPedidoMap] = useState<Record<string, number>>({});
   const [nonVendaItems, setNonVendaItems] = useState<Array<{ produto_id: string, quantidade: number, tipo_operacao: 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' }>>([]);
-  const [produtosMap, setProdutosMap] = useState<Record<string, Produto>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -73,6 +70,33 @@ export function StockCountPage() {
   const [touchedItems, setTouchedItems] = useState<Set<string>>(new Set());
   const exportRef = useRef<HTMLDivElement>(null);
   
+  // Derived state to avoid duplication, race conditions, or state-overwriting
+  const cacheData = useMemo(() => {
+    return clienteId ? clientCache[clienteId] : undefined;
+  }, [clientCache, clienteId]);
+
+  const historico = useMemo(() => {
+    return cacheData?.historico || [];
+  }, [cacheData]);
+
+  const ultimaContagemMap = useMemo(() => {
+    const uMap: Record<string, number> = {};
+    if (cacheData?.estoque) {
+      cacheData.estoque.forEach(e => {
+        uMap[e.produto_id] = e.quantidade_atual;
+      });
+    }
+    return uMap;
+  }, [cacheData]);
+
+  const produtosMap = useMemo(() => {
+    const pMap: Record<string, Produto> = {};
+    produtos.forEach(p => {
+      pMap[p.id] = p;
+    });
+    return pMap;
+  }, [produtos]);
+
   const familyPriorityMap = useMemo(() => {
     const map: Record<string, number> = {};
     FAMILY_PRIORITY_ORDER.forEach((family, index) => {
@@ -81,108 +105,139 @@ export function StockCountPage() {
     return map;
   }, []);
 
+  const [errorCount, setErrorCount] = useState(0);
+
+  // Load essential client data and load clientCache from Supabase backend
   useEffect(() => {
+    let active = true;
+    
     async function loadData() {
       if (!clienteId) return;
+      console.log(`[CONTAGEM] Tela iniciada para cliente: ${clienteId}`);
       
       try {
         setLoading(true);
+        console.log(`[CONTAGEM] Consulta iniciada: Carregando cache de histórico/estoque para cliente ${clienteId} (Tentativa: ${errorCount + 1}, Forçar atualização: ${errorCount > 0})`);
         
-        // Ensure initial data is loaded in context
-        const cache = await loadClientDetails(clienteId);
+        // This will retrieve the client details. If it's a retry (errorCount > 0), we force refresh.
+        const cache = await loadClientDetails(clienteId, errorCount > 0);
+        if (!active) return;
+
+        console.log(`[CONTAGEM] Consulta concluída: ${cache?.historico?.length || 0} registros de histórico, ${cache?.estoque?.length || 0} registros de estoque no cache`);
         
-        // Load Cliente (Still fetch if needed, or I could move client to cache too)
-        const { data: clienteData } = await supabase
+        // Validate if the data is unexpectedly empty (e.g. no products/stock loaded)
+        if (!cache || !cache.estoque || cache.estoque.length === 0) {
+          throw new Error("Dados de contagem de estoque retornaram vazios de forma inesperada.");
+        }
+
+        // Fetch Cliente Details from table
+        const { data: clienteData, error: clientErr } = await supabase
           .from('clientes')
           .select('*')
           .eq('id', clienteId)
           .single();
         
-        if (clienteData) setCliente(clienteData);
-
-        // Use products from context
-        if (produtos.length > 0) {
-          const pMap: Record<string, Produto> = {};
-          produtos.forEach(p => pMap[p.id] = p);
-          setProdutosMap(pMap);
+        if (clientErr) {
+          throw new Error(`Erro ao buscar detalhes do cliente: ${clientErr.message}`);
+        }
+        
+        if (!active) return;
+        
+        if (clienteData) {
+          setCliente(clienteData);
+          console.log(`[CONTAGEM] Cliente carregado: ${clienteData.cliente}`);
         }
 
-        if (cache) {
-          setHistorico(cache.historico);
-          
-          const initialEstoque: Record<string, number> = {};
-          const uMap: Record<string, number> = {};
-          
-          cache.estoque.forEach(e => {
-            initialEstoque[e.produto_id] = e.quantidade_atual;
-            uMap[e.produto_id] = e.quantidade_atual;
-          });
-          setUltimaContagemMap(uMap);
-
-          // Merge with localStorage
-          const savedEstoque = localStorage.getItem(`estoque_${clienteId}`);
-          const savedPedido = localStorage.getItem(`pedido_${clienteId}`);
-          
-          if (savedEstoque) {
-            try {
-              const parsed = JSON.parse(savedEstoque);
-              Object.assign(initialEstoque, parsed);
-            } catch (e) {
-              console.error('Error parsing saved estoque:', e);
-            }
-          }
-          setEstoqueMap(initialEstoque);
-
-          if (savedPedido) {
-            try {
-              const parsed = JSON.parse(savedPedido);
-              const pMap: Record<string, number> = {};
-              const nonVenda: Array<{ produto_id: string, quantidade: number, tipo_operacao: 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' }> = [];
-              
-              if (parsed && typeof parsed === 'object' && 'items' in parsed) {
-                if (Array.isArray(parsed.items)) {
-                  parsed.items.forEach((item: any) => {
-                    if (item && item.produto_id) {
-                      const type = item.tipo_operacao || 'VENDA';
-                      if (type === 'VENDA') {
-                        pMap[item.produto_id] = item.quantidade || 0;
-                      } else {
-                        nonVenda.push({
-                          produto_id: item.produto_id,
-                          quantidade: item.quantidade || 0,
-                          tipo_operacao: type as 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING'
-                        });
-                      }
-                    }
-                  });
-                } else if (parsed.items && typeof parsed.items === 'object') {
-                  Object.entries(parsed.items).forEach(([pId, qty]) => {
-                    pMap[pId] = qty as number;
-                  });
-                }
-                setPedidoMap(pMap);
-                setNonVendaItems(nonVenda);
-              } else if (parsed && typeof parsed === 'object') {
-                Object.entries(parsed).forEach(([pId, qty]) => {
-                  pMap[pId] = qty as number;
-                });
-                setPedidoMap(pMap);
-              }
-            } catch (e) {
-              console.error('Error parsing saved pedido:', e);
-            }
-          }
-        }
-
-      } catch (err) {
-        console.error('Erro ao carregar dados:', err);
-      } finally {
         setLoading(false);
-        setIsReady(true);
+      } catch (err: any) {
+        console.error(`[CONTAGEM] Erro detectado ou dados vazios ao carregar dados do cliente:`, err.message || err);
+        if (active) {
+          if (errorCount < 3) {
+            console.log(`[CONTAGEM] Tentando recarregar e forçar atualização em 2 segundos... (Tentativa ${errorCount + 1}/3)`);
+            setTimeout(() => {
+              if (active) {
+                setErrorCount(prev => prev + 1);
+              }
+            }, 2000);
+          } else {
+            setLoading(false);
+          }
+        }
       }
     }
+
     loadData();
-  }, [clienteId, produtos, loadClientDetails, clientCache?.[clienteId || '']]);
+
+    return () => {
+      active = false;
+    };
+  }, [clienteId, errorCount, loadClientDetails]);
+
+  // Safe lazy state map initialization from cacheData + localStorage once cache becomes available
+  const lastInitializedClientId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!clienteId || !cacheData) return;
+    
+    // Only initialize once per client ID to prevent overwriting user edits on hot reloads/render cycles
+    if (lastInitializedClientId.current === clienteId) return;
+    
+    console.log(`[CONTAGEM] Inicializando mapas de estado para o cliente: ${clienteId}`);
+
+    const initialEstoque: Record<string, number> = {};
+    cacheData.estoque.forEach(e => {
+      initialEstoque[e.produto_id] = e.quantidade_atual;
+    });
+
+    // Merge with localStorage
+    const savedEstoque = localStorage.getItem(`estoque_${clienteId}`);
+    if (savedEstoque) {
+      try {
+        const parsed = JSON.parse(savedEstoque);
+        Object.assign(initialEstoque, parsed);
+        console.log(`[CONTAGEM] Estoque mesclado com localStorage para cliente: ${clienteId}`);
+      } catch (e) {
+        console.error('Erro ao fazer parse do estoque salvo no localStorage:', e);
+      }
+    }
+    setEstoqueMap(initialEstoque);
+
+    // Initializing pedidoMap
+    const pMap: Record<string, number> = {};
+    const nonVenda: Array<{ produto_id: string, quantidade: number, tipo_operacao: 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' }> = [];
+    
+    const savedPedido = localStorage.getItem(`pedido_${clienteId}`);
+    if (savedPedido) {
+      try {
+        const parsed = JSON.parse(savedPedido);
+        if (parsed && typeof parsed === 'object' && 'items' in parsed) {
+          if (Array.isArray(parsed.items)) {
+            parsed.items.forEach((item: any) => {
+              if (item && item.produto_id) {
+                const type = item.tipo_operacao || 'VENDA';
+                if (type === 'VENDA') {
+                  pMap[item.produto_id] = item.quantidade || 0;
+                } else {
+                  nonVenda.push({
+                    produto_id: item.produto_id,
+                    quantidade: item.quantidade || 0,
+                    tipo_operacao: type as 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING'
+                  });
+                }
+              }
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Erro ao fazer parse do pedido do localStorage:', e);
+      }
+    }
+    setPedidoMap(pMap);
+    setNonVendaItems(nonVenda);
+
+    lastInitializedClientId.current = clienteId;
+    setIsReady(true);
+  }, [clienteId, cacheData]);
 
   const mediaCicloGlobal = useMemo(() => {
     if (historico.length === 0) return 40;
@@ -488,6 +543,48 @@ export function StockCountPage() {
     }
   };
 
+  const handleGoToPedido = () => {
+    const itemsList: Array<{ produto_id: string, quantidade: number, tipo_operacao: string }> = [];
+    
+    // Add venda items from current page state
+    processedItems.forEach(item => {
+      const extraPackages = pedidoMap[item.produto_id] || 0;
+      if (extraPackages > 0) {
+        itemsList.push({
+          produto_id: item.produto_id,
+          quantidade: extraPackages,
+          tipo_operacao: 'VENDA'
+        });
+      }
+    });
+
+    // Preservation of non venda items
+    nonVendaItems.forEach(item => {
+      if (item.quantidade > 0) {
+        itemsList.push({
+          produto_id: item.produto_id,
+          quantidade: item.quantidade,
+          tipo_operacao: item.tipo_operacao
+        });
+      }
+    });
+
+    // Update localStorage immediately before navigating
+    const saved = localStorage.getItem(`pedido_${clienteId}`);
+    let dataToSave = { items: itemsList, prazo: '', obs: '' };
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          dataToSave = { ...parsed, items: itemsList };
+        }
+      } catch (e) {}
+    }
+    localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(dataToSave));
+
+    navigate(`/pedido/novo/${clienteId}`);
+  };
+
   const handleExportPDF = async () => {
     if (!exportRef.current) return;
     
@@ -573,6 +670,8 @@ export function StockCountPage() {
       result = result.filter(item => Math.abs(item.peso_unitario - targetWeight) < 0.001);
     }
 
+    console.log(`[CONTAGEM] Total de itens recebidos: ${processedItems.length} | Filtros aplicados - busca: "${searchTerm}", família: "${selectedFamily}", peso: "${selectedWeight}" | Total exibido na tela: ${result.length}`);
+
     return result;
   }, [processedItems, searchTerm, selectedFamily, selectedWeight, estoqueMap]);
 
@@ -581,7 +680,7 @@ export function StockCountPage() {
   const isOverdueGlobal = diasDesdeUltimoPedidoGlobal > mediaCicloGlobal;
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] pb-24 flex flex-col">
+    <div className="min-h-screen bg-[#f8f9fa] pb-6 flex flex-col">
       {/* Spreadsheet Header */}
       <div className="bg-white border-b border-neutral-200 shadow-sm">
         <div className="w-full px-2 py-3">
@@ -613,6 +712,28 @@ export function StockCountPage() {
                 </p>
               </div>
               <button 
+                onClick={handleExportPDF}
+                className="p-2 bg-white text-neutral-700 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
+                title="Exportar PDF"
+              >
+                <Download size={18} />
+              </button>
+              <button 
+                onClick={handleSave}
+                disabled={saving}
+                className="p-2 bg-white text-green-600 rounded-full shadow-sm border border-neutral-200 hover:bg-green-50 disabled:opacity-50 transition-all active:scale-95"
+                title={saving ? 'Salvando...' : 'Salvar Contagem'}
+              >
+                <Save size={18} />
+              </button>
+              <button 
+                onClick={handleGoToPedido}
+                className="p-2 bg-orange-600 text-white rounded-full shadow-sm border border-orange-700 hover:bg-orange-700 transition-all active:scale-95"
+                title="Ir para Pedido"
+              >
+                <ShoppingCart size={18} />
+              </button>
+              <button 
                 onClick={() => navigate(`/cliente/${clienteId}`)}
                 className="p-2 bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
                 title="Home do Cliente"
@@ -631,6 +752,28 @@ export function StockCountPage() {
               <h1 className="text-sm font-black text-neutral-800 flex-1 leading-tight line-clamp-1">
                 {cliente?.cliente}
               </h1>
+              <button 
+                onClick={handleExportPDF}
+                className="p-1.5 bg-white text-neutral-700 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95 shrink-0"
+                title="Exportar PDF"
+              >
+                <Download size={16} />
+              </button>
+              <button 
+                onClick={handleSave}
+                disabled={saving}
+                className="p-1.5 bg-white text-green-600 rounded-full shadow-sm border border-neutral-200 hover:bg-green-50 disabled:opacity-50 transition-all active:scale-95 shrink-0"
+                title={saving ? 'Salvando...' : 'Salvar Contagem'}
+              >
+                <Save size={16} />
+              </button>
+              <button 
+                onClick={handleGoToPedido}
+                className="p-1.5 bg-orange-600 text-white rounded-full shadow-sm border border-orange-700 hover:bg-orange-700 transition-all active:scale-95 shrink-0"
+                title="Ir para Pedido"
+              >
+                <ShoppingCart size={16} />
+              </button>
               <button 
                 onClick={() => navigate(`/cliente/${clienteId}`)}
                 className="p-1.5 bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95 shrink-0"
@@ -889,7 +1032,7 @@ export function StockCountPage() {
         </div>
 
         {/* Mobile Touch-Friendly Card List */}
-        <div className="flex md:hidden flex-col gap-3 pb-32 px-1 z-10">
+        <div className="flex md:hidden flex-col gap-3 pb-12 px-1 z-10">
           {filteredItems.map((item) => {
             const isTouched = touchedItems.has(item.produto_id);
             const isBelowIdeal = item.estoque_ideal > 0;
@@ -1026,69 +1169,6 @@ export function StockCountPage() {
       </div>
     </div>
 
-      {/* Floating Buttons */}
-      <div className="fixed bottom-16 md:bottom-8 left-1/2 -translate-x-1/2 w-full max-w-lg px-4 flex gap-2 z-40">
-        <button 
-          onClick={handleExportPDF}
-          className="bg-neutral-800 text-white p-4 rounded-2xl font-bold shadow-2xl flex items-center justify-center gap-2 hover:bg-neutral-900 transition-all active:scale-95"
-          title="Exportar PDF"
-        >
-          <Download size={20} />
-        </button>
-        <button 
-          onClick={handleSave}
-          disabled={saving}
-          className="flex-1 bg-white text-orange-600 border-2 border-orange-600 py-4 rounded-2xl font-bold shadow-2xl flex items-center justify-center gap-2 hover:bg-orange-50 disabled:opacity-50 transition-all active:scale-95"
-        >
-          <Save size={20} /> {saving ? 'Salvando...' : 'Salvar Contagem'}
-        </button>
-        <button 
-          onClick={() => {
-            const itemsList: Array<{ produto_id: string, quantidade: number, tipo_operacao: string }> = [];
-            
-            // Add venda items from current page state
-            processedItems.forEach(item => {
-              const extraPackages = pedidoMap[item.produto_id] || 0;
-              if (extraPackages > 0) {
-                itemsList.push({
-                  produto_id: item.produto_id,
-                  quantidade: extraPackages,
-                  tipo_operacao: 'VENDA'
-                });
-              }
-            });
-
-            // Preservation of non venda items
-            nonVendaItems.forEach(item => {
-              if (item.quantidade > 0) {
-                itemsList.push({
-                  produto_id: item.produto_id,
-                  quantidade: item.quantidade,
-                  tipo_operacao: item.tipo_operacao
-                });
-              }
-            });
-
-            // Update localStorage immediately before navigating
-            const saved = localStorage.getItem(`pedido_${clienteId}`);
-            let dataToSave = { items: itemsList, prazo: '', obs: '' };
-            if (saved) {
-              try {
-                const parsed = JSON.parse(saved);
-                if (parsed && typeof parsed === 'object') {
-                  dataToSave = { ...parsed, items: itemsList };
-                }
-              } catch (e) {}
-            }
-            localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(dataToSave));
-
-            navigate(`/pedido/novo/${clienteId}`);
-          }}
-          className="flex-1 bg-orange-600 text-white py-4 rounded-2xl font-bold shadow-2xl flex items-center justify-center gap-2 hover:bg-orange-700 transition-all active:scale-95"
-        >
-          <ShoppingCart size={20} /> Ir para Pedido
-        </button>
-      </div>
 
       {/* History Modal */}
       <AnimatePresence>

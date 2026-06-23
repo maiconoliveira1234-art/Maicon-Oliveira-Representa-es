@@ -35,6 +35,12 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
   
   const initialLoadStarted = useRef(false);
   const inFlightRequests = useRef<Record<string, Promise<ClientCache | undefined>>>({});
+  const clientCacheRef = useRef<Record<string, ClientCache>>({});
+
+  // Keep the ref synchronized with state to allow dependencies-free useCallback
+  React.useEffect(() => {
+    clientCacheRef.current = clientCache;
+  }, [clientCache]);
 
   const loadInitialData = useCallback(async () => {
     if (initialLoadStarted.current) return;
@@ -80,7 +86,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       return inFlightRequests.current[clientId];
     }
 
-    const cached = clientCache[clientId];
+    const cached = clientCacheRef.current[clientId];
     const now = Date.now();
     
     if (!forceRefresh && cached && (now - cached.lastUpdated < CACHE_TTL)) {
@@ -157,12 +163,12 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     }
 
     return fetchPromise;
-  }, [clientCache]);
+  }, []);
 
   const prefetchTimeout = useRef<Record<string, any>>({});
 
   const prefetchClientData = useCallback((clientId: string) => {
-    if (clientCache[clientId]) return;
+    if (clientCacheRef.current[clientId]) return;
     
     // Debounce prefetch
     if (prefetchTimeout.current[clientId]) return;
@@ -171,7 +177,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       loadClientDetails(clientId);
       delete prefetchTimeout.current[clientId];
     }, 200);
-  }, [clientCache, loadClientDetails]);
+  }, [loadClientDetails]);
 
   const refreshClientes = useCallback(async () => {
     const { data } = await supabase.from('clientes').select('*').order('cliente');
