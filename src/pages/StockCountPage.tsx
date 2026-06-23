@@ -1071,12 +1071,12 @@ export function StockCountPage() {
 
             // Update localStorage immediately before navigating
             const saved = localStorage.getItem(`pedido_${clienteId}`);
-            let dataToSave = { items: itemsList, prazo: '', obs: '', updatedAt: new Date().toISOString() };
+            let dataToSave = { items: itemsList, prazo: '', obs: '' };
             if (saved) {
               try {
                 const parsed = JSON.parse(saved);
                 if (parsed && typeof parsed === 'object') {
-                  dataToSave = { ...parsed, items: itemsList, updatedAt: new Date().toISOString() };
+                  dataToSave = { ...parsed, items: itemsList };
                 }
               } catch (e) {}
             }

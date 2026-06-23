@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Produto, PrecoFaixa, HistVenda } from '../types';
-import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle, Users, X, ChevronDown, History, TrendingUp, Pencil, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle, Users, X, ChevronDown, History, TrendingUp, Pencil } from 'lucide-react';
 import { cn, deduplicateSales } from '../lib/utils';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -10,7 +10,6 @@ import { format, parseISO } from 'date-fns';
 
 export function PriceInquiryPage() {
   const [produtos, setProdutos] = useState<Produto[]>([]);
-  const [showInactive, setShowInactive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFamily, setSelectedFamily] = useState<string>('all');
@@ -75,6 +74,7 @@ export function PriceInquiryPage() {
         const { data, error } = await supabase
           .from('produtos')
           .select('*')
+          .eq('ativo', true)
           .order('familia')
           .order('produto');
         
@@ -226,18 +226,15 @@ export function PriceInquiryPage() {
   };
 
   const families = useMemo(() => {
-    const filteredForFamilies = produtos.filter(p => showInactive ? p.ativo === false : p.ativo !== false);
-    const fams = new Set(filteredForFamilies.map(p => p.familia || 'Sem Família'));
+    const activeProducts = produtos.filter(p => p.ativo !== false);
+    const fams = new Set(activeProducts.map(p => p.familia || 'Sem Família'));
     return Array.from(fams).sort();
-  }, [produtos, showInactive]);
+  }, [produtos]);
 
   const filteredProdutos = useMemo(() => {
     const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word.length > 0);
     
     return produtos.filter(p => {
-      const productIsActive = p.ativo !== false;
-      const matchesActiveStatus = showInactive ? !productIsActive : productIsActive;
-
       const productName = p.produto || '';
       const productFamily = p.familia || '';
       const targetString = `${productName} ${productFamily}`.toLowerCase();
@@ -250,12 +247,12 @@ export function PriceInquiryPage() {
                              (p.produto && clientLastPricesByName.hasOwnProperty(p.produto.toLowerCase()));
         const hasSuggestion = (p.sugestao || 0) > 0;
         
-        return matchesActiveStatus && matchesSearch && matchesFamily && hasBeenBought && hasSuggestion;
+        return matchesSearch && matchesFamily && hasBeenBought && hasSuggestion;
       }
 
-      return matchesActiveStatus && matchesSearch && matchesFamily;
+      return matchesSearch && matchesFamily;
     });
-  }, [produtos, searchTerm, selectedFamily, selectedClient, clientLastPrices, clientLastPricesByName, showInactive]);
+  }, [produtos, searchTerm, selectedFamily, selectedClient, clientLastPrices, clientLastPricesByName]);
 
   const selectAll = () => {
     const allIds = filteredProdutos.map(p => p.id);
@@ -390,22 +387,6 @@ export function PriceInquiryPage() {
               Editar Selecionado
             </button>
           )}
-          <button
-            onClick={() => {
-              setShowInactive(!showInactive);
-              deselectAll();
-              setSelectedFamily('all');
-            }}
-            className={cn(
-              "px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-2 border text-xs",
-              showInactive 
-                ? "bg-red-50 text-red-700 border-red-200 hover:bg-red-100 shadow-sm" 
-                : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50"
-            )}
-          >
-            {showInactive ? <EyeOff size={16} /> : <Eye size={16} />}
-            {showInactive ? "Ver Ativos" : "Ver Inativos"}
-          </button>
           <button
             onClick={() => setShowHistory(!showHistory)}
             className={cn(

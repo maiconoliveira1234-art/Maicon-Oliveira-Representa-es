@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 // We check both import.meta.env and process.env (mapped in vite.config.ts)
 const getEnv = (key: string) => {
   const metaEnv = (import.meta as any).env;
-  const val = (metaEnv && metaEnv[key]) || (process.env && (process.env as any)[key]);
+  const val = (metaEnv && metaEnv[key]) || (typeof process !== 'undefined' && process.env && (process.env as any)[key]);
   return (val && val !== 'undefined' && val !== 'null') ? val : null;
 };
 

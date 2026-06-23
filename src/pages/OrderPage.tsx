@@ -71,6 +71,38 @@ export function OrderPage() {
   const setDescontoExtra = (_val: number) => {};
   const itemsEndRef = React.useRef<HTMLDivElement>(null);
 
+  const [isInputFocused, setIsInputFocused] = useState(false);
+
+  useEffect(() => {
+    const isMobileOrTablet = window.matchMedia("(max-width: 1024px)").matches || ('ontouchstart' in window);
+    if (!isMobileOrTablet) return;
+
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')
+      ) {
+        // Skip if focusing the observations field itself to allow typing inside the footer
+        const inputEl = target as HTMLInputElement | HTMLTextAreaElement;
+        if (inputEl.placeholder === "Digite aqui observações importantes...") {
+          return;
+        }
+        setIsInputFocused(true);
+      }
+    };
+    const handleFocusOut = () => {
+      setIsInputFocused(false);
+    };
+
+    document.addEventListener('focusin', handleFocusIn);
+    document.addEventListener('focusout', handleFocusOut);
+    return () => {
+      document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('focusout', handleFocusOut);
+    };
+  }, []);
+
   const families = useMemo(() => {
     const activeProducts = produtos.filter(p => p.ativo !== false);
     const uniqueFamilies = Array.from(new Set(activeProducts.map(p => p.familia).filter(Boolean)));
@@ -318,8 +350,6 @@ export function OrderPage() {
     const loadSavedOrder = async () => {
       if (!loading && produtos.length > 0 && clienteId && !initialLoadDone.current) {
         let savedData: any = null;
-        let supabaseData: any = null;
-        let localData: any = null;
         
         // 1. Try Supabase first
         try {
@@ -329,46 +359,29 @@ export function OrderPage() {
             .eq('cliente_id', clienteId)
             .maybeSingle();
           if (!error && data) {
-            supabaseData = {
+            savedData = {
               items: data.items,
               prazo: data.prazo,
               obs: data.obs,
               manualFaixa: data.manual_faixa,
               descontoExtra: Number(data.desconto_extra || 0),
-              startedAt: data.started_at,
-              updatedAt: data.updated_at
+              startedAt: data.started_at
             };
           }
         } catch (dbErr) {
           console.error('Error fetching open order from DB:', dbErr);
         }
 
-        // 2. Load from localStorage
-        const saved = localStorage.getItem(`pedido_${clienteId}`);
-        if (saved) {
-          try {
-            localData = JSON.parse(saved);
-          } catch (e) {
-            console.error('Error parsing localStorage:', e);
+        // 2. Fallback to localStorage if not found/error
+        if (!savedData) {
+          const saved = localStorage.getItem(`pedido_${clienteId}`);
+          if (saved) {
+            try {
+              savedData = JSON.parse(saved);
+            } catch (e) {
+              console.error('Error parsing localStorage:', e);
+            }
           }
-        }
-
-        // 3. Select the most recent one based on updatedAt timestamps
-        if (supabaseData && localData) {
-          const supabaseTime = supabaseData.updatedAt ? new Date(supabaseData.updatedAt).getTime() : 0;
-          const localTime = localData.updatedAt ? new Date(localData.updatedAt).getTime() : 0;
-          
-          if (localTime >= supabaseTime) {
-            savedData = localData;
-            console.log(`[OrderPage] Loader matching: local storage is newer than supabase`);
-          } else {
-            savedData = supabaseData;
-            console.log(`[OrderPage] Loader matching: supabase is newer than local storage`);
-          }
-        } else if (localData) {
-          savedData = localData;
-        } else if (supabaseData) {
-          savedData = supabaseData;
         }
 
         if (!active) return;
@@ -484,17 +497,13 @@ export function OrderPage() {
         tipo_operacao: item.tipo_operacao || 'VENDA'
       }));
       
-      const currentStartedAt = startedAt || new Date().toISOString();
-      const currentUpdatedAt = new Date().toISOString();
-
       const dataToSave = {
         items: rawItemList,
         prazo: selectedPrazo,
         obs: observacoes,
         manualFaixa: manualFaixa,
         descontoExtra: descontoExtra,
-        startedAt: currentStartedAt,
-        updatedAt: currentUpdatedAt
+        startedAt: startedAt || new Date().toISOString()
       };
       
       // Update localStorage instantly for snappiness
@@ -512,8 +521,8 @@ export function OrderPage() {
               obs: observacoes || null,
               manual_faixa: manualFaixa || null,
               desconto_extra: descontoExtra || 0,
-              started_at: currentStartedAt,
-              updated_at: currentUpdatedAt
+              started_at: startedAt || new Date().toISOString(),
+              updated_at: new Date().toISOString()
             }, { onConflict: 'cliente_id' });
           if (error) {
             console.error('Error upserting to DB:', error);
@@ -827,7 +836,7 @@ export function OrderPage() {
   if (loading) return <StockCountSkeleton />;
 
   return (
-    <div className="space-y-6 pb-[600px] md:pb-96">
+    <div className="space-y-6 pb-[500px] md:pb-96">
       <header className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-4">
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-white rounded-full transition-colors">
@@ -1287,7 +1296,11 @@ export function OrderPage() {
       </div>
 
       {/* Bottom Section (Fixed) */}
-      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-t border-neutral-200 p-2 md:p-6 space-y-2 md:space-y-4 shadow-[0_-10px_20px_rgba(0,0,0,0.05)]">
+      <div className={cn(
+        "fixed bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-t border-neutral-200 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] transition-all duration-200",
+        "p-3 pb-[calc(12px+env(safe-area-inset-bottom))] md:p-6 md:pb-[calc(24px+env(safe-area-inset-bottom))] space-y-2 md:space-y-4",
+        isInputFocused ? "opacity-0 pointer-events-none translate-y-20 md:opacity-100 md:pointer-events-auto md:translate-y-0" : "opacity-100 pointer-events-auto translate-y-0"
+      )}>
         <div className="max-w-4xl mx-auto space-y-2 md:space-y-4">
           {/* Observations Field */}
           <div className="space-y-1">

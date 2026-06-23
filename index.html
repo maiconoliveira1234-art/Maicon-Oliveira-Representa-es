@@ -2,6 +2,110 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function() {
+        // Ultimate defensive handling of all Script errors and uncaught exceptions
+        window.onerror = function(message, source, lineno, colno, error) {
+          var msg = String(message || '');
+          if (msg.indexOf('Script error') !== -1 || msg === 'Script error.' || !source) {
+            console.warn('Silenced cross-origin Script error:', msg, source);
+            return true; // strictly suppresses the error propagation
+          }
+          // Also handle other non-fatal browser script errors that occur during sandbox runtime
+          if (msg.indexOf('ResizeObserver') !== -1) {
+            return true;
+          }
+          return false;
+        };
+
+        window.addEventListener('error', function(e) {
+          var msg = String(e.message || '');
+          if (msg.indexOf('Script error') !== -1 || msg === 'Script error.' || !e.filename) {
+            console.warn('Suppressed error event for Script error.');
+            e.stopImmediatePropagation();
+            e.preventDefault();
+            return true;
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(e) {
+          var reason = e.reason;
+          if (reason) {
+            var msg = String(reason.message || reason || '');
+            if (msg.indexOf('Script error') !== -1 || msg === 'Script error.') {
+              console.warn('Suppressed unhandled promise rejection for Script error.');
+              e.stopImmediatePropagation();
+              e.preventDefault();
+              return true;
+            }
+          }
+        }, true);
+
+        // Prevent iframe popup blocking / window.open security exceptions from throwing uncaught errors
+        var originalOpen = window.open;
+        window.open = function() {
+          try {
+            return originalOpen.apply(this, arguments);
+          } catch (e) {
+            console.warn('Suppressed error during window.open execution in sandbox.', e);
+            return null;
+          }
+        };
+
+        try {
+          var storage = window.localStorage;
+          storage.setItem('__test_storage__', '1');
+          storage.removeItem('__test_storage__');
+        } catch (e) {
+          console.warn('LocalStorage is blocked or throwing in this sandboxed environment. Polyfilling in-memory...');
+          var mockStorage = {
+            _data: {},
+            setItem: function(k, v) { this._data[k] = String(v); },
+            getItem: function(k) { return this._data.hasOwnProperty(k) ? this._data[k] : null; },
+            removeItem: function(k) { delete this._data[k]; },
+            clear: function() { this._data = {}; },
+            key: function(i) { return Object.keys(this._data)[i] || null; },
+            get length() { return Object.keys(this._data).length; }
+          };
+          try {
+            Object.defineProperty(window, 'localStorage', {
+              value: mockStorage,
+              configurable: true,
+              enumerable: true,
+              writable: true
+            });
+          } catch (err) {
+            window.localStorage = mockStorage;
+          }
+        }
+        try {
+          var session = window.sessionStorage;
+          session.setItem('__test_session__', '1');
+          session.removeItem('__test_session__');
+        } catch (e) {
+          console.warn('SessionStorage is blocked or throwing in this sandboxed environment. Polyfilling in-memory...');
+          var mockSession = {
+            _data: {},
+            setItem: function(k, v) { this._data[k] = String(v); },
+            getItem: function(k) { return this._data.hasOwnProperty(k) ? this._data[k] : null; },
+            removeItem: function(k) { delete this._data[k]; },
+            clear: function() { this._data = {}; },
+            key: function(i) { return Object.keys(this._data)[i] || null; },
+            get length() { return Object.keys(this._data).length; }
+          };
+          try {
+            Object.defineProperty(window, 'sessionStorage', {
+              value: mockSession,
+              configurable: true,
+              enumerable: true,
+              writable: true
+            });
+          } catch (err) {
+            window.sessionStorage = mockSession;
+          }
+        }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ProMax</title>
     <link rel="manifest" href="/manifest.json">

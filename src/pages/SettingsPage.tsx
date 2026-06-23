@@ -269,8 +269,9 @@ export function SettingsPage() {
                   <p className="font-bold text-neutral-900">Google Maps Platform</p>
                   <p className="text-xs text-neutral-500">
                     {(() => {
-                      const key = process.env.GOOGLE_MAPS_PLATFORM_KEY || (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY || (globalThis as any).GOOGLE_MAPS_PLATFORM_KEY || '';
-                      if (!key || key === 'YOUR_API_KEY') {
+                      const key = (process.env.GOOGLE_MAPS_PLATFORM_KEY || (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY || (globalThis as any).GOOGLE_MAPS_PLATFORM_KEY || '').trim();
+                      const hasKeyCheck = Boolean(key) && key !== 'YOUR_API_KEY' && key !== 'undefined' && key !== 'null' && key.startsWith('AIzaSy') && key.length >= 20;
+                      if (!hasKeyCheck) {
                         return 'Nenhuma chave de API detectada';
                       }
                       const masked = key.length > 8 ? `${key.substring(0, 6)}...${key.substring(key.length - 4)}` : 'Chave configurada';
@@ -280,8 +281,8 @@ export function SettingsPage() {
                 </div>
               </div>
               {(() => {
-                const key = process.env.GOOGLE_MAPS_PLATFORM_KEY || (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY || (globalThis as any).GOOGLE_MAPS_PLATFORM_KEY || '';
-                const hasKey = Boolean(key) && key !== 'YOUR_API_KEY';
+                const key = (process.env.GOOGLE_MAPS_PLATFORM_KEY || (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY || (globalThis as any).GOOGLE_MAPS_PLATFORM_KEY || '').trim();
+                const hasKey = Boolean(key) && key !== 'YOUR_API_KEY' && key !== 'undefined' && key !== 'null' && key.startsWith('AIzaSy') && key.length >= 20;
                 if (hasKey) {
                   return (
                     <span className="flex items-center gap-1.5 text-green-600 font-bold text-sm">

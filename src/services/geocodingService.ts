@@ -1,11 +1,19 @@
 import { supabase } from '../lib/supabase';
 
-const API_KEY =
+const API_KEY = (
   process.env.GOOGLE_MAPS_PLATFORM_KEY ||
   (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY ||
   (globalThis as any).GOOGLE_MAPS_PLATFORM_KEY ||
-  '';
-const hasValidKey = Boolean(API_KEY) && API_KEY !== 'YOUR_API_KEY';
+  ''
+).trim();
+
+const hasValidKey =
+  Boolean(API_KEY) &&
+  API_KEY !== 'YOUR_API_KEY' &&
+  API_KEY !== 'undefined' &&
+  API_KEY !== 'null' &&
+  API_KEY.startsWith('AIzaSy') &&
+  API_KEY.length >= 20;
 
 // Local in-memory cache to avoid reading localStorage repeatedly
 const memoryGeocodeCache: Record<string, { lat: number; lng: number }> = {};

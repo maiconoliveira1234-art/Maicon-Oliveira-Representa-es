@@ -1,11 +1,17 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, Search, BarChart3, Settings, FileUp, ShoppingCart, PieChart, Calendar, ArrowLeftRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const hideBottomNav = location.pathname.includes('/pedido/') || location.pathname.includes('/estoque/');
+
   return (
-    <div className="min-h-screen bg-neutral-100 flex flex-col pb-20 md:pb-0 md:pl-20">
+    <div className={cn(
+      "min-h-screen bg-neutral-100 flex flex-col md:pl-20",
+      hideBottomNav ? "pb-0 md:pb-0" : "pb-20 md:pb-0"
+    )}>
       {/* Sidebar Desktop */}
       <aside className="hidden md:flex flex-col w-20 bg-white border-r border-neutral-200 fixed left-0 top-0 bottom-0 z-50">
         <div className="p-4 flex justify-center">
@@ -32,15 +38,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* Bottom Nav Mobile */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 flex justify-around items-center h-16 z-50 px-2 overflow-x-auto">
-        <MobileNavItem to="/" icon={<Calendar size={24} />} label="Agenda" />
-        <MobileNavItem to="/clientes" icon={<Users size={24} />} label="Clientes" />
-        <MobileNavItem to="/consulta-preco" icon={<Search size={24} />} label="Preços" />
-        <MobileNavItem to="/metas" icon={<BarChart3 size={24} />} label="Metas" />
-        <MobileNavItem to="/dashboard" icon={<LayoutDashboard size={24} />} label="Dash" />
-        <MobileNavItem to="/emprestimos" icon={<ArrowLeftRight size={24} />} label="Trocas" />
-        <MobileNavItem to="/settings" icon={<Settings size={24} />} label="Config" />
-      </nav>
+      {!hideBottomNav && (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 flex justify-around items-center h-16 z-50 px-2 overflow-x-auto">
+          <MobileNavItem to="/" icon={<Calendar size={24} />} label="Agenda" />
+          <MobileNavItem to="/clientes" icon={<Users size={24} />} label="Clientes" />
+          <MobileNavItem to="/consulta-preco" icon={<Search size={24} />} label="Preços" />
+          <MobileNavItem to="/metas" icon={<BarChart3 size={24} />} label="Metas" />
+          <MobileNavItem to="/dashboard" icon={<LayoutDashboard size={24} />} label="Dash" />
+          <MobileNavItem to="/emprestimos" icon={<ArrowLeftRight size={24} />} label="Trocas" />
+          <MobileNavItem to="/settings" icon={<Settings size={24} />} label="Config" />
+        </nav>
+      )}
     </div>
   );
 }
