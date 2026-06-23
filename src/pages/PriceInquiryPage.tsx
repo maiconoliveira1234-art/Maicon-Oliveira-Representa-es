@@ -22,6 +22,19 @@ export function PriceInquiryPage() {
   const [exporting, setExporting] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
 
+  const [showMargin, setShowMargin] = useState(false);
+
+  const getMarginString = (sugestao: number | undefined | null, valorUnitario: number): string => {
+    if (sugestao === undefined || sugestao === null || sugestao <= 0 || valorUnitario === undefined || valorUnitario === null || valorUnitario <= 0) {
+      return '-';
+    }
+    const markup = ((sugestao - valorUnitario) / valorUnitario) * 100;
+    if (isNaN(markup) || !isFinite(markup)) {
+      return '-';
+    }
+    return markup.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+  };
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editForm, setEditForm] = useState<Produto | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -400,6 +413,18 @@ export function PriceInquiryPage() {
             {showHistory ? "Ocultar Histórico" : "Ver Histórico"}
           </button>
           <button
+            onClick={() => setShowMargin(!showMargin)}
+            className={cn(
+              "px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-2 border text-xs",
+              showMargin 
+                ? "bg-orange-100 text-orange-600 border-orange-200 shadow-sm" 
+                : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50"
+            )}
+          >
+            <TrendingUp size={16} />
+            {showMargin ? "Ocultar Markup" : "Exibir Markup"}
+          </button>
+          <button
             onClick={deselectAll}
             className="px-3 py-1.5 bg-white border border-neutral-200 text-neutral-600 rounded-lg font-bold hover:bg-neutral-50 transition-all flex items-center gap-2 text-xs"
           >
@@ -605,56 +630,67 @@ export function PriceInquiryPage() {
       <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden flex-1">
         <div className="divide-y divide-neutral-100">
           {filteredProdutos.length > 0 ? (
-            filteredProdutos.map((produto) => (
-              <div
-                key={produto.id}
-                onClick={() => toggleSelect(produto.id)}
-                className="flex items-center justify-between p-4 hover:bg-neutral-50 transition-colors group cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      "transition-colors",
-                      selectedIds.has(produto.id) ? "text-orange-600" : "text-neutral-300"
+            filteredProdutos.map((produto) => {
+              const unitPrice = selectedClient !== 'all' 
+                ? (clientLastPrices[produto.id] || clientLastPricesByName[produto.produto?.toLowerCase() || ''] || 0)
+                : ((produto.custo_und || 0) * (1 - (produto[selectedTable] || 0)));
+
+              return (
+                <div
+                  key={produto.id}
+                  onClick={() => toggleSelect(produto.id)}
+                  className="flex items-center justify-between p-4 hover:bg-neutral-50 transition-colors group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        "transition-colors",
+                        selectedIds.has(produto.id) ? "text-orange-600" : "text-neutral-300"
+                      )}
+                    >
+                      {selectedIds.has(produto.id) ? <CheckSquare size={24} /> : <Square size={24} />}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-neutral-900 text-base">{produto.produto}</h3>
+                      <p className="text-[10px] text-neutral-400 font-bold uppercase">{produto.familia}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 md:gap-6">
+                    <div className="text-right">
+                      <p className="text-[10px] text-neutral-400 uppercase font-bold">Sugestão</p>
+                      <p className="text-sm font-bold text-neutral-500">
+                        R$ {(produto.sugestao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-neutral-400 uppercase font-bold">Preço Unitário</p>
+                      <p className="text-lg font-black text-neutral-900">
+                        R$ {unitPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    {showMargin && (
+                      <div className="text-right">
+                        <p className="text-xs text-neutral-400 uppercase font-bold">Markup</p>
+                        <p className="text-lg font-black text-orange-600">
+                          {getMarginString(produto.sugestao, unitPrice)}
+                        </p>
+                      </div>
                     )}
-                  >
-                    {selectedIds.has(produto.id) ? <CheckSquare size={24} /> : <Square size={24} />}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-neutral-900 text-base">{produto.produto}</h3>
-                    <p className="text-[10px] text-neutral-400 font-bold uppercase">{produto.familia}</p>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditForm({ ...produto });
+                        setIsEditModalOpen(true);
+                      }}
+                      className="p-2 bg-neutral-50 hover:bg-orange-50 text-neutral-400 hover:text-orange-600 rounded-xl transition-all border border-transparent hover:border-orange-200"
+                      title="Editar produto"
+                    >
+                      <Pencil size={15} />
+                    </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-4 md:gap-6">
-                  <div className="text-right">
-                    <p className="text-[10px] text-neutral-400 uppercase font-bold">Sugestão</p>
-                    <p className="text-sm font-bold text-neutral-500">
-                      R$ {(produto.sugestao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-neutral-400 uppercase font-bold">Preço Unitário</p>
-                    <p className="text-lg font-black text-neutral-900">
-                      R$ {(selectedClient !== 'all' 
-                        ? (clientLastPrices[produto.id] || clientLastPricesByName[produto.produto?.toLowerCase() || ''] || 0)
-                        : ((produto.custo_und || 0) * (1 - (produto[selectedTable] || 0)))
-                      ).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditForm({ ...produto });
-                      setIsEditModalOpen(true);
-                    }}
-                    className="p-2 bg-neutral-50 hover:bg-orange-50 text-neutral-400 hover:text-orange-600 rounded-xl transition-all border border-transparent hover:border-orange-200"
-                    title="Editar produto"
-                  >
-                    <Pencil size={15} />
-                  </button>
-                </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="p-12 text-center text-neutral-400">
               <p>Nenhum produto encontrado</p>
@@ -707,9 +743,35 @@ export function PriceInquiryPage() {
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ backgroundColor: '#171717', color: '#ffffff' }}>
-                <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
-                <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest">Sugestão</th>
-                <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest rounded-tr-lg">Preço Unitário</th>
+                <th 
+                  className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg"
+                  style={{ width: showMargin ? '45%' : '60%' }}
+                >
+                  Produto
+                </th>
+                <th 
+                  className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest"
+                  style={{ width: showMargin ? '18%' : '20%' }}
+                >
+                  Sugestão
+                </th>
+                <th 
+                  className={cn(
+                    "py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest",
+                    !showMargin && "rounded-tr-lg"
+                  )}
+                  style={{ width: showMargin ? '22%' : '20%' }}
+                >
+                  Preço Unitário
+                </th>
+                {showMargin && (
+                  <th 
+                    className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest rounded-tr-lg"
+                    style={{ width: '15%' }}
+                  >
+                    Markup
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y" style={{ borderColor: '#f5f5f5' }}>
@@ -720,15 +782,20 @@ export function PriceInquiryPage() {
                 
                 return (
                   <tr key={p.id} className="text-sm" style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
-                    <td className="py-4 px-4 font-bold leading-tight break-words" style={{ color: '#262626' }}>
+                    <td className="py-4 px-4 font-bold leading-tight break-words" style={{ color: '#262626', width: showMargin ? '45%' : '60%' }}>
                       {p.produto}
                     </td>
-                    <td className="py-4 px-4 text-right font-bold" style={{ color: '#a3a3a3' }}>
+                    <td className="py-4 px-4 text-right font-bold" style={{ color: '#a3a3a3', width: showMargin ? '18%' : '20%' }}>
                       R$ {(p.sugestao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
-                    <td className="py-4 px-4 text-right font-black text-lg" style={{ color: '#171717' }}>
+                    <td className="py-4 px-4 text-right font-black text-lg" style={{ color: '#171717', width: showMargin ? '22%' : '20%' }}>
                       R$ {price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
+                    {showMargin && (
+                      <td className="py-4 px-4 text-right font-black text-lg" style={{ color: '#ea580c', width: '15%' }}>
+                        {getMarginString(p.sugestao, price)}
+                      </td>
+                    )}
                   </tr>
                 );
               })}
