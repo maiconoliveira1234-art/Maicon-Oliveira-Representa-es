@@ -23,6 +23,7 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
     contato: '',
     telefone: '',
     endereco: '',
+    agenda_fixa: false,
   });
 
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
@@ -38,6 +39,7 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
         contato: editingCliente.contato || '',
         telefone: editingCliente.telefone || '',
         endereco: editingCliente.endereco || '',
+        agenda_fixa: editingCliente.agenda_fixa ?? false,
       });
     } else {
       setFormData({
@@ -48,6 +50,7 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
         contato: '',
         telefone: '',
         endereco: '',
+        agenda_fixa: false,
       });
     }
     setSuggestions([]);
@@ -125,6 +128,7 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
         contato: formData.contato,
         telefone: formData.telefone || null,
         endereco: formData.endereco,
+        agenda_fixa: formData.agenda_fixa,
       };
 
       // Automatic Geocoding if address is provided
@@ -152,14 +156,37 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
           .update(clientData)
           .eq('id', editingCliente.id);
 
-        if (updateError) throw updateError;
+        if (updateError) {
+          if (updateError.code === '42703' || updateError.message?.includes('agenda_fixa')) {
+            console.warn('[DB] Coluna agenda_fixa nao existe. Salvando sem ela.');
+            const { agenda_fixa, ...fallbackData } = clientData;
+            const { error: retryError } = await supabase
+              .from('clientes')
+              .update(fallbackData)
+              .eq('id', editingCliente.id);
+            if (retryError) throw retryError;
+          } else {
+            throw updateError;
+          }
+        }
         onSuccess(true);
       } else {
         const { error: insertError } = await supabase
           .from('clientes')
           .insert([clientData]);
 
-        if (insertError) throw insertError;
+        if (insertError) {
+          if (insertError.code === '42703' || insertError.message?.includes('agenda_fixa')) {
+            console.warn('[DB] Coluna agenda_fixa nao existe. Salvando sem ela.');
+            const { agenda_fixa, ...fallbackData } = clientData;
+            const { error: retryError } = await supabase
+              .from('clientes')
+              .insert([fallbackData]);
+            if (retryError) throw retryError;
+          } else {
+            throw insertError;
+          }
+        }
         onSuccess(false);
       }
 
@@ -314,6 +341,22 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
                 )}
                 placeholder="EX: SÃO PAULO"
               />
+            </div>
+
+            <div className="md:col-span-2 bg-neutral-50 border border-neutral-200 p-4 rounded-2xl flex items-center justify-between gap-4">
+              <div className="space-y-0.5">
+                <label className="text-xs font-black text-neutral-900 uppercase tracking-wider block">Agenda Fixa</label>
+                <span className="text-[10px] text-neutral-500 block font-semibold leading-tight">Se ativado, o cliente nunca será movido automaticamente por otimizações, rebalanceamento ou novas inclusões.</span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={formData.agenda_fixa}
+                  onChange={(e) => setFormData({ ...formData, agenda_fixa: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-neutral-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-600"></div>
+              </label>
             </div>
           </div>
 

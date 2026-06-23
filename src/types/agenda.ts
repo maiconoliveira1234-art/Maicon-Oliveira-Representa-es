@@ -19,6 +19,7 @@ export interface Visita {
   observacoes: string;
   latitude?: number;
   longitude?: number;
+  agenda_fixa?: boolean;
   created_at: string;
   updated_at: string;
 }

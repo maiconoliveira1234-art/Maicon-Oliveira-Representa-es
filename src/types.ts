@@ -12,6 +12,7 @@ export type Cliente = {
   latitude?: number;
   longitude?: number;
   flex_saldo?: number;
+  agenda_fixa?: boolean;
 };
 
 export type Produto = {
