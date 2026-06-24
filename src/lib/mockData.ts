@@ -4,7 +4,6 @@ export const MOCK_CLIENTES: Cliente[] = [
   {
     id: '1',
     cliente: 'Supermercado Alvorada',
-    dia_visita: 1,
     cidade: 'São Paulo',
     ativo: true,
     meta: 5000,
@@ -13,7 +12,6 @@ export const MOCK_CLIENTES: Cliente[] = [
   {
     id: '2',
     cliente: 'Mercearia do João',
-    dia_visita: 2,
     cidade: 'Campinas',
     ativo: true,
     meta: 1200,

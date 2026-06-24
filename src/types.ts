@@ -1,7 +1,7 @@
 export type Cliente = {
   id: string;
   cliente: string;
-  dia_visita: number;
+  dia_visita?: number;
   cidade: string;
   ativo: boolean;
   ultima_compra?: string;

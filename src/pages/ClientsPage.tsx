@@ -174,13 +174,12 @@ export function ClientsPage() {
     try {
       setTogglingId(id);
       
-      if (currentAtivo) {
-        // Se estamos desativando o cliente, removemos a visita correspondente da agenda de visitas
-        await supabase
-          .from('agenda_visitas')
-          .delete()
-          .eq('cliente_id', id);
-      }
+      // Se estamos desativando OU se estamos reativando o cliente, removemos a visita correspondente da agenda de visitas.
+      // Se estamos reativando, isso força o sistema de sincronização inteligente a agendá-lo no melhor lugar do zero!
+      await supabase
+        .from('agenda_visitas')
+        .delete()
+        .eq('cliente_id', id);
 
       const { error } = await supabase
         .from('clientes')

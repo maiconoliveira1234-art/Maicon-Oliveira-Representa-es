@@ -133,9 +133,39 @@ export async function runAutoAgendaSyncIfEligible(forceOverride: boolean = false
       throw new Error(`Erro ao buscar visitas na agenda: ${visitsError.message}`);
     }
 
-    const existingVisits = (existingVisitsRaw || []) as any[];
+    const rawVisits = existingVisitsRaw || [];
 
-    // 3. Identificar quais clientes ativos NÃO estão na agenda (clientes novos)
+    // Limpar visitas órfãs ou de clientes inativos do banco de dados para evitar poluição
+    const visitsToDelete = rawVisits.filter(v => {
+      const clientData = Array.isArray(v.clientes) ? v.clientes[0] : v.clientes;
+      return !clientData || clientData.ativo !== true;
+    });
+
+    if (visitsToDelete.length > 0) {
+      console.log(`[AutoSync] Removendo ${visitsToDelete.length} visitas órfãs ou de clientes inativos da agenda...`);
+      const deleteIds = visitsToDelete.map(v => v.id);
+      await supabase
+        .from('agenda_visitas')
+        .delete()
+        .in('id', deleteIds);
+    }
+
+    // Filtrar existingVisits para conter APENAS visitas válidas de clientes ativos e normalizar coordenadas de fallback
+    const existingVisits = rawVisits.filter(v => {
+      const clientData = Array.isArray(v.clientes) ? v.clientes[0] : v.clientes;
+      return clientData && clientData.ativo === true;
+    }).map(v => {
+      const clientData = Array.isArray(v.clientes) ? v.clientes[0] : v.clientes;
+      return {
+        ...v,
+        latitude: v.latitude || clientData?.latitude,
+        longitude: v.longitude || clientData?.longitude,
+        bairro: v.bairro || clientData?.bairro || '',
+        agenda_fixa: clientData?.agenda_fixa ?? false
+      };
+    }) as any[];
+
+    // 3. Identificar quais clientes ativos NÃO estão na agenda (clientes novos ou reativados)
     const scheduledClientIds = new Set(existingVisits.map(v => v.cliente_id).filter(Boolean));
     const newClients = activeClients.filter(c => !scheduledClientIds.has(c.id));
 
@@ -152,6 +182,12 @@ export async function runAutoAgendaSyncIfEligible(forceOverride: boolean = false
       let lat = client.latitude;
       let lng = client.longitude;
       let bairro = client.bairro || '';
+
+      // Deletar qualquer visita antiga deste cliente para evitar duplicações absolutas antes do novo agendamento
+      await supabase
+        .from('agenda_visitas')
+        .delete()
+        .eq('cliente_id', client.id);
 
       // A. Garantir Geocodificação do novo cliente se estiver vazia
       if (!lat || !lng) {
@@ -190,18 +226,7 @@ export async function runAutoAgendaSyncIfEligible(forceOverride: boolean = false
       let idealWeek: 1 | 2 = 1;
       let idealDay: DiaSemana = 'Segunda';
 
-      const validVisits = existingVisits.filter(v => 
-        v.latitude && 
-        v.longitude && 
-        v.clientes && 
-        (Array.isArray(v.clientes) ? v.clientes[0]?.ativo !== false : v.clientes?.ativo !== false)
-      ).map(v => {
-        const clientData = Array.isArray(v.clientes) ? v.clientes[0] : v.clientes;
-        return {
-          ...v,
-          agenda_fixa: clientData?.agenda_fixa ?? false
-        };
-      });
+      const validVisits = existingVisits.filter(v => v.latitude && v.longitude);
 
       if (lat && lng) {
         console.log(`[AutoSync] [NOVO CLIENTE] ${client.cliente} - Identificando cluster geográfico...`);

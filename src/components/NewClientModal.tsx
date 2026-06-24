@@ -18,7 +18,6 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
   const [error, setError] = useState<{ message: string; field?: string } | null>(null);
   const [formData, setFormData] = useState({
     cliente: '',
-    dia_visita: 1,
     cidade: '',
     ativo: true,
     contato: '',
@@ -34,7 +33,6 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
     if (editingCliente) {
       setFormData({
         cliente: editingCliente.cliente || '',
-        dia_visita: editingCliente.dia_visita || 1,
         cidade: editingCliente.cidade || '',
         ativo: editingCliente.ativo ?? true,
         contato: editingCliente.contato || '',
@@ -45,7 +43,6 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
     } else {
       setFormData({
         cliente: '',
-        dia_visita: 1,
         cidade: '',
         ativo: true,
         contato: '',
@@ -123,7 +120,6 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
 
       const clientData: any = {
         cliente: formData.cliente,
-        dia_visita: formData.dia_visita,
         cidade: formData.cidade,
         ativo: formData.ativo,
         contato: formData.contato,
@@ -175,15 +171,19 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
         const statusChangedToInactive = (editingCliente.ativo !== false) && (formData.ativo === false);
         const statusChangedToActive = (editingCliente.ativo === false) && (formData.ativo === true);
 
-        if (statusChangedToInactive) {
+        if (statusChangedToInactive || statusChangedToActive) {
           await supabase
             .from('agenda_visitas')
             .delete()
             .eq('cliente_id', editingCliente.id);
-        } else if (statusChangedToActive) {
-          runAutoAgendaSyncIfEligible(true).catch(err => 
-            console.error('[Modal] Erro ao sincronizar agenda pós-reativação:', err)
-          );
+        }
+
+        if (statusChangedToActive) {
+          try {
+            await runAutoAgendaSyncIfEligible(true);
+          } catch (err) {
+            console.error('[Modal] Erro ao sincronizar agenda pós-reativação:', err);
+          }
         }
 
         onSuccess(true);
@@ -207,10 +207,11 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
 
         // Se criou um novo cliente ativo, sincroniza para agendá-lo no melhor lugar
         if (formData.ativo) {
-          // Buscar o cliente recém inserido para obter o id gerado (como não temos o .select().single() acima, podemos disparar o sync diretamente)
-          runAutoAgendaSyncIfEligible(true).catch(err => 
-            console.error('[Modal] Erro ao sincronizar agenda pós-criação:', err)
-          );
+          try {
+            await runAutoAgendaSyncIfEligible(true);
+          } catch (err) {
+            console.error('[Modal] Erro ao sincronizar agenda pós-criação:', err);
+          }
         }
 
         onSuccess(false);
@@ -281,18 +282,6 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
                   error?.field === 'cliente' ? "border-red-400 ring-red-100 bg-red-50" : "border-neutral-200 focus:ring-orange-500"
                 )}
                 placeholder="EX: SUPERMERCADO EXEMPLO"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest ml-1">Dia de Visita</label>
-              <input
-                type="number"
-                min="1"
-                max="31"
-                value={formData.dia_visita}
-                onChange={(e) => setFormData({ ...formData, dia_visita: parseInt(e.target.value) || 1 })}
-                className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold text-neutral-900"
               />
             </div>
 
