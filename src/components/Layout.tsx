@@ -3,17 +3,145 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, Search, BarChart3, Settings, FileUp, ShoppingCart, PieChart, Calendar, ArrowLeftRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 
+// Diagnostic mode toggle. Change to false to disable console logging.
+const DEBUG_LAYOUT = true;
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const hideBottomNav = location.pathname.includes('/pedido/') || location.pathname.includes('/estoque/');
 
+  // Diagnostic Refs
+  const sidebarRef = React.useRef<HTMLElement | null>(null);
+  const bottomNavRef = React.useRef<HTMLElement | null>(null);
+  const renderCount = React.useRef(0);
+  const mountCount = React.useRef(0);
+
+  // Increment render counter
+  renderCount.current += 1;
+
+  React.useEffect(() => {
+    if (!DEBUG_LAYOUT) return;
+
+    mountCount.current += 1;
+
+    const logDiagnostic = (eventSource: string) => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const vvWidth = window.visualViewport ? window.visualViewport.width : null;
+      const vvHeight = window.visualViewport ? window.visualViewport.height : null;
+
+      // Measure Safe Area Insets in JS using a temporary offscreen element
+      let insets = { top: '0px', bottom: '0px', left: '0px', right: '0px' };
+      try {
+        const el = document.createElement('div');
+        el.style.position = 'fixed';
+        el.style.top = 'env(safe-area-inset-top, 0px)';
+        el.style.bottom = 'env(safe-area-inset-bottom, 0px)';
+        el.style.left = 'env(safe-area-inset-left, 0px)';
+        el.style.right = 'env(safe-area-inset-right, 0px)';
+        el.style.visibility = 'hidden';
+        el.style.pointerEvents = 'none';
+        document.body.appendChild(el);
+        const styles = window.getComputedStyle(el);
+        insets = {
+          top: styles.top,
+          bottom: styles.bottom,
+          left: styles.left,
+          right: styles.right
+        };
+        document.body.removeChild(el);
+      } catch (e) {
+        console.error('[Diagnostic] Failed to measure safe area insets', e);
+      }
+
+      const sidebarRect = sidebarRef.current ? sidebarRef.current.getBoundingClientRect() : null;
+      const bottomNavRect = bottomNavRef.current ? bottomNavRef.current.getBoundingClientRect() : null;
+      const isMd = window.matchMedia('(min-width: 768px)').matches;
+
+      console.log(
+        `%c[LAYOUT-DIAGNOSTIC] %cEvent: ${eventSource}`,
+        'color: #ea580c; font-weight: bold;',
+        'color: #3b82f6; font-weight: bold;'
+      );
+      console.table({
+        'Viewport Size': `${width}x${height}`,
+        'Visual Viewport': vvWidth && vvHeight ? `${Math.round(vvWidth)}x${Math.round(vvHeight)}` : 'N/A',
+        'Safe Area Top': insets.top,
+        'Safe Area Bottom': insets.bottom,
+        'Safe Area Left': insets.left,
+        'Safe Area Right': insets.right,
+        'Is Desktop (md)': isMd ? 'YES (>=768px)' : 'NO (<768px)',
+        'Sidebar Visible': sidebarRect ? 'YES' : 'NO',
+        'Sidebar Position': sidebarRect 
+          ? `L: ${Math.round(sidebarRect.left)} | T: ${Math.round(sidebarRect.top)} | W: ${Math.round(sidebarRect.width)} | H: ${Math.round(sidebarRect.height)}` 
+          : 'N/A',
+        'Bottom Nav Visible': bottomNavRect ? 'YES' : 'NO',
+        'Bottom Nav Position': bottomNavRect 
+          ? `L: ${Math.round(bottomNavRect.left)} | T: ${Math.round(bottomNavRect.top)} | W: ${Math.round(bottomNavRect.width)} | H: ${Math.round(bottomNavRect.height)}` 
+          : 'N/A',
+        'Render Count': renderCount.current,
+        'Mount Count': mountCount.current,
+        'Document Visibility': document.visibilityState
+      });
+    };
+
+    // Log initial mount status
+    logDiagnostic('Initial Mount / Navigation Route Changed');
+
+    const handleResize = () => logDiagnostic('Resize');
+    const handleOrientation = () => logDiagnostic('OrientationChange');
+    const handleVisibility = () => logDiagnostic('VisibilityChange');
+    const handleVisualViewport = () => logDiagnostic('VisualViewportResizeOrScroll');
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleOrientation);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleVisualViewport);
+      window.visualViewport.addEventListener('scroll', handleVisualViewport);
+    }
+
+    // Capture post-resize layout update to catch transition finish states
+    let resizeTimeout: NodeJS.Timeout;
+    const debouncedLog = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        logDiagnostic('Viewport Settled (Debounced)');
+      }, 300);
+    };
+    window.addEventListener('resize', debouncedLog);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('resize', debouncedLog);
+      window.removeEventListener('orientationchange', handleOrientation);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleVisualViewport);
+        window.visualViewport.removeEventListener('scroll', handleVisualViewport);
+      }
+      clearTimeout(resizeTimeout);
+    };
+  }, [location.pathname]); // Run diagnostic whenever the route path changes to trace navigator mounts
+
   return (
     <div className={cn(
-      "min-h-screen bg-neutral-100 flex flex-col md:pl-20",
-      hideBottomNav ? "pb-0 md:pb-0" : "pb-20 md:pb-0"
+      "min-h-screen bg-neutral-100 flex flex-col md:pl-[calc(5rem+env(safe-area-inset-left,0px))] pr-[env(safe-area-inset-right,0px)] pl-[env(safe-area-inset-left,0px)] w-full max-w-full overflow-x-hidden",
+      hideBottomNav ? "pb-0 md:pb-0" : "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:pb-0"
     )}>
       {/* Sidebar Desktop */}
-      <aside className="hidden md:flex flex-col w-20 bg-white border-r border-neutral-200 fixed left-0 top-0 bottom-0 z-50">
+      <aside 
+        ref={sidebarRef}
+        style={{
+          transform: 'translate3d(0, 0, 0)',
+          WebkitTransform: 'translate3d(0, 0, 0)',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
+          willChange: 'transform'
+        }}
+        className="hidden md:flex flex-col w-[calc(5rem+env(safe-area-inset-left,0px))] pl-[env(safe-area-inset-left,0px)] bg-white border-r border-neutral-200 fixed left-0 top-0 bottom-0 z-50"
+      >
         <div className="p-4 flex justify-center">
           <ShoppingCart className="text-orange-600" size={28} />
         </div>
@@ -39,7 +167,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Bottom Nav Mobile */}
       {!hideBottomNav && (
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 flex justify-around items-center h-16 z-50 px-2 overflow-x-auto">
+        <nav 
+          ref={bottomNavRef}
+          style={{
+            transform: 'translate3d(0, 0, 0)',
+            WebkitTransform: 'translate3d(0, 0, 0)',
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
+            willChange: 'transform'
+          }}
+          className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 flex justify-around items-center h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] z-50 px-2 overflow-x-hidden"
+        >
           <MobileNavItem to="/" icon={<Calendar size={24} />} label="Agenda" />
           <MobileNavItem to="/clientes" icon={<Users size={24} />} label="Clientes" />
           <MobileNavItem to="/consulta-preco" icon={<Search size={24} />} label="Preços" />
@@ -76,12 +214,12 @@ function MobileNavItem({ to, icon, label }: { to: string, icon: React.ReactNode,
     <NavLink
       to={to}
       className={({ isActive }) => cn(
-        "flex flex-col items-center justify-center flex-1 gap-1 transition-colors",
+        "flex flex-col items-center justify-center flex-1 min-w-0 gap-1 transition-colors px-1",
         isActive ? "text-orange-600" : "text-neutral-400"
       )}
     >
-      {icon}
-      <span className="text-[10px] font-medium">{label}</span>
+      <div className="flex-shrink-0">{icon}</div>
+      <span className="text-[10px] font-medium truncate w-full text-center">{label}</span>
     </NavLink>
   );
 }
