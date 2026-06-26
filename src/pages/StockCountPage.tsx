@@ -26,6 +26,8 @@ import { differenceInDays, parseISO, format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { FAMILY_PRIORITY_ORDER } from '../constants';
 
+const DEBUG_STOCK = true; // Flag to enable detailed layout and performance diagnostic logging for stock counting screen
+
 interface ItemEstoqueData {
   produto_id: string;
   produto_nome: string;
@@ -113,24 +115,38 @@ export function StockCountPage() {
     
     async function loadData() {
       if (!clienteId) return;
-      console.log(`[CONTAGEM] Tela iniciada para cliente: ${clienteId}`);
+      
+      const loadStartTime = performance.now();
+      if (DEBUG_STOCK) {
+        console.log(`[DEBUG_STOCK] Início do carregamento da tela de contagem para o cliente ID: ${clienteId}`);
+      }
       
       try {
         setLoading(true);
-        console.log(`[CONTAGEM] Consulta iniciada: Carregando cache de histórico/estoque para cliente ${clienteId} (Tentativa: ${errorCount + 1}, Forçar atualização: ${errorCount > 0})`);
+        if (DEBUG_STOCK) {
+          console.log(`[DEBUG_STOCK] Etapa 1 - Solicitando dados de cache para o cliente ${clienteId} (Tentativa: ${errorCount + 1})`);
+        }
         
         // This will retrieve the client details. If it's a retry (errorCount > 0), we force refresh.
+        const cacheStartTime = performance.now();
         const cache = await loadClientDetails(clienteId, errorCount > 0);
         if (!active) return;
 
-        console.log(`[CONTAGEM] Consulta concluída: ${cache?.historico?.length || 0} registros de histórico, ${cache?.estoque?.length || 0} registros de estoque no cache`);
+        if (DEBUG_STOCK) {
+          console.log(`[DEBUG_STOCK] Etapa 1 concluída em ${(performance.now() - cacheStartTime).toFixed(2)}ms. Registros no cache -> Histórico: ${cache?.historico?.length || 0} itens, Estoque Anterior: ${cache?.estoque?.length || 0} itens.`);
+        }
         
-        // Validate if the data is unexpectedly empty (e.g. no products/stock loaded)
-        if (!cache || !cache.estoque || cache.estoque.length === 0) {
-          throw new Error("Dados de contagem de estoque retornaram vazios de forma inesperada.");
+        // Validate if the cache object is completely missing
+        if (!cache) {
+          throw new Error("Os dados de cache de histórico e estoque estão indefinidos.");
+        }
+
+        if (DEBUG_STOCK) {
+          console.log(`[DEBUG_STOCK] Etapa 2 - Buscando detalhes do cliente no banco de dados`);
         }
 
         // Fetch Cliente Details from table
+        const clientQueryStartTime = performance.now();
         const { data: clienteData, error: clientErr } = await supabase
           .from('clientes')
           .select('*')
@@ -145,12 +161,18 @@ export function StockCountPage() {
         
         if (clienteData) {
           setCliente(clienteData);
-          console.log(`[CONTAGEM] Cliente carregado: ${clienteData.cliente}`);
+          if (DEBUG_STOCK) {
+            console.log(`[DEBUG_STOCK] Etapa 2 concluída em ${(performance.now() - clientQueryStartTime).toFixed(2)}ms. Cliente carregado: ${clienteData.cliente}`);
+          }
+        }
+
+        if (DEBUG_STOCK) {
+          console.log(`[DEBUG_STOCK] Carregamento de dados concluído com sucesso em ${(performance.now() - loadStartTime).toFixed(2)}ms.`);
         }
 
         setLoading(false);
       } catch (err: any) {
-        console.error(`[CONTAGEM] Erro detectado ou dados vazios ao carregar dados do cliente:`, err.message || err);
+        console.error(`[CONTAGEM] Erro detectado ao carregar dados do cliente:`, err.message || err);
         if (active) {
           if (errorCount < 3) {
             console.log(`[CONTAGEM] Tentando recarregar e forçar atualização em 2 segundos... (Tentativa ${errorCount + 1}/3)`);
@@ -278,12 +300,22 @@ export function StockCountPage() {
   }, [historico]);
 
   const processedItems = useMemo(() => {
+    const startTime = performance.now();
     const items: Record<string, HistVenda[]> = {};
+    
+    if (DEBUG_STOCK) {
+      console.log(`[DEBUG_STOCK] Processando itens: Histórico de entrada = ${historico.length} registros`);
+    }
+
     historico.forEach(h => {
       if (!classifySaleRecord(h).influenciaConsumo) return;
       if (!items[h.produto_id]) items[h.produto_id] = [];
       items[h.produto_id].push(h);
     });
+
+    if (DEBUG_STOCK) {
+      console.log(`[DEBUG_STOCK] Itens agrupados por produto_id = ${Object.keys(items).length}`);
+    }
 
     const result: ItemEstoqueData[] = Object.entries(items)
       .map(([produtoId, vendas]) => {
@@ -347,9 +379,17 @@ export function StockCountPage() {
       })
       .filter((item): item is ItemEstoqueData => item !== null);
 
+    const filteredResult = result.filter(item => showInactive || item.ativo);
+
+    if (DEBUG_STOCK) {
+      console.log(`[DEBUG_STOCK] Processamento concluído em ${(performance.now() - startTime).toFixed(2)}ms. Total mapeado: ${result.length}, Total ativos/filtrados por showInactive: ${filteredResult.length}`);
+      if (filteredResult.length === 0 && result.length > 0) {
+        console.warn(`[DEBUG_STOCK] ALERTA: Todos os ${result.length} produtos mapeados foram filtrados porque estão marcados como inativos (dias_ult_compra > 365)! Habilite o filtro de "Inativos" ou verifique os limites de datas.`);
+      }
+    }
+
     // Sort: Family Priority and then Alphabetical
-    return result
-      .filter(item => showInactive || item.ativo)
+    return filteredResult
       .sort((a, b) => {
         const priorityA = familyPriorityMap[a.familia] ?? 999;
         const priorityB = familyPriorityMap[b.familia] ?? 999;
@@ -647,7 +687,12 @@ export function StockCountPage() {
   };
 
   const filteredItems = useMemo(() => {
+    const startTime = performance.now();
     let result = processedItems;
+
+    if (DEBUG_STOCK) {
+      console.log(`[DEBUG_STOCK] Aplicando filtros na tela. Entrada = ${processedItems.length} itens`);
+    }
 
     if (searchTerm.trim()) {
       const searchWords = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
@@ -655,6 +700,9 @@ export function StockCountPage() {
         const productName = item.produto_nome.toLowerCase();
         return searchWords.every(word => productName.includes(word));
       });
+      if (DEBUG_STOCK) {
+        console.log(`[DEBUG_STOCK] Após filtro de busca ("${searchTerm}"): ${result.length} itens`);
+      }
     }
 
     if (selectedFamily !== 'Todas') {
@@ -663,11 +711,21 @@ export function StockCountPage() {
       } else {
         result = result.filter(item => item.familia === selectedFamily);
       }
+      if (DEBUG_STOCK) {
+        console.log(`[DEBUG_STOCK] Após filtro de família ("${selectedFamily}"): ${result.length} itens`);
+      }
     }
 
     if (selectedWeight !== 'Todos') {
       const targetWeight = Number(selectedWeight);
       result = result.filter(item => Math.abs(item.peso_unitario - targetWeight) < 0.001);
+      if (DEBUG_STOCK) {
+        console.log(`[DEBUG_STOCK] Após filtro de peso ("${selectedWeight}"): ${result.length} itens`);
+      }
+    }
+
+    if (DEBUG_STOCK) {
+      console.log(`[DEBUG_STOCK] Filtros aplicados em ${(performance.now() - startTime).toFixed(2)}ms. Entregando ${result.length} itens para renderização.`);
     }
 
     console.log(`[CONTAGEM] Total de itens recebidos: ${processedItems.length} | Filtros aplicados - busca: "${searchTerm}", família: "${selectedFamily}", peso: "${selectedWeight}" | Total exibido na tela: ${result.length}`);
