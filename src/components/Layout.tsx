@@ -3,8 +3,8 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, Search, BarChart3, Settings, FileUp, ShoppingCart, PieChart, Calendar, ArrowLeftRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-// Diagnostic mode toggle. Change to false to disable console logging.
-const DEBUG_LAYOUT = true;
+// Diagnostic mode toggle. Keep false in normal use.
+const DEBUG_LAYOUT = false;
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -72,12 +72,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
         'Safe Area Right': insets.right,
         'Is Desktop (md)': isMd ? 'YES (>=768px)' : 'NO (<768px)',
         'Sidebar Visible': sidebarRect ? 'YES' : 'NO',
-        'Sidebar Position': sidebarRect 
-          ? `L: ${Math.round(sidebarRect.left)} | T: ${Math.round(sidebarRect.top)} | W: ${Math.round(sidebarRect.width)} | H: ${Math.round(sidebarRect.height)}` 
+        'Sidebar Position': sidebarRect
+          ? `L: ${Math.round(sidebarRect.left)} | T: ${Math.round(sidebarRect.top)} | W: ${Math.round(sidebarRect.width)} | H: ${Math.round(sidebarRect.height)}`
           : 'N/A',
         'Bottom Nav Visible': bottomNavRect ? 'YES' : 'NO',
-        'Bottom Nav Position': bottomNavRect 
-          ? `L: ${Math.round(bottomNavRect.left)} | T: ${Math.round(bottomNavRect.top)} | W: ${Math.round(bottomNavRect.width)} | H: ${Math.round(bottomNavRect.height)}` 
+        'Bottom Nav Position': bottomNavRect
+          ? `L: ${Math.round(bottomNavRect.left)} | T: ${Math.round(bottomNavRect.top)} | W: ${Math.round(bottomNavRect.width)} | H: ${Math.round(bottomNavRect.height)}`
           : 'N/A',
         'Render Count': renderCount.current,
         'Mount Count': mountCount.current,
@@ -131,7 +131,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       hideBottomNav ? "pb-0 md:pb-0" : "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:pb-0"
     )}>
       {/* Sidebar Desktop */}
-      <aside 
+      <aside
         ref={sidebarRef}
         style={{
           transform: 'translate3d(0, 0, 0)',
@@ -167,7 +167,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Bottom Nav Mobile */}
       {!hideBottomNav && (
-        <nav 
+        <nav
           ref={bottomNavRef}
           style={{
             transform: 'translate3d(0, 0, 0)',
@@ -198,8 +198,8 @@ function NavItem({ to, icon, label }: { to: string, icon: React.ReactNode, label
       className={({ isActive }) => cn(
         "flex items-center rounded-xl transition-colors font-medium",
         label ? "gap-3 px-4 py-3" : "justify-center p-3",
-        isActive 
-          ? "bg-orange-50 text-orange-600" 
+        isActive
+          ? "bg-orange-50 text-orange-600"
           : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"
       )}
     >
