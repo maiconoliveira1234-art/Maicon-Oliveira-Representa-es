@@ -68,8 +68,6 @@ export function OrderPage() {
   const [observacoes, setObservacoes] = useState('');
   const [manualFaixa, setManualFaixa] = useState<PrecoFaixa | null>(null);
   const [startedAt, setStartedAt] = useState<string | null>(null);
-  const descontoExtra = 0;
-  const setDescontoExtra = (_val: number) => {};
   const itemsEndRef = React.useRef<HTMLDivElement>(null);
 
   const [isInputFocused, setIsInputFocused] = useState(false);
@@ -338,8 +336,8 @@ export function OrderPage() {
   }, [computedItens]);
 
   const valorFinalCliente = useMemo(() => {
-    return Math.max(0, valorVendasSubtotal - descontoExtra);
-  }, [valorVendasSubtotal, descontoExtra]);
+    return valorVendasSubtotal;
+  }, [valorVendasSubtotal]);
 
   const prefilledApplied = React.useRef(false);
   const initialLoadDone = React.useRef(false);
@@ -373,7 +371,6 @@ export function OrderPage() {
               prazo: data.prazo,
               obs: data.obs,
               manualFaixa: data.manual_faixa,
-              descontoExtra: Number(data.desconto_extra || 0),
               startedAt: data.started_at
             };
           }
@@ -413,7 +410,6 @@ export function OrderPage() {
               if (savedData.prazo) setSelectedPrazo(savedData.prazo);
               if (savedData.obs) setObservacoes(savedData.obs);
               if (savedData.manualFaixa) setManualFaixa(savedData.manualFaixa);
-              if (typeof savedData.descontoExtra === 'number') setDescontoExtra(savedData.descontoExtra);
               if (savedData.startedAt) {
                 setStartedAt(savedData.startedAt);
               }
@@ -511,7 +507,6 @@ export function OrderPage() {
         prazo: selectedPrazo,
         obs: observacoes,
         manualFaixa: manualFaixa,
-        descontoExtra: descontoExtra,
         startedAt: startedAt || new Date().toISOString()
       };
       
@@ -529,7 +524,7 @@ export function OrderPage() {
               prazo: selectedPrazo || null,
               obs: observacoes || null,
               manual_faixa: manualFaixa || null,
-              desconto_extra: descontoExtra || 0,
+              desconto_extra: 0,
               started_at: startedAt || new Date().toISOString(),
               updated_at: new Date().toISOString()
             }, { onConflict: 'cliente_id' });
@@ -543,7 +538,7 @@ export function OrderPage() {
 
       return () => clearTimeout(saveTimer);
     }
-  }, [itens, clienteId, isReady, selectedPrazo, observacoes, manualFaixa, descontoExtra, startedAt]);
+  }, [itens, clienteId, isReady, selectedPrazo, observacoes, manualFaixa, startedAt]);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
