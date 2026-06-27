@@ -1,4 +1,4 @@
-export const APP_VERSION = '1.20.24';
+export const APP_VERSION = '1.20.25';
 export const SALES_CUTOFF_DATE = '2026-04-11';
 export const SALES_CUTOFF_CLIENTS = [
   'LUCIA IRIA SCHNEIDER FLORES',
