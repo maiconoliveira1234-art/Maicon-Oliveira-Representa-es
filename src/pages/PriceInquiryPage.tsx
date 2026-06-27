@@ -7,6 +7,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { FilterDropdown } from '../components/FilterDropdown';
 import { format, parseISO } from 'date-fns';
+import { logDiagnostic } from '../lib/diagnostics';
 
 export function PriceInquiryPage() {
   const [produtos, setProdutos] = useState<Produto[]>([]);
@@ -83,6 +84,8 @@ export function PriceInquiryPage() {
 
   useEffect(() => {
     async function fetchProdutos() {
+      const startTime = performance.now();
+      logDiagnostic('DEBUG_PRICE', 'Iniciando busca de produtos para consulta de preços...');
       try {
         const { data, error } = await supabase
           .from('produtos')
@@ -93,8 +96,10 @@ export function PriceInquiryPage() {
         
         if (error) throw error;
         setProdutos(data || []);
-      } catch (err) {
+        logDiagnostic('DEBUG_PRICE', `Produtos carregados com sucesso em ${(performance.now() - startTime).toFixed(2)}ms. Total: ${data?.length || 0} itens`);
+      } catch (err: any) {
         console.error('Erro ao carregar produtos:', err);
+        logDiagnostic('DEBUG_PRICE', `Falha ao carregar produtos: ${err.message || err}`);
       } finally {
         setLoading(false);
       }
@@ -102,6 +107,8 @@ export function PriceInquiryPage() {
     fetchProdutos();
 
     async function fetchClients() {
+      const startTime = performance.now();
+      logDiagnostic('DEBUG_PRICE', 'Buscando clientes a partir do histórico de vendas...');
       try {
         const { data, error } = await supabase
           .from('hist_vendas')
@@ -111,11 +118,12 @@ export function PriceInquiryPage() {
         if (error) throw error;
         if (data) {
           const uniqueClients = Array.from(new Set(data.map(d => d.cliente))).filter(Boolean).sort();
-          console.log('Loaded', uniqueClients.length, 'unique clients from history');
+          logDiagnostic('DEBUG_PRICE', `Clientes únicos carregados em ${(performance.now() - startTime).toFixed(2)}ms: ${uniqueClients.length} clientes`);
           setClients(uniqueClients as string[]);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Erro ao carregar clientes:', err);
+        logDiagnostic('DEBUG_PRICE', `Falha ao carregar clientes do histórico: ${err.message || err}`);
       }
     }
     fetchClients();

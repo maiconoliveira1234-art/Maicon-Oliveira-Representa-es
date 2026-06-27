@@ -5,6 +5,7 @@ import { Cliente } from '../types';
 import { Loader2, Search, UserCheck, UserX, ChevronRight, Calendar, Filter, X, UserPlus, CheckCircle2, ShoppingCart, Power, ToggleLeft, ToggleRight, Edit3, MessageCircle } from 'lucide-react';
 import { cn, deduplicateSales } from '../lib/utils';
 import { differenceInDays, parseISO, startOfWeek, endOfWeek, isWithinInterval, addDays } from 'date-fns';
+import { logDiagnostic } from '../lib/diagnostics';
 
 import { NewClientModal } from '../components/NewClientModal';
 import { runAutoAgendaSyncIfEligible } from '../lib/autoAgendaSync';
@@ -52,6 +53,8 @@ export function ClientsPage() {
   const navigate = useNavigate();
 
   const fetchClientes = useCallback(async () => {
+    const startTime = performance.now();
+    logDiagnostic('DEBUG_CLIENTS', 'Iniciando carregamento de clientes com enriquecimento de histórico...');
     try {
       // Don't show loading if we have cached data (mode: stale-while-revalidate)
       if (cachedClientes.length === 0) {
@@ -148,8 +151,10 @@ export function ClientsPage() {
       });
       setOpenOrdersDates(openOrdersMap);
       setClientes(enrichedClientes);
-    } catch (err) {
+      logDiagnostic('DEBUG_CLIENTS', `Clientes carregados e enriquecidos em ${(performance.now() - startTime).toFixed(2)}ms. Total: ${enrichedClientes.length}`);
+    } catch (err: any) {
       console.error('Erro ao carregar clientes:', err);
+      logDiagnostic('DEBUG_CLIENTS', `Erro no carregamento de clientes: ${err.message || err}`);
     } finally {
       setLoading(false);
     }

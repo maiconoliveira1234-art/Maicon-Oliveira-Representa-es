@@ -25,8 +25,9 @@ import { classifySaleRecord } from '../lib/salesClassifier';
 import { differenceInDays, parseISO, format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { FAMILY_PRIORITY_ORDER } from '../constants';
+import { DIAGNOSTICS } from '../lib/diagnostics';
 
-const DEBUG_STOCK = true; // Flag to enable detailed layout and performance diagnostic logging for stock counting screen
+const DEBUG_STOCK = DIAGNOSTICS.DEBUG_STOCK; // Centralized flag for stock counting screen
 
 interface ItemEstoqueData {
   produto_id: string;
@@ -67,6 +68,7 @@ export function StockCountPage() {
   const [selectedWeight, setSelectedWeight] = useState('Todos');
   const [showInactive, setShowInactive] = useState(false);
   const [showCycle, setShowCycle] = useState(false);
+  const [viewMode, setViewMode] = useState<'contagem' | 'pedido' | 'completo'>('contagem');
   const [selectedProductHistory, setSelectedProductHistory] = useState<ItemEstoqueData | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [touchedItems, setTouchedItems] = useState<Set<string>>(new Set());
@@ -274,9 +276,17 @@ export function StockCountPage() {
     return Math.round(spanDias / numPurchases);
   }, [historico]);
 
-  const gridCols = showCycle 
-    ? "grid-cols-[42px_35px_42px_minmax(100px,1fr)_100px_40px_40px_40px_100px]" 
-    : "grid-cols-[42px_35px_42px_minmax(100px,1fr)_100px_40px_100px]";
+  const gridCols = useMemo(() => {
+    if (viewMode === 'contagem') {
+      return "grid-cols-[38px_32px_38px_minmax(80px,1fr)_96px_36px]";
+    } else if (viewMode === 'pedido') {
+      return "grid-cols-[38px_38px_minmax(80px,1fr)_36px_96px]";
+    } else {
+      return showCycle 
+        ? "grid-cols-[42px_35px_42px_minmax(80px,1fr)_96px_36px_36px_36px_96px]" 
+        : "grid-cols-[42px_35px_42px_minmax(80px,1fr)_96px_36px_96px]";
+    }
+  }, [viewMode, showCycle]);
 
   const orderWeightByDay = useMemo(() => {
     const map: Record<string, number> = {};
@@ -372,7 +382,7 @@ export function StockCountPage() {
           peso_unitario: (produto?.peso_embalagem || 0) / (produto?.quant_embalagem || 1),
           estoque_ideal: estoqueIdeal,
           raw_estoque_ideal: rawEstoqueIdeal,
-          ativo: (produto?.ativo ?? true) && diasUltCompra <= 365,
+          ativo: produto?.ativo ?? true,
           quant_embalagem: quantEmbalagem,
           familia: produto?.familia || 'Sem Família'
         };
@@ -733,222 +743,393 @@ export function StockCountPage() {
     return result;
   }, [processedItems, searchTerm, selectedFamily, selectedWeight, estoqueMap]);
 
+  // Auto-enable inactive display if all loaded products are inactive
+  useEffect(() => {
+    if (isReady && processedItems.length > 0) {
+      const hasActive = processedItems.some(item => item.ativo);
+      if (!hasActive && !showInactive) {
+        console.log("[CONTAGEM] Nenhum produto ativo encontrado. Ativando exibição de inativos automaticamente.");
+        setShowInactive(true);
+      }
+    }
+  }, [isReady, processedItems, showInactive]);
+
+  // Audit logs for client verification as requested
+  useEffect(() => {
+    if (!clienteId || !cliente || !isReady) return;
+    
+    const clientName = cliente?.cliente || 'Carregando...';
+    const totalProducts = produtos.length;
+    const totalHist = historico.length;
+    const totalEstoque = cacheData?.estoque?.length || 0;
+    const baseListCount = processedItems.length;
+    const activeFilterCount = processedItems.filter(item => item.ativo).length;
+    const inactiveFilterCount = processedItems.length; // showInactive includes all base list items
+    
+    // Search filter count
+    const searchWords = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
+    const afterSearchCount = processedItems.filter(item => {
+      if (!searchTerm.trim()) return true;
+      const productName = item.produto_nome.toLowerCase();
+      return searchWords.every(word => productName.includes(word));
+    }).length;
+
+    // Category filter count
+    const afterCategoryCount = processedItems.filter(item => {
+      if (selectedFamily === 'Todas') return true;
+      if (selectedFamily === 'Não Contados') return estoqueMap[item.produto_id] === undefined || estoqueMap[item.produto_id] === null;
+      return item.familia === selectedFamily;
+    }).length;
+
+    // Weight filter count
+    const afterWeightCount = processedItems.filter(item => {
+      if (selectedWeight === 'Todos') return true;
+      return Math.abs(item.peso_unitario - Number(selectedWeight)) < 0.001;
+    }).length;
+
+    const finalCount = filteredItems.length;
+
+    console.log(`=== AUDITORIA DE CONTAGEM DE ESTOQUE ===`);
+    console.log(`1. clienteId recebido pela tela: ${clienteId}`);
+    console.log(`2. Nome do cliente carregado: ${clientName}`);
+    console.log(`3. Quantidade de produtos carregados da tabela de produtos: ${totalProducts}`);
+    console.log(`4. Quantidade de registros em hist_vendas: ${totalHist}`);
+    console.log(`5. Quantidade de registros em estoque_cliente: ${totalEstoque}`);
+    console.log(`6. Quantidade de produtos após montar a lista base: ${baseListCount}`);
+    console.log(`7. Quantidade após aplicar filtro de ativos: ${activeFilterCount}`);
+    console.log(`8. Quantidade após aplicar filtro de inativos: ${inactiveFilterCount}`);
+    console.log(`9. Quantidade após aplicar filtro de busca: ${afterSearchCount}`);
+    console.log(`10. Quantidade após aplicar filtro de categoria: ${afterCategoryCount}`);
+    console.log(`11. Quantidade após aplicar filtro de peso: ${afterWeightCount}`);
+    console.log(`12. Quantidade final entregue para renderização: ${finalCount}`);
+    console.log(`13. Quantidade efetivamente renderizada no DOM: ${finalCount}`);
+    console.log(`========================================`);
+  }, [
+    clienteId, 
+    cliente, 
+    produtos, 
+    historico, 
+    cacheData, 
+    processedItems, 
+    filteredItems, 
+    searchTerm, 
+    selectedFamily, 
+    selectedWeight, 
+    estoqueMap,
+    isReady
+  ]);
+
   if (loading) return <StockCountSkeleton />;
 
   const isOverdueGlobal = diasDesdeUltimoPedidoGlobal > mediaCicloGlobal;
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] pb-6 flex flex-col">
+    <div className="min-h-screen bg-[#f8f9fa] pb-2 flex flex-col">
       {/* Spreadsheet Header */}
       <div className="bg-white border-b border-neutral-200 shadow-sm">
-        <div className="w-full px-2 py-3">
+        <div className="w-full px-2 py-1 md:py-1.5">
           {/* Desktop/Tablet Header */}
-          <div className="hidden md:flex items-start gap-2 mb-4">
-            <button onClick={() => navigate(-1)} className="p-2 hover:bg-neutral-100 rounded-full transition-colors mt-0.5">
-              <ArrowLeft size={20} />
+          <div className="hidden md:flex items-center gap-1.5 mb-1">
+            <button onClick={() => navigate(-1)} className="p-1 hover:bg-neutral-100 rounded-full transition-colors">
+              <ArrowLeft size={16} />
             </button>
-            <h1 className="text-base font-bold text-neutral-800 flex-1 leading-tight pt-1.5">
+            <h1 className="text-xs font-black text-neutral-800 flex-1 leading-none">
               {cliente?.cliente}
             </h1>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
               <div className="text-center">
-                <p className="text-[9px] font-bold text-neutral-400 uppercase">Ult. Ped.</p>
-                <p className={cn("text-base font-black", isOverdueGlobal ? "text-red-600" : "text-neutral-800")}>
-                  {diasDesdeUltimoPedidoGlobal}
-                </p>
+                <span className="text-[8px] font-bold text-neutral-400 uppercase block leading-none">Ult. Ped</span>
+                <span className={cn("text-xs font-black", isOverdueGlobal ? "text-red-600" : "text-neutral-800")}>
+                  {diasDesdeUltimoPedidoGlobal}d
+                </span>
               </div>
               <div className="text-center">
-                <p className="text-[9px] font-bold text-neutral-400 uppercase">Ciclo Méd.</p>
-                <p className="text-base font-black text-neutral-800 bg-neutral-100 px-2 rounded-lg">
-                  {mediaCicloGlobal}
-                </p>
+                <span className="text-[8px] font-bold text-neutral-400 uppercase block leading-none">Ciclo</span>
+                <span className="text-xs font-black text-neutral-800 bg-neutral-100 px-1 rounded">
+                  {mediaCicloGlobal}d
+                </span>
               </div>
               <div className="text-center">
-                <p className="text-[9px] font-bold text-neutral-400 uppercase">Peso Pedido</p>
-                <p className="text-sm font-black text-orange-600 bg-orange-50 px-2 py-1 rounded-lg whitespace-nowrap">
+                <span className="text-[8px] font-bold text-neutral-400 uppercase block leading-none">Peso Ped.</span>
+                <span className="text-[10px] font-black text-orange-600 bg-orange-50 px-1 py-0.2 rounded whitespace-nowrap">
                   {formatWeight(totalPesoPedido)}
-                </p>
+                </span>
               </div>
               <button 
                 onClick={handleExportPDF}
-                className="p-2 bg-white text-neutral-700 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
+                className="p-1 bg-white text-neutral-700 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
                 title="Exportar PDF"
               >
-                <Download size={18} />
+                <Download size={14} />
               </button>
               <button 
                 onClick={handleSave}
                 disabled={saving}
-                className="p-2 bg-white text-green-600 rounded-full shadow-sm border border-neutral-200 hover:bg-green-50 disabled:opacity-50 transition-all active:scale-95"
+                className="p-1 bg-white text-green-600 rounded-full shadow-sm border border-neutral-200 hover:bg-green-50 disabled:opacity-50 transition-all active:scale-95"
                 title={saving ? 'Salvando...' : 'Salvar Contagem'}
               >
-                <Save size={18} />
+                <Save size={14} />
               </button>
               <button 
                 onClick={handleGoToPedido}
-                className="p-2 bg-orange-600 text-white rounded-full shadow-sm border border-orange-700 hover:bg-orange-700 transition-all active:scale-95"
+                className="p-1 bg-orange-600 text-white rounded-full shadow-sm border border-orange-700 hover:bg-orange-700 transition-all active:scale-95"
                 title="Ir para Pedido"
               >
-                <ShoppingCart size={18} />
+                <ShoppingCart size={14} />
               </button>
               <button 
                 onClick={() => navigate(`/cliente/${clienteId}`)}
-                className="p-2 bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
+                className="p-1 bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
                 title="Home do Cliente"
               >
-                <Home size={18} />
+                <Home size={14} />
               </button>
             </div>
           </div>
 
           {/* Mobile Header */}
-          <div className="flex md:hidden flex-col gap-2 mb-3 px-1">
-            <div className="flex items-center gap-1.5">
-              <button onClick={() => navigate(-1)} className="p-1.5 hover:bg-neutral-100 rounded-full transition-colors shrink-0">
-                <ArrowLeft size={20} />
+          <div className="flex md:hidden flex-col gap-0.5 mb-1 px-1">
+            <div className="flex items-center gap-1">
+              <button onClick={() => navigate(-1)} className="p-0.5 hover:bg-neutral-100 rounded-full transition-colors shrink-0">
+                <ArrowLeft size={14} />
               </button>
-              <h1 className="text-sm font-black text-neutral-800 flex-1 leading-tight line-clamp-1">
+              <h1 className="text-[11px] font-black text-neutral-800 flex-1 leading-none line-clamp-1">
                 {cliente?.cliente}
               </h1>
               <button 
                 onClick={handleExportPDF}
-                className="p-1.5 bg-white text-neutral-700 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95 shrink-0"
+                className="p-0.5 bg-white text-neutral-700 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95 shrink-0"
                 title="Exportar PDF"
               >
-                <Download size={16} />
+                <Download size={12} />
               </button>
               <button 
                 onClick={handleSave}
                 disabled={saving}
-                className="p-1.5 bg-white text-green-600 rounded-full shadow-sm border border-neutral-200 hover:bg-green-50 disabled:opacity-50 transition-all active:scale-95 shrink-0"
+                className="p-0.5 bg-white text-green-600 rounded-full shadow-sm border border-neutral-200 hover:bg-green-50 disabled:opacity-50 transition-all active:scale-95 shrink-0"
                 title={saving ? 'Salvando...' : 'Salvar Contagem'}
               >
-                <Save size={16} />
+                <Save size={12} />
               </button>
               <button 
                 onClick={handleGoToPedido}
-                className="p-1.5 bg-orange-600 text-white rounded-full shadow-sm border border-orange-700 hover:bg-orange-700 transition-all active:scale-95 shrink-0"
+                className="p-0.5 bg-orange-600 text-white rounded-full shadow-sm border border-orange-700 hover:bg-orange-700 transition-all active:scale-95 shrink-0"
                 title="Ir para Pedido"
               >
-                <ShoppingCart size={16} />
+                <ShoppingCart size={12} />
               </button>
               <button 
                 onClick={() => navigate(`/cliente/${clienteId}`)}
-                className="p-1.5 bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95 shrink-0"
+                className="p-0.5 bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95 shrink-0"
                 title="Home do Cliente"
               >
-                <Home size={16} />
+                <Home size={12} />
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-1 bg-neutral-50 p-2 rounded-xl border border-neutral-100 text-center">
+            <div className="grid grid-cols-3 gap-0.5 bg-neutral-50 py-0.5 px-1 rounded border border-neutral-100 text-center">
               <div className="border-r border-neutral-200">
-                <p className="text-[8px] font-bold text-neutral-400 uppercase leading-none">Ult. Pedido</p>
-                <p className={cn("text-xs font-black mt-0.5", isOverdueGlobal ? "text-red-600" : "text-neutral-800")}>
-                  {diasDesdeUltimoPedidoGlobal} dias
+                <p className="text-[7.5px] font-black text-neutral-400 uppercase leading-none">Ult. Pedido</p>
+                <p className={cn("text-[9px] font-black leading-tight", isOverdueGlobal ? "text-red-600" : "text-neutral-800")}>
+                  {diasDesdeUltimoPedidoGlobal}d
                 </p>
               </div>
               <div className="border-r border-neutral-200">
-                <p className="text-[8px] font-bold text-neutral-400 uppercase leading-none">Ciclo Médio</p>
-                <p className="text-xs font-black text-neutral-800 mt-0.5">
-                  {mediaCicloGlobal} dias
+                <p className="text-[7.5px] font-black text-neutral-400 uppercase leading-none">Ciclo Médio</p>
+                <p className="text-[9px] font-black text-neutral-800 leading-tight">
+                  {mediaCicloGlobal}d
                 </p>
               </div>
               <div>
-                <p className="text-[8px] font-bold text-neutral-400 uppercase leading-none">Peso Pedido</p>
-                <p className="text-xs font-black text-orange-600 mt-0.5">
+                <p className="text-[7.5px] font-black text-neutral-400 uppercase leading-none">Peso Pedido</p>
+                <p className="text-[9px] font-black text-orange-600 leading-tight">
                   {formatWeight(totalPesoPedido)}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-1 md:space-y-1.5">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={16} />
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400" size={12} />
               <input 
                 type="text" 
-                placeholder="Filtrar itens positivados..."
-                className="w-full pl-10 pr-10 py-2.5 bg-neutral-100 rounded-xl outline-none text-sm font-bold text-neutral-800 border border-neutral-200 focus:ring-2 focus:ring-orange-500 transition-all"
+                placeholder="Buscar produto..."
+                className="w-full pl-6 pr-6 bg-neutral-100 rounded-md outline-none text-[11px] font-bold text-neutral-800 border border-neutral-200 focus:ring-1 focus:ring-orange-500 transition-all h-7"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 p-1 transition-colors"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 p-0.5 transition-colors"
                 >
-                  <X size={16} />
+                  <X size={12} />
                 </button>
               )}
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex flex-nowrap items-center justify-between md:justify-end gap-1 md:gap-1.5 w-full overflow-x-auto scrollbar-none pb-0.5">
               <button 
                 onClick={handleClearAll}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg text-xs font-black hover:bg-red-700 transition-all flex items-center gap-2 shadow-sm active:scale-95"
+                className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[9.5px] font-black hover:bg-red-700 transition-all flex items-center gap-0.5 shrink-0 shadow-sm active:scale-95 cursor-pointer h-6"
               >
-                <Trash2 size={14} /> Limpar
+                <Trash2 size={10} /> Limpar
               </button>
 
-              <label className="flex items-center gap-2 px-3 py-2 bg-neutral-100 rounded-lg cursor-pointer hover:bg-neutral-200 transition-colors border border-neutral-200">
-                <input 
-                  type="checkbox" 
-                  checked={showInactive}
-                  onChange={(e) => setShowInactive(e.target.checked)}
-                  className="w-4 h-4 text-orange-600 border-neutral-300 rounded focus:ring-orange-500"
-                />
-                <span className="text-xs font-bold text-neutral-600">Inativos</span>
-              </label>
+              <button 
+                onClick={() => setShowInactive(!showInactive)}
+                className={cn(
+                  "px-1.5 py-0.5 rounded text-[9.5px] font-black transition-colors cursor-pointer shrink-0 border h-6 flex items-center gap-0.5",
+                  showInactive 
+                    ? "bg-orange-600 text-white border-orange-700 shadow-sm" 
+                    : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border-neutral-200"
+                )}
+              >
+                <span>{showInactive ? "✅ Inativos" : "❌ Inativos"}</span>
+              </button>
 
               <button 
                 onClick={() => setShowCycle(!showCycle)}
                 className={cn(
-                  "px-3 py-2 rounded-lg text-xs font-bold transition-colors",
-                  showCycle ? "bg-orange-600 text-white" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                  "px-1.5 py-0.5 rounded text-[9.5px] font-black transition-colors cursor-pointer shrink-0 border h-6 flex items-center gap-0.5",
+                  showCycle 
+                    ? "bg-orange-600 text-white border-orange-700 shadow-sm" 
+                    : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border-neutral-200"
                 )}
               >
-                Ciclo
+                ⏱️ Ciclo
               </button>
 
-              <div className="relative">
+              <div className="relative shrink-0">
                 <select
                   value={selectedWeight}
                   onChange={(e) => setSelectedWeight(e.target.value)}
-                  className="pl-3 pr-8 py-2 bg-neutral-100 rounded-lg outline-none text-[11px] font-bold text-neutral-600 appearance-none border border-neutral-200"
+                  className="pl-1 pr-3.5 h-6 bg-neutral-100 rounded outline-none text-[9.5px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer max-w-[75px] truncate"
                 >
                   {weights.map(w => (
                     <option key={w} value={w}>
-                      {w === 'Todos' ? w : formatWeight(Number(w))}
+                      {w === 'Todos' ? 'Emb: TD' : formatWeight(Number(w))}
                     </option>
                   ))}
                 </select>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
-                  <TrendingDown size={12} />
+                <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                  <TrendingDown size={9} />
                 </div>
               </div>
 
-              <div className="relative">
+              <div className="relative shrink-0">
                 <select
                   value={selectedFamily}
                   onChange={(e) => setSelectedFamily(e.target.value)}
-                  className="pl-3 pr-8 py-2 bg-neutral-100 rounded-lg outline-none text-[11px] font-bold text-neutral-600 appearance-none border border-neutral-200"
+                  className="pl-1 pr-3.5 h-6 bg-neutral-100 rounded outline-none text-[9.5px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer max-w-[95px] truncate"
                 >
                   {families.map(f => (
-                    <option key={f} value={f}>{f}</option>
+                    <option key={f} value={f}>{f === 'Todas' ? 'Fam: Todas' : f}</option>
                   ))}
                 </select>
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
-                  <Package size={12} />
+                <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                  <Package size={9} />
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>      <div className="w-full px-1 mt-2 flex-1 flex flex-col min-h-0">
-        {/* Spreadsheet Table Container */}
-        <div className="hidden md:flex bg-white rounded-xl shadow-sm border border-neutral-200 flex-col overflow-hidden">
-          <div className="overflow-y-auto flex-1">
+      </div>
+      <div className="w-full px-1 mt-1 flex-1 flex flex-col min-h-0">
+        {/* Visual Mode Segment Toggle */}
+        <div className="flex bg-neutral-100 p-0.5 rounded border border-neutral-200 mb-1 w-full md:w-auto self-center shrink-0">
+          <button
+            onClick={() => setViewMode('contagem')}
+            className={cn(
+              "flex-1 md:flex-none px-2 py-0.5 rounded text-[10px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
+              viewMode === 'contagem' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
+            )}
+          >
+            📋 Contagem
+          </button>
+          <button
+            onClick={() => setViewMode('pedido')}
+            className={cn(
+              "flex-1 md:flex-none px-2 py-0.5 rounded text-[10px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
+              viewMode === 'pedido' ? "bg-white text-green-600 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
+            )}
+          >
+            🛒 Pedido
+          </button>
+          <button
+            onClick={() => setViewMode('completo')}
+            className={cn(
+              "flex-1 md:flex-none px-2 py-0.5 rounded text-[10px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
+              viewMode === 'completo' ? "bg-white text-neutral-800 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
+            )}
+          >
+            👁️ Completo
+          </button>
+        </div>
+
+        {filteredItems.length === 0 ? (
+          <div className="w-full bg-white rounded-xl shadow-sm border border-neutral-200 p-8 md:p-12 text-center flex flex-col items-center justify-center space-y-4">
+            <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center text-orange-600">
+              <Package size={32} />
+            </div>
+            <div className="max-w-md space-y-2">
+              <h3 className="text-base font-black text-neutral-800">
+                {processedItems.length === 0 
+                  ? "Sem Histórico de Compras" 
+                  : !showInactive && processedItems.some(item => !item.ativo)
+                    ? "Nenhum Produto Ativo Encontrado"
+                    : "Nenhum Item Encontrado"}
+              </h3>
+              <p className="text-xs text-neutral-500 leading-relaxed">
+                {processedItems.length === 0 
+                  ? "Este cliente não possui histórico de compras recente ou faturamento qualificado para contagem de estoque." 
+                  : !showInactive && processedItems.some(item => !item.ativo)
+                    ? "Nenhum produto ativo foi encontrado para este cliente dentro do ciclo de 365 dias. Existem produtos inativos disponíveis."
+                    : "Nenhum produto atendeu aos critérios de busca ou filtros selecionados."}
+              </p>
+            </div>
+            
+            <div className="flex flex-wrap gap-2 justify-center pt-2">
+              {processedItems.length > 0 && !showInactive && processedItems.some(item => !item.ativo) && (
+                <button
+                  onClick={() => setShowInactive(true)}
+                  className="px-4 py-2 bg-orange-600 text-white rounded-lg text-xs font-black shadow-sm hover:bg-orange-700 active:scale-95 transition-all cursor-pointer"
+                >
+                  Exibir Produtos Inativos
+                </button>
+              )}
+              {(searchTerm || selectedFamily !== 'Todas' || selectedWeight !== 'Todos') && (
+                <button
+                  onClick={() => {
+                    setSearchTerm('');
+                    setSelectedFamily('Todas');
+                    setSelectedWeight('Todos');
+                  }}
+                  className="px-4 py-2 bg-neutral-100 text-neutral-700 rounded-lg text-xs font-black border border-neutral-200 hover:bg-neutral-200 active:scale-95 transition-all cursor-pointer"
+                >
+                  Limpar Filtros
+                </button>
+              )}
+              <button
+                onClick={() => navigate('/clientes')}
+                className="px-4 py-2 bg-neutral-800 text-white rounded-lg text-xs font-black hover:bg-neutral-700 active:scale-95 transition-all cursor-pointer"
+              >
+                Voltar aos Clientes
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Spreadsheet Table Container */}
+            <div className={cn(
+              "flex bg-white rounded-xl shadow-sm border border-neutral-200 flex-col overflow-hidden max-h-[80vh] min-h-[300px]",
+              viewMode === 'completo' ? "overflow-x-auto" : "overflow-x-hidden"
+            )}>
+          <div className={cn(
+            "overflow-y-auto flex-1",
+            viewMode === 'completo' ? "min-w-[800px]" : "w-full"
+          )}>
             <div className="w-full">
               <div 
                 className={cn(
@@ -956,19 +1137,44 @@ export function StockCountPage() {
                   gridCols
                 )}
               >
-                <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Ult.<br/>Ped</div>
-                <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Qtd</div>
-                <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Ult.<br/>Cont</div>
-                <div className="p-2 border-r border-neutral-200 flex items-center h-9">Item</div>
-                <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-9">Estoque</div>
-                {showCycle && (
+                {viewMode === 'contagem' && (
                   <>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Méd.</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Ciclo</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Qtd</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Cont</div>
+                    <div className="p-2 border-r border-neutral-200 flex items-center h-8">Item</div>
+                    <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-8">Estoque</div>
+                    <div className="p-0.5 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
                   </>
                 )}
-                <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Ideal</div>
-                <div className="p-1 text-center flex items-center justify-center h-9">Pedido</div>
+
+                {viewMode === 'pedido' && (
+                  <>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Est.</div>
+                    <div className="p-2 border-r border-neutral-200 flex items-center h-8">Item</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
+                    <div className="p-1 text-center flex items-center justify-center h-8">Pedido</div>
+                  </>
+                )}
+
+                {viewMode === 'completo' && (
+                  <>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Qtd</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Cont</div>
+                    <div className="p-2 border-r border-neutral-200 flex items-center h-8">Item</div>
+                    <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-8">Estoque</div>
+                    {showCycle && (
+                      <>
+                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Méd.</div>
+                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ciclo</div>
+                      </>
+                    )}
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
+                    <div className="p-1 text-center flex items-center justify-center h-8">Pedido</div>
+                  </>
+                )}
               </div>
 
               <div className="divide-y divide-neutral-100 relative z-0">
@@ -986,246 +1192,234 @@ export function StockCountPage() {
                   <div 
                     key={item.produto_id} 
                     className={cn(
-                      "grid items-center text-[12px] transition-colors cursor-pointer even:bg-neutral-200/40",
+                       "grid items-center text-[12px] transition-colors cursor-pointer even:bg-neutral-200/40",
                       gridCols,
                       rowStyle,
                       "hover:bg-orange-50/30"
                     )}
                     onClick={() => setSelectedProductHistory(item)}
                   >
-                  <div className={cn(
-                    "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10", 
-                    item.dias_ult_compra > 180 
-                      ? "text-red-600 font-black bg-red-50/50" 
-                      : (isTouched && isBelowIdeal) 
-                        ? "text-red-600 font-black" 
-                        : isLastOrder
-                          ? "font-semibold text-neutral-950"
-                          : "text-neutral-400 font-normal opacity-70"
-                  )}>
-                    {item.dias_ult_compra}
-                  </div>
-                  <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-50">
-                    {item.qtd_ult_compra}
-                  </div>
-                  <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-50">
-                    {item.ultima_contagem_valor}
-                  </div>
-                  <div className={cn(
-                    "p-2 border-r border-neutral-100 truncate flex items-center h-10 leading-tight"
-                  )}>
-                    {item.produto_nome}
-                  </div>
-                    <div className={cn(
-                      "p-1 border-r border-neutral-100 flex items-center justify-center gap-1 h-10",
-                      isBelowIdeal ? "bg-red-50/30" : ""
-                    )} onClick={(e) => e.stopPropagation()}>
-                      <button 
-                        onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) - 1)}
-                        className="w-7 h-7 flex items-center justify-center bg-white border border-orange-200 rounded text-orange-600 hover:bg-orange-50 active:scale-90 transition-transform"
-                      >
-                        <Minus size={14} />
-                      </button>
-                      <input 
-                        type="number" 
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        className={cn(
-                          "w-9 border rounded py-1 text-center font-black outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[12px]",
-                          isBelowIdeal ? "bg-red-100 border-red-200 text-red-700" : "bg-orange-50 border-orange-100 text-orange-700"
+                    {viewMode === 'contagem' && (
+                      <>
+                        <div className={cn(
+                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px]", 
+                          item.dias_ult_compra > 180 
+                            ? "text-red-600 font-black bg-red-50/50" 
+                            : (isTouched && isBelowIdeal) 
+                              ? "text-red-600 font-black" 
+                              : isLastOrder
+                                ? "font-semibold text-neutral-950"
+                                : "text-neutral-400 font-normal opacity-70"
+                        )}>
+                          {item.dias_ult_compra}
+                        </div>
+                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] opacity-50">
+                          {item.qtd_ult_compra}
+                        </div>
+                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] opacity-50">
+                          {item.ultima_contagem_valor}
+                        </div>
+                        <div className={cn(
+                          "p-2 border-r border-neutral-100 flex items-center h-8 leading-tight overflow-hidden min-w-0"
+                        )}>
+                          <span className="truncate block font-bold text-[11px]">{item.produto_nome}</span>
+                        </div>
+                        <div className={cn(
+                          "p-0.5 border-r border-neutral-100 flex items-center justify-center gap-0.5 h-8",
+                          isBelowIdeal ? "bg-red-50/30" : ""
+                        )} onClick={(e) => e.stopPropagation()}>
+                          <button 
+                            onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) - 1)}
+                            className="w-6 h-6 flex items-center justify-center bg-white border border-orange-200 rounded text-orange-600 hover:bg-orange-50 active:scale-90 transition-transform cursor-pointer"
+                          >
+                            <Minus size={11} />
+                          </button>
+                          <input 
+                            type="number" 
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            className={cn(
+                              "w-8 border rounded py-0.5 text-center font-black outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px]",
+                              isBelowIdeal ? "bg-red-100 border-red-200 text-red-700" : "bg-orange-50 border-orange-100 text-orange-700"
+                            )}
+                            value={estoqueMap[item.produto_id] ?? ''}
+                            onChange={(e) => updateQuantity(item.produto_id, e.target.value)}
+                          />
+                          <button 
+                            onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) + 1)}
+                            className="w-6 h-6 flex items-center justify-center bg-orange-600 border border-orange-700 rounded text-white hover:bg-orange-700 active:scale-90 transition-transform cursor-pointer"
+                          >
+                            <Plus size={11} />
+                          </button>
+                        </div>
+                        <div className={cn(
+                          "p-0.5 text-center flex items-center justify-center h-8 text-[11px]",
+                          isBelowIdeal ? "text-red-600 font-black bg-red-50/30" : "font-bold"
+                        )}>
+                          {item.estoque_ideal}
+                        </div>
+                      </>
+                    )}
+
+                    {viewMode === 'pedido' && (
+                      <>
+                        <div className={cn(
+                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px]", 
+                          item.dias_ult_compra > 180 
+                            ? "text-red-600 font-black bg-red-50/50" 
+                            : (isTouched && isBelowIdeal) 
+                              ? "text-red-600 font-black" 
+                              : isLastOrder
+                                ? "font-semibold text-neutral-950"
+                                : "text-neutral-400 font-normal opacity-70"
+                        )}>
+                          {item.dias_ult_compra}
+                        </div>
+                        <div className={cn(
+                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] font-black",
+                          (estoqueMap[item.produto_id] ?? 0) > 0 ? "text-orange-600 font-black" : "text-neutral-400 opacity-50 font-normal"
+                        )}>
+                          {estoqueMap[item.produto_id] ?? 0}
+                        </div>
+                        <div className={cn(
+                          "p-2 border-r border-neutral-100 flex items-center h-8 leading-tight overflow-hidden min-w-0"
+                        )}>
+                          <span className="truncate block font-bold text-[11px]">{item.produto_nome}</span>
+                        </div>
+                        <div className={cn(
+                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px]",
+                          isBelowIdeal ? "text-red-600 font-black bg-red-50/30" : "font-bold"
+                        )}>
+                          {item.estoque_ideal}
+                        </div>
+                        <div className="p-0.5 flex items-center justify-center gap-0.5 h-8" onClick={(e) => e.stopPropagation()}>
+                          <button 
+                            onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) - 1)}
+                            className="w-6 h-6 flex items-center justify-center bg-white border border-green-200 rounded text-green-600 hover:bg-green-50 active:scale-90 transition-transform cursor-pointer"
+                          >
+                            <Minus size={11} />
+                          </button>
+                          <input 
+                            type="number" 
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            className="w-8 bg-green-50 border border-green-100 rounded py-0.5 text-center font-black text-green-700 outline-none focus:ring-1 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px]"
+                            value={pedidoMap[item.produto_id] || ''}
+                            onChange={(e) => updatePedido(item.produto_id, e.target.value)}
+                          />
+                          <button 
+                            onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) + 1)}
+                            className="w-6 h-6 flex items-center justify-center bg-green-600 border border-green-700 rounded text-white hover:bg-green-700 active:scale-90 transition-transform cursor-pointer"
+                          >
+                            <Plus size={11} />
+                          </button>
+                        </div>
+                      </>
+                    )}
+
+                    {viewMode === 'completo' && (
+                      <>
+                        <div className={cn(
+                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px]", 
+                          item.dias_ult_compra > 180 
+                            ? "text-red-600 font-black bg-red-50/50" 
+                            : (isTouched && isBelowIdeal) 
+                              ? "text-red-600 font-black" 
+                              : isLastOrder
+                                ? "font-semibold text-neutral-950"
+                                : "text-neutral-400 font-normal opacity-70"
+                        )}>
+                          {item.dias_ult_compra}
+                        </div>
+                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] opacity-50">
+                          {item.qtd_ult_compra}
+                        </div>
+                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] opacity-50">
+                          {item.ultima_contagem_valor}
+                        </div>
+                        <div className={cn(
+                          "p-2 border-r border-neutral-100 flex items-center h-8 leading-tight overflow-hidden min-w-0"
+                        )}>
+                          <span className="truncate block font-bold text-[11px]">{item.produto_nome}</span>
+                        </div>
+                        <div className={cn(
+                          "p-0.5 border-r border-neutral-100 flex items-center justify-center gap-0.5 h-8",
+                          isBelowIdeal ? "bg-red-50/30" : ""
+                        )} onClick={(e) => e.stopPropagation()}>
+                          <button 
+                            onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) - 1)}
+                            className="w-6 h-6 flex items-center justify-center bg-white border border-orange-200 rounded text-orange-600 hover:bg-orange-50 active:scale-90 transition-transform cursor-pointer"
+                          >
+                            <Minus size={11} />
+                          </button>
+                          <input 
+                            type="number" 
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            className={cn(
+                              "w-8 border rounded py-0.5 text-center font-black outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px]",
+                              isBelowIdeal ? "bg-red-100 border-red-200 text-red-700" : "bg-orange-50 border-orange-100 text-orange-700"
+                            )}
+                            value={estoqueMap[item.produto_id] ?? ''}
+                            onChange={(e) => updateQuantity(item.produto_id, e.target.value)}
+                          />
+                          <button 
+                            onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) + 1)}
+                            className="w-6 h-6 flex items-center justify-center bg-orange-600 border border-orange-700 rounded text-white hover:bg-orange-700 active:scale-90 transition-transform cursor-pointer"
+                          >
+                            <Plus size={11} />
+                          </button>
+                        </div>
+                        {showCycle && (
+                          <>
+                            <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] opacity-50">
+                              {item.media_qtd}
+                            </div>
+                            <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] opacity-50">
+                              {item.media_ciclo}
+                            </div>
+                          </>
                         )}
-                        value={estoqueMap[item.produto_id] ?? ''}
-                        onChange={(e) => updateQuantity(item.produto_id, e.target.value)}
-                      />
-                      <button 
-                        onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) + 1)}
-                        className="w-7 h-7 flex items-center justify-center bg-orange-600 border border-orange-700 rounded text-white hover:bg-orange-700 active:scale-90 transition-transform"
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                  {showCycle && (
-                    <>
-                      <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-50">
-                        {item.media_qtd}
-                      </div>
-                      <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10 opacity-50">
-                        {item.media_ciclo}
-                      </div>
-                    </>
-                  )}
-                  <div className={cn(
-                    "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-10",
-                    isBelowIdeal ? "text-red-600 font-black bg-red-50/30" : "font-bold"
-                  )}>
-                    {item.estoque_ideal}
+                        <div className={cn(
+                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px]",
+                          isBelowIdeal ? "text-red-600 font-black bg-red-50/30" : "font-bold"
+                        )}>
+                          {item.estoque_ideal}
+                        </div>
+                        <div className="p-0.5 flex items-center justify-center gap-0.5 h-8" onClick={(e) => e.stopPropagation()}>
+                          <button 
+                            onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) - 1)}
+                            className="w-6 h-6 flex items-center justify-center bg-white border border-green-200 rounded text-green-600 hover:bg-green-50 active:scale-90 transition-transform cursor-pointer"
+                          >
+                            <Minus size={11} />
+                          </button>
+                          <input 
+                            type="number" 
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            className="w-8 bg-green-50 border border-green-100 rounded py-0.5 text-center font-black text-green-700 outline-none focus:ring-1 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px]"
+                            value={pedidoMap[item.produto_id] || ''}
+                            onChange={(e) => updatePedido(item.produto_id, e.target.value)}
+                          />
+                          <button 
+                            onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) + 1)}
+                            className="w-6 h-6 flex items-center justify-center bg-green-600 border border-green-700 rounded text-white hover:bg-green-700 active:scale-90 transition-transform cursor-pointer"
+                          >
+                            <Plus size={11} />
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <div className="p-1 flex items-center justify-center gap-1 h-10" onClick={(e) => e.stopPropagation()}>
-                    <button 
-                      onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) - 1)}
-                      className="w-7 h-7 flex items-center justify-center bg-white border border-green-200 rounded text-green-600 hover:bg-green-50 active:scale-90 transition-transform"
-                    >
-                      <Minus size={14} />
-                    </button>
-                    <input 
-                      type="number" 
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      className="w-9 bg-green-50 border border-green-100 rounded py-1 text-center font-black text-green-700 outline-none focus:ring-1 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[12px]"
-                      value={pedidoMap[item.produto_id] || ''}
-                      onChange={(e) => updatePedido(item.produto_id, e.target.value)}
-                    />
-                    <button 
-                      onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) + 1)}
-                      className="w-7 h-7 flex items-center justify-center bg-green-600 border border-green-700 rounded text-white hover:bg-green-700 active:scale-90 transition-transform"
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </div>
-                </div>
                 );
               })}
             </div>
           </div>
         </div>
-
-        {/* Mobile Touch-Friendly Card List */}
-        <div className="flex md:hidden flex-col gap-3 pb-12 px-1 z-10">
-          {filteredItems.map((item) => {
-            const isTouched = touchedItems.has(item.produto_id);
-            const isBelowIdeal = item.estoque_ideal > 0;
-            const isZeroStock = item.quantidade_atual === 0;
-
-            return (
-              <div 
-                key={item.produto_id}
-                className={cn(
-                  "p-3 bg-white rounded-xl border transition-all flex flex-col gap-2.5 shadow-sm",
-                  isTouched 
-                    ? (isZeroStock ? "border-red-200 bg-red-50/10" : "border-orange-200 bg-orange-50/10")
-                    : "border-neutral-200 hover:border-neutral-300"
-                )}
-                onClick={() => setSelectedProductHistory(item)}
-              >
-                {/* Product Name Header */}
-                <div className="flex justify-between items-start gap-2">
-                  <div className="flex-1 min-w-0">
-                    <h3 className={cn("text-xs font-black text-neutral-800 leading-snug break-words", isTouched && isBelowIdeal && "text-red-700")}>
-                      {item.produto_nome}
-                    </h3>
-                    <p className="text-[10px] text-neutral-400 font-bold mt-0.5">
-                      {item.familia}
-                    </p>
-                  </div>
-                  {/* Indicators Badges */}
-                  <div className="flex flex-wrap gap-1 items-center shrink-0">
-                    <span 
-                      className={cn(
-                        "px-1.5 py-0.5 rounded text-[9px] font-bold uppercase whitespace-nowrap",
-                        item.dias_ult_compra > 180 ? "bg-red-100 text-red-700" : "bg-neutral-100 text-neutral-600"
-                      )}
-                    >
-                      {item.dias_ult_compra}d
-                    </span>
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-neutral-100 text-neutral-600 whitespace-nowrap">
-                      Ult: {item.qtd_ult_compra}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Info & Ideal row */}
-                <div className="flex items-center justify-between text-[11px] font-black text-neutral-500 bg-neutral-50 p-2 rounded-lg border border-neutral-100">
-                  <div className="flex items-center gap-1">
-                    <span>Estoque Ideal:</span>
-                    <span className={cn("text-xs font-black", isBelowIdeal ? "text-red-600" : "text-neutral-700")}>
-                      {item.estoque_ideal}
-                    </span>
-                  </div>
-                  {showCycle && (
-                    <div className="flex items-center gap-2 text-[10px] text-neutral-400">
-                      <span>Média: {item.media_qtd}</span>
-                      <span>Ciclo: {item.media_ciclo}d</span>
-                    </div>
-                  )}
-                  {item.ultima_contagem_valor > 0 && (
-                    <div className="text-[10px] text-neutral-400">
-                      Ult. Cont: <span className="font-bold text-neutral-600">{item.ultima_contagem_valor}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Touch controls */}
-                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-dotted border-neutral-200">
-                  {/* Estoque */}
-                  <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
-                    <span className="text-[9px] font-black text-neutral-400 uppercase tracking-wide">📦 Estoque</span>
-                    <div className="flex items-center">
-                      <button 
-                        onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) - 1)}
-                        className="w-10 h-8 flex items-center justify-center bg-white border border-neutral-300 rounded-l-lg text-neutral-600 hover:bg-neutral-50 active:scale-95 transition-transform"
-                      >
-                        <Minus size={14} />
-                      </button>
-                      <input 
-                        type="number" 
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        placeholder="0"
-                        className={cn(
-                          "w-full flex-1 border-y text-center font-black outline-none h-8 text-xs border-neutral-300 focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-                          isBelowIdeal ? "bg-red-100 text-red-700" : "bg-orange-50 text-orange-700"
-                        )}
-                        value={estoqueMap[item.produto_id] ?? ''}
-                        onChange={(e) => updateQuantity(item.produto_id, e.target.value)}
-                      />
-                      <button 
-                        onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) + 1)}
-                        className="w-10 h-8 flex items-center justify-center bg-orange-600 text-white rounded-r-lg hover:bg-orange-700 active:scale-95 transition-transform"
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Pedido */}
-                  <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
-                    <span className="text-[9px] font-black text-neutral-400 uppercase tracking-wide">🛍️ Pedido</span>
-                    <div className="flex items-center">
-                      <button 
-                        onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) - 1)}
-                        className="w-10 h-8 flex items-center justify-center bg-white border border-neutral-300 rounded-l-lg text-neutral-600 hover:bg-neutral-50 active:scale-95 transition-transform"
-                      >
-                        <Minus size={14} />
-                      </button>
-                      <input 
-                        type="number" 
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        placeholder="0"
-                        className="w-full flex-1 border-y text-center font-black text-green-700 bg-green-50 outline-none h-8 text-xs border-neutral-300 focus:ring-1 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        value={pedidoMap[item.produto_id] || ''}
-                        onChange={(e) => updatePedido(item.produto_id, e.target.value)}
-                      />
-                      <button 
-                        onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) + 1)}
-                        className="w-10 h-8 flex items-center justify-center bg-green-600 text-white rounded-r-lg hover:bg-green-700 active:scale-95 transition-transform"
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-          {filteredItems.length === 0 && (
-            <div className="p-8 text-center text-neutral-500 font-bold bg-white rounded-xl border border-neutral-200">
-              Nenhum item encontrado com os filtros atuais.
-            </div>
-          )}
         </div>
-      </div>
-    </div>
+      </>
+    )}
+  </div>
 
 
       {/* History Modal */}

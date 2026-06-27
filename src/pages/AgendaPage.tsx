@@ -27,6 +27,7 @@ import { AgendaMap } from '../components/agenda/AgendaMap';
 import { VisitaDrawer } from '../components/agenda/VisitaDrawer';
 import { AgendaDatePicker } from '../components/agenda/AgendaDatePicker';
 import { supabase } from '../lib/supabase';
+import { logDiagnostic } from '../lib/diagnostics';
 import { HistVenda, Produto } from '../types';
 import { MapPin } from 'lucide-react';
 import { runAutoAgendaSyncIfEligible } from '../lib/autoAgendaSync';
@@ -95,6 +96,8 @@ export function AgendaPage() {
   }, []);
 
   async function fetchData() {
+    const startTime = performance.now();
+    logDiagnostic('DEBUG_AGENDA', 'Iniciando carregamento de dados da agenda...');
     try {
       setLoading(true);
       setError(null);
@@ -142,8 +145,11 @@ export function AgendaPage() {
         const unscheduled = activeClientsRes.data.filter(c => !scheduledIds.has(c.id)).length;
         setUnscheduledClientCount(unscheduled);
       }
+      
+      logDiagnostic('DEBUG_AGENDA', `Dados da agenda carregados com sucesso em ${(performance.now() - startTime).toFixed(2)}ms. Visitas: ${agendaData?.length || 0}, Clientes não agendados: ${unscheduledClientCount}`);
     } catch (err: any) {
       setError(err.message || 'Erro ao carregar dados');
+      logDiagnostic('DEBUG_AGENDA', `Falha ao carregar dados da agenda: ${err.message || err}`);
     } finally {
       setLoading(false);
     }

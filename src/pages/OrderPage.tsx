@@ -42,6 +42,7 @@ import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from '../lib/mockData';
 
 import { useDataManager } from '../lib/dataManager';
 import { StockCountSkeleton } from '../components/ui/Skeleton';
+import { logDiagnostic } from '../lib/diagnostics';
 
 export function OrderPage() {
   const { clienteId } = useParams();
@@ -159,13 +160,19 @@ export function OrderPage() {
     async function loadData() {
       if (!clienteId) return;
       
+      const loadStartTime = performance.now();
+      logDiagnostic('DEBUG_ORDER', `Iniciando carregamento de dados do pedido para cliente ID: ${clienteId}`);
+      
       try {
         setLoading(true);
         
         // Ensure initial data is loaded in context
+        const cacheStartTime = performance.now();
         const cache = await loadClientDetails(clienteId);
-
+        logDiagnostic('DEBUG_ORDER', `Dados de cache carregados em ${(performance.now() - cacheStartTime).toFixed(2)}ms. Histórico: ${cache?.historico?.length || 0} registros`);
+ 
         // Load Cliente
+        const clientStartTime = performance.now();
         const { data: clienteData, error: cError } = await supabase
           .from('clientes')
           .select('*')
@@ -179,6 +186,7 @@ export function OrderPage() {
           setCliente(MOCK_CLIENTES.find(c => c.id === clienteId) || null);
         } else {
           setCliente(clienteData);
+          logDiagnostic('DEBUG_ORDER', `Cliente carregado do Supabase em ${(performance.now() - clientStartTime).toFixed(2)}ms: ${clienteData.cliente}`);
         }
 
         // Use products from context
@@ -242,6 +250,7 @@ export function OrderPage() {
         setProdutos(MOCK_PRODUTOS);
       } finally {
         setLoading(false);
+        logDiagnostic('DEBUG_ORDER', `Finalizado carregamento de dados do pedido em ${(performance.now() - loadStartTime).toFixed(2)}ms`);
       }
     }
     loadData();
