@@ -28,13 +28,20 @@ export function calcularSugestao(
   diasDesdeUltimaCompra: number,
   pesoEmbalagem: number
 ): number {
+  const safeConsumo = Number.isFinite(consumoMedioDiario) ? Math.max(0, consumoMedioDiario) : 0;
+  const safeEstoque = Number.isFinite(estoqueAtual) ? Math.max(0, estoqueAtual) : 0;
+  const safeDias = Number.isFinite(diasDesdeUltimaCompra) ? Math.max(0, diasDesdeUltimaCompra) : 0;
+  const safePeso = Number.isFinite(pesoEmbalagem) ? pesoEmbalagem : 0;
+
+  if (safePeso <= 0) return 0;
+
   // Necessidade para os próximos 30 dias + reposição do que já consumiu
   const diasParaPrever = 30;
-  const consumoEstimado = consumoMedioDiario * (diasDesdeUltimaCompra + diasParaPrever);
-  const necessidade = Math.max(0, consumoEstimado - estoqueAtual);
-  
+  const consumoEstimado = safeConsumo * (safeDias + diasParaPrever);
+  const necessidade = Math.max(0, consumoEstimado - safeEstoque);
+
   // Arredondar para cima baseado no peso da embalagem (unidades inteiras)
-  return Math.ceil(necessidade / pesoEmbalagem);
+  return Math.ceil(necessidade / safePeso);
 }
 
 export function deveManterFaixaAnterior(dataUltimaCompra?: string): boolean {
