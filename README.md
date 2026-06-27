@@ -1,20 +1,67 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Maicon Oliveira Representações
 
-# Run and deploy your AI Studio app
+Aplicativo web para apoiar a rotina comercial de representante de vendas.
 
-This contains everything you need to run your app locally.
+## O que o app faz
 
-View your app in AI Studio: https://ai.studio/apps/d903f199-87ec-48ca-9fbd-17e8bcdd0677
+- Agenda visitas de clientes
+- Consulta e gerencia clientes
+- Consulta preços e histórico de vendas
+- Cria pedidos
+- Controla estoque por cliente
+- Acompanha metas e comissões
+- Ajuda em rotas, mapas e organização de território
+- Importa dados e mantém informações comerciais atualizadas
 
-## Run Locally
+## Tecnologias usadas
 
-**Prerequisites:**  Node.js
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- Supabase
+- Google Maps
+- Gemini API
 
+## Como rodar localmente
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+**Pré-requisito:** instalar o Node.js.
+
+1. Instale as dependências:
+
+```bash
+npm install
+```
+
+2. Crie um arquivo `.env.local` com base no arquivo `.env.example`.
+
+3. Preencha as chaves necessárias no `.env.local`.
+
+4. Rode o app:
+
+```bash
+npm run dev
+```
+
+5. Abra o endereço mostrado no terminal. Normalmente será:
+
+```text
+http://localhost:3000
+```
+
+## Variáveis de ambiente
+
+As principais configurações ficam no arquivo `.env.local`.
+
+```env
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+VITE_GOOGLE_MAPS_PLATFORM_KEY=
+GEMINI_API_KEY=
+```
+
+## Observação importante
+
+Não coloque chaves secretas diretamente no código. Use sempre `.env.local` no computador e variáveis de ambiente na hospedagem.
+
+O arquivo `.env.local` não deve ser enviado para o GitHub.
