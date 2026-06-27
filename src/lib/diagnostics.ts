@@ -1,14 +1,17 @@
-// Centralized Diagnostics Suite for critical application modules
-// Configured to be non-intrusive and easily toggleable.
+// Centralized diagnostics for critical application modules.
+// Keep disabled by default to avoid noisy browser console output in normal use.
+
+const diagnosticsEnabledByDefault =
+  ((import.meta as any).env?.VITE_ENABLE_DIAGNOSTICS || '').toLowerCase() === 'true';
 
 export const DIAGNOSTICS = {
-  DEBUG_LAYOUT: true,
-  DEBUG_STOCK: true,
-  DEBUG_ORDER: true,
-  DEBUG_PRICE: true,
-  DEBUG_SYNC: true,
-  DEBUG_CLIENTS: true,
-  DEBUG_AGENDA: true
+  DEBUG_LAYOUT: diagnosticsEnabledByDefault,
+  DEBUG_STOCK: diagnosticsEnabledByDefault,
+  DEBUG_ORDER: diagnosticsEnabledByDefault,
+  DEBUG_PRICE: diagnosticsEnabledByDefault,
+  DEBUG_SYNC: diagnosticsEnabledByDefault,
+  DEBUG_CLIENTS: diagnosticsEnabledByDefault,
+  DEBUG_AGENDA: diagnosticsEnabledByDefault
 };
 
 export function logDiagnostic(module: keyof typeof DIAGNOSTICS, message: string, ...args: any[]) {
@@ -18,7 +21,7 @@ export function logDiagnostic(module: keyof typeof DIAGNOSTICS, message: string,
   }
 }
 
-// Global window access for easy runtime toggling in browser console
+// Global window access for temporary runtime toggling in browser console.
 if (typeof window !== 'undefined') {
   (window as any).__DIAGNOSTICS = DIAGNOSTICS;
   (window as any).toggleDiagnostic = (module: keyof typeof DIAGNOSTICS, enabled: boolean) => {
