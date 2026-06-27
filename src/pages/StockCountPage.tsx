@@ -67,8 +67,7 @@ export function StockCountPage() {
   const [selectedFamily, setSelectedFamily] = useState('Todas');
   const [selectedWeight, setSelectedWeight] = useState('Todos');
   const [showInactive, setShowInactive] = useState(false);
-  const [showCycle, setShowCycle] = useState(false);
-  const [viewMode, setViewMode] = useState<'contagem' | 'pedido' | 'completo'>('contagem');
+  const [viewMode, setViewMode] = useState<'contagem' | 'pedido'>('contagem');
   const [selectedProductHistory, setSelectedProductHistory] = useState<ItemEstoqueData | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [touchedItems, setTouchedItems] = useState<Set<string>>(new Set());
@@ -278,15 +277,11 @@ export function StockCountPage() {
 
   const gridCols = useMemo(() => {
     if (viewMode === 'contagem') {
-      return "grid-cols-[38px_32px_38px_minmax(80px,1fr)_96px_36px]";
-    } else if (viewMode === 'pedido') {
-      return "grid-cols-[38px_38px_minmax(80px,1fr)_36px_96px]";
-    } else {
-      return showCycle 
-        ? "grid-cols-[42px_35px_42px_minmax(80px,1fr)_96px_36px_36px_36px_96px]" 
-        : "grid-cols-[42px_35px_42px_minmax(80px,1fr)_96px_36px_96px]";
+      return "grid-cols-[minmax(0,1fr)_34px_34px_36px_78px_34px]";
     }
-  }, [viewMode, showCycle]);
+
+    return "grid-cols-[minmax(0,1fr)_38px_42px_36px_78px]";
+  }, [viewMode]);
 
   const orderWeightByDay = useMemo(() => {
     const map: Record<string, number> = {};
@@ -526,11 +521,9 @@ export function StockCountPage() {
 
   const handleClearAll = () => {
     setEstoqueMap({});
-    setPedidoMap({});
     setTouchedItems(new Set());
     if (clienteId) {
       localStorage.removeItem(`estoque_${clienteId}`);
-      localStorage.removeItem(`pedido_${clienteId}`);
     }
   };
 
@@ -539,16 +532,18 @@ export function StockCountPage() {
     setSaving(true);
 
     try {
-      // Use processedItems to ensure we save all visible items
-      const itemsToUpsert = processedItems.map(item => ({
-        cliente_id: clienteId,
-        produto_id: item.produto_id,
-        quantidade_atual: estoqueMap[item.produto_id] || 0,
-        ultima_contagem: new Date().toISOString().split('T')[0]
-      }));
+      const touchedProductIds = new Set(touchedItems);
+      const itemsToUpsert = processedItems
+        .filter(item => touchedProductIds.has(item.produto_id))
+        .map(item => ({
+          cliente_id: clienteId,
+          produto_id: item.produto_id,
+          quantidade_atual: estoqueMap[item.produto_id] || 0,
+          ultima_contagem: new Date().toISOString().split('T')[0]
+        }));
 
       if (itemsToUpsert.length === 0) {
-        alert('Nenhuma contagem para salvar.');
+        alert('Nenhuma contagem alterada para salvar.');
         setSaving(false);
         return;
       }
@@ -563,25 +558,26 @@ export function StockCountPage() {
         });
 
       if (error) {
-        // Fallback for missing constraint: delete and insert (less efficient but works)
-        console.warn('Upsert failed, trying delete/insert fallback:', error);
-        const { error: deleteError } = await supabase
-          .from('estoque_cliente')
-          .delete()
-          .eq('cliente_id', clienteId);
-        
-        if (deleteError) throw deleteError;
+        console.warn('Upsert failed, trying item-by-item replace fallback:', error);
+        for (const item of itemsToUpsert) {
+          const { error: deleteError } = await supabase
+            .from('estoque_cliente')
+            .delete()
+            .eq('cliente_id', item.cliente_id)
+            .eq('produto_id', item.produto_id);
 
-        const { error: insertError } = await supabase
-          .from('estoque_cliente')
-          .insert(itemsToUpsert);
-        
-        if (insertError) throw insertError;
+          if (deleteError) throw deleteError;
+
+          const { error: insertError } = await supabase
+            .from('estoque_cliente')
+            .insert(item);
+
+          if (insertError) throw insertError;
+        }
       }
 
-      // Clear local storage after successful save
+      // Clear local stock draft after successful save
       localStorage.removeItem(`estoque_${clienteId}`);
-      localStorage.removeItem(`pedido_${clienteId}`);
 
       alert('Estoque atualizado com sucesso!');
       navigate(`/cliente/${clienteId}`);
@@ -857,32 +853,32 @@ export function StockCountPage() {
               </div>
               <button 
                 onClick={handleExportPDF}
-                className="p-1 bg-white text-neutral-700 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
+                className="p-1.5 md:p-2 bg-white text-neutral-700 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
                 title="Exportar PDF"
               >
-                <Download size={14} />
+                <Download size={16} />
               </button>
               <button 
                 onClick={handleSave}
                 disabled={saving}
-                className="p-1 bg-white text-green-600 rounded-full shadow-sm border border-neutral-200 hover:bg-green-50 disabled:opacity-50 transition-all active:scale-95"
+                className="p-1.5 md:p-2 bg-white text-green-600 rounded-full shadow-sm border border-neutral-200 hover:bg-green-50 disabled:opacity-50 transition-all active:scale-95"
                 title={saving ? 'Salvando...' : 'Salvar Contagem'}
               >
-                <Save size={14} />
+                <Save size={16} />
               </button>
               <button 
                 onClick={handleGoToPedido}
-                className="p-1 bg-orange-600 text-white rounded-full shadow-sm border border-orange-700 hover:bg-orange-700 transition-all active:scale-95"
+                className="p-1.5 md:p-2 bg-orange-600 text-white rounded-full shadow-sm border border-orange-700 hover:bg-orange-700 transition-all active:scale-95"
                 title="Ir para Pedido"
               >
-                <ShoppingCart size={14} />
+                <ShoppingCart size={16} />
               </button>
               <button 
                 onClick={() => navigate(`/cliente/${clienteId}`)}
-                className="p-1 bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
+                className="p-1.5 md:p-2 bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
                 title="Home do Cliente"
               >
-                <Home size={14} />
+                <Home size={16} />
               </button>
             </div>
           </div>
@@ -898,32 +894,32 @@ export function StockCountPage() {
               </h1>
               <button 
                 onClick={handleExportPDF}
-                className="p-0.5 bg-white text-neutral-700 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95 shrink-0"
+                className="w-8 h-8 flex items-center justify-center bg-white text-neutral-700 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95 shrink-0"
                 title="Exportar PDF"
               >
-                <Download size={12} />
+                <Download size={17} />
               </button>
               <button 
                 onClick={handleSave}
                 disabled={saving}
-                className="p-0.5 bg-white text-green-600 rounded-full shadow-sm border border-neutral-200 hover:bg-green-50 disabled:opacity-50 transition-all active:scale-95 shrink-0"
+                className="w-8 h-8 flex items-center justify-center bg-white text-green-600 rounded-full shadow-sm border border-neutral-200 hover:bg-green-50 disabled:opacity-50 transition-all active:scale-95 shrink-0"
                 title={saving ? 'Salvando...' : 'Salvar Contagem'}
               >
-                <Save size={12} />
+                <Save size={17} />
               </button>
               <button 
                 onClick={handleGoToPedido}
-                className="p-0.5 bg-orange-600 text-white rounded-full shadow-sm border border-orange-700 hover:bg-orange-700 transition-all active:scale-95 shrink-0"
+                className="w-8 h-8 flex items-center justify-center bg-orange-600 text-white rounded-full shadow-sm border border-orange-700 hover:bg-orange-700 transition-all active:scale-95 shrink-0"
                 title="Ir para Pedido"
               >
-                <ShoppingCart size={12} />
+                <ShoppingCart size={17} />
               </button>
               <button 
                 onClick={() => navigate(`/cliente/${clienteId}`)}
-                className="p-0.5 bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95 shrink-0"
+                className="w-8 h-8 flex items-center justify-center bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95 shrink-0"
                 title="Home do Cliente"
               >
-                <Home size={12} />
+                <Home size={17} />
               </button>
             </div>
 
@@ -969,7 +965,7 @@ export function StockCountPage() {
               )}
             </div>
 
-            <div className="flex flex-nowrap items-center justify-between md:justify-end gap-1 md:gap-1.5 w-full overflow-x-auto scrollbar-none pb-0.5">
+            <div className="flex flex-wrap items-center justify-between md:justify-end gap-1 md:gap-1.5 w-full pb-0.5">
               <button 
                 onClick={handleClearAll}
                 className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[9.5px] font-black hover:bg-red-700 transition-all flex items-center gap-0.5 shrink-0 shadow-sm active:scale-95 cursor-pointer h-6"
@@ -987,18 +983,6 @@ export function StockCountPage() {
                 )}
               >
                 <span>{showInactive ? "✅ Inativos" : "❌ Inativos"}</span>
-              </button>
-
-              <button 
-                onClick={() => setShowCycle(!showCycle)}
-                className={cn(
-                  "px-1.5 py-0.5 rounded text-[9.5px] font-black transition-colors cursor-pointer shrink-0 border h-6 flex items-center gap-0.5",
-                  showCycle 
-                    ? "bg-orange-600 text-white border-orange-700 shadow-sm" 
-                    : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border-neutral-200"
-                )}
-              >
-                ⏱️ Ciclo
               </button>
 
               <div className="relative shrink-0">
@@ -1042,29 +1026,20 @@ export function StockCountPage() {
           <button
             onClick={() => setViewMode('contagem')}
             className={cn(
-              "flex-1 md:flex-none px-2 py-0.5 rounded text-[10px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
+              "flex-1 md:flex-none px-3 py-1 rounded text-[10px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
               viewMode === 'contagem' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
             )}
           >
-            📋 Contagem
+            Contagem
           </button>
           <button
             onClick={() => setViewMode('pedido')}
             className={cn(
-              "flex-1 md:flex-none px-2 py-0.5 rounded text-[10px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
+              "flex-1 md:flex-none px-3 py-1 rounded text-[10px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
               viewMode === 'pedido' ? "bg-white text-green-600 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
             )}
           >
-            🛒 Pedido
-          </button>
-          <button
-            onClick={() => setViewMode('completo')}
-            className={cn(
-              "flex-1 md:flex-none px-2 py-0.5 rounded text-[10px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
-              viewMode === 'completo' ? "bg-white text-neutral-800 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
-            )}
-          >
-            👁️ Completo
+            Pedido
           </button>
         </div>
 
@@ -1122,14 +1097,8 @@ export function StockCountPage() {
         ) : (
           <>
             {/* Spreadsheet Table Container */}
-            <div className={cn(
-              "flex bg-white rounded-xl shadow-sm border border-neutral-200 flex-col overflow-hidden max-h-[80vh] min-h-[300px]",
-              viewMode === 'completo' ? "overflow-x-auto" : "overflow-x-hidden"
-            )}>
-          <div className={cn(
-            "overflow-y-auto flex-1",
-            viewMode === 'completo' ? "min-w-[800px]" : "w-full"
-          )}>
+            <div className="flex bg-white rounded-xl shadow-sm border border-neutral-200 flex-col overflow-hidden max-h-[80vh] min-h-[300px] w-full">
+          <div className="overflow-y-auto overflow-x-hidden flex-1 w-full">
             <div className="w-full">
               <div 
                 className={cn(
@@ -1139,40 +1108,22 @@ export function StockCountPage() {
               >
                 {viewMode === 'contagem' && (
                   <>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Qtd</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Cont</div>
-                    <div className="p-2 border-r border-neutral-200 flex items-center h-8">Item</div>
-                    <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-8">Estoque</div>
+                    <div className="px-1.5 border-r border-neutral-200 flex items-center h-8">Produto</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped.</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8">Qtd</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Cont.</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8">Est.</div>
                     <div className="p-0.5 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
                   </>
                 )}
 
                 {viewMode === 'pedido' && (
                   <>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Est.</div>
-                    <div className="p-2 border-r border-neutral-200 flex items-center h-8">Item</div>
+                    <div className="px-1.5 border-r border-neutral-200 flex items-center h-8">Produto</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped.</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Est.<br/>Atual</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
-                    <div className="p-1 text-center flex items-center justify-center h-8">Pedido</div>
-                  </>
-                )}
-
-                {viewMode === 'completo' && (
-                  <>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Qtd</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Cont</div>
-                    <div className="p-2 border-r border-neutral-200 flex items-center h-8">Item</div>
-                    <div className="p-1 border-r border-neutral-200 text-center flex items-center justify-center h-8">Estoque</div>
-                    {showCycle && (
-                      <>
-                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Méd.</div>
-                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ciclo</div>
-                      </>
-                    )}
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
-                    <div className="p-1 text-center flex items-center justify-center h-8">Pedido</div>
+                    <div className="p-0.5 text-center flex items-center justify-center h-8">Pedido</div>
                   </>
                 )}
               </div>
@@ -1201,28 +1152,24 @@ export function StockCountPage() {
                   >
                     {viewMode === 'contagem' && (
                       <>
+                        <div className="px-1.5 border-r border-neutral-100 flex items-center h-8 leading-tight overflow-hidden min-w-0">
+                          <span className="truncate block font-bold text-[11px]">{item.produto_nome}</span>
+                        </div>
                         <div className={cn(
-                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px]", 
+                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px]",
                           item.dias_ult_compra > 180 
                             ? "text-red-600 font-black bg-red-50/50" 
-                            : (isTouched && isBelowIdeal) 
-                              ? "text-red-600 font-black" 
-                              : isLastOrder
-                                ? "font-semibold text-neutral-950"
-                                : "text-neutral-400 font-normal opacity-70"
+                            : isLastOrder
+                              ? "font-semibold text-neutral-950"
+                              : "text-neutral-400 font-normal opacity-70"
                         )}>
                           {item.dias_ult_compra}
                         </div>
-                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] opacity-50">
+                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] opacity-70">
                           {item.qtd_ult_compra}
                         </div>
-                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] opacity-50">
+                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] opacity-70">
                           {item.ultima_contagem_valor}
-                        </div>
-                        <div className={cn(
-                          "p-2 border-r border-neutral-100 flex items-center h-8 leading-tight overflow-hidden min-w-0"
-                        )}>
-                          <span className="truncate block font-bold text-[11px]">{item.produto_nome}</span>
                         </div>
                         <div className={cn(
                           "p-0.5 border-r border-neutral-100 flex items-center justify-center gap-0.5 h-8",
@@ -1239,7 +1186,7 @@ export function StockCountPage() {
                             inputMode="numeric"
                             pattern="[0-9]*"
                             className={cn(
-                              "w-8 border rounded py-0.5 text-center font-black outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px]",
+                              "w-7 border rounded py-0.5 text-center font-black outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px]",
                               isBelowIdeal ? "bg-red-100 border-red-200 text-red-700" : "bg-orange-50 border-orange-100 text-orange-700"
                             )}
                             value={estoqueMap[item.produto_id] ?? ''}
@@ -1263,15 +1210,16 @@ export function StockCountPage() {
 
                     {viewMode === 'pedido' && (
                       <>
+                        <div className="px-1.5 border-r border-neutral-100 flex items-center h-8 leading-tight overflow-hidden min-w-0">
+                          <span className="truncate block font-bold text-[11px]">{item.produto_nome}</span>
+                        </div>
                         <div className={cn(
-                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px]", 
+                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px]",
                           item.dias_ult_compra > 180 
                             ? "text-red-600 font-black bg-red-50/50" 
-                            : (isTouched && isBelowIdeal) 
-                              ? "text-red-600 font-black" 
-                              : isLastOrder
-                                ? "font-semibold text-neutral-950"
-                                : "text-neutral-400 font-normal opacity-70"
+                            : isLastOrder
+                              ? "font-semibold text-neutral-950"
+                              : "text-neutral-400 font-normal opacity-70"
                         )}>
                           {item.dias_ult_compra}
                         </div>
@@ -1280,11 +1228,6 @@ export function StockCountPage() {
                           (estoqueMap[item.produto_id] ?? 0) > 0 ? "text-orange-600 font-black" : "text-neutral-400 opacity-50 font-normal"
                         )}>
                           {estoqueMap[item.produto_id] ?? 0}
-                        </div>
-                        <div className={cn(
-                          "p-2 border-r border-neutral-100 flex items-center h-8 leading-tight overflow-hidden min-w-0"
-                        )}>
-                          <span className="truncate block font-bold text-[11px]">{item.produto_nome}</span>
                         </div>
                         <div className={cn(
                           "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px]",
@@ -1303,7 +1246,7 @@ export function StockCountPage() {
                             type="number" 
                             inputMode="numeric"
                             pattern="[0-9]*"
-                            className="w-8 bg-green-50 border border-green-100 rounded py-0.5 text-center font-black text-green-700 outline-none focus:ring-1 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px]"
+                            className="w-7 bg-green-50 border border-green-100 rounded py-0.5 text-center font-black text-green-700 outline-none focus:ring-1 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px]"
                             value={pedidoMap[item.produto_id] || ''}
                             onChange={(e) => updatePedido(item.produto_id, e.target.value)}
                           />
@@ -1317,99 +1260,6 @@ export function StockCountPage() {
                       </>
                     )}
 
-                    {viewMode === 'completo' && (
-                      <>
-                        <div className={cn(
-                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px]", 
-                          item.dias_ult_compra > 180 
-                            ? "text-red-600 font-black bg-red-50/50" 
-                            : (isTouched && isBelowIdeal) 
-                              ? "text-red-600 font-black" 
-                              : isLastOrder
-                                ? "font-semibold text-neutral-950"
-                                : "text-neutral-400 font-normal opacity-70"
-                        )}>
-                          {item.dias_ult_compra}
-                        </div>
-                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] opacity-50">
-                          {item.qtd_ult_compra}
-                        </div>
-                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] opacity-50">
-                          {item.ultima_contagem_valor}
-                        </div>
-                        <div className={cn(
-                          "p-2 border-r border-neutral-100 flex items-center h-8 leading-tight overflow-hidden min-w-0"
-                        )}>
-                          <span className="truncate block font-bold text-[11px]">{item.produto_nome}</span>
-                        </div>
-                        <div className={cn(
-                          "p-0.5 border-r border-neutral-100 flex items-center justify-center gap-0.5 h-8",
-                          isBelowIdeal ? "bg-red-50/30" : ""
-                        )} onClick={(e) => e.stopPropagation()}>
-                          <button 
-                            onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) - 1)}
-                            className="w-6 h-6 flex items-center justify-center bg-white border border-orange-200 rounded text-orange-600 hover:bg-orange-50 active:scale-90 transition-transform cursor-pointer"
-                          >
-                            <Minus size={11} />
-                          </button>
-                          <input 
-                            type="number" 
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            className={cn(
-                              "w-8 border rounded py-0.5 text-center font-black outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px]",
-                              isBelowIdeal ? "bg-red-100 border-red-200 text-red-700" : "bg-orange-50 border-orange-100 text-orange-700"
-                            )}
-                            value={estoqueMap[item.produto_id] ?? ''}
-                            onChange={(e) => updateQuantity(item.produto_id, e.target.value)}
-                          />
-                          <button 
-                            onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) + 1)}
-                            className="w-6 h-6 flex items-center justify-center bg-orange-600 border border-orange-700 rounded text-white hover:bg-orange-700 active:scale-90 transition-transform cursor-pointer"
-                          >
-                            <Plus size={11} />
-                          </button>
-                        </div>
-                        {showCycle && (
-                          <>
-                            <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] opacity-50">
-                              {item.media_qtd}
-                            </div>
-                            <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] opacity-50">
-                              {item.media_ciclo}
-                            </div>
-                          </>
-                        )}
-                        <div className={cn(
-                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px]",
-                          isBelowIdeal ? "text-red-600 font-black bg-red-50/30" : "font-bold"
-                        )}>
-                          {item.estoque_ideal}
-                        </div>
-                        <div className="p-0.5 flex items-center justify-center gap-0.5 h-8" onClick={(e) => e.stopPropagation()}>
-                          <button 
-                            onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) - 1)}
-                            className="w-6 h-6 flex items-center justify-center bg-white border border-green-200 rounded text-green-600 hover:bg-green-50 active:scale-90 transition-transform cursor-pointer"
-                          >
-                            <Minus size={11} />
-                          </button>
-                          <input 
-                            type="number" 
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            className="w-8 bg-green-50 border border-green-100 rounded py-0.5 text-center font-black text-green-700 outline-none focus:ring-1 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px]"
-                            value={pedidoMap[item.produto_id] || ''}
-                            onChange={(e) => updatePedido(item.produto_id, e.target.value)}
-                          />
-                          <button 
-                            onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) + 1)}
-                            className="w-6 h-6 flex items-center justify-center bg-green-600 border border-green-700 rounded text-white hover:bg-green-700 active:scale-90 transition-transform cursor-pointer"
-                          >
-                            <Plus size={11} />
-                          </button>
-                        </div>
-                      </>
-                    )}
                   </div>
                 );
               })}
