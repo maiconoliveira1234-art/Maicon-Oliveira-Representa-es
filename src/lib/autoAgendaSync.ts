@@ -7,6 +7,74 @@ import { differenceInWeeks, startOfYear } from 'date-fns';
 const DIAS_UTEIS: DiaSemana[] = ['Segunda', 'Terça', 'Quarta', 'Quinta'];
 const MAX_DAY_LIMIT = 8; // Limite de visitas por dia para otimização saudável
 
+const DAY_WEIGHTS: Record<DiaSemana, number> = {
+  Segunda: 2,
+  Terça: 2,
+  Quarta: 2,
+  Quinta: 1,
+  Sexta: 0
+};
+
+function getDayTarget(totalWeekVisits: number, dia: DiaSemana): number {
+  return (totalWeekVisits * DAY_WEIGHTS[dia]) / 7;
+}
+
+function getDayCenter(visits: any[], semana: 1 | 2, dia: DiaSemana): { lat: number; lng: number } | null {
+  const withCoords = visits.filter(v => v.semana === semana && v.dia_semana === dia && v.latitude && v.longitude);
+  if (withCoords.length === 0) return null;
+
+  return {
+    lat: withCoords.reduce((sum, v) => sum + v.latitude, 0) / withCoords.length,
+    lng: withCoords.reduce((sum, v) => sum + v.longitude, 0) / withCoords.length
+  };
+}
+
+function chooseBestSlotForNewClient(
+  existingVisits: any[],
+  preferredWeek: 1 | 2,
+  preferredDay: DiaSemana,
+  lat?: number,
+  lng?: number
+): { week: 1 | 2; day: DiaSemana } {
+  let bestChoice = { week: preferredWeek, day: preferredDay };
+  let bestScore = Infinity;
+  const preferredDayIdx = DIAS_UTEIS.indexOf(preferredDay);
+
+  for (const week of [preferredWeek, preferredWeek === 1 ? 2 : 1] as (1 | 2)[]) {
+    const weekVisits = existingVisits.filter(v => v.semana === week && DIAS_UTEIS.includes(v.dia_semana));
+    const totalAfterInsert = weekVisits.length + 1;
+
+    for (const day of DIAS_UTEIS) {
+      const dayVisits = weekVisits.filter(v => v.dia_semana === day);
+      const target = getDayTarget(totalAfterInsert, day);
+      const countAfterInsert = dayVisits.length + 1;
+      const loadPenalty = Math.pow(Math.max(0, countAfterInsert - target), 2) * 5 + Math.pow(countAfterInsert - target, 2) * 0.8;
+
+      let distancePenalty = 3;
+      const center = getDayCenter(existingVisits, week, day);
+      if (lat && lng && center) {
+        distancePenalty = calculateDistance(lat, lng, center.lat, center.lng);
+      } else if (day === preferredDay && week === preferredWeek) {
+        distancePenalty = 0;
+      }
+
+      const dayIdx = DIAS_UTEIS.indexOf(day);
+      const sameRegionBonus = week === preferredWeek && day === preferredDay ? -2.5 : 0;
+      const neighbourDayBonus = week === preferredWeek && Math.abs(dayIdx - preferredDayIdx) === 1 ? -0.8 : 0;
+      const otherWeekPenalty = week === preferredWeek ? 0 : 2.5;
+      const fixedAnchorBonus = dayVisits.some(v => v.agenda_fixa) ? -0.4 : 0;
+      const score = distancePenalty + loadPenalty + otherWeekPenalty + sameRegionBonus + neighbourDayBonus + fixedAnchorBonus;
+
+      if (score < bestScore) {
+        bestScore = score;
+        bestChoice = { week, day };
+      }
+    }
+  }
+
+  return bestChoice;
+}
+
 /**
  * Retorna qual a semana do ciclo de 2 semanas baseada na data
  */
@@ -222,16 +290,15 @@ export async function runAutoAgendaSyncIfEligible(forceOverride: boolean = false
         await new Promise(resolve => setTimeout(resolve, 1100));
       }
 
-      // B. Inteligência de Agrupamento por Cluster Geográfico
+      // B. Inteligência de agrupamento por proximidade e encaixe operacional
       let idealWeek: 1 | 2 = 1;
       let idealDay: DiaSemana = 'Segunda';
 
       const validVisits = existingVisits.filter(v => v.latitude && v.longitude);
 
       if (lat && lng) {
-        console.log(`[AutoSync] [NOVO CLIENTE] ${client.cliente} - Identificando cluster geográfico...`);
-        
-        // Unir visitas válidas com o novo cliente para calcular clusters
+        console.log(`[AutoSync] [NOVO CLIENTE] ${client.cliente} - Identificando região mais próxima...`);
+
         const allVisitsAndNew = validVisits.map(v => ({
           id: v.id,
           latitude: v.latitude,
@@ -251,30 +318,23 @@ export async function runAutoAgendaSyncIfEligible(forceOverride: boolean = false
           agenda_fixa: false
         });
 
-        // Agrupar visitas geograficamente (cluster de 3km de distância máxima)
         const clusters = getGeographicClusters(allVisitsAndNew, 3.0);
         const clientCluster = clusters.find(c => c.some(v => v.id === 'new_temp')) || [];
         const otherClusterVisits = clientCluster.filter(v => v.id !== 'new_temp');
 
-        console.log(`[AutoSync] Cluster geográfico de ${client.cliente} possui ${otherClusterVisits.length} vizinhos próximos.`);
-
         if (otherClusterVisits.length > 0) {
-          // PASSO 2: Identificar a semana com maior concentração do cluster
           const w1Count = otherClusterVisits.filter(v => v.semana === 1).length;
           const w2Count = otherClusterVisits.filter(v => v.semana === 2).length;
           idealWeek = (w1Count >= w2Count) ? 1 : 2;
-          console.log(`[AutoSync] Concentração por semana: Semana A (1)=${w1Count}, Semana B (2)=${w2Count}. Semana Ideal: ${idealWeek}`);
 
-          // PASSO 3: Identificar o dia com maior concentração na semana ideal
           const dayCounts = DIAS_UTEIS.map(d => ({
             dia: d,
             count: otherClusterVisits.filter(v => v.semana === idealWeek && v.dia_semana === d).length
-          }));
-          dayCounts.sort((a, b) => b.count - a.count);
+          })).sort((a, b) => b.count - a.count || DIAS_UTEIS.indexOf(a.dia) - DIAS_UTEIS.indexOf(b.dia));
+
           idealDay = dayCounts[0].dia;
-          console.log(`[AutoSync] Concentração por dia na Semana ${idealWeek}:`, dayCounts.map(dc => `${dc.dia}=${dc.count}`).join(', '));
+          console.log(`[AutoSync] Região de ${client.cliente}: Semana ${idealWeek}, referência ${idealDay}, ${otherClusterVisits.length} vizinhos próximos.`);
         } else if (validVisits.length > 0) {
-          // Fallback se não houver outros itens no cluster de 3km: usar vizinho mais próximo absoluto
           let shortestDist = Infinity;
           let bestNeighbour: any = null;
 
@@ -289,182 +349,29 @@ export async function runAutoAgendaSyncIfEligible(forceOverride: boolean = false
           if (bestNeighbour) {
             idealWeek = bestNeighbour.semana as 1 | 2;
             idealDay = bestNeighbour.dia_semana as DiaSemana;
-            console.log(`[AutoSync] Cluster de 3km vazio. Vizinho absoluto mais próximo é ${bestNeighbour.cliente_nome} (${shortestDist.toFixed(2)} km) na ${idealDay} Semana ${idealWeek}`);
+            console.log(`[AutoSync] Vizinho mais próximo de ${client.cliente}: ${bestNeighbour.cliente_nome} (${shortestDist.toFixed(2)} km), ${idealDay} Semana ${idealWeek}.`);
           }
         }
       } else {
-        // Fallback por bairro ou cidade se não possuir coordenadas
         const sameBairroVisit = existingVisits.find(v => v.bairro && v.bairro.toLowerCase() === bairro.toLowerCase());
         const sameCityVisit = existingVisits.find(v => v.cidade && v.cidade.toLowerCase() === (client.cidade || '').toLowerCase());
-        
+
         if (sameBairroVisit) {
           idealWeek = sameBairroVisit.semana as 1 | 2;
           idealDay = sameBairroVisit.dia_semana as DiaSemana;
-          console.log(`[AutoSync] Fallback de bairro para ${client.cliente}: alocado com visitas de ${sameBairroVisit.bairro}.`);
+          console.log(`[AutoSync] Fallback de bairro para ${client.cliente}: ${sameBairroVisit.bairro}.`);
         } else if (sameCityVisit) {
           idealWeek = sameCityVisit.semana as 1 | 2;
           idealDay = sameCityVisit.dia_semana as DiaSemana;
-          console.log(`[AutoSync] Fallback de cidade para ${client.cliente}: alocado com visitas de ${sameCityVisit.cidade}.`);
+          console.log(`[AutoSync] Fallback de cidade para ${client.cliente}: ${sameCityVisit.cidade}.`);
         }
       }
 
-      // C. PASSO 4: Verificar Proporção e Executar Rebalanceamento se Necessário
-      // Contar quantas visitas estão agendadas no dia ideal
-      const countOnIdealDay = existingVisits.filter(v => v.semana === idealWeek && v.dia_semana === idealDay).length;
-      const dayLimit = idealDay === 'Quinta' ? 4 : MAX_DAY_LIMIT; // Quinta-feira tem metade da capacidade
+      const bestSlot = chooseBestSlotForNewClient(existingVisits, idealWeek, idealDay, lat, lng);
+      const finalWeek = bestSlot.week;
+      const finalDay = bestSlot.day;
 
-      let finalWeek = idealWeek;
-      let finalDay = idealDay;
-
-      // Se exceder a capacidade limite do dia, fazemos rebalanceamento inteligente
-      if (countOnIdealDay >= dayLimit && lat && lng) {
-        console.log(`[AutoSync] Dia ideal (${idealDay} Sem ${idealWeek}) está cheio (${countOnIdealDay} visitas). Iniciando rebalanceamento...`);
-        
-        // Encontrar os dias com espaço vago na mesma semana
-        const availableDays: { dia: DiaSemana, count: number, limit: number }[] = [];
-        for (const d of DIAS_UTEIS) {
-          if (d === idealDay) continue;
-          const limit = d === 'Quinta' ? 4 : MAX_DAY_LIMIT;
-          const cnt = existingVisits.filter(v => v.semana === idealWeek && v.dia_semana === d).length;
-          if (cnt < limit) {
-            availableDays.push({ dia: d, count: cnt, limit });
-          }
-        }
-
-        // Criar lista de candidatos a realocação (não fixos) no dia cheio
-        const candVisits = existingVisits.filter(v => 
-          v.semana === idealWeek && 
-          v.dia_semana === idealDay && 
-          v.latitude && 
-          v.longitude
-        );
-
-        const candidates = candVisits.map(v => {
-          const clientData = Array.isArray(v.clientes) ? v.clientes[0] : v.clientes;
-          return {
-            id: v.id,
-            cliente_id: v.cliente_id,
-            cliente_nome: v.cliente_nome,
-            latitude: v.latitude,
-            longitude: v.longitude,
-            agenda_fixa: clientData?.agenda_fixa ?? false,
-            isNew: false
-          };
-        }).filter(c => !c.agenda_fixa); // Preservar os de agenda_fixa (NÃO MOVER)
-
-        // Adicionar o novo cliente como candidato a ir para outro dia diretamente
-        candidates.push({
-          id: 'new_temp',
-          cliente_id: client.id,
-          cliente_nome: client.cliente,
-          latitude: lat,
-          longitude: lng,
-          agenda_fixa: false,
-          isNew: true
-        });
-
-        let bestMove: {
-          candidate: any;
-          targetDay: DiaSemana;
-          score: number;
-        } | null = null;
-
-        // Calcular custo de cada movimento candidato
-        for (const cand of candidates) {
-          for (const target of availableDays) {
-            // Centroide das visitas do dia alvo
-            const targetVisits = existingVisits.filter(v => v.semana === idealWeek && v.dia_semana === target.dia && v.latitude && v.longitude);
-            let targetCentroid = { lat: cand.latitude, lng: cand.longitude };
-            if (targetVisits.length > 0) {
-              const sumLat = targetVisits.reduce((sum, v) => sum + v.latitude, 0);
-              const sumLng = targetVisits.reduce((sum, v) => sum + v.longitude, 0);
-              targetCentroid = { lat: sumLat / targetVisits.length, lng: sumLng / targetVisits.length };
-            }
-
-            const dist = calculateDistance(cand.latitude, cand.longitude, targetCentroid.lat, targetCentroid.lng);
-
-            // Medir desvio da proporção de dias (Segunda=2, Terça=2, Quarta=2, Quinta=1)
-            // m, t, w, q na semana ideal
-            const m = existingVisits.filter(v => v.semana === idealWeek && v.dia_semana === 'Segunda').length;
-            const t = existingVisits.filter(v => v.semana === idealWeek && v.dia_semana === 'Terça').length;
-            const w = existingVisits.filter(v => v.semana === idealWeek && v.dia_semana === 'Quarta').length;
-            const q = existingVisits.filter(v => v.semana === idealWeek && v.dia_semana === 'Quinta').length;
-
-            const totalW = m + t + w + q + 1;
-            const target_ideal = (idealDay === 'Quinta' ? (totalW * 1) / 7 : (totalW * 2) / 7);
-            const target_target = (target.dia === 'Quinta' ? (totalW * 1) / 7 : (totalW * 2) / 7);
-
-            const oldIdealCount = countOnIdealDay + 1;
-            const oldTargetCount = target.count;
-
-            const newIdealCount = countOnIdealDay;
-            const newTargetCount = target.count + 1;
-
-            const oldDeviation = Math.pow(oldIdealCount - target_ideal, 2) + Math.pow(oldTargetCount - target_target, 2);
-            const newDeviation = Math.pow(newIdealCount - target_ideal, 2) + Math.pow(newTargetCount - target_target, 2);
-
-            const deviationImprovement = newDeviation - oldDeviation; // Negativo é melhoria
-
-            // Score balanceado: Menor distância e melhor proporção (peso de 2.0 para evitar outliers geográficos)
-            const score = dist + 2.0 * deviationImprovement;
-
-            if (!bestMove || score < bestMove.score) {
-              bestMove = {
-                candidate: cand,
-                targetDay: target.dia,
-                score
-              };
-            }
-          }
-        }
-
-        if (bestMove) {
-          console.log(`[AutoSync] Ajuste de Rebalanceamento decidido: Mover '${bestMove.candidate.cliente_nome}' de ${idealDay} para ${bestMove.targetDay} (Score: ${bestMove.score.toFixed(2)}).`);
-
-          if (bestMove.candidate.isNew) {
-            // Se o próprio cliente novo for selecionado, colocamos ele no dia de destino
-            finalDay = bestMove.targetDay;
-          } else {
-            // Senão, movemos o cliente antigo no Supabase
-            const { error: moveError } = await supabase
-              .from('agenda_visitas')
-              .update({
-                dia_semana: bestMove.targetDay,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', bestMove.candidate.id);
-
-            if (moveError) {
-              console.error(`[AutoSync] Erro ao mover cliente ${bestMove.candidate.id}:`, moveError);
-            } else {
-              const movedVisit = existingVisits.find(v => v.id === bestMove!.candidate.id);
-              if (movedVisit) {
-                movedVisit.dia_semana = bestMove.targetDay;
-              }
-              // Otimiza a rota e horários do dia de destino
-              await optimizeAndSaveRouteForDay(idealWeek, bestMove.targetDay);
-            }
-          }
-        } else {
-          // Fallback: se nenhum dia tem espaço na Semana ideal, tentamos realocar na outra semana
-          console.log(`[AutoSync] Sem opções na Semana ${idealWeek}. Alocando na outra semana...`);
-          const otherWeekNum: 1 | 2 = idealWeek === 1 ? 2 : 1;
-          const otherWeekVisits = existingVisits.filter(v => v.semana === otherWeekNum);
-          const daysOtherWeek = DIAS_UTEIS.map(d => ({
-            dia: d,
-            count: otherWeekVisits.filter(v => v.dia_semana === d).length,
-            limit: d === 'Quinta' ? 4 : MAX_DAY_LIMIT
-          })).filter(d => d.count < d.limit);
-
-          daysOtherWeek.sort((a, b) => a.count - b.count);
-
-          if (daysOtherWeek.length > 0) {
-            finalWeek = otherWeekNum;
-            finalDay = daysOtherWeek[0].dia;
-            console.log(`[AutoSync] Novo cliente alocado na Semana ${finalWeek}, ${finalDay} devido a falta de espaço na Semana ${idealWeek}.`);
-          }
-        }
-      }
+      console.log(`[AutoSync] Encaixe final para ${client.cliente}: ${finalDay} Semana ${finalWeek}, preservando proporção 2:2:2:1 e sexta livre.`);
 
       // D. PASSO 5: Salvar o novo cliente na agenda
       const newVisitObj = {
@@ -506,8 +413,8 @@ export async function runAutoAgendaSyncIfEligible(forceOverride: boolean = false
       }
     }
 
-    // F. Otimização de Continuidade Geográfica (bairros adjacentes)
-    await optimizeWeekDaysSequence();
+    // A sequência dos dias permanece estável; a proximidade é considerada antes de salvar o cliente.
+    // Isso preserva clientes de agenda fixa e mantém sexta-feira livre.
 
     return {
       executed: true,
