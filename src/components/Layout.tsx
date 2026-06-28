@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Search, BarChart3, Settings, FileUp, ShoppingCart, PieChart, Calendar, ArrowLeftRight } from 'lucide-react';
+import { LayoutDashboard, Users, Search, BarChart3, Settings, FileUp, ShoppingCart, PieChart, Calendar, ArrowLeftRight, Home } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 // Diagnostic mode toggle. Keep false in normal use.
@@ -146,7 +146,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <ShoppingCart className="text-orange-600" size={28} />
         </div>
         <nav className="flex-1 px-2 space-y-4 mt-4">
-          <NavItem to="/" icon={<Calendar size={24} />} label="" />
+          <NavItem to="/" icon={<Home size={24} />} label="" />
+          <NavItem to="/agenda" icon={<Calendar size={24} />} label="" />
           <NavItem to="/clientes" icon={<Users size={24} />} label="" />
           <NavItem to="/consulta-preco" icon={<Search size={24} />} label="" />
           <NavItem to="/metas" icon={<BarChart3 size={24} />} label="" />
@@ -178,11 +179,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
           }}
           className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 flex justify-around items-center h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] z-50 px-2 overflow-x-hidden"
         >
-          <MobileNavItem to="/" icon={<Calendar size={24} />} label="Agenda" />
+          <MobileNavItem to="/" icon={<Home size={24} />} label="Hoje" />
+          <MobileNavItem to="/agenda" icon={<Calendar size={24} />} label="Agenda" />
           <MobileNavItem to="/clientes" icon={<Users size={24} />} label="Clientes" />
           <MobileNavItem to="/consulta-preco" icon={<Search size={24} />} label="Preços" />
           <MobileNavItem to="/metas" icon={<BarChart3 size={24} />} label="Metas" />
-          <MobileNavItem to="/dashboard" icon={<LayoutDashboard size={24} />} label="Dash" />
           <MobileNavItem to="/emprestimos" icon={<ArrowLeftRight size={24} />} label="Trocas" />
           <MobileNavItem to="/settings" icon={<Settings size={24} />} label="Config" />
         </nav>
