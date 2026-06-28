@@ -371,9 +371,11 @@ export function AgendaPage() {
     const nextDate = getNextVisitDate(visita);
     setSelectedDate(nextDate);
     setSelectedVisita(visita);
-    setIsDrawerOpen(true);
-    setSearchTerm(visita.cliente_nome || '');
+    setIsDrawerOpen(false);
+    setSearchTerm('');
+    setFilterAddress('');
     setShowSearchSuggestions(false);
+    setShowAddressSuggestions(false);
   };
 
   const getAddressLabel = (visita: Visita) =>
@@ -401,8 +403,7 @@ export function AgendaPage() {
   }, [processedVisitas, filterAddress]);
 
   const selectAddressFilter = (visita: Visita) => {
-    setFilterAddress(getAddressLabel(visita));
-    setShowAddressSuggestions(false);
+    goToClientNextVisit(visita);
   };
 
   const filteredVisitas = useMemo(() => {
