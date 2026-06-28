@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
+import { HomePage } from './pages/HomePage';
 import { AgendaPage } from './pages/AgendaPage';
 import { ClientsPage } from './pages/ClientsPage';
 import { PriceInquiryPage } from './pages/PriceInquiryPage';
@@ -50,7 +51,8 @@ function AppContent() {
       <BrowserRouter>
         <Layout>
           <Routes>
-            <Route path="/" element={<AgendaPage />} />
+            <Route path="/" element={<HomePage />} />
+            <Route path="/agenda" element={<AgendaPage />} />
             <Route path="/clientes" element={<ClientsPage />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/consulta-preco" element={<PriceInquiryPage />} />
