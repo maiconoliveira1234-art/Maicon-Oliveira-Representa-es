@@ -62,8 +62,9 @@ export function AgendaPage() {
   // Filters
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterCity, setFilterCity] = useState('');
-  const [filterStatus, setFilterStatus] = useState<VisitaStatus | 'todos'>('todos');
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+  const [filterAddress, setFilterAddress] = useState('');
+  const [showAddressSuggestions, setShowAddressSuggestions] = useState(false);
   const [viewType, setViewType] = useState<'list' | 'map'>('list');
 
   useEffect(() => {
@@ -90,6 +91,24 @@ export function AgendaPage() {
     const dayIdx = date.getDay();
     return DIAS_MAP[dayIdx as keyof typeof DIAS_MAP] || null;
   };
+
+  const getNextVisitDate = (visita: Pick<Visita, 'semana' | 'dia_semana'>): Date => {
+    const today = startOfToday();
+    for (let offset = 0; offset < 28; offset++) {
+      const candidate = addDays(today, offset);
+      if (getCycleWeek(candidate) === visita.semana && getDayName(candidate) === visita.dia_semana) {
+        return candidate;
+      }
+    }
+    return today;
+  };
+
+  const normalizeSearchText = (value: string) =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
 
   useEffect(() => {
     fetchData();
@@ -234,7 +253,21 @@ export function AgendaPage() {
   async function handleAgendaUpdate(fields: Partial<Visita>) {
     if (!selectedVisita) return;
     try {
+      const manuallyChangedDay =
+        (fields.semana !== undefined && fields.semana !== selectedVisita.semana) ||
+        (fields.dia_semana !== undefined && fields.dia_semana !== selectedVisita.dia_semana);
+
       const updated = await agendaService.updateAgendaFields(selectedVisita.id, fields);
+
+      if (manuallyChangedDay && selectedVisita.cliente_id) {
+        const { error: clientError } = await supabase
+          .from('clientes')
+          .update({ agenda_fixa: true })
+          .eq('id', selectedVisita.cliente_id);
+
+        if (clientError) throw clientError;
+      }
+
       setVisitas(prev => prev.map(v => v.id === selectedVisita.id ? updated : v));
       setSelectedVisita(updated);
     } catch (err: any) {
@@ -307,18 +340,85 @@ export function AgendaPage() {
     });
   }, [visitas, historico]);
 
+  const clientSearchSuggestions = useMemo(() => {
+    const term = normalizeSearchText(searchTerm);
+    if (term.length < 2) return [];
+
+    const uniqueVisitas = new Map<string, Visita>();
+    processedVisitas.forEach((visita) => {
+      const name = visita.cliente_nome || '';
+      const city = visita.cidade || '';
+      const searchable = normalizeSearchText(`${name} ${city}`);
+      if (!searchable.includes(term)) return;
+
+      const key = visita.cliente_id || name;
+      if (!uniqueVisitas.has(key)) {
+        uniqueVisitas.set(key, visita);
+      }
+    });
+
+    return Array.from(uniqueVisitas.values())
+      .map((visita) => ({ visita, nextDate: getNextVisitDate(visita) }))
+      .sort((a, b) => {
+        const dateDiff = a.nextDate.getTime() - b.nextDate.getTime();
+        if (dateDiff !== 0) return dateDiff;
+        return (a.visita.cliente_nome || '').localeCompare(b.visita.cliente_nome || '');
+      })
+      .slice(0, 8);
+  }, [processedVisitas, searchTerm]);
+
+  const goToClientNextVisit = (visita: Visita) => {
+    const nextDate = getNextVisitDate(visita);
+    setSelectedDate(nextDate);
+    setSelectedVisita(visita);
+    setIsDrawerOpen(true);
+    setSearchTerm(visita.cliente_nome || '');
+    setShowSearchSuggestions(false);
+  };
+
+  const getAddressLabel = (visita: Visita) =>
+    [visita.endereco, visita.bairro, visita.cidade].filter(Boolean).join(' - ');
+
+  const addressSearchSuggestions = useMemo(() => {
+    const term = normalizeSearchText(filterAddress);
+    if (term.length < 2) return [];
+
+    const uniqueAddresses = new Map<string, Visita>();
+    processedVisitas.forEach((visita) => {
+      const label = getAddressLabel(visita);
+      if (!label) return;
+      if (!normalizeSearchText(label).includes(term)) return;
+
+      const key = normalizeSearchText(label);
+      if (!uniqueAddresses.has(key)) {
+        uniqueAddresses.set(key, visita);
+      }
+    });
+
+    return Array.from(uniqueAddresses.values())
+      .sort((a, b) => getAddressLabel(a).localeCompare(getAddressLabel(b)))
+      .slice(0, 8);
+  }, [processedVisitas, filterAddress]);
+
+  const selectAddressFilter = (visita: Visita) => {
+    setFilterAddress(getAddressLabel(visita));
+    setShowAddressSuggestions(false);
+  };
+
   const filteredVisitas = useMemo(() => {
     const currentWeek = getCycleWeek(selectedDate);
     const currentDay = getDayName(selectedDate);
+    const normalizedSearch = normalizeSearchText(searchTerm);
+    const normalizedAddress = normalizeSearchText(filterAddress);
 
     return processedVisitas.filter(v => {
       const matchesDay = v.semana === currentWeek && v.dia_semana === currentDay;
-      const matchesSearch = (v.cliente_nome || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (v.cidade || '').toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCity = !filterCity || v.cidade === filterCity;
-      const matchesStatus = filterStatus === 'todos' || v.status === filterStatus;
+      const searchable = normalizeSearchText(`${v.cliente_nome || ''} ${v.cidade || ''}`);
+      const addressSearchable = normalizeSearchText(getAddressLabel(v));
+      const matchesSearch = !normalizedSearch || searchable.includes(normalizedSearch);
+      const matchesAddress = !normalizedAddress || addressSearchable.includes(normalizedAddress);
 
-      return matchesDay && matchesSearch && matchesCity && matchesStatus;
+      return matchesDay && matchesSearch && matchesAddress;
     }).sort((a, b) => {
       const isConcluidaA = a.status === 'concluida';
       const isConcluidaB = b.status === 'concluida';
@@ -336,7 +436,7 @@ export function AgendaPage() {
       // Fallback to time (earlier first)
       return (a.horario_inicio || '').localeCompare(b.horario_inicio || '');
     });
-  }, [processedVisitas, selectedDate, searchTerm, filterCity, filterStatus, gapsMap]);
+  }, [processedVisitas, selectedDate, searchTerm, filterAddress, gapsMap]);
 
   const agendaStatsData = useMemo(() => {
     const start = startOfMonth(selectedDate);
@@ -370,7 +470,6 @@ export function AgendaPage() {
     };
   }, [filteredVisitas, metas, historico, produtos, selectedDate]);
 
-  const uniqueCities = Array.from(new Set(processedVisitas.map(v => v.cidade))).sort();
 
   if (loading) {
     return (
@@ -543,38 +642,94 @@ export function AgendaPage() {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden mb-8"
+              className="overflow-visible mb-8"
             >
-              <div className="p-3 bg-white border border-neutral-200 rounded-[1.5rem] grid grid-cols-1 md:grid-cols-3 gap-3 shadow-sm">
+              <div className="p-3 bg-white border border-neutral-200 rounded-[1.5rem] grid grid-cols-1 md:grid-cols-2 gap-3 shadow-sm">
                 <div className="relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" size={16} />
-                  <input 
+                  <input
                     type="text"
                     placeholder="Filtrar por cliente..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      setShowSearchSuggestions(true);
+                    }}
+                    onFocus={() => setShowSearchSuggestions(true)}
+                    onBlur={() => window.setTimeout(() => setShowSearchSuggestions(false), 150)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && clientSearchSuggestions[0]) {
+                        e.preventDefault();
+                        goToClientNextVisit(clientSearchSuggestions[0].visita);
+                      }
+                    }}
                     className="w-full bg-neutral-50 border border-neutral-200 rounded-2xl pl-11 pr-4 py-3 text-sm font-bold text-neutral-900 placeholder:text-neutral-400 outline-none focus:border-orange-500 transition-all"
                   />
+
+                  {showSearchSuggestions && clientSearchSuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl shadow-neutral-900/10">
+                      {clientSearchSuggestions.map(({ visita, nextDate }) => (
+                        <button
+                          key={visita.id}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            goToClientNextVisit(visita);
+                          }}
+                          className="w-full px-4 py-3 text-left transition-colors hover:bg-orange-50 focus:bg-orange-50 focus:outline-none"
+                        >
+                          <div className="text-sm font-black text-neutral-900 truncate">{visita.cliente_nome}</div>
+                          <div className="mt-1 text-[10px] font-black uppercase tracking-wider text-neutral-400">
+                            Semana {visita.semana} • {visita.dia_semana} • {format(nextDate, 'dd/MM')}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <select 
-                  value={filterCity}
-                  onChange={(e) => setFilterCity(e.target.value)}
-                  className="bg-neutral-50 border border-neutral-200 rounded-2xl px-4 py-3 text-sm font-bold text-neutral-900 outline-none focus:border-orange-500"
-                >
-                  <option value="">Todas as cidades</option>
-                  {uniqueCities.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <select 
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value as any)}
-                  className="bg-neutral-50 border border-neutral-200 rounded-2xl px-4 py-3 text-sm font-bold text-neutral-900 outline-none focus:border-orange-500"
-                >
-                  <option value="todos">Todos status</option>
-                  <option value="pendente">Pendente</option>
-                  <option value="concluida">Concluída</option>
-                  <option value="reagendada">Reagendada</option>
-                  <option value="cancelada">Cancelada</option>
-                </select>
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Filtrar por endereço..."
+                    value={filterAddress}
+                    onChange={(e) => {
+                      setFilterAddress(e.target.value);
+                      setShowAddressSuggestions(true);
+                    }}
+                    onFocus={() => setShowAddressSuggestions(true)}
+                    onBlur={() => window.setTimeout(() => setShowAddressSuggestions(false), 150)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && addressSearchSuggestions[0]) {
+                        e.preventDefault();
+                        selectAddressFilter(addressSearchSuggestions[0]);
+                      }
+                    }}
+                    className="w-full bg-neutral-50 border border-neutral-200 rounded-2xl pl-11 pr-4 py-3 text-sm font-bold text-neutral-900 placeholder:text-neutral-400 outline-none focus:border-orange-500 transition-all"
+                  />
+
+                  {showAddressSuggestions && addressSearchSuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl shadow-neutral-900/10">
+                      {addressSearchSuggestions.map((visita) => (
+                        <button
+                          key={`${visita.id}-address`}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            selectAddressFilter(visita);
+                          }}
+                          className="w-full px-4 py-3 text-left transition-colors hover:bg-orange-50 focus:bg-orange-50 focus:outline-none"
+                        >
+                          <div className="text-sm font-black text-neutral-900 truncate">{visita.cliente_nome}</div>
+                          <div className="mt-1 text-xs font-bold text-neutral-600 truncate">{visita.endereco || visita.bairro || visita.cidade}</div>
+                          <div className="mt-1 text-[10px] font-black uppercase tracking-wider text-neutral-400 truncate">
+                            {[visita.bairro, visita.cidade].filter(Boolean).join(' - ')}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.div>
           )}
