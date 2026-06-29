@@ -44,6 +44,26 @@ interface CommissionData extends HistVenda {
 
 type GroupBy = 'cliente' | 'produto' | 'familia';
 
+const IPI_COMMISSION_FAMILY_CODES = new Set(['01', '02', '04', '07', '08', '11', '12', '14', '15']);
+const IPI_COMMISSION_FACTOR = 0.935;
+const IPI_WEIGHT_LIMIT_KG = 10.1;
+
+function getFamilyCode(familia?: string) {
+  return (familia || '').trim().slice(0, 2);
+}
+
+function shouldApplyIpiCommissionDiscount(produto?: Produto | null) {
+  if (!produto) return false;
+  const familyCode = getFamilyCode(produto.familia);
+  const packageWeight = Number(produto.peso_embalagem) || 0;
+  return IPI_COMMISSION_FAMILY_CODES.has(familyCode) && packageWeight < IPI_WEIGHT_LIMIT_KG;
+}
+
+function calculateCommissionValue(totalValue: number, commissionPercent: number, produto?: Produto | null) {
+  const baseCommission = totalValue * commissionPercent;
+  return shouldApplyIpiCommissionDiscount(produto) ? baseCommission * IPI_COMMISSION_FACTOR : baseCommission;
+}
+
 export function CommissionPage() {
   const [loading, setLoading] = useState(true);
   const [vendas, setVendas] = useState<CommissionData[]>([]);
@@ -114,7 +134,7 @@ export function CommissionPage() {
           
           const comissao_percent = classification.entraComissao ? (prod?.comissao || 0) : 0;
           const rTotalCorrected = classification.entraFaturamento ? (v["r$_total"] || 0) : 0;
-          const comissao_valor = rTotalCorrected * comissao_percent;
+          const comissao_valor = calculateCommissionValue(rTotalCorrected, comissao_percent, prod);
           const peso_venda = (v.qtd || 0) * (prod?.peso_embalagem || 0);
 
           return {
@@ -145,81 +165,90 @@ export function CommissionPage() {
     fetchData();
   }, []);
 
-  const filteredVendas = useMemo(() => {
-    return allHistoryVendas.filter(v => {
-      const vDate = parseISO(v.faturamento);
-      
-      if (useCustomRange) {
-        const start = parseISO(customRange.start);
-        const end = parseISO(customRange.end);
-        if (vDate < start || vDate > end) return false;
-      } else {
-        const yearMatch = selectedYears.length === 0 || selectedYears.includes(vDate.getFullYear());
-        const monthMatch = selectedMonths.length === 0 || selectedMonths.includes(vDate.getMonth() + 1);
-        if (!yearMatch || !monthMatch) return false;
+  // Filter sales based on selected filters
+  useEffect(() => {
+    let filtered = allHistoryVendas;
+
+    if (useCustomRange) {
+      filtered = filtered.filter(v => {
+        const date = parseISO(v.faturamento);
+        return !isBefore(date, parseISO(customRange.start)) && !isAfter(date, parseISO(customRange.end));
+      });
+    } else {
+      if (selectedYears.length > 0) {
+        filtered = filtered.filter(v => selectedYears.includes(new Date(v.faturamento).getFullYear()));
       }
+      if (selectedMonths.length > 0) {
+        filtered = filtered.filter(v => selectedMonths.includes(new Date(v.faturamento).getMonth() + 1));
+      }
+    }
 
-      const matchCliente = !selectedClienteId || v.cliente_id === selectedClienteId;
-      const matchProduto = !selectedProdutoId || v.produto_id === selectedProdutoId;
-      const matchFamilia = !selectedFamilia || v.familia === selectedFamilia;
-      return matchCliente && matchProduto && matchFamilia;
-    });
-  }, [allHistoryVendas, useCustomRange, customRange, selectedYears, selectedMonths, selectedClienteId, selectedProdutoId, selectedFamilia]);
+    if (selectedClienteId) {
+      filtered = filtered.filter(v => v.cliente_id === selectedClienteId);
+    }
+    if (selectedProdutoId) {
+      filtered = filtered.filter(v => v.produto_id === selectedProdutoId);
+    }
+    if (selectedFamilia) {
+      filtered = filtered.filter(v => v.familia === selectedFamilia);
+    }
 
-  const monthlyComparisonData = useMemo(() => {
-    const months = Array.from({ length: 12 }).map((_, i) => i);
+    setVendas(filtered);
+  }, [allHistoryVendas, selectedYears, selectedMonths, useCustomRange, customRange, selectedClienteId, selectedProdutoId, selectedFamilia]);
+
+  // Monthly evolution data for 2024, 2025, 2026
+  const monthlyEvolution = useMemo(() => {
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const years = [2024, 2025, 2026];
-
-    return months.map(monthIndex => {
-      const monthName = format(new Date(2024, monthIndex, 1), 'MMM', { locale: ptBR });
-      const entry: any = { name: monthName };
-      
+    
+    return months.map((month, index) => {
+      const entry: any = { month };
       years.forEach(year => {
         const yearMonthData = allHistoryVendas.filter(h => {
-          const d = parseISO(h.faturamento);
-          // Apply current filters (except date range)
-          const matchCliente = !selectedClienteId || h.cliente_id === selectedClienteId;
-          const matchProduto = !selectedProdutoId || h.produto_id === selectedProdutoId;
-          const matchFamilia = !selectedFamilia || h.familia === selectedFamilia;
-          
-          return d.getFullYear() === year && d.getMonth() === monthIndex && matchCliente && matchProduto && matchFamilia;
+          const date = new Date(h.faturamento);
+          return date.getFullYear() === year && date.getMonth() === index;
         });
-        
         entry[`comissao_${year}`] = yearMonthData.reduce((acc, h) => acc + (h.comissao_valor || 0), 0);
       });
-
       return entry;
     });
-  }, [allHistoryVendas, selectedClienteId, selectedProdutoId, selectedFamilia]);
+  }, [allHistoryVendas]);
 
+  // Stats
   const stats = useMemo(() => {
-    const totalVendido = filteredVendas.reduce((acc, v) => acc + v["r$_total"], 0);
+    const totalVendido = filteredVendas.reduce((acc, v) => acc + (v["r$_total"] || 0), 0);
     const totalComissao = filteredVendas.reduce((acc, v) => acc + v.comissao_valor, 0);
-    const totalPedidos = new Set(filteredVendas.map(v => `${v.cliente_id}-${v.faturamento}`)).size;
+    const pesoTotal = filteredVendas.reduce((acc, v) => acc + v.peso_venda, 0);
     const percentualMedio = totalVendido > 0 ? (totalComissao / totalVendido) * 100 : 0;
-    const ticketMedio = totalPedidos > 0 ? totalVendido / totalPedidos : 0;
 
-    // Projection calculation (only relevant if single current month is selected)
-    const now = new Date();
+    // Projected Commission
     let projetadoComissao = totalComissao;
+    let isProjection = false;
     
     if (!useCustomRange && selectedYears.length === 1 && selectedMonths.length === 1) {
-      const targetMonthStart = new Date(selectedYears[0], selectedMonths[0] - 1, 1);
-      const targetMonthEnd = endOfMonth(targetMonthStart);
+      const year = selectedYears[0];
+      const month = selectedMonths[0];
+      const selectedDate = new Date(year, month - 1, 1);
+      const deadline = parseISO(deadlineDate);
       
-      if (now >= targetMonthStart && now <= targetMonthEnd) {
-        const daysPassed = Math.max(1, differenceInDays(now, targetMonthStart) + 1);
-        const totalDays = Math.max(1, differenceInDays(targetMonthEnd, targetMonthStart) + 1);
+      if (selectedDate.getMonth() === deadline.getMonth() && selectedDate.getFullYear() === deadline.getFullYear()) {
+        const start = startOfMonth(selectedDate);
+        const end = deadline;
+        const today = new Date();
+        const effectiveToday = isBefore(today, end) ? today : end;
+        const daysPassed = Math.max(1, differenceInDays(effectiveToday, start) + 1);
+        const totalDays = differenceInDays(end, start) + 1;
         projetadoComissao = totalComissao * (totalDays / daysPassed);
+        isProjection = true;
       }
     }
 
     return {
       totalVendido,
       totalComissao,
-      totalPedidos,
+      pesoTotal,
       percentualMedio,
-      ticketMedio,
+      totalItens: filteredVendas.length,
       projetadoComissao,
       isPositiveTrend: projetadoComissao >= totalComissao
     };
@@ -231,14 +260,14 @@ export function CommissionPage() {
     filteredVendas.forEach(v => {
       let key = '';
       let label = '';
-
+      
       if (groupBy === 'cliente') {
         key = v.cliente_id;
         label = v.cliente;
       } else if (groupBy === 'produto') {
-        key = v.produto_id;
+        key = v.produto_id || v.produtos;
         label = v.produtos;
-      } else if (groupBy === 'familia') {
+      } else {
         key = v.familia;
         label = v.familia;
       }
@@ -247,520 +276,454 @@ export function CommissionPage() {
         groups[key] = { label, total: 0, comissao: 0, peso: 0 };
       }
 
-      groups[key].total += v["r$_total"];
+      groups[key].total += v["r$_total"] || 0;
       groups[key].comissao += v.comissao_valor;
       groups[key].peso += v.peso_venda;
     });
 
-    return Object.values(groups).sort((a, b) => b.total - a.total);
+    return Object.values(groups)
+      .sort((a, b) => b.comissao - a.comissao)
+      .slice(0, 20);
   }, [filteredVendas, groupBy]);
 
-  const families = useMemo(() => {
-    const fams = new Set(produtos.map(p => p.familia).filter(Boolean));
-    return Array.from(fams).sort();
-  }, [produtos]);
+  const uniqueFamilies = useMemo(() => {
+    return Array.from(new Set(allHistoryVendas.map(v => v.familia))).sort();
+  }, [allHistoryVendas]);
+
+  const filteredClientes = useMemo(() => {
+    return clientes.filter(c => c.cliente.toLowerCase().includes(clientSearch.toLowerCase()));
+  }, [clientes, clientSearch]);
+
+  const filteredProdutos = useMemo(() => {
+    return produtos.filter(p => p.produto.toLowerCase().includes(productSearch.toLowerCase()));
+  }, [produtos, productSearch]);
+
+  const toggleYear = (year: number) => {
+    setSelectedYears(prev => prev.includes(year) ? prev.filter(y => y !== year) : [...prev, year]);
+  };
+
+  const toggleMonth = (month: number) => {
+    setSelectedMonths(prev => prev.includes(month) ? prev.filter(m => m !== month) : [...prev, month]);
+  };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="animate-spin text-orange-600" size={32} />
+      <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="animate-spin text-orange-600 mx-auto mb-4" size={40} />
+          <p className="text-neutral-500 font-bold">Calculando comissões...</p>
+        </div>
       </div>
     );
   }
 
+  const years = [2024, 2025, 2026];
+  const months = [
+    { value: 1, label: 'Jan' }, { value: 2, label: 'Fev' }, { value: 3, label: 'Mar' },
+    { value: 4, label: 'Abr' }, { value: 5, label: 'Mai' }, { value: 6, label: 'Jun' },
+    { value: 7, label: 'Jul' }, { value: 8, label: 'Ago' }, { value: 9, label: 'Set' },
+    { value: 10, label: 'Out' }, { value: 11, label: 'Nov' }, { value: 12, label: 'Dez' }
+  ];
+
   return (
-    <div className="space-y-6 pb-12">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="min-h-screen bg-neutral-50 p-4 md:p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-neutral-900 flex items-center gap-2">
-            <DollarSign className="text-orange-600" />
+          <h1 className="text-3xl font-black text-neutral-900 tracking-tight flex items-center gap-3">
+            <DollarSign className="text-orange-600" size={32} />
             Acompanhamento de Comissão
           </h1>
-          <p className="text-neutral-500 text-sm">
-            Análise detalhada de vendas e comissões por período.
-          </p>
+          <p className="text-neutral-500 font-medium mt-1">Análise detalhada de comissões por período, cliente e produto</p>
         </div>
-      </header>
-
-      {/* Filters */}
-      <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Year Dropdown */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block">Anos</label>
-            <div className="relative">
-              <button 
-                onClick={() => setShowYearDropdown(!showYearDropdown)}
-                className="w-full flex items-center justify-between px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
-              >
-                <span className="truncate">
-                  {selectedYears.length === 0 ? "Todos os Anos" : `${selectedYears.length} selecionados`}
-                </span>
-                <ChevronDown size={16} className={cn("transition-transform", showYearDropdown && "rotate-180")} />
-              </button>
-              
-              {showYearDropdown && (
-                <>
-                  <div className="fixed inset-0 z-[60]" onClick={() => setShowYearDropdown(false)} />
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl z-[70] p-1">
-                    {[2024, 2025, 2026].map(y => (
-                      <button
-                        key={y}
-                        onClick={() => {
-                          setSelectedYears(prev => prev.includes(y) ? prev.filter(item => item !== y) : [...prev, y]);
-                          setUseCustomRange(false);
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-neutral-50 flex items-center gap-3 text-sm font-medium"
-                      >
-                        <div className={cn(
-                          "w-4 h-4 rounded border flex items-center justify-center transition-colors",
-                          selectedYears.includes(y) ? "bg-orange-500 border-orange-500" : "border-neutral-300"
-                        )}>
-                          {selectedYears.includes(y) && <TrendingUp size={10} className="text-white" strokeWidth={4} />}
-                        </div>
-                        <span>{y}</span>
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => {
-                        setSelectedYears([]);
-                        setUseCustomRange(false);
-                      }}
-                      className="w-full text-center py-2 text-[10px] font-black uppercase text-orange-600 hover:bg-orange-50 rounded-lg mt-1"
-                    >
-                      Limpar / Selecionar Todos
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Month Dropdown */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block">Meses</label>
-            <div className="relative">
-              <button 
-                onClick={() => setShowMonthDropdown(!showMonthDropdown)}
-                className="w-full flex items-center justify-between px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
-              >
-                <span className="truncate">
-                  {selectedMonths.length === 0 ? "Todos os Meses" : `${selectedMonths.length} selecionados`}
-                </span>
-                <ChevronDown size={16} className={cn("transition-transform", showMonthDropdown && "rotate-180")} />
-              </button>
-              
-              {showMonthDropdown && (
-                <>
-                  <div className="fixed inset-0 z-[60]" onClick={() => setShowMonthDropdown(false)} />
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl z-[70] max-h-64 overflow-y-auto p-1">
-                    {Array.from({ length: 12 }).map((_, i) => (
-                      <button
-                        key={i + 1}
-                        onClick={() => {
-                          setSelectedMonths(prev => prev.includes(i + 1) ? prev.filter(m => m !== i + 1) : [...prev, i + 1]);
-                          setUseCustomRange(false);
-                        }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-neutral-50 flex items-center gap-3 text-sm font-medium"
-                      >
-                        <div className={cn(
-                          "w-4 h-4 rounded border flex items-center justify-center transition-colors",
-                          selectedMonths.includes(i + 1) ? "bg-orange-500 border-orange-500" : "border-neutral-300"
-                        )}>
-                          {selectedMonths.includes(i + 1) && <TrendingUp size={10} className="text-white" strokeWidth={4} />}
-                        </div>
-                        <span>{format(new Date(2024, i, 1), 'MMMM', { locale: ptBR })}</span>
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => {
-                        setSelectedMonths([]);
-                        setUseCustomRange(false);
-                      }}
-                      className="w-full text-center py-2 text-[10px] font-black uppercase text-orange-600 hover:bg-orange-50 rounded-lg mt-1"
-                    >
-                      Limpar / Selecionar Todos
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Custom Date Range Toggle */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block">Período Customizado</label>
-            <div className="flex bg-neutral-100 p-1 rounded-xl border border-neutral-200 h-[42px]">
-              <button 
-                onClick={() => setUseCustomRange(false)}
-                className={cn(
-                  "flex-1 text-[10px] font-bold rounded-lg transition-all",
-                  !useCustomRange ? "bg-white text-orange-600 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
-                )}
-              >
-                Anos/Meses
-              </button>
-              <button 
-                onClick={() => setUseCustomRange(true)}
-                className={cn(
-                  "flex-1 text-[10px] font-bold rounded-lg transition-all",
-                  useCustomRange ? "bg-white text-orange-600 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
-                )}
-              >
-                Datas Específicas
-              </button>
-            </div>
-          </div>
-
-          {/* Specific Dates Inputs */}
-          {useCustomRange ? (
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block">Datas</label>
-              <div className="flex gap-2">
-                <input 
-                  type="date" 
-                  value={customRange.start}
-                  onChange={(e) => setCustomRange(prev => ({ ...prev, start: e.target.value }))}
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 font-bold text-xs outline-none focus:ring-2 focus:ring-orange-500"
-                />
-                <input 
-                  type="date" 
-                  value={customRange.end}
-                  onChange={(e) => setCustomRange(prev => ({ ...prev, end: e.target.value }))}
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 font-bold text-xs outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-end h-[42px] mt-6">
-              <button 
-                onClick={() => {
-                  setSelectedYears([2024, 2025, 2026]);
-                  setSelectedMonths([]);
-                  setUseCustomRange(false);
-                }}
-                className="w-full h-[42px] bg-neutral-900 text-white rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-neutral-800 transition-colors flex items-center justify-center gap-2"
-              >
-                <Calendar size={14} />
-                Todo o Período
-              </button>
-            </div>
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className={cn(
+            "flex items-center gap-2 px-4 py-3 rounded-2xl font-bold transition-all",
+            showFilters ? "bg-orange-600 text-white" : "bg-white text-neutral-700 border border-neutral-200"
           )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-4 border-t border-neutral-100">
-          {/* Client Filter (Dropdown Style) */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block">Cliente</label>
-            <div className="relative">
-              <button 
-                onClick={() => setShowClientDropdown(!showClientDropdown)}
-                className="w-full flex items-center justify-between px-4 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-bold flex-1 truncate"
-              >
-                <span className="truncate">
-                  {selectedClienteId ? clientes.find(c => c.id === selectedClienteId)?.cliente : "Todos os Clientes"}
-                </span>
-                <ChevronDown size={14} />
-              </button>
-              {showClientDropdown && (
-                <>
-                  <div className="fixed inset-0 z-[60]" onClick={() => setShowClientDropdown(false)} />
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl z-[70] p-2 min-w-[280px]">
-                    <div className="p-2 border-b border-neutral-100 mb-2">
-                      <input 
-                        placeholder="Buscar cliente..." 
-                        value={clientSearch}
-                        onChange={(e) => setClientSearch(e.target.value)}
-                        className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                    <div className="max-h-60 overflow-y-auto">
-                      <button 
-                        onClick={() => { setSelectedClienteId(''); setShowClientDropdown(false); }}
-                        className={cn("w-full text-left px-3 py-2 rounded-lg text-sm font-medium", !selectedClienteId ? "bg-orange-50 text-orange-600" : "hover:bg-neutral-50")}
-                      >
-                        Todos os Clientes
-                      </button>
-                      {clientes
-                        .filter(c => c.cliente.toLowerCase().includes(clientSearch.toLowerCase()))
-                        .map(c => (
-                        <button
-                          key={c.id}
-                          onClick={() => { setSelectedClienteId(c.id); setShowClientDropdown(false); }}
-                          className={cn("w-full text-left px-3 py-2 rounded-lg text-sm font-medium truncate", selectedClienteId === c.id ? "bg-orange-50 text-orange-600" : "hover:bg-neutral-50")}
-                        >
-                          {c.cliente}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Product Filter */}
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block">Produto</label>
-            <div className="relative">
-              <button 
-                onClick={() => setShowProductDropdown(!showProductDropdown)}
-                className="w-full flex items-center justify-between px-4 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-bold truncate"
-              >
-                <span className="truncate">
-                  {selectedProdutoId ? produtos.find(p => p.id === selectedProdutoId)?.produto : "Todos os Produtos"}
-                </span>
-                <ChevronDown size={14} />
-              </button>
-              {showProductDropdown && (
-                <>
-                  <div className="fixed inset-0 z-[60]" onClick={() => setShowProductDropdown(false)} />
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl z-[70] p-2 min-w-[280px]">
-                    <div className="p-2 border-b border-neutral-100 mb-2">
-                      <input 
-                        placeholder="Buscar produto..." 
-                        value={productSearch}
-                        onChange={(e) => setProductSearch(e.target.value)}
-                        className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-500"
-                      />
-                    </div>
-                    <div className="max-h-60 overflow-y-auto">
-                      <button 
-                        onClick={() => { setSelectedProdutoId(''); setShowProductDropdown(false); }}
-                        className={cn("w-full text-left px-3 py-2 rounded-lg text-sm font-medium", !selectedProdutoId ? "bg-orange-50 text-orange-600" : "hover:bg-neutral-50")}
-                      >
-                        Todos os Produtos
-                      </button>
-                      {produtos
-                        .filter(p => p.produto.toLowerCase().includes(productSearch.toLowerCase()))
-                        .map(p => (
-                        <button
-                          key={p.id}
-                          onClick={() => { setSelectedProdutoId(p.id); setShowProductDropdown(false); }}
-                          className={cn("w-full text-left px-3 py-2 rounded-lg text-sm font-medium truncate", selectedProdutoId === p.id ? "bg-orange-50 text-orange-600" : "hover:bg-neutral-50")}
-                        >
-                          {p.produto}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block">Família</label>
-            <select
-              value={selectedFamilia}
-              onChange={(e) => setSelectedFamilia(e.target.value)}
-              className="w-full p-2 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
-            >
-              <option value="">Todas as Famílias</option>
-              {families.map(f => (
-                <option key={f} value={f}>{f}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest block">Agrupar Por</label>
-            <div className="flex bg-neutral-100 p-1 rounded-xl border border-neutral-200 h-[42px]">
-              {(['cliente', 'produto', 'familia'] as GroupBy[]).map((g) => (
-                <button
-                  key={g}
-                  onClick={() => setGroupBy(g)}
-                  className={cn(
-                    "flex-1 text-[10px] font-black uppercase transition-all rounded-lg",
-                    groupBy === g 
-                      ? "bg-white text-orange-600 shadow-sm" 
-                      : "text-neutral-500 hover:text-neutral-700"
-                  )}
-                >
-                  {g}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        >
+          <Filter size={20} />
+          Filtros
+        </button>
       </div>
 
+      {/* Filters Panel */}
+      {showFilters && (
+        <div className="bg-white p-4 rounded-3xl border border-neutral-200 shadow-sm space-y-4 animate-in slide-in-from-top-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Date Type Toggle */}
+            <div className="col-span-full flex gap-2 bg-neutral-100 p-1 rounded-2xl w-fit">
+              <button
+                onClick={() => setUseCustomRange(false)}
+                className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-all", !useCustomRange ? "bg-white shadow-sm text-orange-600" : "text-neutral-500")}
+              >
+                Mês/Ano
+              </button>
+              <button
+                onClick={() => setUseCustomRange(true)}
+                className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-all", useCustomRange ? "bg-white shadow-sm text-orange-600" : "text-neutral-500")}
+              >
+                Período Personalizado
+              </button>
+            </div>
+
+            {useCustomRange ? (
+              <>
+                <div>
+                  <label className="text-xs font-bold text-neutral-500 uppercase mb-2 block">Data Início</label>
+                  <input
+                    type="date"
+                    value={customRange.start}
+                    onChange={(e) => setCustomRange(prev => ({ ...prev, start: e.target.value }))}
+                    className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-neutral-500 uppercase mb-2 block">Data Fim</label>
+                  <input
+                    type="date"
+                    value={customRange.end}
+                    onChange={(e) => setCustomRange(prev => ({ ...prev, end: e.target.value }))}
+                    className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold"
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Year Multi Select */}
+                <div className="relative">
+                  <label className="text-xs font-bold text-neutral-500 uppercase mb-2 block">Anos</label>
+                  <button
+                    onClick={() => setShowYearDropdown(!showYearDropdown)}
+                    className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold flex justify-between items-center"
+                  >
+                    {selectedYears.length > 0 ? selectedYears.join(', ') : 'Todos'}
+                    <ChevronDown size={16} />
+                  </button>
+                  {showYearDropdown && (
+                    <div className="absolute z-20 mt-2 w-full bg-white border border-neutral-200 rounded-2xl shadow-xl p-2">
+                      {years.map(year => (
+                        <label key={year} className="flex items-center gap-2 p-2 hover:bg-neutral-50 rounded-xl cursor-pointer">
+                          <input type="checkbox" checked={selectedYears.includes(year)} onChange={() => toggleYear(year)} className="accent-orange-600" />
+                          <span className="font-bold">{year}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Month Multi Select */}
+                <div className="relative">
+                  <label className="text-xs font-bold text-neutral-500 uppercase mb-2 block">Meses</label>
+                  <button
+                    onClick={() => setShowMonthDropdown(!showMonthDropdown)}
+                    className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold flex justify-between items-center"
+                  >
+                    {selectedMonths.length > 0 ? `${selectedMonths.length} selecionado(s)` : 'Todos'}
+                    <ChevronDown size={16} />
+                  </button>
+                  {showMonthDropdown && (
+                    <div className="absolute z-20 mt-2 w-64 bg-white border border-neutral-200 rounded-2xl shadow-xl p-2 grid grid-cols-3 gap-1">
+                      {months.map(m => (
+                        <label key={m.value} className="flex items-center gap-1 p-2 hover:bg-neutral-50 rounded-xl cursor-pointer text-sm">
+                          <input type="checkbox" checked={selectedMonths.includes(m.value)} onChange={() => toggleMonth(m.value)} className="accent-orange-600" />
+                          <span className="font-bold">{m.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Client Select */}
+            <div className="relative">
+              <label className="text-xs font-bold text-neutral-500 uppercase mb-2 block">Cliente</label>
+              <button
+                onClick={() => setShowClientDropdown(!showClientDropdown)}
+                className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold flex justify-between items-center truncate"
+              >
+                <span className="truncate">{selectedClienteId ? clientes.find(c => c.id === selectedClienteId)?.cliente : 'Todos'}</span>
+                <ChevronDown size={16} className="shrink-0" />
+              </button>
+              {showClientDropdown && (
+                <div className="absolute z-20 mt-2 w-80 bg-white border border-neutral-200 rounded-2xl shadow-xl p-2 max-h-80 overflow-y-auto">
+                  <input
+                    type="text"
+                    placeholder="Buscar cliente..."
+                    value={clientSearch}
+                    onChange={(e) => setClientSearch(e.target.value)}
+                    className="w-full px-3 py-2 mb-2 bg-neutral-50 rounded-xl text-sm outline-none"
+                  />
+                  <button
+                    onClick={() => { setSelectedClienteId(''); setShowClientDropdown(false); }}
+                    className="w-full text-left p-2 hover:bg-neutral-50 rounded-xl font-bold text-orange-600"
+                  >
+                    Todos os Clientes
+                  </button>
+                  {filteredClientes.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => { setSelectedClienteId(c.id); setShowClientDropdown(false); }}
+                      className="w-full text-left p-2 hover:bg-neutral-50 rounded-xl font-medium text-sm truncate"
+                    >
+                      {c.cliente}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Product Select */}
+            <div className="relative">
+              <label className="text-xs font-bold text-neutral-500 uppercase mb-2 block">Produto</label>
+              <button
+                onClick={() => setShowProductDropdown(!showProductDropdown)}
+                className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold flex justify-between items-center truncate"
+              >
+                <span className="truncate">{selectedProdutoId ? produtos.find(p => p.id === selectedProdutoId)?.produto : 'Todos'}</span>
+                <ChevronDown size={16} className="shrink-0" />
+              </button>
+              {showProductDropdown && (
+                <div className="absolute z-20 mt-2 w-80 bg-white border border-neutral-200 rounded-2xl shadow-xl p-2 max-h-80 overflow-y-auto">
+                  <input
+                    type="text"
+                    placeholder="Buscar produto..."
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    className="w-full px-3 py-2 mb-2 bg-neutral-50 rounded-xl text-sm outline-none"
+                  />
+                  <button
+                    onClick={() => { setSelectedProdutoId(''); setShowProductDropdown(false); }}
+                    className="w-full text-left p-2 hover:bg-neutral-50 rounded-xl font-bold text-orange-600"
+                  >
+                    Todos os Produtos
+                  </button>
+                  {filteredProdutos.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => { setSelectedProdutoId(p.id); setShowProductDropdown(false); }}
+                      className="w-full text-left p-2 hover:bg-neutral-50 rounded-xl font-medium text-sm truncate"
+                    >
+                      {p.produto}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Family Select */}
+            <div className="relative">
+              <label className="text-xs font-bold text-neutral-500 uppercase mb-2 block">Família</label>
+              <button
+                onClick={() => setShowFamilyDropdown(!showFamilyDropdown)}
+                className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold flex justify-between items-center truncate"
+              >
+                <span className="truncate">{selectedFamilia || 'Todas'}</span>
+                <ChevronDown size={16} className="shrink-0" />
+              </button>
+              {showFamilyDropdown && (
+                <div className="absolute z-20 mt-2 w-64 bg-white border border-neutral-200 rounded-2xl shadow-xl p-2 max-h-80 overflow-y-auto">
+                  <button
+                    onClick={() => { setSelectedFamilia(''); setShowFamilyDropdown(false); }}
+                    className="w-full text-left p-2 hover:bg-neutral-50 rounded-xl font-bold text-orange-600"
+                  >
+                    Todas as Famílias
+                  </button>
+                  {uniqueFamilies.map(f => (
+                    <button
+                      key={f}
+                      onClick={() => { setSelectedFamilia(f); setShowFamilyDropdown(false); }}
+                      className="w-full text-left p-2 hover:bg-neutral-50 rounded-xl font-medium text-sm truncate"
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Group By */}
+          <div className="flex items-center gap-2 pt-2 border-t border-neutral-100">
+            <span className="text-xs font-bold text-neutral-500 uppercase">Agrupar por:</span>
+            {(['cliente', 'produto', 'familia'] as GroupBy[]).map(g => (
+              <button
+                key={g}
+                onClick={() => setGroupBy(g)}
+                className={cn(
+                  "px-3 py-1 rounded-xl text-sm font-bold capitalize transition-all",
+                  groupBy === g ? "bg-orange-600 text-white" : "bg-neutral-100 text-neutral-600"
+                )}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard 
+          icon={<DollarSign />} 
           label="Total Vendido" 
           value={`R$ ${stats.totalVendido.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-          icon={<DollarSign size={20} />}
           color="blue"
         />
         <StatCard 
+          icon={<TrendingUp />} 
           label="Total Comissão" 
           value={`R$ ${stats.totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-          icon={<TrendingUp size={20} />}
           color="orange"
         />
         <StatCard 
+          icon={<BarChart3 />} 
           label="Tendência Comissão" 
           value={`R$ ${stats.projetadoComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-          icon={<TrendingUp size={20} />}
-          color="green"
-          trend={stats.isPositiveTrend ? "up" : "down"}
+          color={stats.isPositiveTrend ? "green" : "red"}
+          trend={stats.isPositiveTrend}
         />
         <StatCard 
+          icon={<PieChartIcon />} 
           label="Comissão Média" 
           value={`${stats.percentualMedio.toFixed(2)}%`}
-          icon={<PieChartIcon size={20} />}
           color="purple"
         />
         <StatCard 
-          label="Pedidos" 
-          value={stats.totalPedidos.toString()}
-          icon={<Users size={20} />}
-          color="neutral"
-        />
-        <StatCard 
-          label="Ticket Médio" 
-          value={`R$ ${stats.ticketMedio.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-          icon={<BarChart3 size={20} />}
-          color="neutral"
+          icon={<Package />} 
+          label="Peso Total" 
+          value={`${stats.pesoTotal.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kg`}
+          color="green"
         />
       </div>
 
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 gap-6">
-        {/* Evolution Chart */}
-        <div className="bg-white p-6 rounded-2xl border border-neutral-200 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-black text-neutral-900 flex items-center gap-2">
-              <BarChart3 className="text-blue-600" size={20} />
-              Comparativo Mensal de Comissão
-            </h3>
-          </div>
-          <div className="h-80 w-full">
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Monthly Evolution Chart */}
+        <div className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm lg:col-span-2">
+          <h3 className="text-lg font-black text-neutral-900 mb-6 flex items-center gap-2">
+            <Calendar className="text-orange-600" />
+            Comparativo Mensal de Comissão
+          </h3>
+          <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyComparisonData} barCategoryGap="35%" barGap={3} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <LineChart data={monthlyEvolution}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fontSize: 9, fontWeight: 'bold', fill: '#a3a3a3' }}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fontSize: 9, fontWeight: 'bold', fill: '#a3a3a3' }}
-                  tickFormatter={(val) => `R$ ${val >= 1000 ? (val/1000).toFixed(0) + 'k' : val}`}
-                />
+                <XAxis dataKey="month" tick={{ fontSize: 12, fontWeight: 600 }} />
+                <YAxis tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
                 <Tooltip 
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px' }}
-                  formatter={(val: number) => [`R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, '']}
+                  formatter={(value: any) => [`R$ ${Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, '']}
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}
                 />
-                <Legend verticalAlign="top" align="center" iconType="circle" wrapperStyle={{ paddingBottom: '10px', fontSize: '9px', fontWeight: 'bold' }} />
-                <Bar 
+                <Legend />
+                <Line 
+                  type="monotone" 
                   dataKey="comissao_2024" 
                   name="2024" 
-                  fill="#3b82f6" 
-                  radius={[2, 2, 0, 0]} 
-                  barSize={12}
+                  stroke="#94a3b8" 
+                  strokeWidth={3}
+                  dot={{ r: 4 }}
                 />
-                <Bar 
+                <Line 
+                  type="monotone" 
                   dataKey="comissao_2025" 
                   name="2025" 
-                  fill="#f97316" 
-                  radius={[2, 2, 0, 0]} 
-                  barSize={12}
+                  stroke="#3b82f6" 
+                  strokeWidth={3}
+                  dot={{ r: 4 }}
                 />
-                <Bar 
+                <Line 
+                  type="monotone" 
                   dataKey="comissao_2026" 
                   name="2026" 
-                  fill="#10b981" 
-                  radius={[2, 2, 0, 0]} 
-                  barSize={12}
+                  stroke="#ea580c" 
+                  strokeWidth={4}
+                  dot={{ r: 5 }}
                 />
-              </BarChart>
+              </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
-      </div>
 
-      {/* Table Section */}
-      <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-neutral-100 bg-neutral-50 flex items-center justify-between">
-          <h3 className="font-black text-neutral-900 uppercase text-xs tracking-widest">
-            {`Agrupado por ${groupBy}`}
+        {/* Grouped Data Table */}
+        <div className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm lg:col-span-2">
+          <h3 className="text-lg font-black text-neutral-900 mb-6 flex items-center gap-2">
+            <Users className="text-orange-600" />
+            Ranking por {groupBy === 'cliente' ? 'Cliente' : groupBy === 'produto' ? 'Produto' : 'Família'}
           </h3>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-neutral-50 text-[10px] uppercase font-black text-neutral-400 border-b border-neutral-200">
-                <th className="px-4 py-3">{groupBy.charAt(0).toUpperCase() + groupBy.slice(1)}</th>
-                <th className="px-4 py-3 text-right">Peso Total</th>
-                <th className="px-4 py-3 text-right">Valor Total</th>
-                <th className="px-4 py-3 text-right">Comissão Total</th>
-                <th className="px-4 py-3 text-right">% Médio</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-100">
-              {groupedData?.map((g, idx) => (
-                <tr key={idx} className="hover:bg-neutral-50 transition-colors text-xs">
-                  <td className="px-4 py-3 font-bold text-neutral-900">{g.label}</td>
-                  <td className="px-4 py-3 text-right font-medium">{g.peso.toFixed(2)} kg</td>
-                  <td className="px-4 py-3 text-right font-bold">
-                    R$ {g.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-4 py-3 text-right font-black text-orange-600">
-                    R$ {g.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-4 py-3 text-right text-neutral-500">
-                    {((g.comissao / g.total) * 100).toFixed(2)}%
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-neutral-100 text-xs text-neutral-500 uppercase font-bold">
+                  <th className="px-4 py-3">{groupBy === 'cliente' ? 'Cliente' : groupBy === 'produto' ? 'Produto' : 'Família'}</th>
+                  <th className="px-4 py-3 text-right">Valor Total</th>
+                  <th className="px-4 py-3 text-right">Comissão Total</th>
+                  <th className="px-4 py-3 text-right">% Médio</th>
+                  <th className="px-4 py-3 text-right">Peso</th>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot className="bg-neutral-900 text-white">
-              <tr className="text-xs font-bold">
-                <td className="px-4 py-3 uppercase tracking-widest opacity-70">Total</td>
-                <td className="px-4 py-3 text-right">{filteredVendas.reduce((acc, v) => acc + v.peso_venda, 0).toFixed(2)} kg</td>
-                <td className="px-4 py-3 text-right">R$ {stats.totalVendido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                <td className="px-4 py-3 text-right text-orange-400">R$ {stats.totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                <td className="px-4 py-3 text-right">{stats.percentualMedio.toFixed(2)}%</td>
-              </tr>
-            </tfoot>
-          </table>
+              </thead>
+              <tbody>
+                {groupedData.map((g, idx) => (
+                  <tr key={idx} className="border-b border-neutral-50 hover:bg-neutral-50 transition-colors">
+                    <td className="px-4 py-3 font-bold text-neutral-800 max-w-md truncate">{g.label}</td>
+                    <td className="px-4 py-3 text-right font-medium">
+                      R$ {g.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-4 py-3 text-right font-black text-orange-600">
+                      R$ {g.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium">
+                      {((g.comissao / g.total) * 100).toFixed(2)}%
+                    </td>
+                    <td className="px-4 py-3 text-right text-neutral-500">
+                      {g.peso.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kg
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-neutral-50 font-black">
+                <tr>
+                  <td className="px-4 py-3">TOTAL</td>
+                  <td className="px-4 py-3 text-right">R$ {stats.totalVendido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="px-4 py-3 text-right text-orange-400">R$ {stats.totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="px-4 py-3 text-right">{stats.percentualMedio.toFixed(2)}%</td>
+                  <td className="px-4 py-3 text-right">{stats.pesoTotal.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kg</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function StatCard({ label, value, icon, color, trend }: { label: string, value: string, icon: React.ReactNode, color: string, trend?: 'up' | 'down' }) {
+function StatCard({ icon, label, value, color, trend }: { icon: React.ReactNode; label: string; value: string; color: string; trend?: boolean }) {
   const colorClasses = {
-    orange: "bg-orange-50 text-orange-600 border-orange-100",
-    blue: "bg-blue-50 text-blue-600 border-blue-100",
-    purple: "bg-purple-50 text-purple-600 border-purple-100",
-    green: "bg-green-50 text-green-600 border-green-100",
-    neutral: "bg-neutral-50 text-neutral-600 border-neutral-100"
-  }[color as any] || "bg-neutral-50 text-neutral-600 border-neutral-100";
+    blue: 'bg-blue-50 text-blue-600',
+    orange: 'bg-orange-50 text-orange-600',
+    green: 'bg-green-50 text-green-600',
+    purple: 'bg-purple-50 text-purple-600',
+    red: 'bg-red-50 text-red-600'
+  } as any;
 
   return (
-    <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm space-y-2 relative overflow-hidden">
-      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center border", colorClasses)}>
-        {icon}
+    <div className="bg-white p-5 rounded-3xl border border-neutral-200 shadow-sm">
+      <div className="flex items-start justify-between mb-4">
+        <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", colorClasses[color])}>
+          {icon}
+        </div>
+        {trend !== undefined && (
+          <div className={cn("flex items-center gap-1 text-xs font-bold", trend ? "text-green-600" : "text-red-600")}>
+            {trend ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+            Projeção
+          </div>
+        )}
       </div>
-      <div>
-        <p className="text-[10px] font-black text-neutral-400 uppercase tracking-widest flex items-center gap-1">
-          {label}
-          {trend && (
-            <span className={cn(trend === 'up' ? "text-green-500" : "text-red-500")}>
-              {trend === 'up' ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
-            </span>
-          )}
-        </p>
-        <p className="text-lg font-black text-neutral-900">{value}</p>
-      </div>
+      <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{label}</p>
+      <h3 className="text-xl font-black text-neutral-900 truncate">{value}</h3>
     </div>
   );
 }
