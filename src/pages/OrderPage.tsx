@@ -69,38 +69,7 @@ export function OrderPage() {
   const [manualFaixa, setManualFaixa] = useState<PrecoFaixa | null>(null);
   const [startedAt, setStartedAt] = useState<string | null>(null);
   const itemsEndRef = React.useRef<HTMLDivElement>(null);
-
-  const [isInputFocused, setIsInputFocused] = useState(false);
-
-  useEffect(() => {
-    const isMobileOrTablet = window.matchMedia("(max-width: 1024px)").matches || ('ontouchstart' in window);
-    if (!isMobileOrTablet) return;
-
-    const handleFocusIn = (e: FocusEvent) => {
-      const target = e.target as HTMLElement;
-      if (
-        target &&
-        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')
-      ) {
-        // Skip if focusing the observations field itself to allow typing inside the footer
-        const inputEl = target as HTMLInputElement | HTMLTextAreaElement;
-        if (inputEl.placeholder === "Digite aqui observações importantes...") {
-          return;
-        }
-        setIsInputFocused(true);
-      }
-    };
-    const handleFocusOut = () => {
-      setIsInputFocused(false);
-    };
-
-    document.addEventListener('focusin', handleFocusIn);
-    document.addEventListener('focusout', handleFocusOut);
-    return () => {
-      document.removeEventListener('focusin', handleFocusIn);
-      document.removeEventListener('focusout', handleFocusOut);
-    };
-  }, []);
+  const orderDetailsRef = React.useRef<HTMLDivElement>(null);
 
   const families = useMemo(() => {
     const activeProducts = produtos.filter(p => p.ativo !== false);
@@ -840,7 +809,7 @@ export function OrderPage() {
   if (loading) return <StockCountSkeleton />;
 
   return (
-    <div className="space-y-6 pb-[500px] md:pb-96">
+    <div className="space-y-6 pb-44 md:pb-48">
       <header className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-4">
           <button onClick={() => navigate(-1)} className="p-2 hover:bg-white rounded-full transition-colors">
@@ -1093,6 +1062,73 @@ export function OrderPage() {
   })()}
 </div>
 
+      {/* Order Details */}
+      <div ref={orderDetailsRef} className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm space-y-4 scroll-mt-4">
+        <div className="flex items-center justify-between gap-3 border-b border-neutral-100 pb-3">
+          <div className="flex items-center gap-2">
+            <FileText className="text-orange-600" size={18} />
+            <div>
+              <h3 className="font-black text-neutral-900 leading-tight">Dados do pedido</h3>
+              <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">Pagamento e observações</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">Observações</label>
+            <textarea 
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
+              placeholder="Digite aqui observações importantes..."
+              className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-medium text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all resize-none h-24"
+            />
+          </div>
+
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">Pagamento</label>
+              <div className="relative">
+                <select
+                  value={selectedPrazo}
+                  onChange={(e) => setSelectedPrazo(e.target.value)}
+                  className="w-full pl-3 pr-10 py-3 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all text-sm"
+                >
+                  <option value="" disabled>Selecione...</option>
+                  {availableTerms.map((prazo) => (
+                    <option key={prazo} value={prazo}>
+                      {prazo}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                  <ChevronDown size={16} />
+                </div>
+              </div>
+            </div>
+
+            {selectedPrazo && selectedPrazo !== 'À Vista' && (
+              <motion.div 
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="grid grid-cols-2 gap-3 p-3 bg-orange-50 border border-orange-100 rounded-xl"
+              >
+                <div>
+                  <p className="text-[9px] font-black text-orange-600 uppercase tracking-wider">Valor Boleto</p>
+                  <p className="text-sm font-black text-neutral-900">{formatCurrency(installmentDetails.valorBoleto)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] font-black text-orange-600 uppercase tracking-wider">1º Venc. Est.</p>
+                  <p className="text-sm font-black text-neutral-900">
+                    {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Items List */}
       <div className="space-y-3">
         <div className="px-1 py-3 border-b border-neutral-200">
@@ -1300,156 +1336,91 @@ export function OrderPage() {
       </div>
 
       {/* Bottom Section (Fixed) */}
-      <div className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-t border-neutral-200 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] transition-all duration-200",
-        "p-3 pb-[calc(12px+env(safe-area-inset-bottom))] md:p-6 md:pb-[calc(24px+env(safe-area-inset-bottom))] space-y-2 md:space-y-4",
-        isInputFocused ? "opacity-0 pointer-events-none translate-y-20 md:opacity-100 md:pointer-events-auto md:translate-y-0" : "opacity-100 pointer-events-auto translate-y-0"
-      )}>
-        <div className="max-w-4xl mx-auto space-y-2 md:space-y-4">
-          {/* Observations Field */}
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <FileText className="text-orange-600" size={12} />
-              <h3 className="text-[9px] font-bold text-neutral-500 uppercase tracking-wider">Observações</h3>
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-neutral-200 shadow-[0_-8px_18px_rgba(0,0,0,0.08)] p-2 pb-[calc(8px+env(safe-area-inset-bottom))] md:p-3 md:pb-[calc(12px+env(safe-area-inset-bottom))]">
+        <div className="max-w-4xl mx-auto space-y-2">
+          <div className="grid grid-cols-4 gap-2 rounded-xl bg-orange-600 p-2 text-white shadow-sm">
+            <div className="min-w-0 text-center">
+              <p className="text-[8px] uppercase font-bold opacity-80">Peso</p>
+              <p className="text-xs md:text-sm font-black truncate">{formatWeight(pesoTotal)}</p>
             </div>
-            <textarea 
-              value={observacoes}
-              onChange={(e) => setObservacoes(e.target.value)}
-              placeholder="Digite aqui observações importantes..."
-              className="w-full p-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-medium text-neutral-800 outline-none focus:ring-1 focus:ring-orange-500 transition-all resize-none h-12 md:h-20"
-            />
+            <div className="min-w-0 text-center border-x border-white/20 px-1">
+              <p className="text-[8px] uppercase font-bold opacity-80">Faixa</p>
+              <p className="text-[10px] md:text-xs font-black truncate">{faixaPreco}</p>
+            </div>
+            <div className="min-w-0 text-center border-r border-white/20 px-1">
+              <p className="text-[8px] uppercase font-bold opacity-80">Recompra</p>
+              <p className="text-[10px] md:text-xs font-black truncate">{pesoConquistado > 0 ? formatWeight(pesoConquistado) : '-'}</p>
+            </div>
+            <div className="min-w-0 text-right">
+              <p className="text-[8px] uppercase font-bold opacity-80">Total</p>
+              <p className="text-xs md:text-sm font-black truncate">{formatCurrency(valorTotal)}</p>
+            </div>
           </div>
 
-          <div className="flex flex-col md:flex-row gap-2 md:gap-4 items-end">
-            {/* Payment Terms Selection */}
-            <div className="flex-1 w-full space-y-1">
-              <div className="flex items-center gap-2">
-                <Calendar className="text-orange-600" size={12} />
-                <h3 className="text-[9px] font-bold text-neutral-500 uppercase tracking-wider">Pagamento</h3>
-              </div>
-              <div className="relative">
-                <select
-                  value={selectedPrazo}
-                  onChange={(e) => setSelectedPrazo(e.target.value)}
-                  className="w-full pl-3 pr-10 py-2 md:py-3 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-1 focus:ring-orange-500 appearance-none transition-all text-xs"
-                >
-                  <option value="" disabled>Selecione...</option>
-                  {availableTerms.map((prazo) => (
-                    <option key={prazo} value={prazo}>
-                      {prazo}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
-                  <ChevronDown size={16} />
-                </div>
-              </div>
-
-              {/* Installment details display on screen */}
-              {selectedPrazo && selectedPrazo !== 'À Vista' && (
-                <motion.div 
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex gap-4 p-2 bg-orange-50 border border-orange-100 rounded-xl"
-                >
-                  <div className="flex-1">
-                    <p className="text-[8px] font-bold text-orange-600 uppercase tracking-wider">Valor Boleto</p>
-                    <p className="text-xs font-black text-neutral-900">{formatCurrency(installmentDetails.valorBoleto)}</p>
-                  </div>
-                  <div className="flex-1 text-right">
-                    <p className="text-[8px] font-bold text-orange-600 uppercase tracking-wider">1º Venc. (Est.)</p>
-                    <p className="text-xs font-black text-neutral-900">
-                      {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
-              <div className="flex gap-2 w-full">
-                {showClearConfirm ? (
-                  <div className="flex-1 bg-white p-1 rounded-2xl border-2 border-red-200 shadow-lg flex gap-2 items-center">
-                    <p className="text-[9px] font-bold text-neutral-800 flex-1 px-1">Limpar?</p>
-                    <button 
-                      onClick={() => setShowClearConfirm(false)}
-                      className="px-2 py-1.5 bg-neutral-100 text-neutral-600 rounded-lg font-bold text-[9px]"
-                    >
-                      Não
-                    </button>
-                    <button 
-                      onClick={handleClearOrder}
-                      className="px-2 py-1.5 bg-red-600 text-white rounded-lg font-bold text-[9px]"
-                    >
-                      Sim
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <button 
-                      onClick={() => setShowClearConfirm(true)}
-                      className="flex-1 bg-neutral-100 text-neutral-600 py-2.5 md:py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-200 transition-all text-xs"
-                    >
-                      <Trash2 size={16} /> Limpar
-                    </button>
-                    <button 
-                      onClick={() => setShowFlexCard(!showFlexCard)}
-                      className={cn(
-                        "px-4 py-2.5 md:py-4 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all text-xs shadow-sm",
-                        showFlexCard 
-                          ? "bg-orange-600 text-white ring-2 ring-orange-300" 
-                          : "bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-150"
-                      )}
-                      title="Verba Flex"
-                    >
-                      <Coins size={16} className={showFlexCard ? "animate-pulse" : ""} />
-                      <span>FX</span>
-                    </button>
-                  </>
-                )}
+          <div className="flex gap-2">
+            {showClearConfirm ? (
+              <div className="flex-1 bg-white p-1 rounded-xl border-2 border-red-200 shadow-lg flex gap-2 items-center">
+                <p className="text-[10px] font-bold text-neutral-800 flex-1 px-1">Limpar?</p>
                 <button 
-                  onClick={() => setShowPreview(true)}
-                  className="flex-1 bg-white border border-neutral-200 text-neutral-600 py-2.5 md:py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-neutral-50 transition-all text-xs"
+                  onClick={() => setShowClearConfirm(false)}
+                  className="px-3 py-2 bg-neutral-100 text-neutral-600 rounded-lg font-bold text-[10px]"
                 >
-                  <Eye size={16} /> Ver
+                  Não
+                </button>
+                <button 
+                  onClick={handleClearOrder}
+                  className="px-3 py-2 bg-red-600 text-white rounded-lg font-bold text-[10px]"
+                >
+                  Sim
                 </button>
               </div>
-              <button 
-                onClick={() => handleSave(true)}
-                disabled={isGeneratingImage}
-                className="w-full md:w-64 bg-green-600 text-white py-2.5 md:py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 text-xs"
-              >
-                {isGeneratingImage ? (
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <Save size={16} />
-                )}
-                <span>{isGeneratingImage ? 'Gerando...' : 'Finalizar Pedido'}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Summary Bar */}
-          <div className="bg-orange-600 text-white p-2.5 md:p-4 rounded-xl md:rounded-2xl shadow-lg flex justify-between items-center">
-            <div className="text-center md:text-left px-1">
-              <p className="text-[8px] md:text-[10px] uppercase font-bold opacity-80">Peso Atual</p>
-              <p className="text-sm md:text-xl font-black">{formatWeight(pesoTotal)}</p>
-            </div>
-            {pesoConquistado > 0 && (
-              <div className="text-center border-x border-white/20 px-2 md:px-4">
-                <p className="text-[8px] md:text-[10px] uppercase font-bold opacity-80">Recompra</p>
-                <p className="text-[10px] md:text-sm font-black">{formatWeight(pesoConquistado)}</p>
-              </div>
+            ) : (
+              <>
+                <button 
+                  onClick={() => orderDetailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  className="flex-1 bg-white border border-neutral-200 text-neutral-700 py-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 hover:bg-neutral-50 transition-all text-[11px]"
+                >
+                  <FileText size={15} /> Dados
+                </button>
+                <button 
+                  onClick={() => setShowClearConfirm(true)}
+                  className="flex-1 bg-neutral-100 text-neutral-600 py-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 hover:bg-neutral-200 transition-all text-[11px]"
+                >
+                  <Trash2 size={15} /> Limpar
+                </button>
+                <button 
+                  onClick={() => setShowFlexCard(!showFlexCard)}
+                  className={cn(
+                    "px-3 py-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all text-[11px] shadow-sm",
+                    showFlexCard 
+                      ? "bg-orange-600 text-white ring-2 ring-orange-300" 
+                      : "bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100"
+                  )}
+                  title="Verba Flex"
+                >
+                  <Coins size={15} className={showFlexCard ? "animate-pulse" : ""} />
+                  <span>FX</span>
+                </button>
+                <button 
+                  onClick={() => setShowPreview(true)}
+                  className="flex-1 bg-white border border-neutral-200 text-neutral-700 py-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 hover:bg-neutral-50 transition-all text-[11px]"
+                >
+                  <Eye size={15} /> Ver
+                </button>
+              </>
             )}
-            <div className="text-center px-1">
-              <p className="text-[8px] md:text-[10px] uppercase font-bold opacity-80">Faixa</p>
-              <p className="text-[9px] md:text-xs font-bold bg-white/20 px-1.5 md:px-2 py-0.5 rounded-full">{faixaPreco}</p>
-            </div>
-            <div className="text-right px-1">
-              <p className="text-[8px] md:text-[10px] uppercase font-bold opacity-80">Valor Total</p>
-              <p className="text-sm md:text-xl font-black">{formatCurrency(valorTotal)}</p>
-            </div>
+            <button 
+              onClick={() => handleSave(true)}
+              disabled={isGeneratingImage}
+              className="flex-[1.35] bg-green-600 text-white py-2.5 rounded-xl font-bold shadow-md flex items-center justify-center gap-1.5 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 text-[11px]"
+            >
+              {isGeneratingImage ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Save size={15} />
+              )}
+              <span>{isGeneratingImage ? 'Gerando...' : 'Finalizar'}</span>
+            </button>
           </div>
         </div>
       </div>

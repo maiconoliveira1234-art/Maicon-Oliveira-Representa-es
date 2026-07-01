@@ -51,6 +51,9 @@ export function ClientsPage() {
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const navigate = useNavigate();
+  const headerActionBase = "h-9 shrink-0 justify-center px-3 rounded-lg text-xs font-extrabold transition-all inline-flex items-center gap-1.5 border whitespace-nowrap";
+  const headerActionIdle = "bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300";
+  const headerActionActive = "text-white shadow-md";
 
   const fetchClientes = useCallback(async () => {
     const startTime = performance.now();
@@ -250,16 +253,43 @@ export function ClientsPage() {
   if (loading) return <ClientPageSkeleton />;
 
   return (
-    <div className="space-y-6 pb-12">
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-neutral-900">Clientes</h1>
-          <p className="text-neutral-500 text-sm">Gerencie sua carteira de clientes</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+    <div className="space-y-4 pb-12">
+      <div className="sticky top-0 z-40 -mx-4 px-4 pt-3 pb-3 bg-neutral-50/95 backdrop-blur border-b border-neutral-200/80 shadow-sm">
+        <header className="space-y-3">
+          <div className="flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-xl font-black text-neutral-900 leading-tight">Clientes</h1>
+              <p className="text-neutral-500 text-xs truncate">Gerencie sua carteira</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-neutral-500 border border-neutral-200">
+              {filteredClientes.length}
+            </span>
+          </div>
+
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={17} />
+            <input
+              type="text"
+              placeholder="Buscar cliente ou cidade..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="h-10 w-full pl-10 pr-10 bg-white border border-neutral-200 rounded-xl shadow-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 p-1 transition-colors"
+                aria-label="Limpar busca"
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
+
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             onClick={() => setIsModalOpen(true)}
-            className="px-4 py-2 bg-neutral-900 text-white rounded-xl font-bold transition-all flex items-center gap-2 hover:bg-neutral-800 active:scale-95 shadow-lg shadow-neutral-200"
+            className={cn(headerActionBase, "bg-neutral-900 text-white border-neutral-900 hover:bg-neutral-800 active:scale-95 shadow-sm")}
           >
             <UserPlus size={18} />
             Novo
@@ -270,10 +300,10 @@ export function ClientsPage() {
               setIsManageMode(false);
             }}
             className={cn(
-              "px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 border",
+              headerActionBase,
               isEditMode 
-                ? "bg-purple-600 text-white border-purple-600 shadow-lg shadow-purple-200" 
-                : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50"
+                ? cn(headerActionActive, "bg-purple-600 border-purple-600 shadow-purple-100") 
+                : headerActionIdle
             )}
           >
             <Edit3 size={18} />
@@ -282,10 +312,10 @@ export function ClientsPage() {
           <button
             onClick={() => setFilterRepurchase(!filterRepurchase)}
             className={cn(
-              "px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 border",
+              headerActionBase,
               filterRepurchase 
-                ? "bg-green-600 text-white border-green-600 shadow-lg shadow-green-200" 
-                : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50"
+                ? cn(headerActionActive, "bg-green-600 border-green-600 shadow-green-100") 
+                : headerActionIdle
             )}
           >
             <Calendar size={18} />
@@ -294,10 +324,10 @@ export function ClientsPage() {
           <button
             onClick={() => setFilterOpenOrders(!filterOpenOrders)}
             className={cn(
-              "px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 border",
+              headerActionBase,
               filterOpenOrders 
-                ? "bg-orange-600 text-white border-orange-600 shadow-lg shadow-orange-200" 
-                : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50"
+                ? cn(headerActionActive, "bg-orange-600 border-orange-600 shadow-orange-100") 
+                : headerActionIdle
             )}
           >
             <ShoppingCart size={18} />
@@ -306,10 +336,10 @@ export function ClientsPage() {
           <button
             onClick={() => setShowInactive(!showInactive)}
             className={cn(
-              "px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 border",
+              headerActionBase,
               showInactive 
-                ? "bg-orange-600 text-white border-orange-600 shadow-lg shadow-orange-200" 
-                : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50"
+                ? cn(headerActionActive, "bg-orange-600 border-orange-600 shadow-orange-100") 
+                : headerActionIdle
             )}
           >
             {showInactive ? <UserCheck size={18} /> : <UserX size={18} />}
@@ -322,35 +352,17 @@ export function ClientsPage() {
               if (!isManageMode) setShowInactive(true);
             }}
             className={cn(
-              "px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 border",
+              headerActionBase,
               isManageMode 
-                ? "bg-purple-600 text-white border-purple-600 shadow-lg shadow-purple-200" 
-                : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50"
+                ? cn(headerActionActive, "bg-purple-600 border-purple-600 shadow-purple-100") 
+                : headerActionIdle
             )}
           >
             <Power size={18} />
             {isManageMode ? "Concluir" : "Ativar/Inativar"}
           </button>
-        </div>
-      </header>
-
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" size={20} />
-        <input
-          type="text"
-          placeholder="Buscar cliente ou cidade..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-12 pr-12 py-3 bg-white border border-neutral-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all"
-        />
-        {searchTerm && (
-          <button
-            onClick={() => setSearchTerm('')}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 p-1 transition-colors"
-          >
-            <X size={20} />
-          </button>
-        )}
+          </div>
+        </header>
       </div>
 
       <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
@@ -424,7 +436,7 @@ export function ClientsPage() {
                             e.stopPropagation();
                             sendWhatsAppMessage(cliente);
                           }}
-                          className="flex items-center gap-1.5 px-2 py-0.5 bg-green-100 text-green-700 rounded-lg text-[10px] font-black uppercase hover:bg-green-200 transition-colors"
+                          className="h-7 inline-flex shrink-0 items-center gap-1.5 px-2.5 bg-green-100 text-green-700 rounded-lg text-[10px] font-black uppercase hover:bg-green-200 transition-colors whitespace-nowrap"
                         >
                           <MessageCircle size={12} fill="currentColor" className="text-green-600" />
                           Relembrar Recompra
