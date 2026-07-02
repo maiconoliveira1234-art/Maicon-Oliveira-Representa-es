@@ -208,21 +208,26 @@ export function StockCountPage() {
     
     console.log(`[CONTAGEM] Inicializando mapas de estado para o cliente: ${clienteId}`);
 
-    const initialEstoque: Record<string, number> = {};
-    cacheData.estoque.forEach(e => {
-      initialEstoque[e.produto_id] = e.quantidade_atual;
-    });
+    let initialEstoque: Record<string, number> = {};
 
-    // Merge with localStorage
+    // A local draft is authoritative. This keeps a cleared count empty when the
+    // user leaves and returns, instead of reloading the previous stock count.
     const savedEstoque = localStorage.getItem(`estoque_${clienteId}`);
-    if (savedEstoque) {
+    if (savedEstoque !== null) {
       try {
         const parsed = JSON.parse(savedEstoque);
-        Object.assign(initialEstoque, parsed);
-        console.log(`[CONTAGEM] Estoque mesclado com localStorage para cliente: ${clienteId}`);
+        initialEstoque = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        console.log(`[CONTAGEM] Estoque restaurado do rascunho local para cliente: ${clienteId}`);
       } catch (e) {
         console.error('Erro ao fazer parse do estoque salvo no localStorage:', e);
+        cacheData.estoque.forEach(e => {
+          initialEstoque[e.produto_id] = e.quantidade_atual;
+        });
       }
+    } else {
+      cacheData.estoque.forEach(e => {
+        initialEstoque[e.produto_id] = e.quantidade_atual;
+      });
     }
     setEstoqueMap(initialEstoque);
 
@@ -632,7 +637,7 @@ export function StockCountPage() {
     setTouchedItems(new Set());
     setShowClearConfirm(false);
     if (clienteId) {
-      localStorage.removeItem(`estoque_${clienteId}`);
+      localStorage.setItem(`estoque_${clienteId}`, JSON.stringify({}));
       localStorage.removeItem(`pedido_${clienteId}`);
       supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId).then(({ error }) => {
         if (error) console.error('Erro ao limpar pedido aberto pela contagem:', error);
