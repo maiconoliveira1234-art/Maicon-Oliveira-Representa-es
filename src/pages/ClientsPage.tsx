@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Cliente } from '../types';
-import { Loader2, Search, UserCheck, UserX, ChevronRight, Calendar, Filter, X, UserPlus, CheckCircle2, ShoppingCart, Power, ToggleLeft, ToggleRight, Edit3, MessageCircle } from 'lucide-react';
+import { Loader2, Search, UserCheck, UserX, ChevronRight, Calendar, Filter, X, UserPlus, CheckCircle2, ShoppingCart, Power, ToggleLeft, ToggleRight, Edit3, MessageCircle, MoreHorizontal } from 'lucide-react';
 import { cn, deduplicateSales } from '../lib/utils';
 import { differenceInDays, parseISO, startOfWeek, endOfWeek, isWithinInterval, addDays } from 'date-fns';
 import { logDiagnostic } from '../lib/diagnostics';
@@ -48,10 +48,11 @@ export function ClientsPage() {
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [isManageMode, setIsManageMode] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const navigate = useNavigate();
-  const headerActionBase = "h-9 shrink-0 justify-center px-3 rounded-lg text-xs font-extrabold transition-all inline-flex items-center gap-1.5 border whitespace-nowrap";
+  const headerActionBase = "h-9 min-w-0 justify-center px-3 rounded-lg text-xs font-extrabold transition-all inline-flex items-center gap-1.5 border whitespace-nowrap";
   const headerActionIdle = "bg-white text-neutral-700 border-neutral-200 hover:bg-neutral-50 hover:border-neutral-300";
   const headerActionActive = "text-white shadow-md";
 
@@ -286,81 +287,99 @@ export function ClientsPage() {
             )}
           </div>
 
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className={cn(headerActionBase, "bg-neutral-900 text-white border-neutral-900 hover:bg-neutral-800 active:scale-95 shadow-sm")}
-          >
-            <UserPlus size={18} />
-            Novo
-          </button>
-          <button
-            onClick={() => {
-              setIsEditMode(!isEditMode);
-              setIsManageMode(false);
-            }}
-            className={cn(
-              headerActionBase,
-              isEditMode 
-                ? cn(headerActionActive, "bg-purple-600 border-purple-600 shadow-purple-100") 
-                : headerActionIdle
+          <div className="relative -mx-1 flex gap-2 px-1 pb-0.5">
+            <button
+              onClick={() => setFilterRepurchase(!filterRepurchase)}
+              className={cn(
+                headerActionBase,
+                "flex-1",
+                filterRepurchase 
+                  ? cn(headerActionActive, "bg-green-600 border-green-600 shadow-green-100") 
+                  : headerActionIdle
+              )}
+            >
+              <Calendar size={18} />
+              {filterRepurchase ? "Ver Todos" : "Recompra"}
+            </button>
+            <button
+              onClick={() => setFilterOpenOrders(!filterOpenOrders)}
+              className={cn(
+                headerActionBase,
+                "flex-1",
+                filterOpenOrders 
+                  ? cn(headerActionActive, "bg-orange-600 border-orange-600 shadow-orange-100") 
+                  : headerActionIdle
+              )}
+            >
+              <ShoppingCart size={18} />
+              {filterOpenOrders ? "Ver Todos" : "Pedido em Aberto"}
+            </button>
+            <button
+              onClick={() => setIsActionsMenuOpen((open) => !open)}
+              className={cn(
+                headerActionBase,
+                (isActionsMenuOpen || isEditMode || isManageMode || showInactive)
+                  ? cn(headerActionActive, "bg-neutral-900 border-neutral-900")
+                  : headerActionIdle
+              )}
+              aria-expanded={isActionsMenuOpen}
+              aria-haspopup="menu"
+            >
+              <MoreHorizontal size={18} />
+              Ações
+            </button>
+
+            {isActionsMenuOpen && (
+              <div className="absolute right-1 top-11 z-50 w-56 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl" role="menu">
+                <button
+                  onClick={() => {
+                    setIsModalOpen(true);
+                    setIsActionsMenuOpen(false);
+                  }}
+                  className="flex h-11 w-full items-center gap-3 px-3 text-left text-sm font-bold text-neutral-800 hover:bg-neutral-50"
+                  role="menuitem"
+                >
+                  <UserPlus size={17} />
+                  Novo
+                </button>
+                <button
+                  onClick={() => {
+                    setIsEditMode(!isEditMode);
+                    setIsManageMode(false);
+                    setIsActionsMenuOpen(false);
+                  }}
+                  className="flex h-11 w-full items-center gap-3 px-3 text-left text-sm font-bold text-neutral-800 hover:bg-neutral-50"
+                  role="menuitem"
+                >
+                  <Edit3 size={17} />
+                  {isEditMode ? "Concluir edição" : "Editar"}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowInactive(!showInactive);
+                    setIsActionsMenuOpen(false);
+                  }}
+                  className="flex h-11 w-full items-center gap-3 px-3 text-left text-sm font-bold text-neutral-800 hover:bg-neutral-50"
+                  role="menuitem"
+                >
+                  {showInactive ? <UserCheck size={17} /> : <UserX size={17} />}
+                  {showInactive ? "Ocultar Inativos" : "Exibir Inativos"}
+                </button>
+                <button
+                  onClick={() => {
+                    setIsManageMode(!isManageMode);
+                    setIsEditMode(false);
+                    if (!isManageMode) setShowInactive(true);
+                    setIsActionsMenuOpen(false);
+                  }}
+                  className="flex h-11 w-full items-center gap-3 px-3 text-left text-sm font-bold text-neutral-800 hover:bg-neutral-50"
+                  role="menuitem"
+                >
+                  <Power size={17} />
+                  {isManageMode ? "Concluir ativação" : "Ativar/Inativar"}
+                </button>
+              </div>
             )}
-          >
-            <Edit3 size={18} />
-            {isEditMode ? "Concluir" : "Editar"}
-          </button>
-          <button
-            onClick={() => setFilterRepurchase(!filterRepurchase)}
-            className={cn(
-              headerActionBase,
-              filterRepurchase 
-                ? cn(headerActionActive, "bg-green-600 border-green-600 shadow-green-100") 
-                : headerActionIdle
-            )}
-          >
-            <Calendar size={18} />
-            {filterRepurchase ? "Ver Todos" : "Recompra"}
-          </button>
-          <button
-            onClick={() => setFilterOpenOrders(!filterOpenOrders)}
-            className={cn(
-              headerActionBase,
-              filterOpenOrders 
-                ? cn(headerActionActive, "bg-orange-600 border-orange-600 shadow-orange-100") 
-                : headerActionIdle
-            )}
-          >
-            <ShoppingCart size={18} />
-            {filterOpenOrders ? "Ver Todos" : "Pedido em Aberto"}
-          </button>
-          <button
-            onClick={() => setShowInactive(!showInactive)}
-            className={cn(
-              headerActionBase,
-              showInactive 
-                ? cn(headerActionActive, "bg-orange-600 border-orange-600 shadow-orange-100") 
-                : headerActionIdle
-            )}
-          >
-            {showInactive ? <UserCheck size={18} /> : <UserX size={18} />}
-            {showInactive ? "Ocultar Inativos" : "Exibir Inativos"}
-          </button>
-          <button
-            onClick={() => {
-              setIsManageMode(!isManageMode);
-              setIsEditMode(false);
-              if (!isManageMode) setShowInactive(true);
-            }}
-            className={cn(
-              headerActionBase,
-              isManageMode 
-                ? cn(headerActionActive, "bg-purple-600 border-purple-600 shadow-purple-100") 
-                : headerActionIdle
-            )}
-          >
-            <Power size={18} />
-            {isManageMode ? "Concluir" : "Ativar/Inativar"}
-          </button>
           </div>
         </header>
       </div>
