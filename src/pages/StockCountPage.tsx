@@ -71,8 +71,10 @@ export function StockCountPage() {
   const [selectedProductHistory, setSelectedProductHistory] = useState<ItemEstoqueData | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [touchedItems, setTouchedItems] = useState<Set<string>>(new Set());
+  const [countedGraceItems, setCountedGraceItems] = useState<Set<string>>(new Set());
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
+  const countedGraceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   
   // Derived state to avoid duplication, race conditions, or state-overwriting
   const cacheData = useMemo(() => {
@@ -515,6 +517,12 @@ export function StockCountPage() {
     }
   }, [weights, selectedWeight]);
 
+  useEffect(() => {
+    return () => {
+      Object.values(countedGraceTimers.current).forEach(clearTimeout);
+    };
+  }, []);
+
   const updateQuantity = (produtoId: string, val: string | number) => {
     const num = typeof val === 'string' ? parseInt(val) : val;
     setEstoqueMap(prev => ({
@@ -522,6 +530,22 @@ export function StockCountPage() {
       [produtoId]: isNaN(num) ? 0 : Math.max(0, num)
     }));
     setTouchedItems(prev => new Set(prev).add(produtoId));
+
+    if (selectedFamily === 'Não Contados') {
+      if (countedGraceTimers.current[produtoId]) {
+        clearTimeout(countedGraceTimers.current[produtoId]);
+      }
+
+      setCountedGraceItems(prev => new Set(prev).add(produtoId));
+      countedGraceTimers.current[produtoId] = setTimeout(() => {
+        setCountedGraceItems(prev => {
+          const next = new Set(prev);
+          next.delete(produtoId);
+          return next;
+        });
+        delete countedGraceTimers.current[produtoId];
+      }, 5000);
+    }
   };
 
   const updatePedido = (produtoId: string, val: string | number) => {
@@ -795,7 +819,11 @@ export function StockCountPage() {
 
     if (selectedFamily !== 'Todas') {
       if (selectedFamily === 'Não Contados') {
-        result = result.filter(item => estoqueMap[item.produto_id] === undefined || estoqueMap[item.produto_id] === null);
+        result = result.filter(item =>
+          estoqueMap[item.produto_id] === undefined ||
+          estoqueMap[item.produto_id] === null ||
+          countedGraceItems.has(item.produto_id)
+        );
       } else {
         result = result.filter(item => item.familia === selectedFamily);
       }
@@ -819,7 +847,7 @@ export function StockCountPage() {
     console.log(`[CONTAGEM] Total de itens recebidos: ${processedItems.length} | Filtros aplicados - busca: "${searchTerm}", família: "${selectedFamily}", peso: "${selectedWeight}" | Total exibido na tela: ${result.length}`);
 
     return result;
-  }, [processedItems, searchTerm, selectedFamily, selectedWeight, estoqueMap]);
+  }, [processedItems, searchTerm, selectedFamily, selectedWeight, estoqueMap, countedGraceItems]);
 
   // Auto-enable inactive display if all loaded products are inactive
   useEffect(() => {
@@ -855,7 +883,11 @@ export function StockCountPage() {
     // Category filter count
     const afterCategoryCount = processedItems.filter(item => {
       if (selectedFamily === 'Todas') return true;
-      if (selectedFamily === 'Não Contados') return estoqueMap[item.produto_id] === undefined || estoqueMap[item.produto_id] === null;
+      if (selectedFamily === 'Não Contados') {
+        return estoqueMap[item.produto_id] === undefined ||
+          estoqueMap[item.produto_id] === null ||
+          countedGraceItems.has(item.produto_id);
+      }
       return item.familia === selectedFamily;
     }).length;
 
