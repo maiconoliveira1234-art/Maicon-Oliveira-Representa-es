@@ -71,6 +71,7 @@ export function StockCountPage() {
   const [selectedProductHistory, setSelectedProductHistory] = useState<ItemEstoqueData | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [touchedItems, setTouchedItems] = useState<Set<string>>(new Set());
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   
   // Derived state to avoid duplication, race conditions, or state-overwriting
@@ -258,6 +259,68 @@ export function StockCountPage() {
     setPedidoMap(pMap);
     setNonVendaItems(nonVenda);
 
+    supabase
+      .from('pedidos_em_aberto')
+      .select('items, prazo, obs, manual_faixa, started_at')
+      .eq('cliente_id', clienteId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error || !data || !Array.isArray(data.items)) return;
+
+        const dbPedidoMap: Record<string, number> = {};
+        const dbNonVenda = new Map<string, { produto_id: string, quantidade: number, tipo_operacao: 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' }>();
+
+        data.items.forEach((item: any) => {
+          if (!item?.produto_id) return;
+
+          const type = item.tipo_operacao || 'VENDA';
+          if (type === 'VENDA') {
+            dbPedidoMap[item.produto_id] = item.quantidade || 0;
+          } else {
+            dbNonVenda.set(item.produto_id + '_' + type, {
+              produto_id: item.produto_id,
+              quantidade: item.quantidade || 0,
+              tipo_operacao: type as 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING'
+            });
+          }
+        });
+
+        setPedidoMap(prev => ({ ...dbPedidoMap, ...prev }));
+        setNonVendaItems(prev => {
+          const merged = new Map(dbNonVenda);
+          prev.forEach(item => merged.set(item.produto_id + '_' + item.tipo_operacao, item));
+          return Array.from(merged.values());
+        });
+
+        const saved = localStorage.getItem(`pedido_${clienteId}`);
+        let localDraft: any = {};
+        if (saved) {
+          try {
+            localDraft = JSON.parse(saved);
+          } catch (e) {}
+        }
+
+        const mergedItems = [
+          ...data.items.filter((item: any) => item?.tipo_operacao !== 'VENDA' && item?.tipo_operacao),
+          ...Object.entries({ ...dbPedidoMap, ...pMap })
+            .filter(([, quantidade]) => Number(quantidade) > 0)
+            .map(([produto_id, quantidade]) => ({
+              produto_id,
+              quantidade,
+              tipo_operacao: 'VENDA'
+            }))
+        ];
+
+        localStorage.setItem(`pedido_${clienteId}`, JSON.stringify({
+          ...localDraft,
+          prazo: localDraft.prazo ?? data.prazo ?? '',
+          obs: localDraft.obs ?? data.obs ?? '',
+          manualFaixa: localDraft.manualFaixa ?? data.manual_faixa ?? null,
+          startedAt: localDraft.startedAt ?? data.started_at ?? null,
+          items: mergedItems
+        }));
+      });
+
     lastInitializedClientId.current = clienteId;
     setIsReady(true);
   }, [clienteId, cacheData]);
@@ -280,7 +343,7 @@ export function StockCountPage() {
       return "grid-cols-[minmax(0,1fr)_34px_34px_36px_78px_34px]";
     }
 
-    return "grid-cols-[minmax(0,1fr)_38px_42px_36px_78px]";
+    return "grid-cols-[minmax(0,1fr)_34px_34px_36px_34px_78px]";
   }, [viewMode]);
 
   const orderWeightByDay = useMemo(() => {
@@ -362,6 +425,8 @@ export function StockCountPage() {
         // Get quantity in units of that item's own last purchase by the client
         const lastPurchaseItems = sortedVendas.filter(v => v.faturamento === ultVenda.faturamento);
         const qtdUltCompraInfo = lastPurchaseItems.reduce((acc, v) => acc + v.qtd, 0) * quantEmbalagem;
+        const ultimaContagemValor = ultimaContagemMap[produtoId] || 0;
+        const ativoParaContagem = diasUltCompra <= 365 || ultimaContagemValor > 0;
 
         return {
           produto_id: produtoId,
@@ -369,7 +434,7 @@ export function StockCountPage() {
           dias_ult_compra: diasUltCompra,
           qtd_ult_compra: qtdUltCompraInfo,
           quantidade_atual: currentStock,
-          ultima_contagem_valor: ultimaContagemMap[produtoId] || 0,
+          ultima_contagem_valor: ultimaContagemValor,
           media_qtd: Math.round(mediaQtd * quantEmbalagem),
           media_ciclo: mediaCiclo,
           tendencia,
@@ -377,7 +442,7 @@ export function StockCountPage() {
           peso_unitario: (produto?.peso_embalagem || 0) / (produto?.quant_embalagem || 1),
           estoque_ideal: estoqueIdeal,
           raw_estoque_ideal: rawEstoqueIdeal,
-          ativo: produto?.ativo ?? true,
+          ativo: ativoParaContagem,
           quant_embalagem: quantEmbalagem,
           familia: produto?.familia || 'Sem Família'
         };
@@ -469,6 +534,75 @@ export function StockCountPage() {
     }, 0);
   }, [processedItems, pedidoMap]);
 
+  const buildPedidoItemsList = () => {
+    const itemsList: Array<{ produto_id: string, quantidade: number, tipo_operacao: string }> = [];
+
+    Object.entries(pedidoMap).forEach(([prodId, qty]) => {
+      const q = qty as number;
+      if (q > 0) {
+        itemsList.push({
+          produto_id: prodId,
+          quantidade: q,
+          tipo_operacao: 'VENDA'
+        });
+      }
+    });
+
+    nonVendaItems.forEach(item => {
+      if (item.quantidade > 0) {
+        itemsList.push({
+          produto_id: item.produto_id,
+          quantidade: item.quantidade,
+          tipo_operacao: item.tipo_operacao
+        });
+      }
+    });
+
+    return itemsList;
+  };
+
+  const savePedidoDraft = async (itemsList: Array<{ produto_id: string, quantidade: number, tipo_operacao: string }>) => {
+    if (!clienteId) return;
+
+    const saved = localStorage.getItem(`pedido_${clienteId}`);
+    let dataToSave = { items: itemsList, prazo: '', obs: '', manualFaixa: null as string | null, startedAt: null as string | null };
+
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          dataToSave = { ...dataToSave, ...parsed, items: itemsList };
+        }
+      } catch (e) {
+        console.error('Error parsing saved storage:', e);
+      }
+    }
+
+    localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(dataToSave));
+
+    if (itemsList.length === 0) {
+      await supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('pedidos_em_aberto')
+      .upsert({
+        cliente_id: clienteId,
+        items: itemsList,
+        prazo: dataToSave.prazo || null,
+        obs: dataToSave.obs || null,
+        manual_faixa: dataToSave.manualFaixa || null,
+        desconto_extra: 0,
+        started_at: dataToSave.startedAt || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'cliente_id' });
+
+    if (error) {
+      console.error('Erro ao salvar pedido aberto pela contagem:', error);
+    }
+  };
+
   // Persist state to localStorage to survive navigation
   useEffect(() => {
     if (isReady && clienteId) {
@@ -478,52 +612,31 @@ export function StockCountPage() {
 
   useEffect(() => {
     if (isReady && clienteId) {
-      const saved = localStorage.getItem(`pedido_${clienteId}`);
-      
-      // Build items list array formatted according to OrderPage expectations
-      const itemsList: Array<{ produto_id: string, quantidade: number, tipo_operacao: string }> = [];
-      Object.entries(pedidoMap).forEach(([prodId, qty]) => {
-        const q = qty as number;
-        if (q > 0) {
-          itemsList.push({
-            produto_id: prodId,
-            quantidade: q,
-            tipo_operacao: 'VENDA'
-          });
-        }
-      });
-      nonVendaItems.forEach(item => {
-        if (item.quantidade > 0) {
-          itemsList.push({
-            produto_id: item.produto_id,
-            quantidade: item.quantidade,
-            tipo_operacao: item.tipo_operacao
-          });
-        }
-      });
+      const itemsList = buildPedidoItemsList();
+      const hasSavedDraft = Boolean(localStorage.getItem(`pedido_${clienteId}`));
 
-      let dataToSave = { items: itemsList, prazo: '', obs: '' };
-      
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (parsed && typeof parsed === 'object') {
-            dataToSave = { ...parsed, items: itemsList };
-          }
-        } catch (e) {
-          console.error('Error parsing saved storage:', e);
-        }
+      if (itemsList.length > 0 || hasSavedDraft) {
+        savePedidoDraft(itemsList);
       }
-      
-      localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(dataToSave));
     }
   }, [pedidoMap, nonVendaItems, clienteId, isReady]);
 
   const handleClearAll = () => {
+    setShowClearConfirm(true);
+  };
+
+  const confirmClearAll = () => {
     setEstoqueMap({});
+    setPedidoMap({});
+    setNonVendaItems([]);
     setTouchedItems(new Set());
+    setShowClearConfirm(false);
     if (clienteId) {
       localStorage.removeItem(`estoque_${clienteId}`);
+      localStorage.removeItem(`pedido_${clienteId}`);
+      supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId).then(({ error }) => {
+        if (error) console.error('Erro ao limpar pedido aberto pela contagem:', error);
+      });
     }
   };
 
@@ -589,48 +702,12 @@ export function StockCountPage() {
     }
   };
 
-  const handleGoToPedido = () => {
-    const itemsList: Array<{ produto_id: string, quantidade: number, tipo_operacao: string }> = [];
-    
-    // Add venda items from current page state
-    processedItems.forEach(item => {
-      const extraPackages = pedidoMap[item.produto_id] || 0;
-      if (extraPackages > 0) {
-        itemsList.push({
-          produto_id: item.produto_id,
-          quantidade: extraPackages,
-          tipo_operacao: 'VENDA'
-        });
-      }
-    });
-
-    // Preservation of non venda items
-    nonVendaItems.forEach(item => {
-      if (item.quantidade > 0) {
-        itemsList.push({
-          produto_id: item.produto_id,
-          quantidade: item.quantidade,
-          tipo_operacao: item.tipo_operacao
-        });
-      }
-    });
-
-    // Update localStorage immediately before navigating
-    const saved = localStorage.getItem(`pedido_${clienteId}`);
-    let dataToSave = { items: itemsList, prazo: '', obs: '' };
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === 'object') {
-          dataToSave = { ...parsed, items: itemsList };
-        }
-      } catch (e) {}
-    }
-    localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(dataToSave));
+  const handleGoToPedido = async () => {
+    const itemsList = buildPedidoItemsList();
+    await savePedidoDraft(itemsList);
 
     navigate(`/pedido/novo/${clienteId}`);
   };
-
   const handleExportPDF = async () => {
     if (!exportRef.current) return;
     
@@ -982,7 +1059,7 @@ export function StockCountPage() {
                     : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border-neutral-200"
                 )}
               >
-                <span>{showInactive ? "✅ Inativos" : "❌ Inativos"}</span>
+                <span>{showInactive ? "Ocultar inativos" : "Mostrar inativos"}</span>
               </button>
 
               <div className="relative shrink-0">
@@ -1102,7 +1179,7 @@ export function StockCountPage() {
             <div className="w-full">
               <div 
                 className={cn(
-                  "grid bg-neutral-100 border-b border-neutral-200 text-[10px] font-bold text-neutral-500 uppercase tracking-tight sticky top-0 z-[100] shadow-sm",
+                  "grid bg-neutral-100 border-b border-neutral-200 text-[10px] md:text-[11px] font-bold text-neutral-500 uppercase tracking-tight sticky top-0 z-[100] shadow-sm",
                   gridCols
                 )}
               >
@@ -1121,7 +1198,8 @@ export function StockCountPage() {
                   <>
                     <div className="px-1.5 border-r border-neutral-200 flex items-center h-8">Produto</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped.</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Est.<br/>Atual</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8">Qtd</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Cont.</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
                     <div className="p-0.5 text-center flex items-center justify-center h-8">Pedido</div>
                   </>
@@ -1143,7 +1221,7 @@ export function StockCountPage() {
                   <div 
                     key={item.produto_id} 
                     className={cn(
-                       "grid items-center text-[12px] transition-colors cursor-pointer even:bg-neutral-200/40",
+                       "grid items-stretch text-[12px] md:text-[13px] transition-colors cursor-pointer even:bg-neutral-200/40",
                       gridCols,
                       rowStyle,
                       "hover:bg-orange-50/30"
@@ -1152,11 +1230,11 @@ export function StockCountPage() {
                   >
                     {viewMode === 'contagem' && (
                       <>
-                        <div className="px-1.5 border-r border-neutral-100 flex items-center h-8 leading-tight overflow-hidden min-w-0">
-                          <span className="truncate block font-bold text-[11px]">{item.produto_nome}</span>
+                        <div className="px-1.5 py-1 border-r border-neutral-100 flex items-center min-h-10 leading-tight min-w-0">
+                          <span className="block font-bold text-[11px] md:text-[12px] whitespace-normal break-words line-clamp-2 md:line-clamp-none">{item.produto_nome}</span>
                         </div>
                         <div className={cn(
-                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px]",
+                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
                           item.dias_ult_compra > 180 
                             ? "text-red-600 font-black bg-red-50/50" 
                             : isLastOrder
@@ -1165,14 +1243,14 @@ export function StockCountPage() {
                         )}>
                           {item.dias_ult_compra}
                         </div>
-                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] opacity-70">
+                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
                           {item.qtd_ult_compra}
                         </div>
-                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] opacity-70">
+                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
                           {item.ultima_contagem_valor}
                         </div>
                         <div className={cn(
-                          "p-0.5 border-r border-neutral-100 flex items-center justify-center gap-0.5 h-8",
+                          "p-0.5 border-r border-neutral-100 flex items-center justify-center gap-0.5 min-h-10",
                           isBelowIdeal ? "bg-red-50/30" : ""
                         )} onClick={(e) => e.stopPropagation()}>
                           <button 
@@ -1186,7 +1264,7 @@ export function StockCountPage() {
                             inputMode="numeric"
                             pattern="[0-9]*"
                             className={cn(
-                              "w-7 border rounded py-0.5 text-center font-black outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px]",
+                              "w-8 md:w-9 border rounded py-0.5 text-center font-black outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px] md:text-[12px]",
                               isBelowIdeal ? "bg-red-100 border-red-200 text-red-700" : "bg-orange-50 border-orange-100 text-orange-700"
                             )}
                             value={estoqueMap[item.produto_id] ?? ''}
@@ -1200,7 +1278,7 @@ export function StockCountPage() {
                           </button>
                         </div>
                         <div className={cn(
-                          "p-0.5 text-center flex items-center justify-center h-8 text-[11px]",
+                          "p-0.5 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
                           isBelowIdeal ? "text-red-600 font-black bg-red-50/30" : "font-bold"
                         )}>
                           {item.estoque_ideal}
@@ -1210,11 +1288,11 @@ export function StockCountPage() {
 
                     {viewMode === 'pedido' && (
                       <>
-                        <div className="px-1.5 border-r border-neutral-100 flex items-center h-8 leading-tight overflow-hidden min-w-0">
-                          <span className="truncate block font-bold text-[11px]">{item.produto_nome}</span>
+                        <div className="px-1.5 py-1 border-r border-neutral-100 flex items-center min-h-10 leading-tight min-w-0">
+                          <span className="block font-bold text-[11px] md:text-[12px] whitespace-normal break-words line-clamp-2 md:line-clamp-none">{item.produto_nome}</span>
                         </div>
                         <div className={cn(
-                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px]",
+                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
                           item.dias_ult_compra > 180 
                             ? "text-red-600 font-black bg-red-50/50" 
                             : isLastOrder
@@ -1223,19 +1301,19 @@ export function StockCountPage() {
                         )}>
                           {item.dias_ult_compra}
                         </div>
-                        <div className={cn(
-                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px] font-black",
-                          (estoqueMap[item.produto_id] ?? 0) > 0 ? "text-orange-600 font-black" : "text-neutral-400 opacity-50 font-normal"
-                        )}>
-                          {estoqueMap[item.produto_id] ?? 0}
+                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
+                          {item.qtd_ult_compra}
+                        </div>
+                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
+                          {item.ultima_contagem_valor}
                         </div>
                         <div className={cn(
-                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center h-8 text-[11px]",
+                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
                           isBelowIdeal ? "text-red-600 font-black bg-red-50/30" : "font-bold"
                         )}>
                           {item.estoque_ideal}
                         </div>
-                        <div className="p-0.5 flex items-center justify-center gap-0.5 h-8" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-0.5 flex items-center justify-center gap-0.5 min-h-10" onClick={(e) => e.stopPropagation()}>
                           <button 
                             onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) - 1)}
                             className="w-6 h-6 flex items-center justify-center bg-white border border-green-200 rounded text-green-600 hover:bg-green-50 active:scale-90 transition-transform cursor-pointer"
@@ -1246,7 +1324,7 @@ export function StockCountPage() {
                             type="number" 
                             inputMode="numeric"
                             pattern="[0-9]*"
-                            className="w-7 bg-green-50 border border-green-100 rounded py-0.5 text-center font-black text-green-700 outline-none focus:ring-1 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px]"
+                            className="w-8 md:w-9 bg-green-50 border border-green-100 rounded py-0.5 text-center font-black text-green-700 outline-none focus:ring-1 focus:ring-green-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px] md:text-[12px]"
                             value={pedidoMap[item.produto_id] || ''}
                             onChange={(e) => updatePedido(item.produto_id, e.target.value)}
                           />
@@ -1271,6 +1349,41 @@ export function StockCountPage() {
     )}
   </div>
 
+
+      <AnimatePresence>
+        {showClearConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ y: 16, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 16, opacity: 0 }}
+              className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl border border-neutral-200"
+            >
+              <h3 className="text-base font-black text-neutral-900">Zerar contagem</h3>
+              <p className="mt-2 text-sm font-medium text-neutral-600">Tem certeza que deseja zerar toda a contagem e também limpar os itens lançados no pedido?</p>
+              <div className="mt-5 flex gap-3">
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  className="flex-1 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-black text-neutral-700 transition-colors hover:bg-neutral-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmClearAll}
+                  className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-black text-white transition-colors hover:bg-red-700"
+                >
+                  Limpar tudo
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* History Modal */}
       <AnimatePresence>

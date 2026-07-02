@@ -68,6 +68,30 @@ export function OrderPage() {
   const [observacoes, setObservacoes] = useState('');
   const [manualFaixa, setManualFaixa] = useState<PrecoFaixa | null>(null);
   const [startedAt, setStartedAt] = useState<string | null>(null);
+
+  const historicoCliente = useMemo(() => {
+    return clienteId ? clientCache[clienteId]?.historico || [] : [];
+  }, [clientCache, clienteId]);
+
+  const lastPurchaseByProduct = useMemo(() => {
+    const map = new Map<string, { quantidade: number; dias: number }>();
+
+    historicoCliente.forEach(item => {
+      if (!item.produto_id || map.has(item.produto_id)) return;
+
+      try {
+        const lastDate = parseISO(item.faturamento);
+        map.set(item.produto_id, {
+          quantidade: item.qtd * (allProducts.find(prod => prod.id === item.produto_id)?.quant_embalagem || 1),
+          dias: Math.max(0, differenceInDays(new Date(), lastDate))
+        });
+      } catch (error) {
+        map.set(item.produto_id, { quantidade: item.qtd, dias: 0 });
+      }
+    });
+
+    return map;
+  }, [historicoCliente, allProducts]);
   const itemsEndRef = React.useRef<HTMLDivElement>(null);
   const orderDetailsRef = React.useRef<HTMLDivElement>(null);
 
@@ -546,24 +570,37 @@ export function OrderPage() {
   }, [availableTerms, selectedPrazo]);
 
   const addItem = (produto: Produto, tipoOps: 'VENDA' | 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' = 'VENDA') => {
-    const existing = itens.find(i => i.produto_id === produto.id && (i.tipo_operacao || 'VENDA') === tipoOps);
-    if (existing) {
-      updateItem(produto.id, (existing.quantidade || 0) + 1, tipoOps);
-    } else {
+    setItens(prev => {
+      const existing = prev.find(i => i.produto_id === produto.id && (i.tipo_operacao || 'VENDA') === tipoOps);
       const discount = getValorUnitario(produto, currentFaixa) || 0;
       const unitario = produto.custo_und * (1 - discount);
-      const valorTotalItem = unitario * (produto.quant_embalagem || 1);
-      
-      const novoItem: Partial<ItemPedido> = {
+
+      if (existing) {
+        return prev.map(item => {
+          if (item.produto_id === produto.id && (item.tipo_operacao || 'VENDA') === tipoOps) {
+            const nextQty = (item.quantidade || 0) + 1;
+            return {
+              ...item,
+              quantidade: nextQty,
+              peso_total: nextQty * produto.peso_embalagem,
+              valor_unitario: unitario,
+              valor_total: unitario * nextQty * (produto.quant_embalagem || 1)
+            };
+          }
+          return item;
+        });
+      }
+
+      return [...prev, {
         produto_id: produto.id,
         quantidade: 1,
         peso_total: produto.peso_embalagem,
         valor_unitario: unitario,
-        valor_total: valorTotalItem,
+        valor_total: unitario * (produto.quant_embalagem || 1),
         tipo_operacao: tipoOps
-      };
-      setItens([...itens, novoItem]);
-    }
+      }];
+    });
+
     setShowProductSelector(false);
   };
 
@@ -1789,29 +1826,41 @@ export function OrderPage() {
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-2 pr-2">
-                {filteredAndSortedProducts.map(produto => (
-                  <button
-                    key={produto.id}
-                    onClick={() => addItem(produto, productSelectorType)}
-                    className="w-full text-left p-4 rounded-xl border border-neutral-100 hover:bg-orange-50 hover:border-orange-200 transition-all flex justify-between items-center"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="px-2 py-0.5 bg-neutral-100 text-neutral-500 text-[8px] font-bold rounded uppercase">
-                          {produto.familia}
-                        </span>
+                {filteredAndSortedProducts.map(produto => {
+                  const lastPurchase = lastPurchaseByProduct.get(produto.id);
+
+                  return (
+                    <button
+                      key={produto.id}
+                      onClick={() => addItem(produto, productSelectorType)}
+                      className="w-full text-left p-4 rounded-xl border border-neutral-100 hover:bg-orange-50 hover:border-orange-200 transition-all flex justify-between items-center gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="px-2 py-0.5 bg-neutral-100 text-neutral-500 text-[8px] font-bold rounded uppercase">
+                            {produto.familia}
+                          </span>
+                          {lastPurchase && (
+                            <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-black rounded-full">
+                              Últ. compra: {lastPurchase.quantidade}
+                            </span>
+                          )}
+                        </div>
+                        <p className="font-bold text-neutral-900 break-words">{produto.produto}</p>
+                        <p className="text-xs text-neutral-500">
+                          {(produto.peso_embalagem / (produto.quant_embalagem || 1)).toFixed(2)}kg / un
+                          {lastPurchase ? ` • há ${lastPurchase.dias} dias` : ''}
+                        </p>
                       </div>
-                      <p className="font-bold text-neutral-900">{produto.produto}</p>
-                      <p className="text-xs text-neutral-500">{(produto.peso_embalagem / (produto.quant_embalagem || 1)).toFixed(2)}kg / un</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-orange-600">
-                        {formatCurrency(produto.custo_und * (1 - (getValorUnitario(produto, currentFaixa) || 0)))}
-                      </p>
-                      <p className="text-[10px] text-neutral-400 font-bold uppercase">Por Unidade</p>
-                    </div>
-                  </button>
-                ))}
+                      <div className="text-right shrink-0">
+                        <p className="font-bold text-orange-600">
+                          {formatCurrency(produto.custo_und * (1 - (getValorUnitario(produto, currentFaixa) || 0)))}
+                        </p>
+                        <p className="text-[10px] text-neutral-400 font-bold uppercase">Por Unidade</p>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </motion.div>
           </motion.div>
