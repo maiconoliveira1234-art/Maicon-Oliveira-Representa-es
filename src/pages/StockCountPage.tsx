@@ -902,61 +902,85 @@ export function StockCountPage() {
       <div className="bg-white border-b border-neutral-200 shadow-sm">
         <div className="w-full px-2 py-1 md:py-1.5">
           {/* Desktop/Tablet Header */}
-          <div className="hidden md:flex items-center gap-1.5 mb-1">
-            <button onClick={() => navigate(-1)} className="p-1 hover:bg-neutral-100 rounded-full transition-colors">
-              <ArrowLeft size={16} />
-            </button>
-            <h1 className="text-xs font-black text-neutral-800 flex-1 leading-none">
-              {cliente?.cliente}
-            </h1>
-            <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
-              <div className="text-center">
-                <span className="text-[8px] font-bold text-neutral-400 uppercase block leading-none">Ult. Ped</span>
-                <span className={cn("text-xs font-black", isOverdueGlobal ? "text-red-600" : "text-neutral-800")}>
-                  {diasDesdeUltimoPedidoGlobal}d
-                </span>
+          <div className="hidden md:grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] gap-x-3 gap-y-1 mb-1">
+            <div className="flex items-center gap-2 min-w-0">
+              <button onClick={() => navigate(-1)} className="p-1 hover:bg-neutral-100 rounded-full transition-colors shrink-0">
+                <ArrowLeft size={16} />
+              </button>
+              <h1 className="text-xs font-black text-neutral-800 flex-1 leading-none truncate min-w-0">
+                {cliente?.cliente}
+              </h1>
+              <div className="flex items-center gap-3 shrink-0 text-[10px]">
+                <div className="text-center">
+                  <span className="text-[8px] font-bold text-neutral-400 uppercase block leading-none">Ult. Ped</span>
+                  <span className={cn("text-xs font-black", isOverdueGlobal ? "text-red-600" : "text-neutral-800")}>
+                    {diasDesdeUltimoPedidoGlobal}d
+                  </span>
+                </div>
+                <div className="text-center">
+                  <span className="text-[8px] font-bold text-neutral-400 uppercase block leading-none">Ciclo</span>
+                  <span className="text-xs font-black text-neutral-800 bg-neutral-100 px-1 rounded">
+                    {mediaCicloGlobal}d
+                  </span>
+                </div>
+                <div className="text-center">
+                  <span className="text-[8px] font-bold text-neutral-400 uppercase block leading-none">Peso Ped.</span>
+                  <span className="text-[10px] font-black text-orange-600 bg-orange-50 px-1 py-0.2 rounded whitespace-nowrap">
+                    {formatWeight(totalPesoPedido)}
+                  </span>
+                </div>
               </div>
-              <div className="text-center">
-                <span className="text-[8px] font-bold text-neutral-400 uppercase block leading-none">Ciclo</span>
-                <span className="text-xs font-black text-neutral-800 bg-neutral-100 px-1 rounded">
-                  {mediaCicloGlobal}d
-                </span>
-              </div>
-              <div className="text-center">
-                <span className="text-[8px] font-bold text-neutral-400 uppercase block leading-none">Peso Ped.</span>
-                <span className="text-[10px] font-black text-orange-600 bg-orange-50 px-1 py-0.2 rounded whitespace-nowrap">
-                  {formatWeight(totalPesoPedido)}
-                </span>
-              </div>
+            </div>
+
+            <div className="row-span-2 flex items-center justify-end gap-2 shrink-0">
               <button 
                 onClick={handleExportPDF}
-                className="p-1.5 md:p-2 bg-white text-neutral-700 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
+                className="w-10 h-10 flex items-center justify-center bg-white text-neutral-700 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
                 title="Exportar PDF"
               >
-                <Download size={16} />
+                <Download size={20} />
               </button>
               <button 
                 onClick={handleSave}
                 disabled={saving}
-                className="p-1.5 md:p-2 bg-white text-green-600 rounded-full shadow-sm border border-neutral-200 hover:bg-green-50 disabled:opacity-50 transition-all active:scale-95"
+                className="w-10 h-10 flex items-center justify-center bg-white text-green-600 rounded-full shadow-sm border border-neutral-200 hover:bg-green-50 disabled:opacity-50 transition-all active:scale-95"
                 title={saving ? 'Salvando...' : 'Salvar Contagem'}
               >
-                <Save size={16} />
+                <Save size={20} />
               </button>
               <button 
                 onClick={handleGoToPedido}
-                className="p-1.5 md:p-2 bg-orange-600 text-white rounded-full shadow-sm border border-orange-700 hover:bg-orange-700 transition-all active:scale-95"
+                className="w-10 h-10 flex items-center justify-center bg-orange-600 text-white rounded-full shadow-sm border border-orange-700 hover:bg-orange-700 transition-all active:scale-95"
                 title="Ir para Pedido"
               >
-                <ShoppingCart size={16} />
+                <ShoppingCart size={20} />
               </button>
               <button 
                 onClick={() => navigate(`/cliente/${clienteId}`)}
-                className="p-1.5 md:p-2 bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
+                className="w-10 h-10 flex items-center justify-center bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
                 title="Home do Cliente"
               >
-                <Home size={16} />
+                <Home size={20} />
               </button>
+            </div>
+
+            <div className="relative min-w-0">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400" size={12} />
+              <input 
+                type="text" 
+                placeholder="Buscar produto..."
+                className="w-full pl-6 pr-6 bg-neutral-100 rounded-md outline-none text-[10px] font-bold text-neutral-800 border border-neutral-200 focus:ring-1 focus:ring-orange-500 transition-all h-7"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 p-0.5 transition-colors"
+                >
+                  <X size={12} />
+                </button>
+              )}
             </div>
           </div>
 
@@ -1022,8 +1046,8 @@ export function StockCountPage() {
             </div>
           </div>
 
-          <div className="space-y-1 md:space-y-1.5">
-            <div className="relative">
+          <div className="space-y-1 md:space-y-0">
+            <div className="relative md:hidden">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400" size={12} />
               <input 
                 type="text" 
@@ -1042,18 +1066,40 @@ export function StockCountPage() {
               )}
             </div>
 
-            <div className="flex flex-wrap items-center justify-between md:justify-end gap-1 md:gap-1.5 w-full pb-0.5">
+            <div className="flex flex-wrap md:flex-nowrap items-center justify-between md:justify-end gap-1 md:gap-1.5 w-full pb-0.5">
+              <div className="flex bg-neutral-100 p-0.5 rounded border border-neutral-200 shrink-0 h-8">
+                <button
+                  onClick={() => setViewMode('contagem')}
+                  className={cn(
+                    "px-3 md:px-4 rounded text-[10px] md:text-[11px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
+                    viewMode === 'contagem' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
+                  )}
+                >
+                  Contagem
+                </button>
+                <button
+                  onClick={() => setViewMode('pedido')}
+                  className={cn(
+                    "px-3 md:px-4 rounded text-[10px] md:text-[11px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
+                    viewMode === 'pedido' ? "bg-white text-green-600 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
+                  )}
+                >
+                  Pedido
+                </button>
+              </div>
+
+
               <button 
                 onClick={handleClearAll}
-                className="px-1.5 py-0.5 bg-red-600 text-white rounded text-[9.5px] font-black hover:bg-red-700 transition-all flex items-center gap-0.5 shrink-0 shadow-sm active:scale-95 cursor-pointer h-6"
+                className="px-2 md:px-4 py-0.5 bg-red-600 text-white rounded text-[9.5px] md:text-[11px] font-black hover:bg-red-700 transition-all flex items-center gap-1 shrink-0 shadow-sm active:scale-95 cursor-pointer h-6 md:h-8"
               >
-                <Trash2 size={10} /> Limpar
+                <Trash2 size={12} /> Limpar
               </button>
 
               <button 
                 onClick={() => setShowInactive(!showInactive)}
                 className={cn(
-                  "px-1.5 py-0.5 rounded text-[9.5px] font-black transition-colors cursor-pointer shrink-0 border h-6 flex items-center gap-0.5",
+                  "px-2 md:px-4 py-0.5 rounded text-[9.5px] md:text-[11px] font-black transition-colors cursor-pointer shrink-0 border h-6 md:h-8 flex items-center gap-1",
                   showInactive 
                     ? "bg-orange-600 text-white border-orange-700 shadow-sm" 
                     : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border-neutral-200"
@@ -1066,7 +1112,7 @@ export function StockCountPage() {
                 <select
                   value={selectedWeight}
                   onChange={(e) => setSelectedWeight(e.target.value)}
-                  className="pl-1 pr-3.5 h-6 bg-neutral-100 rounded outline-none text-[9.5px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer max-w-[75px] truncate"
+                  className="pl-2 pr-5 h-6 md:h-8 bg-neutral-100 rounded outline-none text-[9.5px] md:text-[11px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer max-w-[75px] md:max-w-[100px] truncate"
                 >
                   {weights.map(w => (
                     <option key={w} value={w}>
@@ -1075,7 +1121,7 @@ export function StockCountPage() {
                   ))}
                 </select>
                 <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
-                  <TrendingDown size={9} />
+                  <TrendingDown size={11} />
                 </div>
               </div>
 
@@ -1083,43 +1129,21 @@ export function StockCountPage() {
                 <select
                   value={selectedFamily}
                   onChange={(e) => setSelectedFamily(e.target.value)}
-                  className="pl-1 pr-3.5 h-6 bg-neutral-100 rounded outline-none text-[9.5px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer max-w-[95px] truncate"
+                  className="pl-2 pr-5 h-6 md:h-8 bg-neutral-100 rounded outline-none text-[9.5px] md:text-[11px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer max-w-[95px] md:max-w-[135px] truncate"
                 >
                   {families.map(f => (
                     <option key={f} value={f}>{f === 'Todas' ? 'Fam: Todas' : f}</option>
                   ))}
                 </select>
                 <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
-                  <Package size={9} />
+                  <Package size={11} />
                 </div>
               </div>
-            </div>
           </div>
         </div>
       </div>
+      </div>
       <div className="w-full px-1 mt-1 flex-1 flex flex-col min-h-0">
-        {/* Visual Mode Segment Toggle */}
-        <div className="flex bg-neutral-100 p-0.5 rounded border border-neutral-200 mb-1 w-full md:w-auto self-center shrink-0">
-          <button
-            onClick={() => setViewMode('contagem')}
-            className={cn(
-              "flex-1 md:flex-none px-3 py-1 rounded text-[10px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
-              viewMode === 'contagem' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
-            )}
-          >
-            Contagem
-          </button>
-          <button
-            onClick={() => setViewMode('pedido')}
-            className={cn(
-              "flex-1 md:flex-none px-3 py-1 rounded text-[10px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
-              viewMode === 'pedido' ? "bg-white text-green-600 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
-            )}
-          >
-            Pedido
-          </button>
-        </div>
-
         {filteredItems.length === 0 ? (
           <div className="w-full bg-white rounded-xl shadow-sm border border-neutral-200 p-8 md:p-12 text-center flex flex-col items-center justify-center space-y-4">
             <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center text-orange-600">
