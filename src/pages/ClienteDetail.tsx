@@ -115,7 +115,7 @@ export function ClienteDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { produtos: allProducts = [], clientCache, loadClientDetails, prefetchClientData } = useDataManager();
+  const { clientes: cachedClientes = [], produtos: allProducts = [], loadClientDetails, prefetchClientData } = useDataManager();
   
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [historico, setHistorico] = useState<HistVenda[]>([]);
@@ -130,47 +130,38 @@ export function ClienteDetail() {
   const [showAllHistory, setShowAllHistory] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadClienteData() {
       if (!id) return;
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // Load details into cache
-        const cache = await loadClientDetails(id);
 
-        // Fetch Clientes
-        const { data: clienteData, error: cError } = await supabase
+      const cachedCliente = cachedClientes.find(c => c.id === id) || null;
+      const detailsPromise = loadClientDetails(id);
+
+      try {
+        setError(null);
+        setProdutos(allProducts.length > 0 ? allProducts : MOCK_PRODUTOS);
+
+        if (cachedCliente) {
+          setCliente(prev => prev?.id === cachedCliente.id ? prev : cachedCliente);
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
+
+        const clientePromise = supabase
           .from('clientes')
           .select('*')
           .eq('id', id)
           .single();
-        
-        if (cError) {
-          console.error('Supabase Error (cliente detail):', cError.message);
-          setError('Erro ao conectar ao Supabase. Usando dados mock.');
-          setCliente(MOCK_CLIENTES.find(c => c.id === id) || null);
-        } else if (!clienteData) {
-          setCliente(MOCK_CLIENTES.find(c => c.id === id) || null);
-        } else {
-          // Fetch Meta
-          const { data: mData } = await supabase
-            .from('metas')
-            .select('meta')
-            .eq('cliente_id', id)
-            .single();
-          
-          setCliente({
-            ...clienteData,
-            meta: mData?.meta || 0
-          });
-        }
 
-        // Use products from context
-        setProdutos(allProducts.length > 0 ? allProducts : MOCK_PRODUTOS);
+        const metaPromise = supabase
+          .from('metas')
+          .select('meta')
+          .eq('cliente_id', id)
+          .single();
 
-        // Fetch Loans
-        const { data: loanData } = await supabase
+        const loansPromise = supabase
           .from('emprestimos')
           .select(`
             *,
@@ -179,73 +170,92 @@ export function ClienteDetail() {
           `)
           .eq('cliente_destino_id', id)
           .eq('status', 'pendente');
-        
-        if (loanData) {
-          setEmprestimos(loanData.map((l: any) => ({
+
+        const agendaPromise = supabase
+          .from('agenda_visitas')
+          .select('semana, dia_semana, ativo')
+          .eq('cliente_id', id)
+          .maybeSingle();
+
+        const flexPromise = supabase
+          .from('verba_flex_extrato')
+          .select('*')
+          .eq('cliente_id', id)
+          .order('criado_em', { ascending: false });
+
+        const [clienteRes, metaRes] = await Promise.all([clientePromise, metaPromise]);
+        if (cancelled) return;
+
+        if (clienteRes.error) {
+          console.error('Supabase Error (cliente detail):', clienteRes.error.message);
+          setError('Erro ao conectar ao Supabase. Usando dados mock.');
+          setCliente(cachedCliente || MOCK_CLIENTES.find(c => c.id === id) || null);
+        } else if (!clienteRes.data) {
+          setCliente(cachedCliente || MOCK_CLIENTES.find(c => c.id === id) || null);
+        } else {
+          setCliente({
+            ...clienteRes.data,
+            meta: metaRes.data?.meta || 0
+          });
+        }
+        setLoading(false);
+
+        const [cache, loanRes, agendaRes, flexRes] = await Promise.all([
+          detailsPromise,
+          loansPromise,
+          agendaPromise,
+          flexPromise
+        ]);
+        if (cancelled) return;
+
+        if (loanRes.data) {
+          setEmprestimos(loanRes.data.map((l: any) => ({
             ...l,
             cliente_origem_nome: l.cliente_origem?.cliente || 'N/A',
             produto_nome: l.produto?.produto || 'N/A'
           })));
+        } else {
+          setEmprestimos([]);
+        }
+
+        if (!agendaRes.error && agendaRes.data && agendaRes.data.ativo !== false) {
+          setVisitaAgenda({
+            semana: agendaRes.data.semana as 1 | 2,
+            dia_semana: agendaRes.data.dia_semana
+          });
+        } else {
+          setVisitaAgenda(null);
+        }
+
+        if (!flexRes.error && flexRes.data) {
+          setFlexExtrato(flexRes.data);
+        } else {
+          setFlexExtrato([]);
         }
 
         if (cache) {
           setHistorico(cache.historico);
           setEstoque(cache.estoque);
         } else {
-          // Fallback to mock history if not in cache
           setHistorico(MOCK_HISTORICO.filter(h => h.cliente_id === id));
+          setEstoque([]);
         }
-
-        // Fetch Agenda
-        try {
-          const { data: agendaData } = await supabase
-            .from('agenda_visitas')
-            .select('semana, dia_semana, ativo')
-            .eq('cliente_id', id)
-            .maybeSingle();
-
-          if (agendaData && agendaData.ativo !== false) {
-            setVisitaAgenda({
-              semana: agendaData.semana as 1 | 2,
-              dia_semana: agendaData.dia_semana
-            });
-          } else {
-            setVisitaAgenda(null);
-          }
-        } catch (agendaErr) {
-          console.error('Erro ao buscar agenda_visitas:', agendaErr);
-          setVisitaAgenda(null);
-        }
-
-        // Fetch Verba Flex Ledger Extrato
-        try {
-          const { data: extratoData, error: extratoError } = await supabase
-            .from('verba_flex_extrato')
-            .select('*')
-            .eq('cliente_id', id)
-            .order('criado_em', { ascending: false });
-
-          if (!extratoError && extratoData) {
-            setFlexExtrato(extratoData);
-          } else {
-            setFlexExtrato([]);
-          }
-        } catch (extratoErr) {
-          console.error('Erro ao buscar verba_flex_extrato:', extratoErr);
-          setFlexExtrato([]);
-        }
-
       } catch (err) {
+        if (cancelled) return;
         console.error('Erro ao carregar dados do cliente:', err);
-        setCliente(MOCK_CLIENTES.find(c => c.id === id) || null);
+        setCliente(cachedCliente || MOCK_CLIENTES.find(c => c.id === id) || null);
         setHistorico(MOCK_HISTORICO.filter(h => h.cliente_id === id));
         setProdutos(MOCK_PRODUTOS);
-      } finally {
         setLoading(false);
       }
     }
+
     loadClienteData();
-  }, [id, allProducts, loadClientDetails, clientCache?.[id || '']]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, allProducts, cachedClientes, loadClientDetails]);
 
   const handleResetTrimestral = async () => {
     if (!id || !cliente) return;
