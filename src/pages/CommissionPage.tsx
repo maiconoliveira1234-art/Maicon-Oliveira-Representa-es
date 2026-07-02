@@ -28,10 +28,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
   Legend
 } from 'recharts';
 
@@ -59,8 +55,13 @@ function shouldApplyIpiCommissionDiscount(produto?: Produto | null) {
   return IPI_COMMISSION_FAMILY_CODES.has(familyCode) && packageWeight < IPI_WEIGHT_LIMIT_KG;
 }
 
+function normalizeCommissionPercent(rawPercent: number) {
+  if (!Number.isFinite(rawPercent) || rawPercent <= 0) return 0;
+  return rawPercent > 1 ? rawPercent / 100 : rawPercent;
+}
+
 function calculateCommissionValue(totalValue: number, commissionPercent: number, produto?: Produto | null) {
-  const baseCommission = totalValue * commissionPercent;
+  const baseCommission = totalValue * normalizeCommissionPercent(commissionPercent);
   return shouldApplyIpiCommissionDiscount(produto) ? baseCommission * IPI_COMMISSION_FACTOR : baseCommission;
 }
 
@@ -82,6 +83,7 @@ export function CommissionPage() {
   const [selectedProdutoId, setSelectedProdutoId] = useState('');
   const [selectedFamilia, setSelectedFamilia] = useState('');
   const [groupBy, setGroupBy] = useState<GroupBy>('cliente');
+  const [showFilters, setShowFilters] = useState(false);
 
   const [showYearDropdown, setShowYearDropdown] = useState(false);
   const [showMonthDropdown, setShowMonthDropdown] = useState(false);
@@ -195,6 +197,8 @@ export function CommissionPage() {
 
     setVendas(filtered);
   }, [allHistoryVendas, selectedYears, selectedMonths, useCustomRange, customRange, selectedClienteId, selectedProdutoId, selectedFamilia]);
+
+  const filteredVendas = vendas;
 
   // Monthly evolution data for 2024, 2025, 2026
   const monthlyEvolution = useMemo(() => {
@@ -326,21 +330,21 @@ export function CommissionPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-neutral-50 p-4 md:p-6 space-y-6">
+    <div className="min-h-screen bg-neutral-100/70 p-3 md:p-5 space-y-4">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 border-b border-neutral-200 pb-4">
         <div>
-          <h1 className="text-3xl font-black text-neutral-900 tracking-tight flex items-center gap-3">
-            <DollarSign className="text-orange-600" size={32} />
+          <h1 className="text-2xl md:text-3xl font-black text-neutral-950 tracking-tight flex items-center gap-2">
+            <DollarSign className="text-orange-600" size={28} />
             Acompanhamento de Comissão
           </h1>
-          <p className="text-neutral-500 font-medium mt-1">Análise detalhada de comissões por período, cliente e produto</p>
+          <p className="text-sm text-neutral-500 font-medium mt-1">Análise detalhada de comissões por período, cliente e produto</p>
         </div>
         <button
           onClick={() => setShowFilters(!showFilters)}
           className={cn(
-            "flex items-center gap-2 px-4 py-3 rounded-2xl font-bold transition-all",
-            showFilters ? "bg-orange-600 text-white" : "bg-white text-neutral-700 border border-neutral-200"
+            "flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-black transition-all border",
+            showFilters ? "bg-orange-600 text-white border-orange-600 shadow-sm" : "bg-white text-neutral-700 border-neutral-300 hover:border-neutral-400"
           )}
         >
           <Filter size={20} />
@@ -350,19 +354,19 @@ export function CommissionPage() {
 
       {/* Filters Panel */}
       {showFilters && (
-        <div className="bg-white p-4 rounded-3xl border border-neutral-200 shadow-sm space-y-4 animate-in slide-in-from-top-2">
+        <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm space-y-4 animate-in slide-in-from-top-2">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Date Type Toggle */}
-            <div className="col-span-full flex gap-2 bg-neutral-100 p-1 rounded-2xl w-fit">
+            <div className="col-span-full flex gap-1 bg-neutral-100 p-1 rounded-lg w-fit">
               <button
                 onClick={() => setUseCustomRange(false)}
-                className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-all", !useCustomRange ? "bg-white shadow-sm text-orange-600" : "text-neutral-500")}
+                className={cn("px-3 py-1.5 rounded-md text-sm font-bold transition-all", !useCustomRange ? "bg-white shadow-sm text-orange-600" : "text-neutral-500")}
               >
                 Mês/Ano
               </button>
               <button
                 onClick={() => setUseCustomRange(true)}
-                className={cn("px-4 py-2 rounded-xl text-sm font-bold transition-all", useCustomRange ? "bg-white shadow-sm text-orange-600" : "text-neutral-500")}
+                className={cn("px-3 py-1.5 rounded-md text-sm font-bold transition-all", useCustomRange ? "bg-white shadow-sm text-orange-600" : "text-neutral-500")}
               >
                 Período Personalizado
               </button>
@@ -376,7 +380,7 @@ export function CommissionPage() {
                     type="date"
                     value={customRange.start}
                     onChange={(e) => setCustomRange(prev => ({ ...prev, start: e.target.value }))}
-                    className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold"
+                    className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-sm font-bold"
                   />
                 </div>
                 <div>
@@ -385,7 +389,7 @@ export function CommissionPage() {
                     type="date"
                     value={customRange.end}
                     onChange={(e) => setCustomRange(prev => ({ ...prev, end: e.target.value }))}
-                    className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold"
+                    className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-sm font-bold"
                   />
                 </div>
               </>
@@ -396,15 +400,15 @@ export function CommissionPage() {
                   <label className="text-xs font-bold text-neutral-500 uppercase mb-2 block">Anos</label>
                   <button
                     onClick={() => setShowYearDropdown(!showYearDropdown)}
-                    className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold flex justify-between items-center"
+                    className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-sm font-bold flex justify-between items-center"
                   >
                     {selectedYears.length > 0 ? selectedYears.join(', ') : 'Todos'}
                     <ChevronDown size={16} />
                   </button>
                   {showYearDropdown && (
-                    <div className="absolute z-20 mt-2 w-full bg-white border border-neutral-200 rounded-2xl shadow-xl p-2">
+                    <div className="absolute z-20 mt-2 w-full bg-white border border-neutral-200 rounded-lg shadow-xl p-2">
                       {years.map(year => (
-                        <label key={year} className="flex items-center gap-2 p-2 hover:bg-neutral-50 rounded-xl cursor-pointer">
+                        <label key={year} className="flex items-center gap-2 p-2 hover:bg-neutral-50 rounded-md cursor-pointer">
                           <input type="checkbox" checked={selectedYears.includes(year)} onChange={() => toggleYear(year)} className="accent-orange-600" />
                           <span className="font-bold">{year}</span>
                         </label>
@@ -418,15 +422,15 @@ export function CommissionPage() {
                   <label className="text-xs font-bold text-neutral-500 uppercase mb-2 block">Meses</label>
                   <button
                     onClick={() => setShowMonthDropdown(!showMonthDropdown)}
-                    className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold flex justify-between items-center"
+                    className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-sm font-bold flex justify-between items-center"
                   >
                     {selectedMonths.length > 0 ? `${selectedMonths.length} selecionado(s)` : 'Todos'}
                     <ChevronDown size={16} />
                   </button>
                   {showMonthDropdown && (
-                    <div className="absolute z-20 mt-2 w-64 bg-white border border-neutral-200 rounded-2xl shadow-xl p-2 grid grid-cols-3 gap-1">
+                    <div className="absolute z-20 mt-2 w-64 bg-white border border-neutral-200 rounded-lg shadow-xl p-2 grid grid-cols-3 gap-1">
                       {months.map(m => (
-                        <label key={m.value} className="flex items-center gap-1 p-2 hover:bg-neutral-50 rounded-xl cursor-pointer text-sm">
+                        <label key={m.value} className="flex items-center gap-1 p-2 hover:bg-neutral-50 rounded-md cursor-pointer text-sm">
                           <input type="checkbox" checked={selectedMonths.includes(m.value)} onChange={() => toggleMonth(m.value)} className="accent-orange-600" />
                           <span className="font-bold">{m.label}</span>
                         </label>
@@ -442,23 +446,23 @@ export function CommissionPage() {
               <label className="text-xs font-bold text-neutral-500 uppercase mb-2 block">Cliente</label>
               <button
                 onClick={() => setShowClientDropdown(!showClientDropdown)}
-                className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold flex justify-between items-center truncate"
+                className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-sm font-bold flex justify-between items-center truncate"
               >
                 <span className="truncate">{selectedClienteId ? clientes.find(c => c.id === selectedClienteId)?.cliente : 'Todos'}</span>
                 <ChevronDown size={16} className="shrink-0" />
               </button>
               {showClientDropdown && (
-                <div className="absolute z-20 mt-2 w-80 bg-white border border-neutral-200 rounded-2xl shadow-xl p-2 max-h-80 overflow-y-auto">
+                <div className="absolute z-20 mt-2 w-80 bg-white border border-neutral-200 rounded-lg shadow-xl p-2 max-h-80 overflow-y-auto">
                   <input
                     type="text"
                     placeholder="Buscar cliente..."
                     value={clientSearch}
                     onChange={(e) => setClientSearch(e.target.value)}
-                    className="w-full px-3 py-2 mb-2 bg-neutral-50 rounded-xl text-sm outline-none"
+                    className="w-full px-3 py-2 mb-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm outline-none"
                   />
                   <button
                     onClick={() => { setSelectedClienteId(''); setShowClientDropdown(false); }}
-                    className="w-full text-left p-2 hover:bg-neutral-50 rounded-xl font-bold text-orange-600"
+                    className="w-full text-left p-2 hover:bg-neutral-50 rounded-md font-bold text-orange-600"
                   >
                     Todos os Clientes
                   </button>
@@ -466,7 +470,7 @@ export function CommissionPage() {
                     <button
                       key={c.id}
                       onClick={() => { setSelectedClienteId(c.id); setShowClientDropdown(false); }}
-                      className="w-full text-left p-2 hover:bg-neutral-50 rounded-xl font-medium text-sm truncate"
+                      className="w-full text-left p-2 hover:bg-neutral-50 rounded-md font-medium text-sm truncate"
                     >
                       {c.cliente}
                     </button>
@@ -480,23 +484,23 @@ export function CommissionPage() {
               <label className="text-xs font-bold text-neutral-500 uppercase mb-2 block">Produto</label>
               <button
                 onClick={() => setShowProductDropdown(!showProductDropdown)}
-                className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold flex justify-between items-center truncate"
+                className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-sm font-bold flex justify-between items-center truncate"
               >
                 <span className="truncate">{selectedProdutoId ? produtos.find(p => p.id === selectedProdutoId)?.produto : 'Todos'}</span>
                 <ChevronDown size={16} className="shrink-0" />
               </button>
               {showProductDropdown && (
-                <div className="absolute z-20 mt-2 w-80 bg-white border border-neutral-200 rounded-2xl shadow-xl p-2 max-h-80 overflow-y-auto">
+                <div className="absolute z-20 mt-2 w-80 bg-white border border-neutral-200 rounded-lg shadow-xl p-2 max-h-80 overflow-y-auto">
                   <input
                     type="text"
                     placeholder="Buscar produto..."
                     value={productSearch}
                     onChange={(e) => setProductSearch(e.target.value)}
-                    className="w-full px-3 py-2 mb-2 bg-neutral-50 rounded-xl text-sm outline-none"
+                    className="w-full px-3 py-2 mb-2 bg-neutral-50 border border-neutral-200 rounded-md text-sm outline-none"
                   />
                   <button
                     onClick={() => { setSelectedProdutoId(''); setShowProductDropdown(false); }}
-                    className="w-full text-left p-2 hover:bg-neutral-50 rounded-xl font-bold text-orange-600"
+                    className="w-full text-left p-2 hover:bg-neutral-50 rounded-md font-bold text-orange-600"
                   >
                     Todos os Produtos
                   </button>
@@ -504,7 +508,7 @@ export function CommissionPage() {
                     <button
                       key={p.id}
                       onClick={() => { setSelectedProdutoId(p.id); setShowProductDropdown(false); }}
-                      className="w-full text-left p-2 hover:bg-neutral-50 rounded-xl font-medium text-sm truncate"
+                      className="w-full text-left p-2 hover:bg-neutral-50 rounded-md font-medium text-sm truncate"
                     >
                       {p.produto}
                     </button>
@@ -518,16 +522,16 @@ export function CommissionPage() {
               <label className="text-xs font-bold text-neutral-500 uppercase mb-2 block">Família</label>
               <button
                 onClick={() => setShowFamilyDropdown(!showFamilyDropdown)}
-                className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold flex justify-between items-center truncate"
+                className="w-full px-3 py-2 bg-white border border-neutral-300 rounded-lg text-sm font-bold flex justify-between items-center truncate"
               >
                 <span className="truncate">{selectedFamilia || 'Todas'}</span>
                 <ChevronDown size={16} className="shrink-0" />
               </button>
               {showFamilyDropdown && (
-                <div className="absolute z-20 mt-2 w-64 bg-white border border-neutral-200 rounded-2xl shadow-xl p-2 max-h-80 overflow-y-auto">
+                <div className="absolute z-20 mt-2 w-64 bg-white border border-neutral-200 rounded-lg shadow-xl p-2 max-h-80 overflow-y-auto">
                   <button
                     onClick={() => { setSelectedFamilia(''); setShowFamilyDropdown(false); }}
-                    className="w-full text-left p-2 hover:bg-neutral-50 rounded-xl font-bold text-orange-600"
+                    className="w-full text-left p-2 hover:bg-neutral-50 rounded-md font-bold text-orange-600"
                   >
                     Todas as Famílias
                   </button>
@@ -535,7 +539,7 @@ export function CommissionPage() {
                     <button
                       key={f}
                       onClick={() => { setSelectedFamilia(f); setShowFamilyDropdown(false); }}
-                      className="w-full text-left p-2 hover:bg-neutral-50 rounded-xl font-medium text-sm truncate"
+                      className="w-full text-left p-2 hover:bg-neutral-50 rounded-md font-medium text-sm truncate"
                     >
                       {f}
                     </button>
@@ -553,8 +557,8 @@ export function CommissionPage() {
                 key={g}
                 onClick={() => setGroupBy(g)}
                 className={cn(
-                  "px-3 py-1 rounded-xl text-sm font-bold capitalize transition-all",
-                  groupBy === g ? "bg-orange-600 text-white" : "bg-neutral-100 text-neutral-600"
+                  "px-3 py-1 rounded-md text-sm font-bold capitalize transition-all",
+                  groupBy === g ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
                 )}
               >
                 {g}
@@ -565,7 +569,7 @@ export function CommissionPage() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
         <StatCard 
           icon={<DollarSign />} 
           label="Total Vendido" 
@@ -602,94 +606,73 @@ export function CommissionPage() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Monthly Evolution Chart */}
-        <div className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm lg:col-span-2">
-          <h3 className="text-lg font-black text-neutral-900 mb-6 flex items-center gap-2">
-            <Calendar className="text-orange-600" />
+        <div className="bg-white p-4 md:p-5 rounded-xl border border-neutral-200 shadow-sm lg:col-span-2">
+          <h3 className="text-base font-black text-neutral-900 mb-4 flex items-center gap-2">
+            <Calendar className="text-neutral-500" size={18} />
             Comparativo Mensal de Comissão
           </h3>
-          <div className="h-80">
+          <div className="h-72 md:h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={monthlyEvolution}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fontWeight: 600 }} />
-                <YAxis tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
+              <BarChart data={monthlyEvolution} barCategoryGap="60%" barGap={2} barSize={10} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                <XAxis dataKey="month" tick={{ fontSize: 12, fontWeight: 700, fill: '#525252' }} axisLine={false} tickLine={false} />
+                <YAxis tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} tick={{ fontSize: 11, fill: '#737373' }} axisLine={false} tickLine={false} />
                 <Tooltip 
                   formatter={(value: any) => [`R$ ${Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, '']}
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}
+                  contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 10px 20px rgba(0,0,0,0.08)' }}
                 />
                 <Legend />
-                <Line 
-                  type="monotone" 
-                  dataKey="comissao_2024" 
-                  name="2024" 
-                  stroke="#94a3b8" 
-                  strokeWidth={3}
-                  dot={{ r: 4 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="comissao_2025" 
-                  name="2025" 
-                  stroke="#3b82f6" 
-                  strokeWidth={3}
-                  dot={{ r: 4 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="comissao_2026" 
-                  name="2026" 
-                  stroke="#ea580c" 
-                  strokeWidth={4}
-                  dot={{ r: 5 }}
-                />
-              </LineChart>
+                <Bar dataKey="comissao_2024" name="2024" fill="#22c55e" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="comissao_2025" name="2025" fill="#3b82f6" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="comissao_2026" name="2026" fill="#ea580c" radius={[6, 6, 0, 0]} />
+              </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Grouped Data Table */}
-        <div className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm lg:col-span-2">
-          <h3 className="text-lg font-black text-neutral-900 mb-6 flex items-center gap-2">
-            <Users className="text-orange-600" />
+        <div className="bg-white p-4 md:p-5 rounded-xl border border-neutral-200 shadow-sm lg:col-span-2">
+          <h3 className="text-base font-black text-neutral-900 mb-4 flex items-center gap-2">
+            <Users className="text-neutral-500" size={18} />
             Ranking por {groupBy === 'cliente' ? 'Cliente' : groupBy === 'produto' ? 'Produto' : 'Família'}
           </h3>
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-neutral-100 text-xs text-neutral-500 uppercase font-bold">
-                  <th className="px-4 py-3">{groupBy === 'cliente' ? 'Cliente' : groupBy === 'produto' ? 'Produto' : 'Família'}</th>
-                  <th className="px-4 py-3 text-right">Valor Total</th>
-                  <th className="px-4 py-3 text-right">Comissão Total</th>
-                  <th className="px-4 py-3 text-right">% Médio</th>
-                  <th className="px-4 py-3 text-right">Peso</th>
+                <tr className="border-b border-neutral-200 text-[11px] text-neutral-500 uppercase font-black">
+                  <th className="px-3 py-2.5">{groupBy === 'cliente' ? 'Cliente' : groupBy === 'produto' ? 'Produto' : 'Família'}</th>
+                  <th className="px-3 py-2.5 text-right">Valor Total</th>
+                  <th className="px-3 py-2.5 text-right">Comissão Total</th>
+                  <th className="px-3 py-2.5 text-right">% Médio</th>
+                  <th className="px-3 py-2.5 text-right">Peso</th>
                 </tr>
               </thead>
               <tbody>
                 {groupedData.map((g, idx) => (
-                  <tr key={idx} className="border-b border-neutral-50 hover:bg-neutral-50 transition-colors">
-                    <td className="px-4 py-3 font-bold text-neutral-800 max-w-md truncate">{g.label}</td>
-                    <td className="px-4 py-3 text-right font-medium">
+                  <tr key={idx} className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors">
+                    <td className="px-3 py-2.5 font-bold text-neutral-800 max-w-md truncate">{g.label}</td>
+                    <td className="px-3 py-2.5 text-right font-medium">
                       R$ {g.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
-                    <td className="px-4 py-3 text-right font-black text-orange-600">
+                    <td className="px-3 py-2.5 text-right font-black text-neutral-900">
                       R$ {g.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
-                    <td className="px-4 py-3 text-right font-medium">
+                    <td className="px-3 py-2.5 text-right font-medium">
                       {((g.comissao / g.total) * 100).toFixed(2)}%
                     </td>
-                    <td className="px-4 py-3 text-right text-neutral-500">
+                    <td className="px-3 py-2.5 text-right text-neutral-500">
                       {g.peso.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kg
                     </td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="bg-neutral-50 font-black">
+              <tfoot className="bg-neutral-100 font-black border-t border-neutral-200">
                 <tr>
-                  <td className="px-4 py-3">TOTAL</td>
-                  <td className="px-4 py-3 text-right">R$ {stats.totalVendido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td className="px-4 py-3 text-right text-orange-400">R$ {stats.totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td className="px-4 py-3 text-right">{stats.percentualMedio.toFixed(2)}%</td>
-                  <td className="px-4 py-3 text-right">{stats.pesoTotal.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kg</td>
+                  <td className="px-3 py-2.5">TOTAL</td>
+                  <td className="px-3 py-2.5 text-right">R$ {stats.totalVendido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="px-3 py-2.5 text-right text-neutral-900">R$ {stats.totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="px-3 py-2.5 text-right">{stats.percentualMedio.toFixed(2)}%</td>
+                  <td className="px-3 py-2.5 text-right">{stats.pesoTotal.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kg</td>
                 </tr>
               </tfoot>
             </table>
@@ -710,20 +693,20 @@ function StatCard({ icon, label, value, color, trend }: { icon: React.ReactNode;
   } as any;
 
   return (
-    <div className="bg-white p-5 rounded-3xl border border-neutral-200 shadow-sm">
-      <div className="flex items-start justify-between mb-4">
-        <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center", colorClasses[color])}>
+    <div className="bg-white px-3 py-2 rounded-lg border border-neutral-200 shadow-sm min-h-[64px]">
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <div className={cn("w-6 h-6 rounded-md flex items-center justify-center bg-neutral-50 [&_svg]:w-3.5 [&_svg]:h-3.5", colorClasses[color])}>
           {icon}
         </div>
         {trend !== undefined && (
-          <div className={cn("flex items-center gap-1 text-xs font-bold", trend ? "text-green-600" : "text-red-600")}>
-            {trend ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+          <div className={cn("flex items-center gap-0.5 text-[10px] font-bold leading-none", trend ? "text-green-600" : "text-red-600")}>
+            {trend ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
             Projeção
           </div>
         )}
       </div>
-      <p className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-1">{label}</p>
-      <h3 className="text-xl font-black text-neutral-900 truncate">{value}</h3>
+      <p className="text-[10px] font-black text-neutral-500 uppercase leading-none mb-1">{label}</p>
+      <h3 className="text-base md:text-lg font-black text-neutral-950 truncate leading-tight">{value}</h3>
     </div>
   );
 }
