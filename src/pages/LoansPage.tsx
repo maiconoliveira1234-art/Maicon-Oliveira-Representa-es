@@ -24,6 +24,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useDataManager } from '../lib/dataManager';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { ActionButton, PageHeader } from '../components/ui/AppChrome';
 
 export function LoansPage() {
   const { clientes: clients = [], produtos: allProducts = [] } = useDataManager();
@@ -346,35 +347,24 @@ export function LoansPage() {
 
   return (
     <div className="space-y-6 pb-24">
-      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-neutral-900 flex items-center gap-2">
-            <ArrowLeftRight className="text-orange-600" size={32} />
-            Controle de Empréstimos
-          </h1>
-          <p className="text-sm font-bold text-neutral-400 uppercase tracking-widest mt-1">Gestão de mercadorias entre clientes</p>
-        </div>
-        
-        <div className="flex gap-2 w-full sm:w-auto">
-          <button 
-            onClick={exportPDF}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-neutral-200 text-neutral-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-neutral-50 transition-all shadow-sm"
-          >
-            <FileDown size={18} />
-            PDF
-          </button>
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-orange-700 transition-all shadow-lg shadow-orange-600/20 active:scale-95"
-          >
-            <Plus size={18} />
-            Novo Registro
-          </button>
-        </div>
-      </header>
+      <PageHeader
+        title="Controle de Empréstimos"
+        subtitle="Gestão de mercadorias entre clientes"
+        icon={<ArrowLeftRight />}
+        actions={
+          <>
+            <ActionButton onClick={exportPDF} variant="secondary" size="sm" icon={<FileDown />}>
+              PDF
+            </ActionButton>
+            <ActionButton onClick={() => setIsModalOpen(true)} variant="primary" size="sm" icon={<Plus />}>
+              Novo Registro
+            </ActionButton>
+          </>
+        }
+      />
 
       {/* Filters Bar */}
-      <div className="bg-white p-3 md:p-3.5 rounded-[2.5rem] border border-neutral-100 shadow-sm">
+      <div className="rounded-xl border border-neutral-200 bg-white p-3 shadow-sm md:p-3.5">
         <div className="flex flex-col md:flex-row gap-3 md:items-center">
           <div className="flex-1 relative group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-orange-500 transition-colors" size={20} />
@@ -383,7 +373,7 @@ export function LoansPage() {
               placeholder="Pesquisar por cliente, mercadoria ou data..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-12 pr-4 py-3.5 bg-neutral-50/50 border border-neutral-100 rounded-[1.75rem] text-sm font-bold text-neutral-900 placeholder:text-neutral-400 focus:bg-white focus:border-orange-500 focus:shadow-sm focus:ring-4 focus:ring-orange-500/5 outline-none transition-all"
+              className="w-full rounded-lg border border-neutral-200 bg-neutral-50/70 py-3 pl-12 pr-4 text-sm font-bold text-neutral-900 outline-none transition-all placeholder:text-neutral-400 focus:border-orange-500 focus:bg-white focus:ring-2 focus:ring-orange-500/10"
             />
           </div>
           

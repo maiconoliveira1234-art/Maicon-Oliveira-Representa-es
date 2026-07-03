@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { APP_VERSION } from '../constants';
 import { runAutomaticInactivation } from '../lib/clientInactivation';
 import { optimizeAllTerritories } from '../lib/territoryOptimization';
+import { PageHeader, Panel } from '../components/ui/AppChrome';
 
 export function SettingsPage() {
   const [isUpdating, setIsUpdating] = useState(false);
@@ -74,19 +75,16 @@ export function SettingsPage() {
 
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-3 bg-orange-100 text-orange-600 rounded-2xl">
-          <Settings size={32} />
-        </div>
-        <div>
-          <h1 className="text-3xl font-black text-neutral-900 tracking-tight">Configurações</h1>
-          <p className="text-neutral-500 font-medium">Gerencie as preferências do aplicativo</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Configurações"
+        subtitle="Gerencie as preferências do aplicativo"
+        icon={<Settings />}
+        className="mb-6"
+      />
 
       <div className="space-y-6">
         {/* Manutenção de Dados */}
-        <section className="bg-white rounded-3xl border border-neutral-200 overflow-hidden shadow-sm">
+        <Panel className="overflow-hidden">
           <div className="p-6 border-b border-neutral-100 bg-neutral-50/50 flex items-center gap-2">
             <Database size={18} className="text-neutral-400" />
             <h2 className="font-bold text-neutral-900 uppercase tracking-wider text-xs">Manutenção de Dados</h2>
@@ -105,7 +103,7 @@ export function SettingsPage() {
               <button
                 onClick={handleManualInactivation}
                 disabled={isInactivating}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
                   inactivateSuccess 
                     ? 'bg-green-100 text-green-600' 
                     : 'bg-neutral-900 text-white hover:bg-neutral-800 active:scale-95 disabled:opacity-50'
@@ -135,7 +133,7 @@ export function SettingsPage() {
               <button
                 onClick={handleStartGeocoding}
                 disabled={isGeocoding || isValidating}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
                   geocodeSuccess 
                     ? 'bg-green-100 text-green-600' 
                     : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95 disabled:opacity-50'
@@ -180,7 +178,7 @@ export function SettingsPage() {
                   }
                 }}
                 disabled={isOptimizing}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
                   optSuccess 
                     ? 'bg-green-100 text-green-600' 
                     : 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95 disabled:opacity-50'
@@ -197,10 +195,10 @@ export function SettingsPage() {
               </button>
             </div>
           </div>
-        </section>
+        </Panel>
 
         {/* Informações do App */}
-        <section className="bg-white rounded-3xl border border-neutral-200 overflow-hidden shadow-sm">
+        <Panel className="overflow-hidden">
           <div className="p-6 border-b border-neutral-100 bg-neutral-50/50 flex items-center gap-2">
             <Info size={18} className="text-neutral-400" />
             <h2 className="font-bold text-neutral-900 uppercase tracking-wider text-xs">Sobre o Aplicativo</h2>
@@ -223,7 +221,7 @@ export function SettingsPage() {
                 <button
                   onClick={handleUpdate}
                   disabled={isUpdating}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
                     updateSuccess 
                       ? 'bg-green-100 text-green-600' 
                       : 'bg-orange-600 text-white hover:bg-orange-700 active:scale-95 disabled:opacity-50'
@@ -301,10 +299,10 @@ export function SettingsPage() {
               })()}
             </div>
           </div>
-        </section>
+        </Panel>
 
         {/* Segurança */}
-        <section className="bg-white rounded-3xl border border-neutral-200 overflow-hidden shadow-sm opacity-50 grayscale pointer-events-none">
+        <Panel className="overflow-hidden opacity-50 grayscale pointer-events-none">
           <div className="p-6 border-b border-neutral-100 bg-neutral-50/50 flex items-center gap-2">
             <Shield size={18} className="text-neutral-400" />
             <h2 className="font-bold text-neutral-900 uppercase tracking-wider text-xs">Segurança & Privacidade</h2>
@@ -312,7 +310,7 @@ export function SettingsPage() {
           <div className="p-6">
             <p className="text-sm text-neutral-500 italic">Opções de segurança em desenvolvimento...</p>
           </div>
-        </section>
+        </Panel>
       </div>
 
       {/* Modal de Validação de Geocodificação */}
@@ -335,7 +333,7 @@ export function SettingsPage() {
             >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl">
+                  <div className="p-3 bg-amber-50 text-amber-600 rounded-lg">
                     <AlertTriangle size={24} />
                   </div>
                   <div>
@@ -358,7 +356,7 @@ export function SettingsPage() {
 
                 <div className="space-y-2">
                   <h3 className="text-[10px] font-black text-neutral-400 uppercase tracking-wider mb-2">Relatório de Inconsistências:</h3>
-                  <div className="divide-y divide-neutral-100 max-h-[250px] overflow-y-auto border border-neutral-200 rounded-2xl bg-neutral-50/50">
+                  <div className="divide-y divide-neutral-100 max-h-[250px] overflow-y-auto border border-neutral-200 rounded-lg bg-neutral-50/50">
                     {validationIssues.map((issue, idx) => (
                       <div key={issue.id + '-' + idx} className="p-3 flex items-start gap-2.5 text-xs">
                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase shrink-0 mt-0.5 ${

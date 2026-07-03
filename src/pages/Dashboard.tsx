@@ -56,6 +56,7 @@ import {
 import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
 import { shouldExcludeSale } from '../constants';
+import { ActionButton, PageHeader } from '../components/ui/AppChrome';
 
 // --- Types for Dashboard ---
 type DashboardFilters = {
@@ -466,65 +467,61 @@ export function Dashboard() {
 
   return (
     <div className="h-[calc(100vh-100px)] flex flex-col gap-3 overflow-hidden pb-4">
-      {/* Header & Filters Toggle */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-2 shrink-0">
-        <div>
-          <h2 className="text-xl font-black text-neutral-900 tracking-tight">Análise Comercial</h2>
-          <p className="text-[10px] text-neutral-500 font-medium">Performance e metas</p>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={() => {
-              setShowFilters(!showFilters);
-              if (showFilters) setIsFilterAnimationFinished(false);
-            }}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all shadow-sm text-xs",
-              showFilters ? "bg-neutral-900 text-white" : "bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50"
-            )}
-          >
-            <Filter size={16} />
-            <span>Filtros</span>
-            <ChevronDown size={14} className={cn("transition-transform", showFilters && "rotate-180")} />
-          </button>
-
-          {/* Chart Selection Dropdown */}
-          <select 
-            value={visibleCharts[0]}
-            onChange={(e) => setVisibleCharts([e.target.value])}
-            className="bg-white border border-neutral-200 rounded-xl px-3 py-2 font-bold text-xs outline-none focus:ring-2 focus:ring-orange-500 shadow-sm"
-          >
-            {chartOptions.map(opt => (
-              <option key={opt.id} value={opt.id}>{opt.label}</option>
-            ))}
-          </select>
-
-          {/* Metric Toggle */}
-          <div className="flex bg-neutral-100 p-1 rounded-xl border border-neutral-200">
-            <button 
-              onClick={() => setEvolutionMetric('weight')}
-              className={cn(
-                "px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center gap-1.5",
-                evolutionMetric === 'weight' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
-              )}
+      <PageHeader
+        title="Análise Comercial"
+        subtitle="Performance e metas"
+        icon={<LayoutDashboard />}
+        className="shrink-0"
+        actions={
+          <>
+            <ActionButton
+              onClick={() => {
+                setShowFilters(!showFilters);
+                if (showFilters) setIsFilterAnimationFinished(false);
+              }}
+              variant={showFilters ? 'dark' : 'secondary'}
+              size="sm"
+              icon={<Filter />}
             >
-              <Package size={12} />
-              Peso
-            </button>
-            <button 
-              onClick={() => setEvolutionMetric('value')}
-              className={cn(
-                "px-3 py-1.5 text-[10px] font-bold rounded-lg transition-all flex items-center gap-1.5",
-                evolutionMetric === 'value' ? "bg-white text-blue-600 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
-              )}
+              <span>Filtros</span>
+              <ChevronDown size={14} className={cn("transition-transform", showFilters && "rotate-180")} />
+            </ActionButton>
+
+            <select
+              value={visibleCharts[0]}
+              onChange={(e) => setVisibleCharts([e.target.value])}
+              className="h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs font-bold text-neutral-700 shadow-sm outline-none focus:ring-2 focus:ring-orange-500"
             >
-              <DollarSign size={12} />
-              Valor
-            </button>
-          </div>
-        </div>
-      </header>
+              {chartOptions.map(opt => (
+                <option key={opt.id} value={opt.id}>{opt.label}</option>
+              ))}
+            </select>
+
+            <div className="flex rounded-lg border border-neutral-200 bg-neutral-100 p-1">
+              <button
+                onClick={() => setEvolutionMetric('weight')}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[10px] font-bold transition-all",
+                  evolutionMetric === 'weight' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+                )}
+              >
+                <Package size={12} />
+                Peso
+              </button>
+              <button
+                onClick={() => setEvolutionMetric('value')}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[10px] font-bold transition-all",
+                  evolutionMetric === 'value' ? "bg-white text-blue-600 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+                )}
+              >
+                <DollarSign size={12} />
+                Valor
+              </button>
+            </div>
+          </>
+        }
+      />
 
       {/* Filters Panel */}
       <AnimatePresence>

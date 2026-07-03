@@ -26,6 +26,7 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { classifySaleRecord } from '../lib/salesClassifier';
+import { ActionButton, PageHeader } from '../components/ui/AppChrome';
 
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from '../lib/mockData';
 
@@ -329,15 +330,16 @@ export function MetasPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-100px)] space-y-3 pb-4">
-      <header className="flex items-center gap-4">
-        <button onClick={() => navigate(-1)} className="p-2 hover:bg-neutral-100 rounded-full transition-colors">
-          <ArrowLeft size={24} />
-        </button>
-        <div>
-          <h2 className="text-2xl font-bold text-neutral-900">Gestão de Metas</h2>
-          <p className="text-neutral-500 capitalize">{format(new Date(), 'MMMM yyyy', { locale: ptBR })}</p>
-        </div>
-      </header>
+      <PageHeader
+        title="Gestão de Metas"
+        subtitle={format(new Date(), 'MMMM yyyy', { locale: ptBR })}
+        icon={<Save />}
+        actions={
+          <ActionButton onClick={() => navigate(-1)} variant="secondary" size="sm" icon={<ArrowLeft />}>
+            Voltar
+          </ActionButton>
+        }
+      />
 
       {/* Spreadsheet Style Summary Header */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-0 border border-neutral-300 rounded-xl overflow-hidden shadow-sm bg-neutral-800 text-white">
