@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import {
   AlertCircle,
+  AlertTriangle,
   ArrowRight,
   Calendar,
   CheckCircle2,
@@ -32,6 +33,7 @@ import { supabase } from '../lib/supabase';
 import { HistVenda, Produto } from '../types';
 import { DiaSemana, Visita, VisitaStatus } from '../types/agenda';
 import { cn, formatWeight } from '../lib/utils';
+import { getAgendaNoteAlert } from '../lib/agendaNoteAlert';
 
 type MetaRow = {
   cliente_id: string;
@@ -206,6 +208,32 @@ export function HomePage() {
       .sort((a, b) => b.gap - a.gap)
       .slice(0, 3);
 
+    const noteRiskPriority = {
+      pending: 0,
+      attention: 1,
+      note: 2
+    };
+
+    const allNoteRisks = todayVisits
+      .map((visita) => {
+        const noteAlert = getAgendaNoteAlert(visita.observacoes);
+        return noteAlert ? { visita, noteAlert } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => noteRiskPriority[a!.noteAlert.level] - noteRiskPriority[b!.noteAlert.level]) as Array<{
+        visita: Visita;
+        noteAlert: NonNullable<ReturnType<typeof getAgendaNoteAlert>>;
+      }>;
+
+    const noteRiskCounts = allNoteRisks.reduce(
+      (acc, item) => {
+        acc[item.noteAlert.level] += 1;
+        return acc;
+      },
+      { pending: 0, attention: 0, note: 0 }
+    );
+    const noteRisks = allNoteRisks.slice(0, 4);
+
     const fixedVisits = todayVisits.filter((visita) => visita.agenda_fixa).length;
     const loadLevel = targetWeight >= 5000 || todayVisits.length >= 10 ? 'Dia pesado' : targetWeight >= 2500 || todayVisits.length >= 7 ? 'Dia normal' : 'Dia leve';
 
@@ -217,6 +245,8 @@ export function HomePage() {
       targetWeight,
       realizedWeight,
       overdueVisits,
+      noteRisks,
+      noteRiskCounts,
       fixedVisits,
       loadLevel,
       currentWeek,
@@ -329,6 +359,42 @@ export function HomePage() {
             <AlertCircle className="text-amber-500" size={24} />
           </div>
           <div className="space-y-2">
+            {(summary.noteRiskCounts.pending > 0 || summary.noteRiskCounts.attention > 0 || summary.noteRiskCounts.note > 0) && (
+              <div className="grid grid-cols-3 gap-1.5">
+                <RiskCount label="Pend." value={summary.noteRiskCounts.pending} tone="rose" />
+                <RiskCount label="Atenção" value={summary.noteRiskCounts.attention} tone="orange" />
+                <RiskCount label="Notas" value={summary.noteRiskCounts.note} tone="sky" />
+              </div>
+            )}
+            {summary.noteRisks.map(({ visita, noteAlert }) => (
+              <div key={'note-' + visita.id} className={cn(
+                "flex items-center justify-between gap-3 rounded-2xl border px-3 py-3",
+                noteAlert.level === 'pending' && "border-rose-100 bg-rose-50",
+                noteAlert.level === 'attention' && "border-orange-100 bg-orange-50",
+                noteAlert.level === 'note' && "border-sky-100 bg-sky-50"
+              )}>
+                <div className="min-w-0">
+                  <p className={cn(
+                    "text-sm font-black truncate",
+                    noteAlert.level === 'pending' && "text-rose-900",
+                    noteAlert.level === 'attention' && "text-orange-900",
+                    noteAlert.level === 'note' && "text-sky-900"
+                  )}>{visita.cliente_nome}</p>
+                  <p className={cn(
+                    "text-xs font-bold truncate",
+                    noteAlert.level === 'pending' && "text-rose-700",
+                    noteAlert.level === 'attention' && "text-orange-700",
+                    noteAlert.level === 'note' && "text-sky-700"
+                  )}>{noteAlert.label}: {noteAlert.text || 'Observação ativa'}</p>
+                </div>
+                <AlertTriangle className={cn(
+                  "shrink-0",
+                  noteAlert.level === 'pending' && "text-rose-600",
+                  noteAlert.level === 'attention' && "text-orange-600",
+                  noteAlert.level === 'note' && "text-sky-600"
+                )} size={18} />
+              </div>
+            ))}
             {summary.overdueVisits.map(({ visita, gap }) => (
               <div key={visita.id} className="flex items-center justify-between gap-3 rounded-2xl bg-amber-50 border border-amber-100 px-3 py-3">
                 <div className="min-w-0">
@@ -344,7 +410,7 @@ export function HomePage() {
             {data.unscheduledClients > 0 && (
               <InfoLine icon={Users} text={data.unscheduledClients + ' cliente(s) ativos fora da agenda'} />
             )}
-            {summary.overdueVisits.length === 0 && summary.fixedVisits === 0 && data.unscheduledClients === 0 && (
+            {summary.noteRisks.length === 0 && summary.overdueVisits.length === 0 && summary.fixedVisits === 0 && data.unscheduledClients === 0 && (
               <EmptyState icon={CheckCircle2} title="Tudo limpo" text="Nao encontrei alertas relevantes para hoje." compact />
             )}
           </div>
@@ -408,6 +474,21 @@ function InfoLine({ icon: Icon, text }: { icon: React.ElementType; text: string 
     <div className="flex items-center gap-3 rounded-2xl border border-neutral-100 bg-neutral-50 px-3 py-3">
       <Icon className="text-neutral-400 shrink-0" size={18} />
       <p className="text-sm font-bold text-neutral-700">{text}</p>
+    </div>
+  );
+}
+
+function RiskCount({ label, value, tone }: { label: string; value: number; tone: 'rose' | 'orange' | 'sky' }) {
+  const toneClasses = {
+    rose: 'border-rose-100 bg-rose-50 text-rose-700',
+    orange: 'border-orange-100 bg-orange-50 text-orange-700',
+    sky: 'border-sky-100 bg-sky-50 text-sky-700'
+  };
+
+  return (
+    <div className={cn('min-w-0 rounded-xl border px-2 py-1.5 text-center', toneClasses[tone])}>
+      <p className="text-[9px] font-black uppercase leading-none truncate">{label}</p>
+      <p className="mt-0.5 text-sm font-black leading-tight">{value}</p>
     </div>
   );
 }
