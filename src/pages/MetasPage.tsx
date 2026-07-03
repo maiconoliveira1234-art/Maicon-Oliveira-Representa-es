@@ -4,6 +4,8 @@ import {
   ArrowLeft, 
   Search,
   Save,
+  Target,
+  CalendarDays,
   Loader2,
   CheckCircle2,
   AlertCircle,
@@ -234,7 +236,7 @@ export function MetasPage() {
       const ultVenda = sortedRecompraVendas[0];
       const diasUltPedido = ultVenda ? differenceInDays(now, parseISO(ultVenda.faturamento)) : 0;
       
-      // Méd Dias: Average cycle (Total days from first purchase to now / Number of unique purchase days)
+      // Med Dias: Average cycle (Total days from first purchase to now / Number of unique purchase days)
       let medDias = 0;
       if (sortedRecompraVendas.length > 0) {
         const oldest = parseISO(sortedRecompraVendas[sortedRecompraVendas.length - 1].faturamento);
@@ -333,7 +335,7 @@ export function MetasPage() {
       <PageHeader
         title="Gestão de Metas"
         subtitle={format(new Date(), 'MMMM yyyy', { locale: ptBR })}
-        icon={<Save />}
+        icon={<Target />}
         actions={
           <ActionButton onClick={() => navigate(-1)} variant="secondary" size="sm" icon={<ArrowLeft />}>
             Voltar
@@ -341,83 +343,53 @@ export function MetasPage() {
         }
       />
 
-      {/* Spreadsheet Style Summary Header */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-0 border border-neutral-300 rounded-xl overflow-hidden shadow-sm bg-neutral-800 text-white">
-        {/* Group 1: Esperado & Atual */}
-        <div className="p-1.5 border-r border-b lg:border-b-0 border-neutral-600 flex flex-col justify-center gap-1 bg-neutral-700/50">
-          <div className="grid grid-cols-2 gap-2 px-1">
-            <div className="flex flex-col gap-0.5">
-              <p className="text-[8px] font-bold uppercase opacity-60">Esperado</p>
-              <p className="text-sm font-black text-blue-400 leading-none">{stats.esperadoPercent.toFixed(2)}%</p>
-              <div className="w-full h-1 bg-neutral-600 rounded-full overflow-hidden mt-1">
-                <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${Math.min(100, stats.esperadoPercent)}%` }} />
+      {/* Executive Summary */}
+      <div className="rounded-lg border border-neutral-200 bg-white shadow-sm overflow-hidden">
+        <div className="grid grid-cols-1 gap-2 p-2 lg:grid-cols-[minmax(0,1fr)_270px]">
+          <div className="min-w-0 space-y-2">
+            <div className="grid gap-1.5 md:grid-cols-2">
+              <ProgressBar label="Esperado" value={stats.esperadoPercent} tone="blue" />
+              <ProgressBar label="Atual" value={stats.percentualAtual} tone={stats.percentualAtual >= stats.esperadoPercent ? "green" : "orange"} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+              <SummaryMetric label="Projetado" value={formatWeight(stats.projetadoHoje)} />
+              <SummaryMetric label="Vendas" value={formatWeight(stats.realizadoTotal)} strong />
+              <SummaryMetric label="Meta" value={formatWeight(stats.metaTotal)} />
+              <div className={cn(
+                "min-w-0 rounded-md border px-2.5 py-1",
+                stats.gapTotal >= 0 ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-red-100 bg-red-50 text-red-700"
+              )}>
+                <p className="truncate text-[9px] font-black uppercase leading-none opacity-70">GAP</p>
+                <p className="mt-0.5 truncate text-xs font-black leading-tight">{formatWeight(stats.gapTotal)}</p>
               </div>
             </div>
-            <div className="flex flex-col gap-0.5">
-              <p className="text-[8px] font-bold uppercase opacity-60">Atual</p>
-              <p className={cn("text-sm font-black leading-none", stats.percentualAtual >= stats.esperadoPercent ? "text-green-400" : "text-orange-400")}>
-                {stats.percentualAtual.toFixed(2)}%
-              </p>
-              <div className="w-full h-1 bg-neutral-600 rounded-full overflow-hidden mt-1">
-                <div className={cn("h-full transition-all duration-500", stats.percentualAtual >= stats.esperadoPercent ? "bg-green-500" : "bg-orange-500")} style={{ width: `${Math.min(100, stats.percentualAtual)}%` }} />
-              </div>
-            </div>
           </div>
-        </div>
 
-        {/* Group 2: Início & Prazo Final */}
-        <div className="p-1.5 border-r border-b lg:border-b-0 border-neutral-600 flex flex-col justify-center gap-1">
-          <div className="flex justify-between items-center px-2">
-            <div className="text-center flex-1">
-              <p className="text-[8px] font-bold uppercase opacity-60 mb-0.5">Início</p>
-              <input 
-                type="date" 
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="bg-transparent text-white text-[11px] font-black outline-none cursor-pointer hover:text-orange-400 transition-colors text-center w-full"
-              />
+          <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-2 lg:justify-self-end lg:w-[270px]">
+            <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-neutral-400">
+              <CalendarDays size={13} />
+              Janela
             </div>
-            <div className="h-6 w-[1px] bg-neutral-600 mx-1" />
-            <div className="text-center flex-1">
-              <p className="text-[8px] font-bold uppercase opacity-60 mb-0.5">Prazo Final</p>
-              <input 
-                type="date" 
-                value={deadlineDate}
-                onChange={(e) => setDeadlineDate(e.target.value)}
-                className="bg-transparent text-white text-[11px] font-black outline-none cursor-pointer hover:text-orange-400 transition-colors text-center w-full"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Group 3: Projetado Hoje & Vendas */}
-        <div className="p-1.5 border-r border-neutral-600 flex flex-col justify-center gap-1 bg-neutral-700/50">
-          <div className="flex justify-between items-center px-2">
-            <div className="text-center">
-              <p className="text-[8px] font-bold uppercase opacity-60 mb-0.5">Projetado Hoje</p>
-              <p className="text-sm font-black text-neutral-300 leading-none">{formatWeight(stats.projetadoHoje)}</p>
-            </div>
-            <div className="h-6 w-[1px] bg-neutral-600 mx-2" />
-            <div className="text-center">
-              <p className="text-[8px] font-bold uppercase opacity-60 mb-0.5">Vendas</p>
-              <p className="text-sm font-black text-white leading-none">{formatWeight(stats.realizadoTotal)}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Group 4: Meta & GAP */}
-        <div className="p-1.5 border-neutral-600 flex flex-col justify-center gap-1">
-          <div className="flex justify-between items-center px-2">
-            <div className="text-center">
-              <p className="text-[8px] font-bold uppercase opacity-60 mb-0.5">Meta Total</p>
-              <p className="text-sm font-black text-white leading-none">{formatWeight(stats.metaTotal)}</p>
-            </div>
-            <div className="h-6 w-[1px] bg-neutral-600 mx-2" />
-            <div className="text-center">
-              <p className="text-[8px] font-bold uppercase opacity-60 mb-0.5">GAP</p>
-              <p className={cn("text-sm font-black leading-none", stats.gapTotal >= 0 ? "text-green-400" : "text-red-400")}>
-                {formatWeight(stats.gapTotal)}
-              </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              <label className="block">
+                <span className="sr-only">Início</span>
+                <input 
+                  type="date" 
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="h-7 w-full rounded-md border border-neutral-200 bg-white px-1.5 text-[10px] font-black text-neutral-800 outline-none transition-colors hover:border-neutral-300 focus:border-orange-500"
+                />
+              </label>
+              <label className="block">
+                <span className="sr-only">Prazo Final</span>
+                <input 
+                  type="date" 
+                  value={deadlineDate}
+                  onChange={(e) => setDeadlineDate(e.target.value)}
+                  className="h-7 w-full rounded-md border border-neutral-200 bg-white px-1.5 text-[10px] font-black text-neutral-800 outline-none transition-colors hover:border-neutral-300 focus:border-orange-500"
+                />
+              </label>
             </div>
           </div>
         </div>
@@ -618,6 +590,33 @@ export function MetasPage() {
         </table>
       </div>
 
+    </div>
+  );
+}
+
+function ProgressBar({ label, value, tone }: { label: string; value: number; tone: 'blue' | 'green' | 'orange' }) {
+  const toneClasses = {
+    blue: 'bg-blue-500',
+    green: 'bg-emerald-500',
+    orange: 'bg-orange-500'
+  };
+
+  return (
+    <div className="relative h-[26px] overflow-hidden rounded-md bg-neutral-100">
+      <div className={cn("absolute inset-y-0 left-0 transition-all duration-500", toneClasses[tone])} style={{ width: `${Math.min(100, value)}%` }} />
+      <div className="absolute inset-0 flex items-center justify-between gap-2 px-2.5 text-[10px] font-black">
+        <span className="text-neutral-800 mix-blend-multiply">{label}</span>
+        <span className="rounded bg-white/85 px-1.5 py-0.5 text-[9px] text-neutral-900 shadow-sm">{value.toFixed(2)}%</span>
+      </div>
+    </div>
+  );
+}
+
+function SummaryMetric({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className="min-w-0 rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1">
+      <p className="truncate text-[9px] font-black uppercase text-neutral-400 leading-none">{label}</p>
+      <p className={cn("mt-0.5 truncate text-xs font-black leading-tight", strong ? "text-orange-600" : "text-neutral-900")}>{value}</p>
     </div>
   );
 }
