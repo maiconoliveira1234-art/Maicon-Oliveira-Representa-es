@@ -396,9 +396,9 @@ export function MetasPage() {
       </div>
 
       {/* Search and Filters */}
-      <div className="flex flex-col md:flex-row gap-2 items-center justify-between">
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <div className="relative w-full md:w-80">
+      <div className="flex w-full flex-col gap-2 md:flex-row md:items-center">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="relative min-w-0 flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={16} />
             <input
               type="text"
@@ -418,13 +418,13 @@ export function MetasPage() {
           </div>
           <button 
             onClick={() => setShowClearConfirm(true)}
-            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent text-red-400 transition-colors hover:border-red-100 hover:bg-red-50 hover:text-red-600"
             title="Zerar todas as metas"
           >
             <Trash2 size={14} />
           </button>
         </div>
-        <div className="text-xs text-neutral-500 font-medium">
+        <div className="shrink-0 text-xs font-medium text-neutral-500 md:text-right">
           Exibindo {sortedAndFilteredData.length} clientes
         </div>
       </div>
