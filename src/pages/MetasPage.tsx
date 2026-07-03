@@ -236,7 +236,7 @@ export function MetasPage() {
       const ultVenda = sortedRecompraVendas[0];
       const diasUltPedido = ultVenda ? differenceInDays(now, parseISO(ultVenda.faturamento)) : 0;
       
-      // Med Dias: Average cycle (Total days from first purchase to now / Number of unique purchase days)
+      // Méd Dias: Average cycle (Total days from first purchase to now / Number of unique purchase days)
       let medDias = 0;
       if (sortedRecompraVendas.length > 0) {
         const oldest = parseISO(sortedRecompraVendas[sortedRecompraVendas.length - 1].faturamento);
@@ -344,36 +344,36 @@ export function MetasPage() {
       />
 
       {/* Executive Summary */}
-      <div className="rounded-lg border border-neutral-200 bg-white shadow-sm overflow-hidden">
-        <div className="grid grid-cols-1 gap-2 p-2 lg:grid-cols-[minmax(0,1fr)_270px]">
+      <div className="w-full min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm">
+        <div className="grid min-w-0 grid-cols-1 gap-2 p-2 lg:grid-cols-[minmax(0,1fr)_270px]">
           <div className="min-w-0 space-y-2">
-            <div className="grid gap-1.5 md:grid-cols-2">
+            <div className="grid min-w-0 grid-cols-1 gap-1.5 md:grid-cols-[repeat(2,minmax(0,1fr))]">
               <ProgressBar label="Esperado" value={stats.esperadoPercent} tone="blue" />
               <ProgressBar label="Atual" value={stats.percentualAtual} tone={stats.percentualAtual >= stats.esperadoPercent ? "green" : "orange"} />
             </div>
 
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+            <div className="grid min-w-0 grid-cols-[repeat(2,minmax(0,1fr))] gap-1.5 sm:grid-cols-[repeat(4,minmax(0,1fr))]">
               <SummaryMetric label="Projetado" value={formatWeight(stats.projetadoHoje)} />
               <SummaryMetric label="Vendas" value={formatWeight(stats.realizadoTotal)} strong />
               <SummaryMetric label="Meta" value={formatWeight(stats.metaTotal)} />
               <div className={cn(
-                "min-w-0 rounded-md border px-2.5 py-1",
+                "min-w-0 overflow-hidden rounded-md border px-2 py-1",
                 stats.gapTotal >= 0 ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-red-100 bg-red-50 text-red-700"
               )}>
-                <p className="truncate text-[9px] font-black uppercase leading-none opacity-70">GAP</p>
-                <p className="mt-0.5 truncate text-xs font-black leading-tight">{formatWeight(stats.gapTotal)}</p>
+                <p className="block max-w-full truncate text-[9px] font-black uppercase leading-none opacity-70">GAP</p>
+                <p className="mt-0.5 block max-w-full truncate whitespace-nowrap text-[11px] font-black leading-tight sm:text-xs">{formatWeight(stats.gapTotal)}</p>
               </div>
             </div>
           </div>
 
-          <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-2 lg:justify-self-end lg:w-[270px]">
+          <div className="min-w-0 rounded-lg border border-neutral-200 bg-neutral-50 p-2 lg:w-[270px] lg:justify-self-end">
             <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wide text-neutral-400">
               <CalendarDays size={13} />
               Janela
             </div>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid min-w-0 grid-cols-[repeat(2,minmax(0,1fr))] gap-1.5">
               <label className="block">
-                <span className="sr-only">Início</span>
+                <span className="sr-only">Inicio</span>
                 <input 
                   type="date" 
                   value={startDate}
@@ -602,11 +602,11 @@ function ProgressBar({ label, value, tone }: { label: string; value: number; ton
   };
 
   return (
-    <div className="relative h-[26px] overflow-hidden rounded-md bg-neutral-100">
+    <div className="relative h-[26px] min-w-0 overflow-hidden rounded-md bg-neutral-100">
       <div className={cn("absolute inset-y-0 left-0 transition-all duration-500", toneClasses[tone])} style={{ width: `${Math.min(100, value)}%` }} />
       <div className="absolute inset-0 flex items-center justify-between gap-2 px-2.5 text-[10px] font-black">
-        <span className="text-neutral-800 mix-blend-multiply">{label}</span>
-        <span className="rounded bg-white/85 px-1.5 py-0.5 text-[9px] text-neutral-900 shadow-sm">{value.toFixed(2)}%</span>
+        <span className="min-w-0 truncate text-neutral-800 mix-blend-multiply">{label}</span>
+        <span className="shrink-0 rounded bg-white/85 px-1.5 py-0.5 text-[9px] text-neutral-900 shadow-sm">{value.toFixed(2)}%</span>
       </div>
     </div>
   );
@@ -614,9 +614,9 @@ function ProgressBar({ label, value, tone }: { label: string; value: number; ton
 
 function SummaryMetric({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div className="min-w-0 rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1">
-      <p className="truncate text-[9px] font-black uppercase text-neutral-400 leading-none">{label}</p>
-      <p className={cn("mt-0.5 truncate text-xs font-black leading-tight", strong ? "text-orange-600" : "text-neutral-900")}>{value}</p>
+    <div className="min-w-0 overflow-hidden rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1">
+      <p className="block max-w-full truncate text-[9px] font-black uppercase leading-none text-neutral-400">{label}</p>
+      <p className={cn("mt-0.5 block max-w-full truncate whitespace-nowrap text-[11px] font-black leading-tight sm:text-xs", strong ? "text-orange-600" : "text-neutral-900")}>{value}</p>
     </div>
   );
 }
