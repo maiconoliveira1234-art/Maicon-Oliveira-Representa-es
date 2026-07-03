@@ -23,6 +23,8 @@ import { Visita, VisitaStatus } from '../../types/agenda';
 import { useDataManager } from '../../lib/dataManager';
 import { cn } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
+import { applyAgendaNoteAlertLevel, getAgendaNoteAlert } from '../../lib/agendaNoteAlert';
+import type { AgendaNoteAlertLevel } from '../../lib/agendaNoteAlert';
 
 interface VisitaDrawerProps {
   visita: Visita | null;
@@ -142,6 +144,13 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
 
   if (!visita) return null;
 
+  const noteAlert = getAgendaNoteAlert(visita.observacoes);
+  const tempNoteAlert = getAgendaNoteAlert(tempNote);
+
+  const setNoteLevel = (level: AgendaNoteAlertLevel) => {
+    setTempNote(applyAgendaNoteAlertLevel(tempNote, level));
+  };
+
   const openWhatsApp = () => {
     const cleanPhone = String(visita.telefone || '').replace(/\D/g, '');
     const rawName = visita.contato || 'Parceiro';
@@ -248,6 +257,31 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                       
                       {isEditingNote ? (
                         <div className="space-y-2">
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {([
+                              ['note', 'Nota'],
+                              ['attention', 'Atenção'],
+                              ['pending', 'Pendência']
+                            ] as const).map(([level, label]) => (
+                              <button
+                                key={level}
+                                type="button"
+                                onClick={() => setNoteLevel(level)}
+                                className={cn(
+                                  "h-8 rounded-lg border text-[9px] font-black uppercase tracking-tight transition-all",
+                                  tempNoteAlert?.level === level
+                                    ? level === 'note'
+                                      ? "border-sky-300 bg-sky-50 text-sky-700"
+                                      : level === 'attention'
+                                        ? "border-orange-300 bg-orange-50 text-orange-700"
+                                        : "border-rose-300 bg-rose-50 text-rose-700"
+                                    : "border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50"
+                                )}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
                           <textarea
                             value={tempNote}
                             onChange={(e) => setTempNote(e.target.value)}
@@ -281,9 +315,21 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                           </div>
                         </div>
                       ) : (
-                        <p className="text-sm text-neutral-500 italic leading-relaxed">
-                          {visita.observacoes || 'Nenhuma observação registrada para este ciclo.'}
-                        </p>
+                        noteAlert ? (
+                          <div className={cn(
+                            "rounded-2xl border px-3 py-2",
+                            noteAlert.level === 'note' && "border-sky-100 bg-sky-50 text-sky-800",
+                            noteAlert.level === 'attention' && "border-orange-100 bg-orange-50 text-orange-800",
+                            noteAlert.level === 'pending' && "border-rose-100 bg-rose-50 text-rose-800"
+                          )}>
+                            <div className="mb-1 text-[9px] font-black uppercase tracking-widest">{noteAlert.label}</div>
+                            <p className="text-sm font-semibold leading-relaxed">{noteAlert.text || visita.observacoes}</p>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-neutral-500 italic leading-relaxed">
+                            Nenhuma observação registrada para este ciclo.
+                          </p>
+                        )
                       )}
                     </div>
                   </div>

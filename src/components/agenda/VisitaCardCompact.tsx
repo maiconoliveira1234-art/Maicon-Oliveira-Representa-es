@@ -1,8 +1,9 @@
 import React from 'react';
-import { Clock, MapPin, ChevronRight, Phone, User } from 'lucide-react';
+import { Clock, MapPin, ChevronRight, Phone, User, AlertTriangle, StickyNote } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Visita } from '../../types/agenda';
 import { cn } from '../../lib/utils';
+import { getAgendaNoteAlert } from '../../lib/agendaNoteAlert';
 
 interface VisitaCardCompactProps {
   visita: Visita;
@@ -12,6 +13,8 @@ interface VisitaCardCompactProps {
 }
 
 export const VisitaCardCompact: React.FC<VisitaCardCompactProps> = ({ visita, gap, onClick, isSelected }) => {
+  const noteAlert = getAgendaNoteAlert(visita.observacoes);
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'concluida': return 'bg-emerald-500';
@@ -46,9 +49,14 @@ export const VisitaCardCompact: React.FC<VisitaCardCompactProps> = ({ visita, ga
     <div
       className={cn(
         "w-full transition-all group shadow-sm border rounded-2xl p-2.5 lg:p-3 flex items-center gap-3",
+        noteAlert?.level === 'note' && "border-l-4 border-l-sky-400 bg-sky-50/30",
+        noteAlert?.level === 'attention' && "border-l-4 border-l-orange-500 bg-orange-50/40",
+        noteAlert?.level === 'pending' && "border-l-4 border-l-rose-500 bg-rose-50/50",
         isSelected 
           ? "bg-orange-50/70 border-orange-400 ring-4 ring-orange-500/10 shadow-md" 
-          : "bg-white hover:bg-neutral-50 border-neutral-200"
+          : noteAlert
+            ? "hover:bg-white"
+            : "bg-white hover:bg-neutral-50 border-neutral-200"
       )}
     >
       {/* Time & Indicator */}
@@ -64,7 +72,10 @@ export const VisitaCardCompact: React.FC<VisitaCardCompactProps> = ({ visita, ga
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2 mb-1.5 sm:mb-0.5">
           <Link 
             to={visita.cliente_id ? `/cliente/${visita.cliente_id}` : '#'}
-            className="text-sm font-bold text-neutral-900 truncate hover:text-orange-600 transition-colors cursor-pointer block"
+            className={cn(
+              "text-sm font-bold truncate hover:text-orange-600 transition-colors cursor-pointer block",
+              noteAlert?.level === 'pending' ? "text-rose-700 font-black" : "text-neutral-900"
+            )}
             onClick={(e) => {
               if (!visita.cliente_id) e.preventDefault();
             }}
@@ -72,6 +83,17 @@ export const VisitaCardCompact: React.FC<VisitaCardCompactProps> = ({ visita, ga
             {visita.cliente_nome}
           </Link>
           <div className="flex items-center gap-1.5 shrink-0">
+            {noteAlert && (
+              <span className={cn(
+                "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-tight",
+                noteAlert.level === 'note' && "border-sky-100 bg-sky-50 text-sky-700",
+                noteAlert.level === 'attention' && "border-orange-100 bg-orange-50 text-orange-700",
+                noteAlert.level === 'pending' && "border-rose-100 bg-rose-50 text-rose-700"
+              )}>
+                {noteAlert.level === 'note' ? <StickyNote size={9} /> : <AlertTriangle size={9} />}
+                {noteAlert.label}
+              </span>
+            )}
             {gap !== undefined && (
               <div className={cn(
                 "text-[9px] font-black px-1.5 py-0.5 rounded-md border",
@@ -108,6 +130,17 @@ export const VisitaCardCompact: React.FC<VisitaCardCompactProps> = ({ visita, ga
                <span>{visita.telefone}</span>
              </div>
           </div>
+          {noteAlert && noteAlert.text && (
+            <div className={cn(
+              "mt-1 flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] font-bold",
+              noteAlert.level === 'note' && "bg-sky-50 text-sky-800",
+              noteAlert.level === 'attention' && "bg-orange-50 text-orange-800",
+              noteAlert.level === 'pending' && "bg-rose-50 text-rose-800"
+            )}>
+              {noteAlert.level === 'note' ? <StickyNote size={11} className="shrink-0" /> : <AlertTriangle size={11} className="shrink-0" />}
+              <span className="truncate">{noteAlert.text}</span>
+            </div>
+          )}
         </div>
       </div>
 
