@@ -336,6 +336,7 @@ export function MetasPage() {
         title="Gestão de Metas"
         subtitle={format(new Date(), 'MMMM yyyy', { locale: ptBR })}
         icon={<Target />}
+        className="flex-row items-start justify-between gap-3 pb-3 [&>div:last-child]:self-start"
         actions={
           <ActionButton onClick={() => navigate(-1)} variant="secondary" size="sm" icon={<ArrowLeft />}>
             Voltar
