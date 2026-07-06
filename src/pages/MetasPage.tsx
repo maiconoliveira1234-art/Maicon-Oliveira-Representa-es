@@ -60,71 +60,47 @@ export function MetasPage() {
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>({ key: 'cliente', direction: 'asc' });
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-  useEffect(() => {
-    if (loading) return;
+  const resetAgendaVisitsToPending = async () => {
+    try {
+      const { data: visitasData, error: visitasError } = await supabase
+        .from('agenda_visitas')
+        .select('id, status, clientes!inner(ativo)')
+        .eq('clientes.ativo', true);
 
-    let cancelled = false;
+      if (visitasError) throw visitasError;
 
-    async function markVisitsWithoutWindowPurchaseAsPending() {
-      try {
-        const start = parseISO(startDate);
-        const end = parseISO(deadlineDate);
-        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return;
+      const pendingVisitIds = (visitasData || [])
+        .filter(visita => visita.id && visita.status !== 'pendente')
+        .map(visita => visita.id);
 
-        const clientsWithPurchases = new Set<string>();
-        historico.forEach(h => {
-          if (!h.cliente_id || !h.faturamento || !classifySaleRecord(h).entraMetas) return;
-          try {
-            const saleDate = parseISO(h.faturamento);
-            if (isWithinInterval(saleDate, { start, end })) {
-              clientsWithPurchases.add(h.cliente_id);
-            }
-          } catch (err) {
-            // Ignora registros de histórico com data inválida.
-          }
-        });
+      if (pendingVisitIds.length === 0) return;
 
-        const { data: visitasData, error: visitasError } = await supabase
+      const updatedAt = new Date().toISOString();
+      for (let i = 0; i < pendingVisitIds.length; i += 100) {
+        const batch = pendingVisitIds.slice(i, i + 100);
+        const { error } = await supabase
           .from('agenda_visitas')
-          .select('id, cliente_id, status, clientes!inner(ativo)')
-          .eq('clientes.ativo', true)
-          .not('cliente_id', 'is', null);
+          .update({ status: 'pendente', updated_at: updatedAt })
+          .in('id', batch);
 
-        if (visitasError) throw visitasError;
-        if (cancelled) return;
-
-        const pendingVisitIds = (visitasData || [])
-          .filter(visita => {
-            if (!visita.cliente_id || visita.status === 'pendente') return false;
-            return !clientsWithPurchases.has(visita.cliente_id);
-          })
-          .map(visita => visita.id)
-          .filter(Boolean);
-
-        if (pendingVisitIds.length === 0) return;
-
-        const updatedAt = new Date().toISOString();
-        for (let i = 0; i < pendingVisitIds.length; i += 100) {
-          const batch = pendingVisitIds.slice(i, i + 100);
-          const { error } = await supabase
-            .from('agenda_visitas')
-            .update({ status: 'pendente', updated_at: updatedAt })
-            .in('id', batch);
-
-          if (error) throw error;
-          if (cancelled) return;
-        }
-      } catch (err) {
-        console.error('Erro ao aplicar regra de pendência por janela de metas:', err);
+        if (error) throw error;
       }
+    } catch (err) {
+      console.error('Erro ao redefinir visitas para pendente ao alterar janela de metas:', err);
     }
+  };
 
-    markVisitsWithoutWindowPurchaseAsPending();
+  const handleStartDateChange = (value: string) => {
+    if (value === startDate) return;
+    setStartDate(value);
+    if (value) void resetAgendaVisitsToPending();
+  };
 
-    return () => {
-      cancelled = true;
-    };
-  }, [loading, historico, startDate, deadlineDate]);
+  const handleDeadlineDateChange = (value: string) => {
+    if (value === deadlineDate) return;
+    setDeadlineDate(value);
+    if (value) void resetAgendaVisitsToPending();
+  };
 
   useEffect(() => {
     async function loadData() {
@@ -444,7 +420,7 @@ export function MetasPage() {
                 <input 
                   type="date" 
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => handleStartDateChange(e.target.value)}
                   className="h-7 w-full rounded-md border border-neutral-200 bg-white px-1.5 text-[10px] font-black text-neutral-800 outline-none transition-colors hover:border-neutral-300 focus:border-orange-500"
                 />
               </label>
@@ -453,7 +429,7 @@ export function MetasPage() {
                 <input 
                   type="date" 
                   value={deadlineDate}
-                  onChange={(e) => setDeadlineDate(e.target.value)}
+                  onChange={(e) => handleDeadlineDateChange(e.target.value)}
                   className="h-7 w-full rounded-md border border-neutral-200 bg-white px-1.5 text-[10px] font-black text-neutral-800 outline-none transition-colors hover:border-neutral-300 focus:border-orange-500"
                 />
               </label>
