@@ -1182,7 +1182,7 @@ export function StockCountPage() {
       </div>
       <div className="w-full px-1 mt-1 flex-1 flex flex-col min-h-0">
         {filteredItems.length === 0 ? (
-          <div className="w-full bg-white rounded-xl shadow-sm border border-neutral-200 p-8 md:p-12 text-center flex flex-col items-center justify-center space-y-4">
+          <div className="w-full bg-white rounded-lg shadow-sm border border-neutral-200 p-8 md:p-12 text-center flex flex-col items-center justify-center space-y-4">
             <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center text-orange-600">
               <Package size={32} />
             </div>
@@ -1235,7 +1235,7 @@ export function StockCountPage() {
         ) : (
           <>
             {/* Spreadsheet Table Container */}
-            <div className="flex bg-white rounded-xl shadow-sm border border-neutral-200 flex-col overflow-hidden max-h-[80vh] min-h-[300px] w-full">
+            <div className="flex bg-white rounded-lg shadow-sm border border-neutral-200 flex-col overflow-hidden max-h-[80vh] min-h-[300px] w-full">
           <div className="overflow-y-auto overflow-x-hidden flex-1 w-full">
             <div className="w-full">
               <div 
@@ -1423,20 +1423,20 @@ export function StockCountPage() {
               initial={{ y: 16, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 16, opacity: 0 }}
-              className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl border border-neutral-200"
+              className="w-full max-w-sm rounded-lg bg-white p-5 shadow-2xl border border-neutral-200"
             >
               <h3 className="text-base font-black text-neutral-900">Zerar contagem</h3>
               <p className="mt-2 text-sm font-medium text-neutral-600">Tem certeza que deseja zerar toda a contagem e também limpar os itens lançados no pedido?</p>
               <div className="mt-5 flex gap-3">
                 <button
                   onClick={() => setShowClearConfirm(false)}
-                  className="flex-1 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-black text-neutral-700 transition-colors hover:bg-neutral-50"
+                  className="flex-1 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-sm font-black text-neutral-700 transition-colors hover:bg-neutral-50"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={confirmClearAll}
-                  className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-black text-white transition-colors hover:bg-red-700"
+                  className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-black text-white transition-colors hover:bg-red-700"
                 >
                   Limpar tudo
                 </button>
@@ -1454,11 +1454,11 @@ export function StockCountPage() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[80vh]"
+              className="bg-white rounded-lg shadow-xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[80vh]"
             >
               <div className="p-4 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600">
+                  <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center text-orange-600">
                     <FileText size={20} />
                   </div>
                   <div>
@@ -1531,7 +1531,7 @@ export function StockCountPage() {
               <div className="p-4 bg-neutral-50 border-t border-neutral-100 flex justify-end">
                 <button 
                   onClick={() => setSelectedProductHistory(null)}
-                  className="px-6 py-2 bg-neutral-800 text-white rounded-xl font-black text-xs uppercase tracking-widest hover:bg-neutral-700 transition-colors"
+                  className="px-6 py-2 bg-neutral-800 text-white rounded-lg font-black text-xs uppercase tracking-widest hover:bg-neutral-700 transition-colors"
                 >
                   Fechar
                 </button>

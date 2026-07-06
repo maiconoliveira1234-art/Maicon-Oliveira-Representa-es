@@ -329,7 +329,7 @@ export function SettingsPage() {
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="bg-white w-full max-w-xl rounded-[2rem] border border-neutral-200 shadow-2xl p-6 relative z-10 overflow-hidden flex flex-col max-h-[85vh]"
+              className="bg-white w-full max-w-xl rounded-lg border border-neutral-200 shadow-2xl p-6 relative z-10 overflow-hidden flex flex-col max-h-[85vh]"
             >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
@@ -379,7 +379,7 @@ export function SettingsPage() {
               <div className="mt-6 pt-4 border-t border-neutral-100 flex flex-col sm:flex-row items-center gap-2">
                 <button
                   onClick={() => setShowValidationModal(false)}
-                  className="w-full sm:flex-1 py-2.5 px-4 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-xs rounded-xl transition-all uppercase tracking-wider active:scale-95"
+                  className="w-full sm:flex-1 py-2.5 px-4 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-xs rounded-lg transition-all uppercase tracking-wider active:scale-95"
                 >
                   Corrigir Cadastro
                 </button>
@@ -388,7 +388,7 @@ export function SettingsPage() {
                     setShowValidationModal(false);
                     await runGeocodingProcess();
                   }}
-                  className="w-full sm:flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl transition-all uppercase tracking-wider active:scale-95 shadow-md shadow-blue-500/10"
+                  className="w-full sm:flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-lg transition-all uppercase tracking-wider active:scale-95 shadow-md shadow-blue-500/10"
                 >
                   Prosseguir de Qualquer Forma
                 </button>

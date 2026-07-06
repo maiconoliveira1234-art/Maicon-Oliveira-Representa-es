@@ -186,7 +186,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
             {/* Header */}
             <div className="sticky top-0 bg-white/90 backdrop-blur-sm p-6 flex items-center justify-between border-b border-neutral-100 z-10">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-orange-500/10 rounded-2xl flex items-center justify-center text-orange-600">
+                <div className="w-12 h-12 bg-orange-500/10 rounded-lg flex items-center justify-center text-orange-600">
                   <ShoppingBag size={24} />
                 </div>
                 <div>
@@ -215,7 +215,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                 <h3 className="text-[10px] font-black text-neutral-400 uppercase tracking-[0.2em] mb-2 px-2">
                   Dados do Cliente
                 </h3>
-                <div className="bg-neutral-50 border border-neutral-200 rounded-[2rem] p-3 lg:p-4 space-y-4">
+                <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-3 lg:p-4 space-y-4">
                   <div className="flex items-start gap-4">
                     <MapPin className="text-neutral-400 shrink-0 mt-1" size={18} />
                     <div>
@@ -285,7 +285,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                           <textarea
                             value={tempNote}
                             onChange={(e) => setTempNote(e.target.value)}
-                            className="w-full h-24 bg-white border border-neutral-200 rounded-xl p-3 text-sm text-neutral-900 outline-none focus:border-orange-500 transition-all font-medium resize-none"
+                            className="w-full h-24 bg-white border border-neutral-200 rounded-lg p-3 text-sm text-neutral-900 outline-none focus:border-orange-500 transition-all font-medium resize-none"
                             placeholder="Digite as observações da visita..."
                             autoFocus
                           />
@@ -317,7 +317,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                       ) : (
                         noteAlert ? (
                           <div className={cn(
-                            "rounded-2xl border px-3 py-2",
+                            "rounded-lg border px-3 py-2",
                             noteAlert.level === 'note' && "border-sky-100 bg-sky-50 text-sky-800",
                             noteAlert.level === 'attention' && "border-orange-100 bg-orange-50 text-orange-800",
                             noteAlert.level === 'pending' && "border-rose-100 bg-rose-50 text-rose-800"
@@ -338,7 +338,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
 
               {/* Performance Section */}
               <section className="grid grid-cols-2 gap-2 lg:gap-3">
-               <div className="bg-gradient-to-br from-orange-600 to-orange-700 rounded-[2rem] p-3 lg:p-4 text-white shadow-xl shadow-orange-500/10">
+               <div className="bg-gradient-to-br from-orange-600 to-orange-700 rounded-lg p-3 lg:p-4 text-white shadow-xl shadow-orange-500/10">
                    <div className="flex items-center gap-2 mb-4">
                      <div className="w-6 h-6 bg-white/20 rounded-lg flex items-center justify-center">
                        <Target size={14} />
@@ -372,7 +372,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                    )}
                 </div>
 
-                <div className="bg-white border border-neutral-200 shadow-sm rounded-[2rem] p-3 lg:p-4 space-y-3">
+                <div className="bg-white border border-neutral-200 shadow-sm rounded-lg p-3 lg:p-4 space-y-3">
                    <div className="flex items-center justify-between">
                      <div className="flex items-center gap-2">
                        <Clock size={16} className="text-emerald-500" />
@@ -487,7 +487,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                 <div className="grid grid-cols-2 gap-3">
                   <button 
                     onClick={() => onStatusChange('concluida')}
-                    className="flex items-center gap-3 p-4 bg-emerald-500 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-emerald-500/20"
+                    className="flex items-center gap-3 p-4 bg-emerald-500 text-white rounded-lg font-black uppercase text-[10px] tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-emerald-500/20"
                   >
                     <CheckCircle2 size={18} />
                     Finalizar Visita
@@ -495,7 +495,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
 
                   <button 
                     onClick={openMaps}
-                    className="flex items-center gap-3 p-4 bg-orange-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-orange-500/20"
+                    className="flex items-center gap-3 p-4 bg-orange-600 text-white rounded-lg font-black uppercase text-[10px] tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-orange-500/20"
                   >
                     <Navigation size={18} />
                     Abrir Rota
@@ -505,7 +505,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                 <div className="grid grid-cols-2 gap-3">
                   <button 
                     onClick={openWhatsApp}
-                    className="flex items-center gap-3 p-4 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold text-xs text-neutral-700 hover:bg-neutral-100 transition-all"
+                    className="flex items-center gap-3 p-4 bg-neutral-50 border border-neutral-200 rounded-lg font-bold text-xs text-neutral-700 hover:bg-neutral-100 transition-all"
                   >
                     <MessageCircle size={18} className="text-emerald-600" />
                     WhatsApp
@@ -513,7 +513,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
 
                   <button 
                     onClick={() => setIsEditingSchedule(true)}
-                    className="flex items-center gap-3 p-4 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold text-xs text-neutral-700 hover:bg-neutral-100 transition-all"
+                    className="flex items-center gap-3 p-4 bg-neutral-50 border border-neutral-200 rounded-lg font-bold text-xs text-neutral-700 hover:bg-neutral-100 transition-all"
                   >
                     <Repeat size={18} className="text-amber-600" />
                     Reagendar
@@ -523,7 +523,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                 <div className="grid grid-cols-2 gap-3">
                   <button 
                     onClick={() => setIsEditingNote(true)}
-                    className="flex items-center gap-3 p-4 bg-neutral-50 border border-neutral-200 rounded-2xl font-bold text-xs text-neutral-700 hover:bg-neutral-100 transition-all"
+                    className="flex items-center gap-3 p-4 bg-neutral-50 border border-neutral-200 rounded-lg font-bold text-xs text-neutral-700 hover:bg-neutral-100 transition-all"
                   >
                     <StickyNote size={18} className="text-neutral-500" />
                     Nota
@@ -531,7 +531,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
 
                   <button 
                     onClick={() => onStatusChange('cancelada')}
-                    className="flex items-center gap-3 p-4 bg-rose-50 border border-rose-100 rounded-2xl font-bold text-xs text-rose-600 hover:bg-rose-100 transition-all"
+                    className="flex items-center gap-3 p-4 bg-rose-50 border border-rose-100 rounded-lg font-bold text-xs text-rose-600 hover:bg-rose-100 transition-all"
                   >
                     <XCircle size={18} className="text-rose-500" />
                     Cancelar
@@ -549,7 +549,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                       }
                     }}
                     disabled={isDeleting}
-                    className="w-full flex items-center justify-center gap-3 p-4 bg-white border border-rose-200 rounded-2xl font-black uppercase text-[10px] tracking-widest text-rose-600 hover:bg-rose-50 transition-all disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-3 p-4 bg-white border border-rose-200 rounded-lg font-black uppercase text-[10px] tracking-widest text-rose-600 hover:bg-rose-50 transition-all disabled:opacity-50"
                   >
                     <Trash2 size={18} />
                     {isDeleting ? 'Excluindo...' : 'Remover da Agenda'}

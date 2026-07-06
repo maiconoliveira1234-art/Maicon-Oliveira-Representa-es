@@ -274,7 +274,7 @@ export function ClientsPage() {
               placeholder="Buscar cliente ou cidade..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="h-10 w-full pl-10 pr-10 bg-white border border-neutral-200 rounded-xl shadow-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm"
+              className="h-10 w-full pl-10 pr-10 bg-white border border-neutral-200 rounded-lg shadow-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm"
             />
             {searchTerm && (
               <button
@@ -330,7 +330,7 @@ export function ClientsPage() {
             </button>
 
             {isActionsMenuOpen && (
-              <div className="absolute right-1 top-11 z-50 w-56 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl" role="menu">
+              <div className="absolute right-1 top-11 z-50 w-56 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl" role="menu">
                 <button
                   onClick={() => {
                     setIsModalOpen(true);
@@ -384,7 +384,7 @@ export function ClientsPage() {
         </header>
       </div>
 
-      <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg border border-neutral-200 shadow-sm overflow-hidden">
         <div className="divide-y divide-neutral-100">
           {filteredClientes.length > 0 ? (
             filteredClientes.map((cliente) => (
@@ -524,7 +524,7 @@ export function ClientsPage() {
 
       {showSuccessToast && (
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[300] animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <div className="bg-green-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 font-bold">
+          <div className="bg-green-600 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center gap-3 font-bold">
             <CheckCircle2 size={20} />
             {successMessage}
           </div>

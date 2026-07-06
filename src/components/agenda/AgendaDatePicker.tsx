@@ -116,7 +116,7 @@ export const AgendaDatePicker: React.FC<AgendaDatePickerProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             className={cn(
-              "fixed z-[60] bg-white rounded-[2rem] shadow-xl shadow-neutral-900/10 border border-neutral-100 overflow-hidden",
+              "fixed z-[60] bg-white rounded-lg shadow-xl shadow-neutral-900/10 border border-neutral-100 overflow-hidden",
               "bottom-4 left-1/2 -translate-x-1/2 w-72 md:absolute md:bottom-auto md:left-auto md:right-0 md:top-full md:translate-x-0 md:mt-3"
             )}
             onClick={(e) => e.stopPropagation()}
@@ -175,7 +175,7 @@ export const AgendaDatePicker: React.FC<AgendaDatePickerProps> = ({
                           setShowYearPicker(false);
                         }}
                         className={cn(
-                          "py-2 px-1 rounded-xl text-xs font-black transition-all",
+                          "py-2 px-1 rounded-lg text-xs font-black transition-all",
                           year === getYear(currentMonth)
                             ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
                             : "text-neutral-500 hover:bg-neutral-50"

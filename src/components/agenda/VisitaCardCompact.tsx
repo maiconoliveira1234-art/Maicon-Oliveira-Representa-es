@@ -48,7 +48,7 @@ export const VisitaCardCompact: React.FC<VisitaCardCompactProps> = ({ visita, ga
   return (
     <div
       className={cn(
-        "w-full transition-all group shadow-sm border rounded-2xl p-2.5 lg:p-3 flex items-center gap-3",
+        "w-full transition-all group shadow-sm border rounded-lg p-2.5 lg:p-3 flex items-center gap-3",
         noteAlert?.level === 'note' && "border-l-4 border-l-sky-400 bg-sky-50/30",
         noteAlert?.level === 'attention' && "border-l-4 border-l-orange-500 bg-orange-50/40",
         noteAlert?.level === 'pending' && "border-l-4 border-l-rose-500 bg-rose-50/50",
@@ -147,7 +147,7 @@ export const VisitaCardCompact: React.FC<VisitaCardCompactProps> = ({ visita, ga
       {/* Action Area for Drawer */}
       <button 
         onClick={onClick}
-        className="w-8 h-8 rounded-xl bg-neutral-100 flex items-center justify-center text-neutral-400 hover:bg-orange-500 hover:text-white transition-all shrink-0 active:scale-95"
+        className="w-8 h-8 rounded-lg bg-neutral-100 flex items-center justify-center text-neutral-400 hover:bg-orange-500 hover:text-white transition-all shrink-0 active:scale-95"
         title="Ver detalhes da visita"
       >
         <ChevronRight size={16} />

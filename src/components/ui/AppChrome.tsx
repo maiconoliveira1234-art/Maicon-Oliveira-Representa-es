@@ -73,7 +73,7 @@ type PanelProps = React.HTMLAttributes<HTMLDivElement> & {
 
 export function Panel({ className, children, ...props }: PanelProps) {
   return (
-    <div className={cn('rounded-xl border border-neutral-200 bg-white shadow-sm', className)} {...props}>
+    <div className={cn('rounded-lg border border-neutral-200 bg-white shadow-sm', className)} {...props}>
       {children}
     </div>
   );

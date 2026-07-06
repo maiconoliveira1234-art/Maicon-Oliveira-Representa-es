@@ -23,12 +23,12 @@ export function ClientPageSkeleton() {
           <Skeleton className="h-4 w-64" />
         </div>
         <div className="flex gap-2">
-          <Skeleton className="h-10 w-24 rounded-xl" />
-          <Skeleton className="h-10 w-24 rounded-xl" />
+          <Skeleton className="h-10 w-24 rounded-lg" />
+          <Skeleton className="h-10 w-24 rounded-lg" />
         </div>
       </div>
-      <Skeleton className="h-12 w-full rounded-2xl" />
-      <div className="bg-white rounded-2xl border border-neutral-200 divide-y divide-neutral-100 overflow-hidden">
+      <Skeleton className="h-12 w-full rounded-lg" />
+      <div className="bg-white rounded-lg border border-neutral-200 divide-y divide-neutral-100 overflow-hidden">
         {[...Array(6)].map((_, i) => (
           <div key={i} className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -57,7 +57,7 @@ export function StockCountSkeleton() {
             <Skeleton className="h-4 w-1/4" />
           </div>
         </div>
-        <Skeleton className="h-10 w-full rounded-xl" />
+        <Skeleton className="h-10 w-full rounded-lg" />
       </div>
       <div className="px-2 space-y-2">
         {[...Array(10)].map((_, i) => (

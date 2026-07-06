@@ -90,12 +90,12 @@ const KpiCard: React.FC<{ kpi: KpiData, onClick?: () => void }> = ({ kpi, onClic
     <div 
       onClick={onClick}
       className={cn(
-        "bg-white p-3 rounded-2xl border border-neutral-200 shadow-sm hover:shadow-md transition-all",
+        "bg-white p-3 rounded-lg border border-neutral-200 shadow-sm hover:shadow-md transition-all",
         onClick && "cursor-pointer hover:border-orange-300 active:scale-95"
       )}
     >
       <div className="flex justify-between items-start mb-2">
-        <div className={cn("p-2 rounded-xl", {
+        <div className={cn("p-2 rounded-lg", {
           'bg-blue-50 text-blue-600': kpi.color === 'blue',
           'bg-orange-50 text-orange-600': kpi.color === 'orange',
           'bg-green-50 text-green-600': kpi.color === 'green',
@@ -125,7 +125,7 @@ const KpiCard: React.FC<{ kpi: KpiData, onClick?: () => void }> = ({ kpi, onClic
 };
 
 const ChartCard: React.FC<{ title: string, children: React.ReactNode, className?: string }> = ({ title, children, className }) => (
-  <div className={cn("bg-white p-3 rounded-2xl border border-neutral-200 shadow-sm flex flex-col h-full", className)}>
+  <div className={cn("bg-white p-3 rounded-lg border border-neutral-200 shadow-sm flex flex-col h-full", className)}>
     <h3 className="text-[11px] font-bold text-neutral-800 mb-2 uppercase tracking-tight flex items-center gap-2 shrink-0">
       <div className="w-1 h-3 bg-orange-500 rounded-full" />
       {title}
@@ -536,7 +536,7 @@ export function Dashboard() {
               isFilterAnimationFinished ? "overflow-visible" : "overflow-hidden"
             )}
           >
-            <div className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-xl space-y-6">
+            <div className="bg-white p-6 rounded-lg border border-neutral-200 shadow-xl space-y-6">
               <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
                 <div className="flex flex-wrap gap-6 items-end flex-1">
                   {/* Date Selection */}
@@ -546,7 +546,7 @@ export function Dashboard() {
                       <select 
                         value={filters.year}
                         onChange={(e) => setFilters(prev => ({ ...prev, year: e.target.value === 'all' ? 'all' : parseInt(e.target.value), useCustomRange: false }))}
-                        className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                        className="flex-1 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
                       >
                         <option value="all">Todos os Anos</option>
                         {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
@@ -554,7 +554,7 @@ export function Dashboard() {
                       <select 
                         value={filters.month}
                         onChange={(e) => setFilters(prev => ({ ...prev, month: e.target.value === 'all' ? 'all' : parseInt(e.target.value), useCustomRange: false }))}
-                        className="flex-[2] bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                        className="flex-[2] bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
                       >
                         <option value="all">Ano Inteiro</option>
                         {Array.from({ length: 12 }).map((_, i) => (
@@ -574,7 +574,7 @@ export function Dashboard() {
                           type="date" 
                           value={filters.startDate}
                           onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
-                          className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                          className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
                         />
                       </div>
                       <div className="space-y-2 min-w-[140px] flex-1">
@@ -583,7 +583,7 @@ export function Dashboard() {
                           type="date" 
                           value={filters.endDate}
                           onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
-                          className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                          className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
                         />
                       </div>
                     </div>
@@ -593,7 +593,7 @@ export function Dashboard() {
                 {/* Custom Range Toggle */}
                 <div className="space-y-2 min-w-[220px]">
                   <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest lg:text-right block">Personalizado</label>
-                  <div className="flex items-center justify-between h-[42px] bg-neutral-50 px-4 rounded-xl border border-neutral-200">
+                  <div className="flex items-center justify-between h-[42px] bg-neutral-50 px-4 rounded-lg border border-neutral-200">
                     <span className="text-sm font-bold text-neutral-600">Usar datas específicas</span>
                     <button 
                       onClick={() => setFilters(prev => ({ ...prev, useCustomRange: !prev.useCustomRange }))}
@@ -618,7 +618,7 @@ export function Dashboard() {
                   <div className="relative">
                     <button 
                       onClick={() => setShowClientDropdown(!showClientDropdown)}
-                      className="w-full flex items-center justify-between px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
+                      className="w-full flex items-center justify-between px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
                     >
                       <span className="truncate">
                         {filters.clientIds.length === 0 ? "Selecionar Clientes" : `${filters.clientIds.length} selecionados`}
@@ -634,7 +634,7 @@ export function Dashboard() {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: 10 }}
-                            className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl z-[70] max-h-64 flex flex-col overflow-hidden"
+                            className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-lg shadow-2xl z-[70] max-h-64 flex flex-col overflow-hidden"
                           >
                             <div className="p-2 border-b border-neutral-100">
                               <div className="relative">
@@ -694,7 +694,7 @@ export function Dashboard() {
                   <div className="relative">
                     <button 
                       onClick={() => setShowFamilyDropdown(!showFamilyDropdown)}
-                      className="w-full flex items-center justify-between px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
+                      className="w-full flex items-center justify-between px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
                     >
                       <span className="truncate">
                         {filters.families.length === 0 ? "Selecionar Famílias" : `${filters.families.length} selecionadas`}
@@ -710,7 +710,7 @@ export function Dashboard() {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: 10 }}
-                            className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-2xl z-[70] max-h-64 overflow-y-auto p-1"
+                            className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-lg shadow-2xl z-[70] max-h-64 overflow-y-auto p-1"
                           >
                             {(Array.from(new Set(produtos.map(p => p.familia).filter(Boolean))) as string[])
                               .filter(f => f.toLowerCase() !== 'amostras e brindes')
@@ -760,7 +760,7 @@ export function Dashboard() {
                       });
                       setClientSearch('');
                     }}
-                    className="w-full py-3 border border-neutral-200 rounded-xl font-bold text-neutral-500 hover:bg-neutral-50 transition-all"
+                    className="w-full py-3 border border-neutral-200 rounded-lg font-bold text-neutral-500 hover:bg-neutral-50 transition-all"
                   >
                     Limpar Filtros
                   </button>
@@ -934,7 +934,7 @@ export function Dashboard() {
       {/* Loading Overlay */}
       {loading && (
         <div className="fixed inset-0 z-[200] bg-white/40 backdrop-blur-[2px] flex items-center justify-center">
-          <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-4">
+          <div className="bg-white p-8 rounded-lg shadow-2xl flex flex-col items-center gap-4">
             <div className="w-12 h-12 border-4 border-orange-100 border-t-orange-600 rounded-full animate-spin" />
             <p className="text-sm font-bold text-neutral-600">Atualizando dados...</p>
           </div>

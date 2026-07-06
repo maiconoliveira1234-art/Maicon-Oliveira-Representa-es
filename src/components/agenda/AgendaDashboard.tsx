@@ -47,9 +47,9 @@ export function AgendaDashboard({ visitas, currentWeek }: AgendaDashboardProps) 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
       {stats.map((stat, i) => (
-        <div key={i} className="bg-white p-5 rounded-3xl border border-neutral-100 shadow-sm transition-all hover:shadow-md">
+        <div key={i} className="bg-white p-5 rounded-lg border border-neutral-100 shadow-sm transition-all hover:shadow-md">
           <div className="flex justify-between items-start mb-3">
-            <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center", stat.color)}>
+            <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", stat.color)}>
               <stat.icon size={20} />
             </div>
             <span className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Dash</span>

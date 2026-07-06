@@ -433,7 +433,7 @@ export function MetasPage() {
       {/* Confirmation Modal */}
       {showClearConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-neutral-900">Confirmar Limpeza</h3>
               <button onClick={() => setShowClearConfirm(false)} className="p-1 hover:bg-neutral-100 rounded-full">
@@ -446,13 +446,13 @@ export function MetasPage() {
             <div className="flex gap-3">
               <button 
                 onClick={() => setShowClearConfirm(false)}
-                className="flex-1 px-4 py-2 border border-neutral-200 rounded-xl font-bold text-neutral-600 hover:bg-neutral-50 transition-colors"
+                className="flex-1 px-4 py-2 border border-neutral-200 rounded-lg font-bold text-neutral-600 hover:bg-neutral-50 transition-colors"
               >
                 Cancelar
               </button>
               <button 
                 onClick={handleClearAllMetas}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors"
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-colors"
               >
                 Sim, Limpar Tudo
               </button>
@@ -462,7 +462,7 @@ export function MetasPage() {
       )}
 
       {/* Spreadsheet Table */}
-      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden overflow-y-auto flex-1 h-full min-h-0">
+      <div className="bg-white rounded-lg border border-neutral-200 shadow-sm overflow-hidden overflow-y-auto flex-1 h-full min-h-0">
         <table className="w-full text-left border-separate border-spacing-0">
           <thead className="sticky top-0 z-20">
             <tr className="bg-neutral-50 text-[10px] font-bold uppercase text-neutral-500">

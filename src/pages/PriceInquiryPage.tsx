@@ -465,7 +465,7 @@ export function PriceInquiryPage() {
             placeholder="Buscar produto..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-12 py-3 bg-white border border-neutral-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all"
+            className="w-full pl-12 pr-12 py-3 bg-white border border-neutral-200 rounded-lg shadow-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all"
           />
           {searchTerm && (
             <button
@@ -515,7 +515,7 @@ export function PriceInquiryPage() {
             <select
               value={selectedTable}
               onChange={(e) => setSelectedTable(e.target.value as PrecoFaixa)}
-              className="w-full pl-12 pr-10 py-3 bg-white border border-neutral-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all appearance-none font-bold text-neutral-700"
+              className="w-full pl-12 pr-10 py-3 bg-white border border-neutral-200 rounded-lg shadow-sm focus:ring-2 focus:ring-orange-500 outline-none transition-all appearance-none font-bold text-neutral-700"
             >
               <option value="livre">Tabela Livre</option>
               <option value="200kg">Tabela 200kg</option>
@@ -532,7 +532,7 @@ export function PriceInquiryPage() {
       </div>
 
       {showHistory && (
-        <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+        <div className="bg-white rounded-lg border border-neutral-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="p-4 border-b border-neutral-100 bg-neutral-50 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <TrendingUp className="text-orange-600" size={20} />
@@ -635,7 +635,7 @@ export function PriceInquiryPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden flex-1">
+      <div className="bg-white rounded-lg border border-neutral-200 shadow-sm overflow-hidden flex-1">
         <div className="divide-y divide-neutral-100">
           {filteredProdutos.length > 0 ? (
             filteredProdutos.map((produto) => {
@@ -690,7 +690,7 @@ export function PriceInquiryPage() {
                         setEditForm({ ...produto });
                         setIsEditModalOpen(true);
                       }}
-                      className="p-2 bg-neutral-50 hover:bg-orange-50 text-neutral-400 hover:text-orange-600 rounded-xl transition-all border border-transparent hover:border-orange-200"
+                      className="p-2 bg-neutral-50 hover:bg-orange-50 text-neutral-400 hover:text-orange-600 rounded-lg transition-all border border-transparent hover:border-orange-200"
                       title="Editar produto"
                     >
                       <Pencil size={15} />
@@ -825,7 +825,7 @@ export function PriceInquiryPage() {
       {/* Elegant Edit Product Modal */}
       {isEditModalOpen && editForm && (
         <div className="fixed inset-0 bg-neutral-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
+          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
             
             {/* Modal Header */}
             <div className="p-6 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
@@ -856,7 +856,7 @@ export function PriceInquiryPage() {
                       type="text" 
                       value={editForm.produto || ''} 
                       onChange={(e) => setEditForm({ ...editForm, produto: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
+                      className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
                       placeholder="Ex: MAGNUS BISCOITO ORIGINAL 10X4000G"
                     />
                   </div>
@@ -868,14 +868,14 @@ export function PriceInquiryPage() {
                       type="text" 
                       value={editForm.familia || ''} 
                       onChange={(e) => setEditForm({...editForm, familia: e.target.value})}
-                      className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
+                      className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
                       placeholder="Ex: MAGNUS"
                     />
                   </div>
                 </div>
 
                 {/* Ativo Status Toggle Block */}
-                <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-100 flex items-center justify-between">
+                <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-100 flex items-center justify-between">
                   <div>
                     <h4 className="text-sm font-bold text-neutral-900">Produto Ativo</h4>
                     <p className="text-neutral-400 text-xs mt-0.5">Se desativado, o produto é marcado como inativo no banco de dados</p>
@@ -906,7 +906,7 @@ export function PriceInquiryPage() {
                       step="0.01"
                       value={editForm.custo_total || 0} 
                       onChange={(e) => setEditForm({...editForm, custo_total: parseFloat(e.target.value) || 0})}
-                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
+                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
                     />
                   </div>
 
@@ -918,7 +918,7 @@ export function PriceInquiryPage() {
                       step="0.01"
                       value={editForm.custo_und || 0} 
                       onChange={(e) => setEditForm({...editForm, custo_und: parseFloat(e.target.value) || 0})}
-                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
+                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
                     />
                   </div>
 
@@ -930,7 +930,7 @@ export function PriceInquiryPage() {
                       step="0.01"
                       value={editForm.sugestao || 0} 
                       onChange={(e) => setEditForm({...editForm, sugestao: parseFloat(e.target.value) || 0})}
-                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
+                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
                     />
                   </div>
 
@@ -942,7 +942,7 @@ export function PriceInquiryPage() {
                       step="0.001"
                       value={editForm.comissao || 0} 
                       onChange={(e) => setEditForm({...editForm, comissao: parseFloat(e.target.value) || 0})}
-                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
+                      className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-lg font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
                     />
                   </div>
                 </div>
@@ -961,7 +961,7 @@ export function PriceInquiryPage() {
                       step="any"
                       value={editForm.peso_embalagem || 0} 
                       onChange={(e) => setEditForm({...editForm, peso_embalagem: parseFloat(e.target.value) || 0})}
-                      className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
+                      className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
                     />
                   </div>
 
@@ -973,7 +973,7 @@ export function PriceInquiryPage() {
                       step="1"
                       value={editForm.quant_embalagem || 1} 
                       onChange={(e) => setEditForm({...editForm, quant_embalagem: parseInt(e.target.value) || 1})}
-                      className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
+                      className="w-full px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all text-sm"
                     />
                   </div>
                 </div>
@@ -987,7 +987,7 @@ export function PriceInquiryPage() {
                 type="button"
                 onClick={() => setIsEditModalOpen(false)}
                 disabled={isSaving}
-                className="px-5 py-2.5 bg-white border border-neutral-200 hover:bg-neutral-50 text-neutral-700 font-bold rounded-xl transition-all text-sm disabled:opacity-50"
+                className="px-5 py-2.5 bg-white border border-neutral-200 hover:bg-neutral-50 text-neutral-700 font-bold rounded-lg transition-all text-sm disabled:opacity-50"
               >
                 Cancelar
               </button>
@@ -995,7 +995,7 @@ export function PriceInquiryPage() {
                 type="button"
                 onClick={handleSaveProduct}
                 disabled={isSaving}
-                className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl transition-all text-sm flex items-center gap-2 shadow-lg shadow-orange-100 disabled:opacity-50"
+                className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg transition-all text-sm flex items-center gap-2 shadow-lg shadow-orange-100 disabled:opacity-50"
               >
                 {isSaving ? (
                   <>

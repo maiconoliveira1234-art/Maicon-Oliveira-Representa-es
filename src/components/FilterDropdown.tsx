@@ -49,7 +49,7 @@ export function FilterDropdown({
       <div 
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "w-full pl-12 pr-10 py-3 bg-white border border-neutral-200 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-orange-500 outline-none transition-all cursor-pointer flex items-center justify-between",
+          "w-full pl-12 pr-10 py-3 bg-white border border-neutral-200 rounded-lg shadow-sm focus-within:ring-2 focus-within:ring-orange-500 outline-none transition-all cursor-pointer flex items-center justify-between",
           isOpen && "ring-2 ring-orange-500 border-orange-500"
         )}
       >
@@ -68,7 +68,7 @@ export function FilterDropdown({
       </div>
 
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-2xl shadow-xl z-[100] overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-lg shadow-xl z-[100] overflow-hidden animate-in fade-in zoom-in duration-200">
           <div className="p-3 border-b border-neutral-100">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={16} />
@@ -78,7 +78,7 @@ export function FilterDropdown({
                 placeholder={placeholder}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-neutral-50 border border-neutral-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+                className="w-full pl-10 pr-4 py-2 bg-neutral-50 border border-neutral-100 rounded-lg text-sm outline-none focus:ring-2 focus:ring-orange-500 transition-all"
               />
             </div>
           </div>
@@ -94,7 +94,7 @@ export function FilterDropdown({
                     setSearchTerm('');
                   }}
                   className={cn(
-                    "w-full text-left px-4 py-2.5 rounded-xl text-sm transition-colors flex items-center justify-between group",
+                    "w-full text-left px-4 py-2.5 rounded-lg text-sm transition-colors flex items-center justify-between group",
                     selected === option.id 
                       ? "bg-orange-50 text-orange-600 font-bold" 
                       : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"

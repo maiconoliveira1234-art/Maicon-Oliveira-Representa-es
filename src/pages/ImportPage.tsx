@@ -898,7 +898,7 @@ export function ImportPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Input Section */}
         <div className="lg:col-span-1 space-y-4">
-          <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm space-y-4">
+          <div className="bg-white p-4 rounded-lg border border-neutral-200 shadow-sm space-y-4">
             <div className="relative">
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-bold text-neutral-500 uppercase">Cliente</label>
@@ -927,7 +927,7 @@ export function ImportPage() {
                       if (!e.target.value) setSelectedClienteId('');
                     }}
                     onFocus={() => setIsDropdownOpen(true)}
-                    className="w-full p-2.5 pl-10 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm font-bold"
+                    className="w-full p-2.5 pl-10 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm font-bold"
                   />
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
                   <button 
@@ -947,7 +947,7 @@ export function ImportPage() {
                         if (selectedCliente) setClientSearch(selectedCliente.cliente);
                       }} 
                     />
-                    <div className="absolute left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-xl shadow-xl z-20 max-h-60 overflow-y-auto">
+                    <div className="absolute left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-lg shadow-xl z-20 max-h-60 overflow-y-auto">
                       {clientSearchResults.length > 0 ? (
                         clientSearchResults.map(c => (
                           <button
@@ -978,7 +978,7 @@ export function ImportPage() {
             </div>
 
             {/* Número do Pedido ERP Field */}
-            <div className="bg-orange-50/50 p-3.5 rounded-2xl border border-orange-100 space-y-2">
+            <div className="bg-orange-50/50 p-3.5 rounded-lg border border-orange-100 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-black text-orange-850 uppercase tracking-wider flex items-center gap-1.5">
                   <Coins size={14} className="text-orange-600" />
@@ -1006,7 +1006,7 @@ export function ImportPage() {
                   setNumeroPedidoErp(val);
                   sessionStorage.setItem('last_pedido_erp', val);
                 }}
-                className="w-full p-2.5 bg-white border border-orange-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all text-sm font-bold text-neutral-800 placeholder-neutral-400 shadow-3xs"
+                className="w-full p-2.5 bg-white border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all text-sm font-bold text-neutral-800 placeholder-neutral-400 shadow-3xs"
               />
               <p className="text-[9px] text-orange-700/80 font-medium leading-tight">
                 Proteção Idempotente ativa contra reimportações acidentais ou duplicidades.
@@ -1019,7 +1019,7 @@ export function ImportPage() {
                 type="date"
                 value={orderDate}
                 onChange={(e) => setOrderDate(e.target.value)}
-                className="w-full p-2.5 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm"
+                className="w-full p-2.5 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm"
               />
             </div>
 
@@ -1029,14 +1029,14 @@ export function ImportPage() {
                 value={rawData}
                 onChange={(e) => setRawData(e.target.value)}
                 placeholder="Cole as linhas da planilha aqui..."
-                className="w-full h-64 p-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm font-mono resize-none"
+                className="w-full h-64 p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm font-mono resize-none"
               />
             </div>
 
             <button
               onClick={handleProcess}
               disabled={processing || !rawData.trim()}
-              className="w-full py-3 bg-neutral-900 text-white rounded-xl font-bold hover:bg-neutral-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-3 bg-neutral-900 text-white rounded-lg font-bold hover:bg-neutral-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {processing ? <Loader2 className="animate-spin" size={20} /> : <FileUp size={20} />}
               Processar Dados
@@ -1047,33 +1047,33 @@ export function ImportPage() {
         {/* Preview Section */}
         <div className="lg:col-span-2 space-y-4">
           {statusImportacao === 'PROCESSANDO' && (
-            <div className="bg-orange-50 border border-orange-100 text-orange-700 p-4 rounded-xl flex items-center gap-3 animate-pulse shadow-sm">
+            <div className="bg-orange-50 border border-orange-100 text-orange-700 p-4 rounded-lg flex items-center gap-3 animate-pulse shadow-sm">
               <Loader2 className="animate-spin text-orange-600 shrink-0" size={18} />
               <p className="text-sm font-bold">Importando faturamento... Por favor, aguarde a sincronização.</p>
             </div>
           )}
           {error && (
-            <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-xl flex items-start gap-3">
+            <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-lg flex items-start gap-3">
               <AlertCircle className="shrink-0 mt-0.5" size={18} />
               <p className="text-sm font-medium">{error}</p>
             </div>
           )}
 
           {success && (
-            <div className="bg-green-50 border border-green-100 text-green-600 p-4 rounded-xl flex items-start gap-3">
+            <div className="bg-green-50 border border-green-100 text-green-600 p-4 rounded-lg flex items-start gap-3">
               <CheckCircle2 className="shrink-0 mt-0.5" size={18} />
               <p className="text-sm font-medium">Dados importados com sucesso!</p>
             </div>
           )}
 
           {processedRows.length > 0 && (
-            <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden flex flex-col h-full max-h-[850px]">
+            <div className="bg-white rounded-lg border border-neutral-200 shadow-sm overflow-hidden flex flex-col h-full max-h-[850px]">
               <div className="p-4 border-b border-neutral-100 bg-neutral-50 flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setActiveTab('pedido')}
                     className={cn(
-                      "px-4 py-2 text-xs font-black uppercase rounded-xl transition-all",
+                      "px-4 py-2 text-xs font-black uppercase rounded-lg transition-all",
                       activeTab === 'pedido'
                         ? "bg-neutral-900 text-white shadow-sm"
                         : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"
@@ -1084,7 +1084,7 @@ export function ImportPage() {
                   <button
                     onClick={() => setActiveTab('auditoria')}
                     className={cn(
-                      "px-4 py-2 text-xs font-black uppercase rounded-xl transition-all flex items-center gap-1.5",
+                      "px-4 py-2 text-xs font-black uppercase rounded-lg transition-all flex items-center gap-1.5",
                       activeTab === 'auditoria'
                         ? "bg-orange-600 text-white shadow-sm shadow-orange-100"
                         : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"
@@ -1104,14 +1104,14 @@ export function ImportPage() {
                   <button
                     onClick={handleSave}
                     disabled={saving || statusImportacao === 'PROCESSANDO'}
-                    className="px-6 py-2 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-all flex items-center gap-2 disabled:opacity-50"
+                    className="px-6 py-2 bg-orange-600 text-white rounded-lg font-bold hover:bg-orange-700 transition-all flex items-center gap-2 disabled:opacity-50"
                   >
                     {saving || statusImportacao === 'PROCESSANDO' ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
                     {saving || statusImportacao === 'PROCESSANDO' ? 'Importando faturamento...' : 'Salvar no Banco'}
                   </button>
                 ) : (
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5 bg-white border border-neutral-200 px-3 py-1.5 rounded-xl text-xs font-bold text-neutral-600">
+                    <div className="flex items-center gap-1.5 bg-white border border-neutral-200 px-3 py-1.5 rounded-lg text-xs font-bold text-neutral-600">
                       <Layers size={13} className="text-neutral-400" />
                       <span>Limiar Tolerância:</span>
                       <select
@@ -1129,7 +1129,7 @@ export function ImportPage() {
                       <button
                         onClick={() => handleBatchUpdateCosts(activeAuditAlerts)}
                         disabled={isBatchUpdating}
-                        className="px-4 py-2 bg-orange-600 text-white rounded-xl text-xs font-black hover:bg-orange-700 transition-all flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+                        className="px-4 py-2 bg-orange-600 text-white rounded-lg text-xs font-black hover:bg-orange-700 transition-all flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
                       >
                         {isBatchUpdating ? <Loader2 className="animate-spin" size={13} /> : <CheckCircle2 size={13} />}
                         Corrigir Lote ({activeAuditAlerts.length})
@@ -1258,7 +1258,7 @@ export function ImportPage() {
               ) : (
                 <div className="overflow-auto flex-1 p-6 space-y-6">
                   {/* Summary / Info Banner */}
-                  <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-4 flex gap-3 text-neutral-600">
+                  <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4 flex gap-3 text-neutral-600">
                     <ShieldAlert size={20} className="text-orange-600 shrink-0 mt-0.5" />
                     <div className="text-xs space-y-1">
                       <p className="font-bold text-neutral-950 uppercase tracking-wide">Auditoria de Preços Comerciais vs. Custos</p>
@@ -1276,7 +1276,7 @@ export function ImportPage() {
 
                   {/* Audit alert messages */}
                   {auditSuccessMessage && (
-                    <div className="bg-green-50 border border-green-200 text-green-700 p-3.5 rounded-xl text-xs font-bold flex items-center justify-between">
+                    <div className="bg-green-50 border border-green-200 text-green-700 p-3.5 rounded-lg text-xs font-bold flex items-center justify-between">
                       <span className="flex items-center gap-2">
                         <CheckCircle2 size={16} />
                         {auditSuccessMessage}
@@ -1286,7 +1286,7 @@ export function ImportPage() {
                   )}
 
                   {activeAuditAlerts.length === 0 ? (
-                    <div className="p-12 text-center bg-neutral-50 rounded-2xl border border-neutral-200/60 flex flex-col items-center justify-center space-y-3">
+                    <div className="p-12 text-center bg-neutral-50 rounded-lg border border-neutral-200/60 flex flex-col items-center justify-center space-y-3">
                       <div className="bg-green-50 p-4 rounded-full text-green-600">
                         <CheckCircle2 size={36} className="stroke-[3]" />
                       </div>
@@ -1314,7 +1314,7 @@ export function ImportPage() {
                         )}
                       </div>
 
-                      <div className="border border-neutral-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+                      <div className="border border-neutral-200 rounded-lg overflow-hidden bg-white shadow-sm">
                         <table className="w-full text-left border-collapse text-xs">
                           <thead>
                             <tr className="bg-neutral-50 text-[10px] uppercase font-bold text-neutral-500 border-b border-neutral-200">
@@ -1419,7 +1419,7 @@ export function ImportPage() {
           )}
 
           {processedRows.length === 0 && !error && !success && (
-            <div className="h-full flex flex-col items-center justify-center text-neutral-400 bg-neutral-50 rounded-2xl border-2 border-dashed border-neutral-200 p-12">
+            <div className="h-full flex flex-col items-center justify-center text-neutral-400 bg-neutral-50 rounded-lg border-2 border-dashed border-neutral-200 p-12">
               <FileUp size={48} className="mb-4 opacity-20" />
               <p className="font-medium">Nenhum dado processado</p>
               <p className="text-xs">Cole os dados e clique em "Processar Dados" para ver o preview.</p>
@@ -1431,7 +1431,7 @@ export function ImportPage() {
       {/* Confirmation Modal */}
       {showConfirmSave && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-2xl space-y-4">
             <div className="flex items-center gap-3 text-orange-600">
               <AlertCircle size={24} />
               <h3 className="font-bold text-lg">Confirmar Importação</h3>
@@ -1444,7 +1444,7 @@ export function ImportPage() {
                 type="button"
                 onClick={() => setShowConfirmSave(false)}
                 disabled={saving || statusImportacao === 'PROCESSANDO'}
-                className="flex-1 py-2.5 bg-neutral-100 text-neutral-700 rounded-xl font-bold hover:bg-neutral-200 transition-all disabled:opacity-50"
+                className="flex-1 py-2.5 bg-neutral-100 text-neutral-700 rounded-lg font-bold hover:bg-neutral-200 transition-all disabled:opacity-50"
               >
                 Cancelar
               </button>
@@ -1452,7 +1452,7 @@ export function ImportPage() {
                 type="button"
                 onClick={confirmSave}
                 disabled={saving || statusImportacao === 'PROCESSANDO'}
-                className="flex-1 py-2.5 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-all shadow-lg shadow-orange-200 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                className="flex-1 py-2.5 bg-orange-600 text-white rounded-lg font-bold hover:bg-orange-700 transition-all shadow-lg shadow-orange-200 disabled:opacity-50 flex items-center justify-center gap-1.5"
               >
                 {statusImportacao === 'PROCESSANDO' ? (
                   <>
@@ -1471,7 +1471,7 @@ export function ImportPage() {
       {/* New Product Modal */}
       {showNewProductModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3 text-orange-600">
                 <Package size={24} />
@@ -1489,7 +1489,7 @@ export function ImportPage() {
                   type="text"
                   value={newProductData.produto}
                   onChange={(e) => setNewProductData(prev => ({ ...prev, produto: e.target.value }))}
-                  className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
+                  className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
                 />
               </div>
 
@@ -1498,7 +1498,7 @@ export function ImportPage() {
                 <select
                   value={newProductData.familia}
                   onChange={(e) => handleFamilyChange(e.target.value)}
-                  className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
+                  className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
                 >
                   <option value="">Selecione a Família</option>
                   {families.map(f => <option key={f} value={f}>{f}</option>)}
@@ -1512,7 +1512,7 @@ export function ImportPage() {
                     type="number"
                     value={newProductData.custo_total}
                     onChange={(e) => setNewProductData(prev => ({ ...prev, custo_total: parseFloat(e.target.value) }))}
-                    className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
+                    className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
                   />
                 </div>
                 <div>
@@ -1521,7 +1521,7 @@ export function ImportPage() {
                     type="number"
                     value={newProductData.custo_und}
                     onChange={(e) => setNewProductData(prev => ({ ...prev, custo_und: parseFloat(e.target.value) }))}
-                    className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
+                    className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
                   />
                 </div>
               </div>
@@ -1533,7 +1533,7 @@ export function ImportPage() {
                     type="number"
                     value={newProductData.sugestao}
                     onChange={(e) => setNewProductData(prev => ({ ...prev, sugestao: parseFloat(e.target.value) }))}
-                    className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
+                    className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
                   />
                 </div>
                 <div>
@@ -1542,7 +1542,7 @@ export function ImportPage() {
                     type="number"
                     value={newProductData.peso_embalagem}
                     onChange={(e) => setNewProductData(prev => ({ ...prev, peso_embalagem: parseFloat(e.target.value) }))}
-                    className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
+                    className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
                   />
                 </div>
                 <div>
@@ -1551,7 +1551,7 @@ export function ImportPage() {
                     type="number"
                     value={newProductData.quant_embalagem}
                     onChange={(e) => setNewProductData(prev => ({ ...prev, quant_embalagem: parseInt(e.target.value) }))}
-                    className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
+                    className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold"
                   />
                 </div>
               </div>
@@ -1560,14 +1560,14 @@ export function ImportPage() {
             <div className="flex gap-3 pt-4">
               <button
                 onClick={() => setShowNewProductModal(false)}
-                className="flex-1 py-3 bg-neutral-100 text-neutral-700 rounded-xl font-bold hover:bg-neutral-200 transition-all"
+                className="flex-1 py-3 bg-neutral-100 text-neutral-700 rounded-lg font-bold hover:bg-neutral-200 transition-all"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSaveNewProduct}
                 disabled={savingNewProduct}
-                className="flex-1 py-3 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 transition-all shadow-lg shadow-orange-200 flex items-center justify-center gap-2"
+                className="flex-1 py-3 bg-orange-600 text-white rounded-lg font-bold hover:bg-orange-700 transition-all shadow-lg shadow-orange-200 flex items-center justify-center gap-2"
               >
                 {savingNewProduct ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
                 Salvar e Continuar

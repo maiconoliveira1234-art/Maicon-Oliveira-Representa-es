@@ -171,9 +171,9 @@ export const AgendaMap: React.FC<AgendaMapProps> = ({ visitas, selectedVisita, o
 
   if (!hasValidKey) {
     return (
-      <div className="w-full h-[400px] rounded-[2.5rem] bg-neutral-50 border border-neutral-200 flex flex-col items-center justify-center p-6 text-center mb-6">
+      <div className="w-full h-[400px] rounded-lg bg-neutral-50 border border-neutral-200 flex flex-col items-center justify-center p-6 text-center mb-6">
         <div className="max-w-md space-y-4">
-          <div className="w-12 h-12 bg-neutral-100 rounded-2xl flex items-center justify-center mx-auto text-neutral-500">
+          <div className="w-12 h-12 bg-neutral-100 rounded-lg flex items-center justify-center mx-auto text-neutral-500">
             <MapPin size={24} />
           </div>
           <h3 className="text-sm font-black uppercase tracking-widest text-neutral-800">
@@ -182,7 +182,7 @@ export const AgendaMap: React.FC<AgendaMapProps> = ({ visitas, selectedVisita, o
           <p className="text-xs text-neutral-500 leading-relaxed max-w-sm mx-auto">
             Para ativar a visão de mapa de alta precisão, configure sua API Key do Google Maps Platform.
           </p>
-          <div className="bg-white border border-neutral-200 rounded-2xl p-4 text-left text-[11px] space-y-2.5 text-neutral-600 shadow-sm">
+          <div className="bg-white border border-neutral-200 rounded-lg p-4 text-left text-[11px] space-y-2.5 text-neutral-600 shadow-sm">
             <div className="flex gap-2">
               <span className="font-bold text-neutral-800">1.</span>
               <p>
@@ -205,7 +205,7 @@ export const AgendaMap: React.FC<AgendaMapProps> = ({ visitas, selectedVisita, o
   }
 
   return (
-    <div className="w-full h-[400px] rounded-[2.5rem] overflow-hidden border border-neutral-200 shadow-sm mb-6 z-0">
+    <div className="w-full h-[400px] rounded-lg overflow-hidden border border-neutral-200 shadow-sm mb-6 z-0">
       <Map
         defaultCenter={center}
         defaultZoom={13}

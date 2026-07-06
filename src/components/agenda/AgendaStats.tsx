@@ -49,11 +49,11 @@ export const AgendaStats: React.FC<AgendaStatsProps> = ({
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: i * 0.1 }}
-          className="bg-white border border-neutral-200 p-2.5 lg:p-4 rounded-[1.2rem] lg:rounded-[1.5rem] relative overflow-hidden group hover:border-neutral-300 transition-all shadow-sm"
+          className="bg-white border border-neutral-200 p-2.5 lg:p-4 rounded-lg lg:rounded-lg relative overflow-hidden group hover:border-neutral-300 transition-all shadow-sm"
         >
           <div className="relative z-10">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-1 gap-1">
-               <div className={cn("w-7 h-7 lg:w-8 lg:h-8 rounded-lg lg:rounded-xl flex items-center justify-center text-white shrink-0", stat.color, stat.shadow)}>
+               <div className={cn("w-7 h-7 lg:w-8 lg:h-8 rounded-lg lg:rounded-lg flex items-center justify-center text-white shrink-0", stat.color, stat.shadow)}>
                  <stat.icon size={14} className="lg:w-[16px]" />
                </div>
                <div className="text-sm lg:text-xl font-black text-neutral-900 truncate">

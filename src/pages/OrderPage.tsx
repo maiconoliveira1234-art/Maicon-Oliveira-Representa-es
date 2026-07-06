@@ -883,14 +883,14 @@ export function OrderPage() {
         <div className="flex items-center gap-2">
           <button 
             onClick={() => navigate(`/cliente/${clienteId}`)}
-            className="flex items-center gap-2 px-4 py-2 bg-white text-neutral-700 rounded-xl font-bold text-sm border border-neutral-200 shadow-sm hover:bg-neutral-50 transition-all active:scale-95"
+            className="flex items-center gap-2 px-4 py-2 bg-white text-neutral-700 rounded-lg font-bold text-sm border border-neutral-200 shadow-sm hover:bg-neutral-50 transition-all active:scale-95"
           >
             <Home size={18} className="text-orange-600" />
             <span>Home</span>
           </button>
           <button 
             onClick={() => navigate(`/estoque/${clienteId}`)}
-            className="flex items-center gap-2 px-4 py-2 bg-white text-neutral-700 rounded-xl font-bold text-sm border border-neutral-200 shadow-sm hover:bg-neutral-50 transition-all active:scale-95"
+            className="flex items-center gap-2 px-4 py-2 bg-white text-neutral-700 rounded-lg font-bold text-sm border border-neutral-200 shadow-sm hover:bg-neutral-50 transition-all active:scale-95"
           >
             <Package size={18} className="text-orange-600" />
             <span>Contagem</span>
@@ -1033,7 +1033,7 @@ export function OrderPage() {
           <div className="mt-8 pt-8 border-t-2" style={{ borderColor: '#f5f5f5' }}>
             <div className="grid grid-cols-2 gap-12 items-stretch">
               <div className="flex flex-col gap-4">
-                <div className="p-4 border rounded-xl" style={{ borderColor: '#e5e5e5' }}>
+                <div className="p-4 border rounded-lg" style={{ borderColor: '#e5e5e5' }}>
                   <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: '#a3a3a3' }}>Condições de Pagamento</p>
                   <div className="space-y-2">
                     <div className="flex justify-between">
@@ -1058,7 +1058,7 @@ export function OrderPage() {
                 </div>
                 
                 {observacoes && (
-                  <div className="p-5 border-2 rounded-xl" style={{ borderColor: '#ffedd5', backgroundColor: '#fff7ed' }}>
+                  <div className="p-5 border-2 rounded-lg" style={{ borderColor: '#ffedd5', backgroundColor: '#fff7ed' }}>
                     <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: '#ea580c' }}>Observações Importantes</p>
                     <p className="text-sm font-black leading-relaxed whitespace-pre-wrap uppercase" style={{ color: '#171717' }}>{observacoes}</p>
                   </div>
@@ -1068,18 +1068,18 @@ export function OrderPage() {
               <div className="flex flex-col justify-between">
                 <div className="space-y-4">
                   {pesoConquistado > 0 && (
-                    <div className="flex justify-between items-center px-4 py-2 rounded-xl border opacity-60" style={{ backgroundColor: '#fafafa', borderColor: '#f5f5f5' }}>
+                    <div className="flex justify-between items-center px-4 py-2 rounded-lg border opacity-60" style={{ backgroundColor: '#fafafa', borderColor: '#f5f5f5' }}>
                       <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Peso Acumulado (28 dias)</span>
                       <span className="text-sm font-bold" style={{ color: '#171717' }}>{formatWeight(pesoConquistado)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between items-center p-4 rounded-xl border" style={{ backgroundColor: '#fafafa', borderColor: '#f5f5f5' }}>
+                  <div className="flex justify-between items-center p-4 rounded-lg border" style={{ backgroundColor: '#fafafa', borderColor: '#f5f5f5' }}>
                     <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Peso do Pedido</span>
                     <span className="text-xl font-black" style={{ color: '#171717' }}>{formatWeight(pesoTotal)}</span>
                   </div>
                 </div>
                 
-                <div className="flex justify-between items-center p-6 rounded-xl shadow-xl" style={{ backgroundColor: '#171717' }}>
+                <div className="flex justify-between items-center p-6 rounded-lg shadow-xl" style={{ backgroundColor: '#171717' }}>
                   <span className="text-xs font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Valor Total do Orçamento</span>
                   <span className="text-3xl font-black" style={{ color: '#ffffff' }}>{formatCurrency(valorTotal)}</span>
                 </div>
@@ -1100,7 +1100,7 @@ export function OrderPage() {
 </div>
 
       {/* Order Details */}
-      <div ref={orderDetailsRef} className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm space-y-4 scroll-mt-4">
+      <div ref={orderDetailsRef} className="bg-white p-4 rounded-lg border border-neutral-200 shadow-sm space-y-4 scroll-mt-4">
         <div className="flex items-center justify-between gap-3 border-b border-neutral-100 pb-3">
           <div className="flex items-center gap-2">
             <FileText className="text-orange-600" size={18} />
@@ -1118,7 +1118,7 @@ export function OrderPage() {
               value={observacoes}
               onChange={(e) => setObservacoes(e.target.value)}
               placeholder="Digite aqui observações importantes..."
-              className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-medium text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all resize-none h-24"
+              className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all resize-none h-24"
             />
           </div>
 
@@ -1129,7 +1129,7 @@ export function OrderPage() {
                 <select
                   value={selectedPrazo}
                   onChange={(e) => setSelectedPrazo(e.target.value)}
-                  className="w-full pl-3 pr-10 py-3 bg-neutral-50 border border-neutral-200 rounded-xl font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all text-sm"
+                  className="w-full pl-3 pr-10 py-3 bg-neutral-50 border border-neutral-200 rounded-lg font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all text-sm"
                 >
                   <option value="" disabled>Selecione...</option>
                   {availableTerms.map((prazo) => (
@@ -1148,7 +1148,7 @@ export function OrderPage() {
               <motion.div 
                 initial={{ opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="grid grid-cols-2 gap-3 p-3 bg-orange-50 border border-orange-100 rounded-xl"
+                className="grid grid-cols-2 gap-3 p-3 bg-orange-50 border border-orange-100 rounded-lg"
               >
                 <div>
                   <p className="text-[9px] font-black text-orange-600 uppercase tracking-wider">Valor Boleto</p>
@@ -1173,7 +1173,7 @@ export function OrderPage() {
         </div>
 
         {itens.filter(item => !item.tipo_operacao || item.tipo_operacao === 'VENDA').length === 0 ? (
-          <div className="bg-white p-12 rounded-2xl border border-dashed border-neutral-300 text-center text-neutral-400 font-bold text-xs uppercase tracking-wider">
+          <div className="bg-white p-12 rounded-lg border border-dashed border-neutral-300 text-center text-neutral-400 font-bold text-xs uppercase tracking-wider">
             Nenhum item de venda adicionado.
           </div>
         ) : (
@@ -1187,7 +1187,7 @@ export function OrderPage() {
                 const opType = item.tipo_operacao || 'VENDA';
 
                 return (
-                  <div key={`${item.produto_id}_${opType}`} className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 transition-all border-l-4 border-l-blue-500">
+                  <div key={`${item.produto_id}_${opType}`} className="bg-white p-4 rounded-lg border border-neutral-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 transition-all border-l-4 border-l-blue-500">
                     <div className="flex-1">
                       <h4 className="font-bold text-neutral-900">{produto.produto}</h4>
                       <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
@@ -1207,7 +1207,7 @@ export function OrderPage() {
                       >
                         <Trash2 size={16} />
                       </button>
-                      <div className="flex items-center gap-3 bg-neutral-50 p-1 rounded-xl border border-neutral-100">
+                      <div className="flex items-center gap-3 bg-neutral-50 p-1 rounded-lg border border-neutral-100">
                         <button 
                           onClick={() => updateItem(item.produto_id!, (item.quantidade || 0) - 1, opType)}
                           className="w-8 h-8 flex items-center justify-center bg-white rounded-lg shadow-sm text-neutral-600"
@@ -1241,14 +1241,14 @@ export function OrderPage() {
             setProductSelectorType('VENDA');
             setShowProductSelector(true);
           }}
-          className="w-full py-4 bg-white rounded-2xl border-2 border-dashed border-orange-200 text-orange-600 font-bold flex items-center justify-center gap-2 hover:bg-orange-50 transition-all active:scale-95 mt-4"
+          className="w-full py-4 bg-white rounded-lg border-2 border-dashed border-orange-200 text-orange-600 font-bold flex items-center justify-center gap-2 hover:bg-orange-50 transition-all active:scale-95 mt-4"
         >
           <Plus size={20} /> Adicionar Produto
         </button>
 
         {/* Verba Flex Card Section */}
         {showFlexCard && (
-          <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-200 shadow-xs space-y-3 mt-4">
+          <div className="bg-neutral-50 p-4 rounded-lg border border-neutral-200 shadow-xs space-y-3 mt-4">
             <div className="flex justify-between items-center pb-2 border-b border-neutral-200">
               <div className="flex items-center gap-2">
                 <Coins size={18} className="text-orange-600" />
@@ -1258,11 +1258,11 @@ export function OrderPage() {
             </div>
             
             <div className="grid grid-cols-2 gap-3 text-xs font-bold text-neutral-600">
-              <div className="p-2.5 bg-white border border-neutral-200/50 rounded-xl">
+              <div className="p-2.5 bg-white border border-neutral-200/50 rounded-lg">
                 <p className="text-[10px] text-neutral-400 uppercase tracking-widest font-black">Saldo Acumulado</p>
                 <p className="text-sm font-extrabold text-neutral-900 mt-0.5">{formatCurrency(cliente?.flex_saldo || 0)}</p>
               </div>
-              <div className="p-2.5 bg-white border border-neutral-200/50 rounded-xl">
+              <div className="p-2.5 bg-white border border-neutral-200/50 rounded-lg">
                 <p className="text-[10px] text-neutral-400 uppercase tracking-widest font-black">Gerado no Faturamento</p>
                 <p className="text-sm font-extrabold text-green-600 mt-0.5">+{formatCurrency(verbaGeradaEstimada)} (2%)</p>
               </div>
@@ -1291,7 +1291,7 @@ export function OrderPage() {
               </div>
 
               {itens.filter(item => (item.tipo_operacao || 'VENDA') === 'BONIFICACAO_COMERCIAL').length === 0 ? (
-                <p className="text-[11px] text-neutral-400 italic bg-white p-3 rounded-xl border border-neutral-100/50 text-center">
+                <p className="text-[11px] text-neutral-400 italic bg-white p-3 rounded-lg border border-neutral-100/50 text-center">
                   Nenhum item bonificado adicionado ainda.
                 </p>
               ) : (
@@ -1302,7 +1302,7 @@ export function OrderPage() {
                       const produto = produtos.find(p => p.id === item.produto_id);
                       if (!produto) return null;
                       return (
-                        <div key={item.produto_id} className="flex items-center justify-between p-2.5 bg-white border border-neutral-200/50 rounded-xl">
+                        <div key={item.produto_id} className="flex items-center justify-between p-2.5 bg-white border border-neutral-200/50 rounded-lg">
                           <div className="flex-1 min-w-0 pr-2">
                             <p className="text-[11px] font-bold text-neutral-800 truncate">{produto.produto}</p>
                             <p className="text-[9px] text-neutral-400 font-medium">
@@ -1375,7 +1375,7 @@ export function OrderPage() {
       {/* Bottom Section (Fixed) */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-neutral-200 shadow-[0_-8px_18px_rgba(0,0,0,0.08)] p-2 pb-[calc(8px+env(safe-area-inset-bottom))] md:p-3 md:pb-[calc(12px+env(safe-area-inset-bottom))]">
         <div className="max-w-4xl mx-auto space-y-2">
-          <div className="grid grid-cols-4 gap-2 rounded-xl bg-orange-600 p-2 text-white shadow-sm">
+          <div className="grid grid-cols-4 gap-2 rounded-lg bg-orange-600 p-2 text-white shadow-sm">
             <div className="min-w-0 text-center">
               <p className="text-[8px] uppercase font-bold opacity-80">Peso</p>
               <p className="text-xs md:text-sm font-black truncate">{formatWeight(pesoTotal)}</p>
@@ -1396,7 +1396,7 @@ export function OrderPage() {
 
           <div className="flex gap-2">
             {showClearConfirm ? (
-              <div className="flex-1 bg-white p-1 rounded-xl border-2 border-red-200 shadow-lg flex gap-2 items-center">
+              <div className="flex-1 bg-white p-1 rounded-lg border-2 border-red-200 shadow-lg flex gap-2 items-center">
                 <p className="text-[10px] font-bold text-neutral-800 flex-1 px-1">Limpar?</p>
                 <button 
                   onClick={() => setShowClearConfirm(false)}
@@ -1415,20 +1415,20 @@ export function OrderPage() {
               <>
                 <button 
                   onClick={() => orderDetailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                  className="flex-1 bg-white border border-neutral-200 text-neutral-700 py-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 hover:bg-neutral-50 transition-all text-[11px]"
+                  className="flex-1 bg-white border border-neutral-200 text-neutral-700 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-neutral-50 transition-all text-[11px]"
                 >
                   <FileText size={15} /> Dados
                 </button>
                 <button 
                   onClick={() => setShowClearConfirm(true)}
-                  className="flex-1 bg-neutral-100 text-neutral-600 py-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 hover:bg-neutral-200 transition-all text-[11px]"
+                  className="flex-1 bg-neutral-100 text-neutral-600 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-neutral-200 transition-all text-[11px]"
                 >
                   <Trash2 size={15} /> Limpar
                 </button>
                 <button 
                   onClick={() => setShowFlexCard(!showFlexCard)}
                   className={cn(
-                    "px-3 py-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all text-[11px] shadow-sm",
+                    "px-3 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all text-[11px] shadow-sm",
                     showFlexCard 
                       ? "bg-orange-600 text-white ring-2 ring-orange-300" 
                       : "bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100"
@@ -1440,7 +1440,7 @@ export function OrderPage() {
                 </button>
                 <button 
                   onClick={() => setShowPreview(true)}
-                  className="flex-1 bg-white border border-neutral-200 text-neutral-700 py-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 hover:bg-neutral-50 transition-all text-[11px]"
+                  className="flex-1 bg-white border border-neutral-200 text-neutral-700 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-neutral-50 transition-all text-[11px]"
                 >
                   <Eye size={15} /> Ver
                 </button>
@@ -1449,7 +1449,7 @@ export function OrderPage() {
             <button 
               onClick={() => handleSave(true)}
               disabled={isGeneratingImage}
-              className="flex-[1.35] bg-green-600 text-white py-2.5 rounded-xl font-bold shadow-md flex items-center justify-center gap-1.5 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 text-[11px]"
+              className="flex-[1.35] bg-green-600 text-white py-2.5 rounded-lg font-bold shadow-md flex items-center justify-center gap-1.5 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 text-[11px]"
             >
               {isGeneratingImage ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -1475,7 +1475,7 @@ export function OrderPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-neutral-100 w-full max-w-4xl h-[90vh] rounded-3xl overflow-hidden flex flex-col shadow-2xl"
+              className="bg-neutral-100 w-full max-w-4xl h-[90vh] rounded-lg overflow-hidden flex flex-col shadow-2xl"
             >
               <div className="bg-white p-4 border-b border-neutral-200 flex justify-between items-center">
                 <div className="flex items-center gap-3">
@@ -1491,7 +1491,7 @@ export function OrderPage() {
                   <button 
                     onClick={() => handleSave(false)}
                     disabled={isGeneratingImage}
-                    className="px-4 py-2 bg-orange-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-orange-700 transition-all disabled:opacity-50"
+                    className="px-4 py-2 bg-orange-600 text-white rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-orange-700 transition-all disabled:opacity-50"
                   >
                     {isGeneratingImage ? (
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -1638,7 +1638,7 @@ export function OrderPage() {
                           <div className="mt-6 pt-6 border-t-2 border-[#f5f5f5]">
                             <div className="grid grid-cols-2 gap-8 items-stretch">
                               <div className="flex flex-col gap-3">
-                                <div className="p-3 border border-[#e5e5e5] rounded-xl">
+                                <div className="p-3 border border-[#e5e5e5] rounded-lg">
                                   <p className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest mb-1.5">Condições de Pagamento</p>
                                   <div className="space-y-1">
                                     <div className="flex justify-between">
@@ -1663,7 +1663,7 @@ export function OrderPage() {
                                 </div>
                                 
                                 {observacoes && (
-                                  <div className="p-4 border-2 rounded-xl" style={{ borderColor: '#ffedd5', backgroundColor: 'rgba(255, 247, 237, 0.3)' }}>
+                                  <div className="p-4 border-2 rounded-lg" style={{ borderColor: '#ffedd5', backgroundColor: 'rgba(255, 247, 237, 0.3)' }}>
                                     <p className="text-[8px] font-black uppercase tracking-widest mb-1.5" style={{ color: '#ea580c' }}>Observações Importantes</p>
                                     <p className="text-[11px] font-black text-[#171717] leading-relaxed whitespace-pre-wrap uppercase">{observacoes}</p>
                                   </div>
@@ -1673,17 +1673,17 @@ export function OrderPage() {
                               <div className="flex flex-col justify-between">
                                 <div className="space-y-3">
                                   {pesoConquistado > 0 && (
-                                    <div className="flex justify-between items-center px-3 py-2 bg-[#fafafa] rounded-xl border border-[#f5f5f5] opacity-60">
+                                    <div className="flex justify-between items-center px-3 py-2 bg-[#fafafa] rounded-lg border border-[#f5f5f5] opacity-60">
                                       <span className="text-[7px] font-black text-[#a3a3a3] uppercase tracking-widest">Peso Acumulado (28 dias)</span>
                                       <span className="text-xs font-bold text-[#171717]">{formatWeight(pesoConquistado)}</span>
                                     </div>
                                   )}
-                                  <div className="flex justify-between items-center p-3 bg-[#fafafa] rounded-xl border border-[#f5f5f5]">
+                                  <div className="flex justify-between items-center p-3 bg-[#fafafa] rounded-lg border border-[#f5f5f5]">
                                     <span className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest">Peso do Pedido</span>
                                     <span className="text-sm font-black text-[#171717]">{formatWeight(pesoTotal)}</span>
                                   </div>
                                 </div>
-                                <div className="flex justify-between items-center p-4 bg-[#171717] rounded-xl shadow-lg">
+                                <div className="flex justify-between items-center p-4 bg-[#171717] rounded-lg shadow-lg">
                                   <span className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest">Total</span>
                                   <span className="text-xl font-black text-[#ffffff]">{formatCurrency(valorTotal)}</span>
                                 </div>
@@ -1721,7 +1721,7 @@ export function OrderPage() {
               initial={{ y: 100 }}
               animate={{ y: 0 }}
               exit={{ y: 100 }}
-              className="bg-white w-full max-w-lg rounded-t-3xl md:rounded-3xl p-6 max-h-[80vh] overflow-hidden flex flex-col"
+              className="bg-white w-full max-w-lg rounded-t-lg md:rounded-lg p-6 max-h-[80vh] overflow-hidden flex flex-col"
             >
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-bold">
@@ -1739,7 +1739,7 @@ export function OrderPage() {
                     <input 
                       type="text" 
                       placeholder="Filtrar produtos..."
-                      className="w-full pl-10 pr-10 py-3 bg-neutral-100 rounded-xl outline-none focus:ring-2 focus:ring-orange-500"
+                      className="w-full pl-10 pr-10 py-3 bg-neutral-100 rounded-lg outline-none focus:ring-2 focus:ring-orange-500"
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
@@ -1752,7 +1752,7 @@ export function OrderPage() {
                       </button>
                     )}
                   </div>
-                  <label className="flex items-center gap-2 cursor-pointer bg-neutral-100 px-4 py-3 rounded-xl border border-neutral-200">
+                  <label className="flex items-center gap-2 cursor-pointer bg-neutral-100 px-4 py-3 rounded-lg border border-neutral-200">
                     <input 
                       type="checkbox" 
                       checked={showOnlyPositivados}
@@ -1768,7 +1768,7 @@ export function OrderPage() {
                     <select
                       value={selectedFamily}
                       onChange={(e) => setSelectedFamily(e.target.value)}
-                      className="w-full pl-4 pr-10 py-3 bg-neutral-100 rounded-xl font-bold text-neutral-700 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all text-xs"
+                      className="w-full pl-4 pr-10 py-3 bg-neutral-100 rounded-lg font-bold text-neutral-700 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all text-xs"
                     >
                       {families.map((family) => (
                         <option key={family} value={family}>
@@ -1789,7 +1789,7 @@ export function OrderPage() {
                     <select
                       value={selectedWeight}
                       onChange={(e) => setSelectedWeight(e.target.value)}
-                      className="w-full pl-9 pr-8 py-3 bg-neutral-100 rounded-xl font-bold text-neutral-700 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all text-xs"
+                      className="w-full pl-9 pr-8 py-3 bg-neutral-100 rounded-lg font-bold text-neutral-700 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all text-xs"
                     >
                       {weights.map(w => (
                         <option key={w} value={w}>
@@ -1809,7 +1809,7 @@ export function OrderPage() {
                     <select
                       value={currentFaixa}
                       onChange={(e) => setManualFaixa(e.target.value as PrecoFaixa)}
-                      className="w-full pl-9 pr-8 py-3 bg-orange-50 rounded-xl font-black text-orange-700 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all border border-orange-100 text-xs"
+                      className="w-full pl-9 pr-8 py-3 bg-orange-50 rounded-lg font-black text-orange-700 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all border border-orange-100 text-xs"
                     >
                       <option value="livre">Livre</option>
                       <option value="200kg">200kg</option>
@@ -1833,7 +1833,7 @@ export function OrderPage() {
                     <button
                       key={produto.id}
                       onClick={() => addItem(produto, productSelectorType)}
-                      className="w-full text-left p-4 rounded-xl border border-neutral-100 hover:bg-orange-50 hover:border-orange-200 transition-all flex justify-between items-center gap-3"
+                      className="w-full text-left p-4 rounded-lg border border-neutral-100 hover:bg-orange-50 hover:border-orange-200 transition-all flex justify-between items-center gap-3"
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">

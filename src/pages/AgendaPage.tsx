@@ -495,7 +495,7 @@ export function AgendaPage() {
           <p className="text-neutral-500 font-medium leading-relaxed">{error}</p>
           <button 
             onClick={fetchAgenda}
-            className="w-full py-4 bg-neutral-900 text-white rounded-3xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-transform"
+            className="w-full py-4 bg-neutral-900 text-white rounded-lg font-black uppercase tracking-widest shadow-xl active:scale-95 transition-transform"
           >
             Tentar Restaurar
           </button>
@@ -510,9 +510,9 @@ export function AgendaPage() {
       <header className="sticky top-0 z-40 px-4 py-4 md:px-6 md:py-6">
         <div className="max-w-4xl mx-auto">
           {/* Main Control Card */}
-          <div className="bg-white rounded-[1.5rem] border border-neutral-200 shadow-lg shadow-neutral-200/50 p-4 md:p-5 relative">
+          <div className="bg-white rounded-lg border border-neutral-200 shadow-lg shadow-neutral-200/50 p-4 md:p-5 relative">
             {/* Background Accent */}
-            <div className="absolute top-0 right-0 w-24 h-24 bg-orange-50 rounded-bl-[4rem] -z-10 opacity-50" />
+            <div className="absolute top-0 right-0 w-24 h-24 bg-orange-50 rounded-bl-lg -z-10 opacity-50" />
             
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               {/* Left: Title & Info */}
@@ -544,7 +544,7 @@ export function AgendaPage() {
 
               {/* Right: Primary Action (Optimization) and Nav */}
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1 bg-neutral-50 border border-neutral-200 p-1 rounded-xl">
+                <div className="flex items-center gap-1 bg-neutral-50 border border-neutral-200 p-1 rounded-lg">
                   <button 
                     onClick={() => setSelectedDate(subDays(selectedDate, 1))}
                     className="w-8 h-8 flex items-center justify-center text-neutral-400 hover:text-neutral-900 hover:bg-white rounded-lg transition-all"
@@ -580,7 +580,7 @@ export function AgendaPage() {
                   <button 
                     onClick={() => setShowDatePicker(!showDatePicker)}
                     className={cn(
-                      "w-11 h-11 rounded-2xl flex items-center justify-center border transition-all",
+                      "w-11 h-11 rounded-lg flex items-center justify-center border transition-all",
                       showDatePicker ? "bg-neutral-900 text-white border-neutral-900" : "text-neutral-400 border-neutral-200 bg-white hover:bg-neutral-50"
                     )}
                   >
@@ -597,7 +597,7 @@ export function AgendaPage() {
                 <button 
                    onClick={() => setShowFilters(!showFilters)}
                    className={cn(
-                     "w-11 h-11 rounded-2xl flex items-center justify-center border transition-all",
+                     "w-11 h-11 rounded-lg flex items-center justify-center border transition-all",
                      showFilters ? "bg-neutral-900 text-white border-neutral-900" : "text-neutral-400 border-neutral-200 bg-white hover:bg-neutral-50"
                    )}
                 >
@@ -606,7 +606,7 @@ export function AgendaPage() {
                 <button 
                    onClick={() => setViewType(viewType === 'list' ? 'map' : 'list')}
                    className={cn(
-                     "w-11 h-11 rounded-2xl flex items-center justify-center border transition-all",
+                     "w-11 h-11 rounded-lg flex items-center justify-center border transition-all",
                      viewType === 'map' ? "bg-orange-600 text-white border-orange-600 shadow-lg shadow-orange-500/20" : "text-neutral-400 border-neutral-200 bg-white hover:bg-neutral-50"
                    )}
                 >
@@ -645,7 +645,7 @@ export function AgendaPage() {
               exit={{ height: 0, opacity: 0 }}
               className="overflow-visible mb-8"
             >
-              <div className="p-3 bg-white border border-neutral-200 rounded-[1.5rem] grid grid-cols-1 md:grid-cols-2 gap-3 shadow-sm">
+              <div className="p-3 bg-white border border-neutral-200 rounded-lg grid grid-cols-1 md:grid-cols-2 gap-3 shadow-sm">
                 <div className="relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400" size={16} />
                   <input
@@ -664,11 +664,11 @@ export function AgendaPage() {
                         goToClientNextVisit(clientSearchSuggestions[0].visita);
                       }
                     }}
-                    className="w-full bg-neutral-50 border border-neutral-200 rounded-2xl pl-11 pr-4 py-3 text-sm font-bold text-neutral-900 placeholder:text-neutral-400 outline-none focus:border-orange-500 transition-all"
+                    className="w-full bg-neutral-50 border border-neutral-200 rounded-lg pl-11 pr-4 py-3 text-sm font-bold text-neutral-900 placeholder:text-neutral-400 outline-none focus:border-orange-500 transition-all"
                   />
 
                   {showSearchSuggestions && clientSearchSuggestions.length > 0 && (
-                    <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl shadow-neutral-900/10">
+                    <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl shadow-neutral-900/10">
                       {clientSearchSuggestions.map(({ visita, nextDate }) => (
                         <button
                           key={visita.id}
@@ -706,11 +706,11 @@ export function AgendaPage() {
                         selectAddressFilter(addressSearchSuggestions[0]);
                       }
                     }}
-                    className="w-full bg-neutral-50 border border-neutral-200 rounded-2xl pl-11 pr-4 py-3 text-sm font-bold text-neutral-900 placeholder:text-neutral-400 outline-none focus:border-orange-500 transition-all"
+                    className="w-full bg-neutral-50 border border-neutral-200 rounded-lg pl-11 pr-4 py-3 text-sm font-bold text-neutral-900 placeholder:text-neutral-400 outline-none focus:border-orange-500 transition-all"
                   />
 
                   {showAddressSuggestions && addressSearchSuggestions.length > 0 && (
-                    <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl shadow-neutral-900/10">
+                    <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl shadow-neutral-900/10">
                       {addressSearchSuggestions.map((visita) => (
                         <button
                           key={`${visita.id}-address`}
@@ -740,7 +740,7 @@ export function AgendaPage() {
         <div className="flex md:hidden items-center justify-between mb-6">
            <button 
              onClick={() => setSelectedDate(subDays(selectedDate, 1))}
-             className="w-12 h-12 bg-white border border-neutral-200 rounded-2xl flex items-center justify-center text-neutral-900 active:scale-90 transition-transform shadow-sm"
+             className="w-12 h-12 bg-white border border-neutral-200 rounded-lg flex items-center justify-center text-neutral-900 active:scale-90 transition-transform shadow-sm"
            >
              <ChevronLeft size={24} />
            </button>
@@ -750,7 +750,7 @@ export function AgendaPage() {
            </div>
            <button 
              onClick={() => setSelectedDate(addDays(selectedDate, 1))}
-             className="w-12 h-12 bg-white border border-neutral-200 rounded-2xl flex items-center justify-center text-neutral-900 active:scale-90 transition-transform shadow-sm"
+             className="w-12 h-12 bg-white border border-neutral-200 rounded-lg flex items-center justify-center text-neutral-900 active:scale-90 transition-transform shadow-sm"
            >
              <ChevronRight size={24} />
            </button>
@@ -789,9 +789,9 @@ export function AgendaPage() {
             <motion.div 
                initial={{ opacity: 0, scale: 0.9 }}
                animate={{ opacity: 1, scale: 1 }}
-               className="bg-white border-2 border-dashed border-neutral-200 rounded-[3rem] py-20 px-8 text-center"
+               className="bg-white border-2 border-dashed border-neutral-200 rounded-lg py-20 px-8 text-center"
             >
-              <div className="w-16 h-16 bg-neutral-50 border border-neutral-200 rounded-3xl flex items-center justify-center mx-auto mb-6 text-neutral-300">
+              <div className="w-16 h-16 bg-neutral-50 border border-neutral-200 rounded-lg flex items-center justify-center mx-auto mb-6 text-neutral-300">
                 <CalendarDays size={32} />
               </div>
               <h3 className="text-xl font-black text-neutral-900">Nenhuma visita agendada</h3>

@@ -364,7 +364,7 @@ export function LoansPage() {
       />
 
       {/* Filters Bar */}
-      <div className="rounded-xl border border-neutral-200 bg-white p-3 shadow-sm md:p-3.5">
+      <div className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm md:p-3.5">
         <div className="flex flex-col md:flex-row gap-3 md:items-center">
           <div className="flex-1 relative group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-orange-500 transition-colors" size={20} />
@@ -398,7 +398,7 @@ export function LoansPage() {
       </div>
 
       {/* Loans Table */}
-      <div className="bg-white rounded-[2.5rem] border border-neutral-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg border border-neutral-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -551,7 +551,7 @@ export function LoansPage() {
                         <button 
                           onClick={() => toggleStatus(loan)}
                           className={cn(
-                            "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border transition-all shadow-sm active:scale-95",
+                            "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border transition-all shadow-sm active:scale-95",
                             loan.status === 'pago' 
                               ? "bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100/50" 
                               : "bg-amber-500 text-white border-amber-600 hover:bg-amber-600 shadow-amber-500/10"
@@ -592,12 +592,12 @@ export function LoansPage() {
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-white w-full max-w-xl rounded-[2rem] md:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[85vh] md:max-h-[85vh]"
+              className="bg-white w-full max-w-xl rounded-lg md:rounded-lg shadow-2xl overflow-hidden flex flex-col max-h-[85vh] md:max-h-[85vh]"
             >
               <div className="p-5 md:p-8 border-b border-neutral-100 flex justify-between items-center bg-white shrink-0">
                 <div>
                   <h3 className="text-lg md:text-2xl font-black text-neutral-900 leading-none flex items-center gap-2 md:gap-3">
-                    <div className="w-8 h-8 md:w-10 md:h-10 bg-orange-50 rounded-xl flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 md:w-10 md:h-10 bg-orange-50 rounded-lg flex items-center justify-center shrink-0">
                       <ArrowLeftRight className="text-orange-600" size={16} />
                     </div>
                     Novo Empréstimo
@@ -615,7 +615,7 @@ export function LoansPage() {
                     setSearchProduto('');
                     setSelectedFamilia('');
                   }} 
-                  className="p-2 md:p-3.5 hover:bg-neutral-50 rounded-xl md:rounded-[1.25rem] transition-all text-neutral-400 hover:text-rose-600 hover:rotate-90 group"
+                  className="p-2 md:p-3.5 hover:bg-neutral-50 rounded-lg md:rounded-lg transition-all text-neutral-400 hover:text-rose-600 hover:rotate-90 group"
                 >
                   <X size={18} className="group-hover:scale-110 transition-transform" />
                 </button>
@@ -625,7 +625,7 @@ export function LoansPage() {
                 {/* Section: Participants */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-end">
-                    <label className="flex items-center gap-2.5 cursor-pointer group px-3 py-1.5 rounded-xl hover:bg-neutral-50 transition-colors">
+                    <label className="flex items-center gap-2.5 cursor-pointer group px-3 py-1.5 rounded-lg hover:bg-neutral-50 transition-colors">
                       <input 
                         type="checkbox" 
                         className="hidden"
@@ -642,7 +642,7 @@ export function LoansPage() {
                     </label>
                   </div>
 
-                  <div className="bg-neutral-50/50 p-4 rounded-[2rem] border border-neutral-100 grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="bg-neutral-50/50 p-4 rounded-lg border border-neutral-100 grid grid-cols-1 md:grid-cols-2 gap-5">
                     {/* Origin Client */}
                     <div className="space-y-3 relative group">
                       <div className="flex items-center gap-2 ml-1">
@@ -666,7 +666,7 @@ export function LoansPage() {
                           }}
                           onKeyDown={(e) => handleKeyDown(e, 'origem', filteredOrigemClients)}
                           className={cn(
-                            "w-full pl-4 pr-12 py-3.5 bg-white border rounded-2xl transition-all shadow-sm outline-none text-sm font-bold text-neutral-900 placeholder:text-neutral-400",
+                            "w-full pl-4 pr-12 py-3.5 bg-white border rounded-lg transition-all shadow-sm outline-none text-sm font-bold text-neutral-900 placeholder:text-neutral-400",
                             activeField === 'origem' ? "border-orange-500 ring-4 ring-orange-500/10" : "border-neutral-100 hover:border-neutral-200"
                           )}
                         />
@@ -690,7 +690,7 @@ export function LoansPage() {
                             initial={{ opacity: 0, y: 10, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                            className="absolute z-[60] top-[calc(100%+8px)] left-0 right-0 bg-white border border-neutral-200 rounded-2xl shadow-2xl overflow-hidden"
+                            className="absolute z-[60] top-[calc(100%+8px)] left-0 right-0 bg-white border border-neutral-200 rounded-lg shadow-2xl overflow-hidden"
                           >
                             <div className="max-h-56 overflow-y-auto p-2" onMouseDown={(e) => e.preventDefault()}>
                               {filteredOrigemClients.length === 0 ? (
@@ -707,7 +707,7 @@ export function LoansPage() {
                                     setFocusedIndex(-1);
                                   }}
                                   className={cn(
-                                    "w-full text-left px-4 py-3.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between",
+                                    "w-full text-left px-4 py-3.5 rounded-lg text-xs font-bold transition-all flex items-center justify-between",
                                     focusedIndex === idx 
                                       ? "bg-orange-50 text-orange-600 shadow-sm" 
                                       : "text-neutral-600 hover:bg-neutral-50"
@@ -748,7 +748,7 @@ export function LoansPage() {
                           }}
                           onKeyDown={(e) => handleKeyDown(e, 'destino', filteredDestinoClients)}
                           className={cn(
-                            "w-full pl-4 pr-12 py-3.5 bg-white border rounded-2xl transition-all shadow-sm outline-none text-sm font-bold text-neutral-900 placeholder:text-neutral-400",
+                            "w-full pl-4 pr-12 py-3.5 bg-white border rounded-lg transition-all shadow-sm outline-none text-sm font-bold text-neutral-900 placeholder:text-neutral-400",
                             activeField === 'destino' ? "border-orange-500 ring-4 ring-orange-500/10" : "border-neutral-100 hover:border-neutral-200"
                           )}
                         />
@@ -772,7 +772,7 @@ export function LoansPage() {
                             initial={{ opacity: 0, y: 10, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                            className="absolute z-[60] top-[calc(100%+8px)] left-0 right-0 bg-white border border-neutral-200 rounded-2xl shadow-2xl overflow-hidden"
+                            className="absolute z-[60] top-[calc(100%+8px)] left-0 right-0 bg-white border border-neutral-200 rounded-lg shadow-2xl overflow-hidden"
                           >
                             <div className="max-h-56 overflow-y-auto p-2" onMouseDown={(e) => e.preventDefault()}>
                               {filteredDestinoClients.length === 0 ? (
@@ -789,7 +789,7 @@ export function LoansPage() {
                                     setFocusedIndex(-1);
                                   }}
                                   className={cn(
-                                    "w-full text-left px-4 py-3.5 rounded-xl text-xs font-bold transition-all flex items-center justify-between",
+                                    "w-full text-left px-4 py-3.5 rounded-lg text-xs font-bold transition-all flex items-center justify-between",
                                     focusedIndex === idx 
                                       ? "bg-orange-50 text-orange-600 shadow-sm" 
                                       : "text-neutral-600 hover:bg-neutral-50"
@@ -810,7 +810,7 @@ export function LoansPage() {
                 </div>
 
                 {/* Section: Merchandising */}
-                <div className="bg-neutral-50/50 p-4 rounded-[2rem] border border-neutral-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-neutral-50/50 p-4 rounded-lg border border-neutral-100 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 ml-1">
                       <Filter size={12} className="text-orange-500" />
@@ -819,7 +819,7 @@ export function LoansPage() {
                     <select 
                       value={selectedFamilia}
                       onChange={(e) => setSelectedFamilia(e.target.value)}
-                      className="w-full bg-white border border-neutral-100 rounded-2xl px-4 py-3.5 text-sm font-bold text-neutral-900 outline-none focus:border-orange-500 focus:shadow-sm transition-all appearance-none cursor-pointer shadow-sm"
+                      className="w-full bg-white border border-neutral-100 rounded-lg px-4 py-3.5 text-sm font-bold text-neutral-900 outline-none focus:border-orange-500 focus:shadow-sm transition-all appearance-none cursor-pointer shadow-sm"
                       style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 24 24%27 stroke=%27%23a3a3a3%27%3E%3Cpath stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%272%27 d=%27M19 9l-7 7-7-7%27/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1em' }}
                     >
                       <option value="">Todas as famílias</option>
@@ -849,7 +849,7 @@ export function LoansPage() {
                         }}
                         onKeyDown={(e) => handleKeyDown(e, 'produto', filteredProducts)}
                         className={cn(
-                          "w-full pl-4 pr-12 py-3.5 bg-white border rounded-2xl transition-all shadow-sm outline-none text-sm font-bold text-neutral-900 placeholder:text-neutral-400",
+                          "w-full pl-4 pr-12 py-3.5 bg-white border rounded-lg transition-all shadow-sm outline-none text-sm font-bold text-neutral-900 placeholder:text-neutral-400",
                           activeField === 'produto' ? "border-orange-500 ring-4 ring-orange-500/10" : "border-neutral-100 hover:border-neutral-200"
                         )}
                       />
@@ -873,7 +873,7 @@ export function LoansPage() {
                             initial={{ opacity: 0, y: 10, scale: 0.95 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                            className="absolute z-[60] top-[calc(100%+8px)] left-0 right-0 bg-white border border-neutral-200 rounded-2xl shadow-2xl overflow-hidden"
+                            className="absolute z-[60] top-[calc(100%+8px)] left-0 right-0 bg-white border border-neutral-200 rounded-lg shadow-2xl overflow-hidden"
                           >
                             <div className="max-h-56 overflow-y-auto p-2" onMouseDown={(e) => e.preventDefault()}>
                               {filteredProducts.length === 0 ? (
@@ -890,7 +890,7 @@ export function LoansPage() {
                                     setFocusedIndex(-1);
                                   }}
                                   className={cn(
-                                    "w-full text-left px-4 py-3.5 rounded-xl text-xs font-bold transition-all",
+                                    "w-full text-left px-4 py-3.5 rounded-lg text-xs font-bold transition-all",
                                     focusedIndex === idx 
                                       ? "bg-orange-50 text-orange-600 shadow-sm" 
                                       : "text-neutral-600 hover:bg-neutral-50"
@@ -907,14 +907,14 @@ export function LoansPage() {
                   </div>
 
                 {/* Section: Logistics */}
-                <div className="bg-neutral-50/50 p-4 rounded-[2rem] border border-neutral-100 grid grid-cols-2 gap-5">
+                <div className="bg-neutral-50/50 p-4 rounded-lg border border-neutral-100 grid grid-cols-2 gap-5">
                   <div className="space-y-3">
                     <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest ml-1">Quantidade</label>
-                    <div className="flex items-center bg-white border border-neutral-100 rounded-2xl p-1 h-14 transition-all focus-within:border-orange-500 focus-within:shadow-sm shadow-sm overflow-hidden">
+                    <div className="flex items-center bg-white border border-neutral-100 rounded-lg p-1 h-14 transition-all focus-within:border-orange-500 focus-within:shadow-sm shadow-sm overflow-hidden">
                       <button 
                         type="button"
                         onClick={() => adjustQuantity(-1)}
-                        className="w-10 h-10 flex-shrink-0 flex items-center justify-center text-neutral-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all"
+                        className="w-10 h-10 flex-shrink-0 flex items-center justify-center text-neutral-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all"
                       >
                         <Minus size={18} />
                       </button>
@@ -932,7 +932,7 @@ export function LoansPage() {
                       <button 
                         type="button"
                         onClick={() => adjustQuantity(1)}
-                        className="w-10 h-10 flex-shrink-0 flex items-center justify-center text-neutral-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all"
+                        className="w-10 h-10 flex-shrink-0 flex items-center justify-center text-neutral-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all"
                       >
                         <Plus size={18} />
                       </button>
@@ -940,13 +940,13 @@ export function LoansPage() {
                   </div>
                   <div className="space-y-3">
                     <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest ml-1">Data do Registro</label>
-                    <div className="relative group shadow-sm rounded-2xl">
+                    <div className="relative group shadow-sm rounded-lg">
                       <Calendar size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-orange-500 transition-colors pointer-events-none" />
                       <input 
                         type="date"
                         value={form.data_emprestimo}
                         onChange={(e) => setForm({...form, data_emprestimo: e.target.value})}
-                        className="w-full bg-white border border-neutral-100 rounded-2xl pl-12 pr-4 h-14 text-sm font-bold text-neutral-900 outline-none focus:border-orange-500 focus:shadow-sm transition-all"
+                        className="w-full bg-white border border-neutral-100 rounded-lg pl-12 pr-4 h-14 text-sm font-bold text-neutral-900 outline-none focus:border-orange-500 focus:shadow-sm transition-all"
                       />
                     </div>
                   </div>
@@ -955,7 +955,7 @@ export function LoansPage() {
                 <div className="pt-2">
                   <button 
                     onClick={handleAddLoan}
-                    className="w-full h-16 bg-gradient-to-br from-orange-600 to-orange-500 text-white rounded-[1.5rem] font-black text-sm uppercase tracking-[0.2em] shadow-xl shadow-orange-600/20 hover:shadow-orange-600/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                    className="w-full h-16 bg-gradient-to-br from-orange-600 to-orange-500 text-white rounded-lg font-black text-sm uppercase tracking-[0.2em] shadow-xl shadow-orange-600/20 hover:shadow-orange-600/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
                   >
                     <Plus size={20} className="text-orange-100" />
                     Confirmar Registro
@@ -975,10 +975,10 @@ export function LoansPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden"
+              className="bg-white w-full max-w-md rounded-lg shadow-2xl overflow-hidden"
             >
               <div className="p-8 text-center border-b border-neutral-100">
-                <div className="w-20 h-20 bg-amber-50 rounded-3xl flex items-center justify-center text-amber-600 mx-auto mb-6 shadow-sm border border-amber-100">
+                <div className="w-20 h-20 bg-amber-50 rounded-lg flex items-center justify-center text-amber-600 mx-auto mb-6 shadow-sm border border-amber-100">
                   <CheckCircle2 size={40} className="stroke-[2.5]" />
                 </div>
                 <h3 className="text-2xl font-black text-neutral-900 leading-tight">Confirmar Devolução?</h3>
@@ -988,8 +988,8 @@ export function LoansPage() {
               </div>
               
               <div className="p-8 bg-neutral-50/50 space-y-4">
-                <div className="bg-white p-4 rounded-2xl border border-neutral-100 flex items-center gap-3">
-                  <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-600 shrink-0">
+                <div className="bg-white p-4 rounded-lg border border-neutral-100 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center text-orange-600 shrink-0">
                     <ArrowLeftRight size={18} />
                   </div>
                   <div className="text-left overflow-hidden">
@@ -1003,13 +1003,13 @@ export function LoansPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <button 
                     onClick={() => setLoanToPay(null)}
-                    className="h-14 bg-white border border-neutral-200 text-neutral-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-neutral-50 transition-all active:scale-[0.98]"
+                    className="h-14 bg-white border border-neutral-200 text-neutral-500 rounded-lg font-black text-xs uppercase tracking-widest hover:bg-neutral-50 transition-all active:scale-[0.98]"
                   >
                     Cancelar
                   </button>
                   <button 
                     onClick={() => processToggleStatus(loanToPay)}
-                    className="h-14 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-all active:scale-[0.98]"
+                    className="h-14 bg-emerald-600 text-white rounded-lg font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-all active:scale-[0.98]"
                   >
                     Confirmar Pago
                   </button>
@@ -1028,10 +1028,10 @@ export function LoansPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden"
+              className="bg-white w-full max-w-md rounded-lg shadow-2xl overflow-hidden"
             >
               <div className="p-8 text-center border-b border-neutral-100">
-                <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center text-rose-600 mx-auto mb-6 shadow-sm border border-rose-100">
+                <div className="w-20 h-20 bg-rose-50 rounded-lg flex items-center justify-center text-rose-600 mx-auto mb-6 shadow-sm border border-rose-100">
                   <Trash2 size={40} className="stroke-[2.5]" />
                 </div>
                 <h3 className="text-2xl font-black text-neutral-900 leading-tight">Excluir Registro?</h3>
@@ -1043,13 +1043,13 @@ export function LoansPage() {
               <div className="p-8 bg-neutral-50/50 flex gap-3">
                 <button 
                   onClick={() => setLoanToDelete(null)}
-                  className="flex-1 h-14 bg-white border border-neutral-200 text-neutral-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-neutral-50 transition-all active:scale-[0.98]"
+                  className="flex-1 h-14 bg-white border border-neutral-200 text-neutral-500 rounded-lg font-black text-xs uppercase tracking-widest hover:bg-neutral-50 transition-all active:scale-[0.98]"
                 >
                   Cancelar
                 </button>
                 <button 
                   onClick={confirmDeleteLoan}
-                  className="flex-1 h-14 bg-rose-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:bg-rose-700 transition-all active:scale-[0.98]"
+                  className="flex-1 h-14 bg-rose-600 text-white rounded-lg font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:bg-rose-700 transition-all active:scale-[0.98]"
                 >
                   Excluir
                 </button>

@@ -349,7 +349,7 @@ export function CommissionPage() {
 
       {/* Filters Panel */}
       {showFilters && (
-        <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm space-y-4 animate-in slide-in-from-top-2">
+        <div className="bg-white p-4 rounded-lg border border-neutral-200 shadow-sm space-y-4 animate-in slide-in-from-top-2">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Date Type Toggle */}
             <div className="col-span-full flex gap-1 bg-neutral-100 p-1 rounded-lg w-fit">
@@ -601,7 +601,7 @@ export function CommissionPage() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Monthly Evolution Chart */}
-        <div className="bg-white p-4 md:p-5 rounded-xl border border-neutral-200 shadow-sm lg:col-span-2">
+        <div className="bg-white p-4 md:p-5 rounded-lg border border-neutral-200 shadow-sm lg:col-span-2">
           <h3 className="text-base font-black text-neutral-900 mb-4 flex items-center gap-2">
             <Calendar className="text-neutral-500" size={18} />
             Comparativo Mensal de Comissão
@@ -626,7 +626,7 @@ export function CommissionPage() {
         </div>
 
         {/* Grouped Data Table */}
-        <div className="bg-white p-4 md:p-5 rounded-xl border border-neutral-200 shadow-sm lg:col-span-2">
+        <div className="bg-white p-4 md:p-5 rounded-lg border border-neutral-200 shadow-sm lg:col-span-2">
           <h3 className="text-base font-black text-neutral-900 mb-4 flex items-center gap-2">
             <Users className="text-neutral-500" size={18} />
             Ranking por {groupBy === 'cliente' ? 'Cliente' : groupBy === 'produto' ? 'Produto' : 'Família'}

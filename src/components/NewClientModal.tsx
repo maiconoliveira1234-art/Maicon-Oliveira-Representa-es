@@ -238,11 +238,11 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+      <div className="bg-white w-full max-w-lg rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
         <div className="flex items-center justify-between p-6 border-b border-neutral-100">
           <div className="flex items-center gap-3">
             <div className={cn(
-              "p-2 rounded-xl",
+              "p-2 rounded-lg",
               editingCliente ? "bg-purple-100 text-purple-600" : "bg-orange-100 text-orange-600"
             )}>
               {editingCliente ? <Edit3 size={24} /> : <UserPlus size={24} />}
@@ -261,7 +261,7 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {error && (
-            <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-2xl text-sm font-medium flex items-start gap-2">
+            <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-lg text-sm font-medium flex items-start gap-2">
               <AlertCircle size={18} className="shrink-0 mt-0.5" />
               <div>
                 <p className="font-bold">Atenção</p>
@@ -278,7 +278,7 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
                 value={formData.cliente}
                 onChange={(e) => setFormData({ ...formData, cliente: e.target.value.toUpperCase() })}
                 className={cn(
-                  "w-full px-4 py-3 bg-neutral-50 border rounded-2xl focus:ring-2 outline-none transition-all font-bold text-neutral-900",
+                  "w-full px-4 py-3 bg-neutral-50 border rounded-lg focus:ring-2 outline-none transition-all font-bold text-neutral-900",
                   error?.field === 'cliente' ? "border-red-400 ring-red-100 bg-red-50" : "border-neutral-200 focus:ring-orange-500"
                 )}
                 placeholder="EX: SUPERMERCADO EXEMPLO"
@@ -291,7 +291,7 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
                 type="text"
                 value={formData.contato}
                 onChange={(e) => setFormData({ ...formData, contato: e.target.value.toUpperCase() })}
-                className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold text-neutral-900"
+                className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold text-neutral-900"
                 placeholder="NOME DO CONTATO PRINCIPAL"
               />
             </div>
@@ -303,7 +303,7 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
                 value={formData.telefone}
                 onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
                 className={cn(
-                  "w-full px-4 py-3 bg-neutral-50 border rounded-2xl focus:ring-2 outline-none transition-all font-bold text-neutral-900",
+                  "w-full px-4 py-3 bg-neutral-50 border rounded-lg focus:ring-2 outline-none transition-all font-bold text-neutral-900",
                   error?.field === 'telefone' ? "border-red-400 ring-red-100 bg-red-50" : "border-neutral-200 focus:ring-orange-500"
                 )}
                 placeholder="EX: 47999999999"
@@ -320,12 +320,12 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
                   if (suggestions.length > 0) setShowSuggestions(true);
                 }}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-2xl focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold text-neutral-900"
+                className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all font-bold text-neutral-900"
                 placeholder="REGISTRE A RUA E NÚMERO..."
                 autoComplete="off"
               />
               {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute left-0 right-0 top-full mt-1 max-h-[220px] overflow-y-auto bg-white border border-neutral-200 rounded-2xl shadow-xl z-[400] divide-y divide-neutral-100 animate-in fade-in duration-100">
+                <div className="absolute left-0 right-0 top-full mt-1 max-h-[220px] overflow-y-auto bg-white border border-neutral-200 rounded-lg shadow-xl z-[400] divide-y divide-neutral-100 animate-in fade-in duration-100">
                   {suggestions.map((suggestion) => (
                     <button
                       key={suggestion.placeId}
@@ -351,14 +351,14 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
                 value={formData.cidade}
                 onChange={(e) => setFormData({ ...formData, cidade: e.target.value.toUpperCase() })}
                 className={cn(
-                  "w-full px-4 py-3 bg-neutral-50 border rounded-2xl focus:ring-2 outline-none transition-all font-bold text-neutral-900",
+                  "w-full px-4 py-3 bg-neutral-50 border rounded-lg focus:ring-2 outline-none transition-all font-bold text-neutral-900",
                   error?.field === 'cidade' ? "border-red-400 ring-red-100 bg-red-50" : "border-neutral-200 focus:ring-orange-500"
                 )}
                 placeholder="EX: SÃO PAULO"
               />
             </div>
 
-            <div className="md:col-span-2 bg-neutral-50 border border-neutral-200 p-4 rounded-2xl flex items-center justify-between gap-4">
+            <div className="md:col-span-2 bg-neutral-50 border border-neutral-200 p-4 rounded-lg flex items-center justify-between gap-4">
               <div className="space-y-0.5">
                 <label className="text-xs font-black text-neutral-900 uppercase tracking-wider block">Agenda Fixa</label>
                 <span className="text-[10px] text-neutral-500 block font-semibold leading-tight">Se ativado, o cliente nunca será movido automaticamente por otimizações, rebalanceamento ou novas inclusões.</span>
@@ -379,14 +379,14 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-4 bg-neutral-100 text-neutral-700 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-neutral-200 transition-all"
+              className="flex-1 py-4 bg-neutral-100 text-neutral-700 rounded-lg font-black uppercase tracking-widest text-xs hover:bg-neutral-200 transition-all"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 py-4 bg-orange-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-orange-700 transition-all shadow-lg shadow-orange-200 flex items-center justify-center gap-2 disabled:opacity-50"
+              className="flex-1 py-4 bg-orange-600 text-white rounded-lg font-black uppercase tracking-widest text-xs hover:bg-orange-700 transition-all shadow-lg shadow-orange-200 flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
               Salvar

@@ -584,7 +584,7 @@ export function ClienteDetail() {
       </header>
 
       {error && (
-        <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center gap-3 text-red-700 text-sm">
+        <div className="bg-red-50 border border-red-100 p-4 rounded-lg flex items-center gap-3 text-red-700 text-sm">
           <AlertCircle size={20} />
           <p>{error}</p>
         </div>
@@ -604,7 +604,7 @@ export function ClienteDetail() {
                 <div 
                   key={loan.id}
                   className={cn(
-                    "p-4 rounded-3xl flex items-center gap-4 border transition-all",
+                    "p-4 rounded-lg flex items-center gap-4 border transition-all",
                     isUrgent 
                       ? "bg-rose-50 border-rose-200 text-rose-900 shadow-sm animate-pulse" 
                       : isWarning 
@@ -613,7 +613,7 @@ export function ClienteDetail() {
                   )}
                 >
                   <div className={cn(
-                    "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0",
+                    "w-10 h-10 rounded-lg flex items-center justify-center shrink-0",
                     isUrgent ? "bg-rose-200 text-rose-600" : isWarning ? "bg-orange-200 text-orange-600" : "bg-neutral-100 text-neutral-400"
                   )}>
                     <ArrowLeftRight size={20} />
@@ -633,7 +633,7 @@ export function ClienteDetail() {
                     <button 
                       onClick={() => navigate('/emprestimos')}
                       className={cn(
-                        "text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border transition-all",
+                        "text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-all",
                         isUrgent ? "bg-rose-600 text-white border-rose-600" : isWarning ? "bg-orange-600 text-white border-orange-600" : "bg-neutral-900 text-white border-neutral-900"
                       )}
                     >
@@ -652,7 +652,7 @@ export function ClienteDetail() {
         <button 
           onClick={() => navigate(`/pedido/novo/${cliente.id}`)}
           onMouseEnter={() => prefetchClientData(cliente.id)}
-          className="bg-orange-600 text-white py-2 px-4 rounded-xl font-bold flex flex-row items-center justify-center gap-2 shadow-md active:scale-95 transition-all text-sm"
+          className="bg-orange-600 text-white py-2 px-4 rounded-lg font-bold flex flex-row items-center justify-center gap-2 shadow-md active:scale-95 transition-all text-sm"
         >
           <ShoppingCart size={16} />
           <span>Novo Pedido</span>
@@ -660,7 +660,7 @@ export function ClienteDetail() {
         <button 
           onClick={() => navigate(`/estoque/${cliente.id}`)}
           onMouseEnter={() => prefetchClientData(cliente.id)}
-          className="bg-white text-neutral-700 py-2 px-4 rounded-xl font-bold flex flex-row items-center justify-center gap-2 border border-neutral-200 shadow-xs active:scale-95 transition-all text-sm"
+          className="bg-white text-neutral-700 py-2 px-4 rounded-lg font-bold flex flex-row items-center justify-center gap-2 border border-neutral-200 shadow-xs active:scale-95 transition-all text-sm"
         >
           <Package size={16} className="text-orange-600" />
           <span>Contar Estoque</span>
@@ -668,7 +668,7 @@ export function ClienteDetail() {
       </div>
 
       {/* Goal Progress */}
-      <section className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm">
+      <section className="bg-white p-6 rounded-lg border border-neutral-200 shadow-sm">
         <div className="flex justify-between items-center mb-6">
           <h3 className="font-bold text-neutral-800 flex items-center gap-2">
             <Target className="text-orange-600" size={20} />
@@ -696,7 +696,7 @@ export function ClienteDetail() {
           </ResponsiveContainer>
         </div>
 
-        <div className="mt-4 p-4 bg-neutral-50 rounded-2xl flex justify-between items-center">
+        <div className="mt-4 p-4 bg-neutral-50 rounded-lg flex justify-between items-center">
           <div>
             <p className="text-[10px] font-bold text-neutral-400 uppercase">Falta para Meta</p>
             <p className="text-lg font-black text-neutral-800">{formatWeight(Math.max(0, cliente.meta - realizado))}</p>
@@ -714,7 +714,7 @@ export function ClienteDetail() {
       </section>
 
       {/* Purchase Cycle */}
-      <section className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm">
+      <section className="bg-white p-6 rounded-lg border border-neutral-200 shadow-sm">
         <h3 className="font-bold text-neutral-800 mb-4 flex items-center gap-2">
           <Calendar className="text-orange-600" size={20} />
           Recompra
@@ -743,7 +743,7 @@ export function ClienteDetail() {
       </section>
 
       {/* Conta de Verba Flex Comercial & Extrato de Auditoria (Interno CRM) */}
-      <section className="bg-white p-6 rounded-3xl border border-neutral-200 shadow-sm space-y-4">
+      <section className="bg-white p-6 rounded-lg border border-neutral-200 shadow-sm space-y-4">
         <div className="flex justify-between items-center pb-2 border-b border-neutral-100">
           <h3 className="font-bold text-neutral-800 flex items-center gap-2">
             <Coins className="text-orange-600" size={20} />
@@ -758,12 +758,12 @@ export function ClienteDetail() {
           </button>
         </div>
 
-        <div className="bg-neutral-50 p-4 rounded-2xl flex justify-between items-center">
+        <div className="bg-neutral-50 p-4 rounded-lg flex justify-between items-center">
           <div>
             <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Saldo Comercial Disponível</p>
             <p className="text-2xl font-black text-neutral-900 mt-1">{formatCurrency(cliente?.flex_saldo || 0)}</p>
           </div>
-          <span className="text-[9px] font-black uppercase text-neutral-400 border border-neutral-200 bg-white shadow-xs px-2.5 py-1 rounded-xl">
+          <span className="text-[9px] font-black uppercase text-neutral-400 border border-neutral-200 bg-white shadow-xs px-2.5 py-1 rounded-lg">
             COMENTÁRIO INTERNO
           </span>
         </div>
@@ -771,11 +771,11 @@ export function ClienteDetail() {
         <div className="space-y-2">
           <h4 className="text-[10px] font-black uppercase text-neutral-400 tracking-wider">Histórico de Movimentações</h4>
           {flexExtrato.length === 0 ? (
-            <p className="text-xs text-neutral-400 italic bg-neutral-50 p-4 rounded-xl text-center border border-dashed">
+            <p className="text-xs text-neutral-400 italic bg-neutral-50 p-4 rounded-lg text-center border border-dashed">
               Nenhuma movimentação de verba flex registrada até o momento.
             </p>
           ) : (
-            <div className="max-h-60 overflow-y-auto space-y-2 rounded-xl border border-neutral-100 p-2">
+            <div className="max-h-60 overflow-y-auto space-y-2 rounded-lg border border-neutral-100 p-2">
               {flexExtrato.map((item, idx) => {
                 const val = item.valor || 0;
                 const isPositive = val > 0;
@@ -836,7 +836,7 @@ export function ClienteDetail() {
             <button 
               key={order.date} 
               onClick={() => setSelectedOrderDate(order.date)}
-              className="w-full bg-white p-4 pl-6 rounded-2xl border border-neutral-200 shadow-sm flex justify-between items-center transition-all text-left relative overflow-hidden hover:bg-neutral-50/80 active:scale-[0.99]"
+              className="w-full bg-white p-4 pl-6 rounded-lg border border-neutral-200 shadow-sm flex justify-between items-center transition-all text-left relative overflow-hidden hover:bg-neutral-50/80 active:scale-[0.99]"
             >
               {/* Custom multi-color indicator side bar */}
               <div className="absolute left-0 top-0 bottom-0 w-1.5 flex flex-col overflow-hidden rounded-l-2xl">
@@ -890,7 +890,7 @@ export function ClienteDetail() {
       {/* Order Detail Modal */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+          <div className="bg-white w-full max-w-lg rounded-t-lg sm:rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
             <div className="p-6 border-b border-neutral-100 flex justify-between items-center bg-neutral-50">
               <div>
                 <h3 className="text-xl font-black text-neutral-900">Detalhes do Pedido</h3>
@@ -970,7 +970,7 @@ export function ClienteDetail() {
             <h2 className="text-xl font-black text-neutral-900 ml-2">Histórico Completo</h2>
             <button 
               onClick={() => setShowAllHistory(false)} 
-              className="flex items-center gap-2 px-3 py-2 hover:bg-neutral-100 rounded-xl transition-colors text-neutral-600 font-bold"
+              className="flex items-center gap-2 px-3 py-2 hover:bg-neutral-100 rounded-lg transition-colors text-neutral-600 font-bold"
             >
               <span>Voltar</span>
               <ArrowLeft size={20} className="rotate-180" />
@@ -984,7 +984,7 @@ export function ClienteDetail() {
                 <button 
                   key={order.date} 
                   onClick={() => setSelectedOrderDate(order.date)}
-                  className="w-full bg-white p-4 pl-6 rounded-2xl border border-neutral-200 shadow-sm flex justify-between items-center text-left transition-all relative overflow-hidden hover:bg-neutral-50/80 active:scale-[0.99]"
+                  className="w-full bg-white p-4 pl-6 rounded-lg border border-neutral-200 shadow-sm flex justify-between items-center text-left transition-all relative overflow-hidden hover:bg-neutral-50/80 active:scale-[0.99]"
                 >
                   {/* Custom multi-color indicator side bar */}
                   <div className="absolute left-0 top-0 bottom-0 w-1.5 flex flex-col overflow-hidden rounded-l-2xl">

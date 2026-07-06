@@ -269,8 +269,8 @@ export function HomePage() {
 
   if (error) {
     return (
-      <div className="max-w-xl mx-auto mt-12 bg-white border border-rose-100 rounded-3xl p-6 text-center shadow-sm">
-        <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4">
+      <div className="max-w-xl mx-auto mt-12 bg-white border border-rose-100 rounded-lg p-6 text-center shadow-sm">
+        <div className="w-14 h-14 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4">
           <AlertCircle size={28} />
         </div>
         <h1 className="text-xl font-black text-neutral-900">Nao consegui abrir o resumo</h1>
@@ -283,7 +283,7 @@ export function HomePage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl min-w-0 space-y-5 overflow-x-hidden">
-      <section className="min-w-0 overflow-hidden rounded-[1.5rem] border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
+      <section className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="min-w-0">
             <p className="text-[10px] font-black text-orange-600 uppercase tracking-[0.24em]">Hoje</p>
@@ -297,11 +297,11 @@ export function HomePage() {
             </div>
           </div>
           <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:w-auto sm:shrink-0">
-            <Link to="/agenda" className="inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl bg-orange-600 px-3 py-3 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition-transform active:scale-95 sm:px-4">
+            <Link to="/agenda" className="inline-flex min-w-0 items-center justify-center gap-2 rounded-lg bg-orange-600 px-3 py-3 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition-transform active:scale-95 sm:px-4">
               Abrir Agenda
               <ArrowRight className="shrink-0" size={18} />
             </Link>
-            <Link to="/emprestimos" className="inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl border border-neutral-200 bg-white px-3 py-3 text-sm font-black text-neutral-800 transition-transform active:scale-95 sm:px-4">
+            <Link to="/emprestimos" className="inline-flex min-w-0 items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-3 text-sm font-black text-neutral-800 transition-transform active:scale-95 sm:px-4">
               Trocas
             </Link>
           </div>
@@ -316,7 +316,7 @@ export function HomePage() {
       </section>
 
       <section className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-        <div className="min-w-0 overflow-hidden rounded-[1.5rem] border border-neutral-200 bg-white p-4 shadow-sm">
+        <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div className="min-w-0">
               <p className="text-[10px] font-black text-neutral-400 uppercase tracking-[0.22em]">Proxima acao</p>
@@ -326,7 +326,7 @@ export function HomePage() {
           </div>
 
           {summary.nextVisit ? (
-            <div className="min-w-0 overflow-hidden rounded-2xl border border-neutral-100 bg-neutral-50 p-4">
+            <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-100 bg-neutral-50 p-4">
               <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="text-xl font-black text-neutral-950 truncate">{summary.nextVisit.cliente_nome}</h3>
@@ -338,7 +338,7 @@ export function HomePage() {
                   </div>
                 </div>
                 {summary.nextVisit.cliente_id && (
-                  <Link to={'/cliente/' + summary.nextVisit.cliente_id} className="inline-flex min-w-0 items-center justify-center gap-2 rounded-2xl bg-neutral-900 px-4 py-3 text-sm font-black text-white transition-transform active:scale-95 md:shrink-0">
+                  <Link to={'/cliente/' + summary.nextVisit.cliente_id} className="inline-flex min-w-0 items-center justify-center gap-2 rounded-lg bg-neutral-900 px-4 py-3 text-sm font-black text-white transition-transform active:scale-95 md:shrink-0">
                     Cliente
                     <ArrowRight className="shrink-0" size={16} />
                   </Link>
@@ -350,7 +350,7 @@ export function HomePage() {
           )}
         </div>
 
-        <div className="min-w-0 overflow-hidden rounded-[1.5rem] border border-neutral-200 bg-white p-4 shadow-sm">
+        <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div className="min-w-0">
               <p className="text-[10px] font-black text-neutral-400 uppercase tracking-[0.22em]">Atencao</p>
@@ -368,7 +368,7 @@ export function HomePage() {
             )}
             {summary.noteRisks.map(({ visita, noteAlert }) => (
               <div key={'note-' + visita.id} className={cn(
-                "flex min-w-0 items-center justify-between gap-3 rounded-2xl border px-3 py-3",
+                "flex min-w-0 items-center justify-between gap-3 rounded-lg border px-3 py-3",
                 noteAlert.level === 'pending' && "border-rose-100 bg-rose-50",
                 noteAlert.level === 'attention' && "border-orange-100 bg-orange-50",
                 noteAlert.level === 'note' && "border-sky-100 bg-sky-50"
@@ -396,7 +396,7 @@ export function HomePage() {
               </div>
             ))}
             {summary.overdueVisits.map(({ visita, gap }) => (
-              <div key={visita.id} className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-3">
+              <div key={visita.id} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-3">
                 <div className="min-w-0">
                   <p className="text-sm font-black text-neutral-900 truncate">{visita.cliente_nome}</p>
                   <p className="text-xs font-bold text-amber-700">{gap}d acima do ciclo</p>
@@ -417,7 +417,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="min-w-0 overflow-hidden rounded-[1.5rem] border border-neutral-200 bg-white p-4 shadow-sm">
+      <section className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div className="min-w-0">
             <p className="text-[10px] font-black text-neutral-400 uppercase tracking-[0.22em]">Resumo</p>
@@ -427,8 +427,8 @@ export function HomePage() {
         </div>
         <div className="space-y-2">
           {summary.todayVisits.slice(0, 6).map((visita, index) => (
-            <div key={visita.id} className="flex min-w-0 items-center gap-3 rounded-2xl border border-neutral-100 bg-neutral-50 px-3 py-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white text-xs font-black text-neutral-500">{index + 1}</div>
+            <div key={visita.id} className="flex min-w-0 items-center gap-3 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-xs font-black text-neutral-500">{index + 1}</div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-black text-neutral-950 truncate">{visita.cliente_nome}</p>
                 <p className="text-xs font-bold text-neutral-400 truncate">{[visita.bairro, visita.cidade].filter(Boolean).join(' - ')}</p>
@@ -458,8 +458,8 @@ function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: React.El
   };
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-[1.25rem] border border-neutral-200 bg-white p-4 shadow-sm">
-      <div className={cn('w-10 h-10 rounded-2xl flex items-center justify-center mb-3', toneClasses[tone])}>
+    <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+      <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center mb-3', toneClasses[tone])}>
         <Icon size={21} />
       </div>
       <p className="text-[10px] font-black text-neutral-400 uppercase tracking-wider">{label}</p>
@@ -471,7 +471,7 @@ function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: React.El
 
 function InfoLine({ icon: Icon, text }: { icon: React.ElementType; text: string }) {
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-neutral-100 bg-neutral-50 px-3 py-3">
+    <div className="flex min-w-0 items-center gap-3 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-3">
       <Icon className="text-neutral-400 shrink-0" size={18} />
       <p className="min-w-0 break-words text-sm font-bold text-neutral-700">{text}</p>
     </div>
@@ -486,7 +486,7 @@ function RiskCount({ label, value, tone }: { label: string; value: number; tone:
   };
 
   return (
-    <div className={cn('min-w-0 rounded-xl border px-2 py-1.5 text-center', toneClasses[tone])}>
+    <div className={cn('min-w-0 rounded-lg border px-2 py-1.5 text-center', toneClasses[tone])}>
       <p className="text-[9px] font-black uppercase leading-none truncate">{label}</p>
       <p className="mt-0.5 text-sm font-black leading-tight">{value}</p>
     </div>
@@ -495,7 +495,7 @@ function RiskCount({ label, value, tone }: { label: string; value: number; tone:
 
 function EmptyState({ icon: Icon, title, text, compact = false }: { icon: React.ElementType; title: string; text: string; compact?: boolean }) {
   return (
-    <div className={cn('text-center rounded-2xl border border-dashed border-neutral-200 bg-neutral-50', compact ? 'p-4' : 'p-8')}>
+    <div className={cn('text-center rounded-lg border border-dashed border-neutral-200 bg-neutral-50', compact ? 'p-4' : 'p-8')}>
       <Icon className="mx-auto text-neutral-300" size={compact ? 24 : 34} />
       <p className="mt-2 text-sm font-black text-neutral-800">{title}</p>
       <p className="mt-1 text-xs font-bold text-neutral-400">{text}</p>
