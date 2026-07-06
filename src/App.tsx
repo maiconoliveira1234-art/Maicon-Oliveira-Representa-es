@@ -4,7 +4,7 @@
  */
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { HomePage } from './pages/HomePage';
@@ -49,6 +49,7 @@ function AppContent() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
+        <InitialRouteGuard />
         <Layout>
           <Routes>
             <Route path="/" element={<HomePage />} />
@@ -70,6 +71,20 @@ function AppContent() {
       </BrowserRouter>
     </ErrorBoundary>
   );
+}
+
+function InitialRouteGuard() {
+  const [redirectFromSettings, setRedirectFromSettings] = useState(() => window.location.pathname === '/settings');
+
+  useEffect(() => {
+    if (redirectFromSettings) setRedirectFromSettings(false);
+  }, [redirectFromSettings]);
+
+  if (redirectFromSettings && window.location.pathname === '/settings') {
+    return <Navigate to="/" replace />;
+  }
+
+  return null;
 }
 
 export default function App() {
