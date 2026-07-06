@@ -57,6 +57,7 @@ export function OrderPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [showFlexCard, setShowFlexCard] = useState(false);
+  const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [productSelectorType, setProductSelectorType] = useState<'VENDA' | 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING'>('VENDA');
   const [selectedPrazo, setSelectedPrazo] = useState('');
   const [selectedFamily, setSelectedFamily] = useState('Todas');
@@ -1100,6 +1101,7 @@ export function OrderPage() {
 </div>
 
       {/* Order Details */}
+      {false && (
       <div ref={orderDetailsRef} className="bg-white p-4 rounded-lg border border-neutral-200 shadow-sm space-y-4 scroll-mt-4">
         <div className="flex items-center justify-between gap-3 border-b border-neutral-100 pb-3">
           <div className="flex items-center gap-2">
@@ -1165,6 +1167,8 @@ export function OrderPage() {
           </div>
         </div>
       </div>
+
+      )}
 
       {/* Items List */}
       <div className="space-y-3">
@@ -1245,6 +1249,82 @@ export function OrderPage() {
         >
           <Plus size={20} /> Adicionar Produto
         </button>
+
+        <AnimatePresence>
+          {showOrderDetails && (
+            <motion.div
+              ref={orderDetailsRef}
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="bg-white p-4 rounded-lg border border-neutral-200 shadow-sm space-y-4 scroll-mt-4"
+            >
+              <div className="flex items-center justify-between gap-3 border-b border-neutral-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="text-orange-600" size={18} />
+                  <div>
+                    <h3 className="font-black text-neutral-900 leading-tight">Dados do pedido</h3>
+                    <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">Pagamento e observações</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">Observações</label>
+                  <textarea
+                    value={observacoes}
+                    onChange={(e) => setObservacoes(e.target.value)}
+                    placeholder="Digite aqui observações importantes..."
+                    className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-medium text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 transition-all resize-none h-24"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">Pagamento</label>
+                    <div className="relative">
+                      <select
+                        value={selectedPrazo}
+                        onChange={(e) => setSelectedPrazo(e.target.value)}
+                        className="w-full pl-3 pr-10 py-3 bg-neutral-50 border border-neutral-200 rounded-lg font-bold text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all text-sm"
+                      >
+                        <option value="" disabled>Selecione...</option>
+                        {availableTerms.map((prazo) => (
+                          <option key={prazo} value={prazo}>
+                            {prazo}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-neutral-400">
+                        <ChevronDown size={16} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedPrazo && selectedPrazo !== 'À Vista' && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="grid grid-cols-2 gap-3 p-3 bg-orange-50 border border-orange-100 rounded-lg"
+                    >
+                      <div>
+                        <p className="text-[9px] font-black text-orange-600 uppercase tracking-wider">Valor Boleto</p>
+                        <p className="text-sm font-black text-neutral-900">{formatCurrency(installmentDetails.valorBoleto)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[9px] font-black text-orange-600 uppercase tracking-wider">1º Venc. Est.</p>
+                        <p className="text-sm font-black text-neutral-900">
+                          {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Verba Flex Card Section */}
         {showFlexCard && (
@@ -1414,16 +1494,25 @@ export function OrderPage() {
             ) : (
               <>
                 <button 
-                  onClick={() => orderDetailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                  className="flex-1 bg-white border border-neutral-200 text-neutral-700 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-neutral-50 transition-all text-[11px]"
+                  onClick={() => {
+                    setShowOrderDetails((current) => {
+                      const next = !current;
+                      if (!current) {
+                        window.setTimeout(() => {
+                          orderDetailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 80);
+                      }
+                      return next;
+                    });
+                  }}
+                  className={cn(
+                    "flex-1 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all text-[11px]",
+                    showOrderDetails
+                      ? "bg-orange-600 text-white ring-2 ring-orange-300"
+                      : "bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50"
+                  )}
                 >
                   <FileText size={15} /> Dados
-                </button>
-                <button 
-                  onClick={() => setShowClearConfirm(true)}
-                  className="flex-1 bg-neutral-100 text-neutral-600 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-neutral-200 transition-all text-[11px]"
-                >
-                  <Trash2 size={15} /> Limpar
                 </button>
                 <button 
                   onClick={() => setShowFlexCard(!showFlexCard)}
@@ -1437,6 +1526,12 @@ export function OrderPage() {
                 >
                   <Coins size={15} className={showFlexCard ? "animate-pulse" : ""} />
                   <span>FX</span>
+                </button>
+                <button 
+                  onClick={() => setShowClearConfirm(true)}
+                  className="flex-1 bg-neutral-100 text-neutral-600 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-neutral-200 transition-all text-[11px]"
+                >
+                  <Trash2 size={15} /> Limpar
                 </button>
                 <button 
                   onClick={() => setShowPreview(true)}
