@@ -61,6 +61,72 @@ export function MetasPage() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   useEffect(() => {
+    if (loading) return;
+
+    let cancelled = false;
+
+    async function markVisitsWithoutWindowPurchaseAsPending() {
+      try {
+        const start = parseISO(startDate);
+        const end = parseISO(deadlineDate);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return;
+
+        const clientsWithPurchases = new Set<string>();
+        historico.forEach(h => {
+          if (!h.cliente_id || !h.faturamento || !classifySaleRecord(h).entraMetas) return;
+          try {
+            const saleDate = parseISO(h.faturamento);
+            if (isWithinInterval(saleDate, { start, end })) {
+              clientsWithPurchases.add(h.cliente_id);
+            }
+          } catch (err) {
+            // Ignora registros de histórico com data inválida.
+          }
+        });
+
+        const { data: visitasData, error: visitasError } = await supabase
+          .from('agenda_visitas')
+          .select('id, cliente_id, status, clientes!inner(ativo)')
+          .eq('clientes.ativo', true)
+          .not('cliente_id', 'is', null);
+
+        if (visitasError) throw visitasError;
+        if (cancelled) return;
+
+        const pendingVisitIds = (visitasData || [])
+          .filter(visita => {
+            if (!visita.cliente_id || visita.status === 'pendente') return false;
+            return !clientsWithPurchases.has(visita.cliente_id);
+          })
+          .map(visita => visita.id)
+          .filter(Boolean);
+
+        if (pendingVisitIds.length === 0) return;
+
+        const updatedAt = new Date().toISOString();
+        for (let i = 0; i < pendingVisitIds.length; i += 100) {
+          const batch = pendingVisitIds.slice(i, i + 100);
+          const { error } = await supabase
+            .from('agenda_visitas')
+            .update({ status: 'pendente', updated_at: updatedAt })
+            .in('id', batch);
+
+          if (error) throw error;
+          if (cancelled) return;
+        }
+      } catch (err) {
+        console.error('Erro ao aplicar regra de pendência por janela de metas:', err);
+      }
+    }
+
+    markVisitsWithoutWindowPurchaseAsPending();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, historico, startDate, deadlineDate]);
+
+  useEffect(() => {
     async function loadData() {
       try {
         setLoading(true);
