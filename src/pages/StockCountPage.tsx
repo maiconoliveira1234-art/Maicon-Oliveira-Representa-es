@@ -347,10 +347,10 @@ export function StockCountPage() {
 
   const gridCols = useMemo(() => {
     if (viewMode === 'contagem') {
-      return "grid-cols-[minmax(0,1fr)_34px_34px_36px_78px_34px]";
+      return "grid-cols-[minmax(0,1fr)_38px_38px_42px_96px_38px]";
     }
 
-    return "grid-cols-[minmax(0,1fr)_34px_34px_36px_34px_78px]";
+    return "grid-cols-[minmax(0,1fr)_38px_38px_42px_38px_96px]";
   }, [viewMode]);
 
   const orderWeightByDay = useMemo(() => {
@@ -1319,9 +1319,9 @@ export function StockCountPage() {
                         )} onClick={(e) => e.stopPropagation()}>
                           <button 
                             onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) - 1)}
-                            className="w-6 h-6 flex items-center justify-center bg-white border border-orange-200 rounded text-orange-600 hover:bg-orange-50 active:scale-90 transition-transform cursor-pointer"
+                            className="w-7 h-7 flex items-center justify-center bg-white border border-orange-200 rounded text-orange-600 hover:bg-orange-50 active:scale-90 transition-transform cursor-pointer shrink-0"
                           >
-                            <Minus size={11} />
+                            <Minus size={12} />
                           </button>
                           <input 
                             type="number" 
@@ -1336,9 +1336,9 @@ export function StockCountPage() {
                           />
                           <button 
                             onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) + 1)}
-                            className="w-6 h-6 flex items-center justify-center bg-orange-600 border border-orange-700 rounded text-white hover:bg-orange-700 active:scale-90 transition-transform cursor-pointer"
+                            className="w-7 h-7 flex items-center justify-center bg-orange-600 border border-orange-700 rounded text-white hover:bg-orange-700 active:scale-90 transition-transform cursor-pointer shrink-0"
                           >
-                            <Plus size={11} />
+                            <Plus size={12} />
                           </button>
                         </div>
                         <div className={cn(
@@ -1380,9 +1380,9 @@ export function StockCountPage() {
                         <div className="p-0.5 flex items-center justify-center gap-0.5 min-h-10" onClick={(e) => e.stopPropagation()}>
                           <button 
                             onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) - 1)}
-                            className="w-6 h-6 flex items-center justify-center bg-white border border-green-200 rounded text-green-600 hover:bg-green-50 active:scale-90 transition-transform cursor-pointer"
+                            className="w-7 h-7 flex items-center justify-center bg-white border border-green-200 rounded text-green-600 hover:bg-green-50 active:scale-90 transition-transform cursor-pointer shrink-0"
                           >
-                            <Minus size={11} />
+                            <Minus size={12} />
                           </button>
                           <input 
                             type="number" 
@@ -1394,9 +1394,9 @@ export function StockCountPage() {
                           />
                           <button 
                             onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) + 1)}
-                            className="w-6 h-6 flex items-center justify-center bg-green-600 border border-green-700 rounded text-white hover:bg-green-700 active:scale-90 transition-transform cursor-pointer"
+                            className="w-7 h-7 flex items-center justify-center bg-green-600 border border-green-700 rounded text-white hover:bg-green-700 active:scale-90 transition-transform cursor-pointer shrink-0"
                           >
-                            <Plus size={11} />
+                            <Plus size={12} />
                           </button>
                         </div>
                       </>
