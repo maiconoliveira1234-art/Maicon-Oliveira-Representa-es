@@ -724,6 +724,9 @@ export function StockCountPage() {
       // Clear local stock draft after successful save
       localStorage.removeItem(`estoque_${clienteId}`);
 
+      // Force cache update in global dataManager so subsequent page visits reflect the new stock count immediately
+      await loadClientDetails(clienteId, true);
+
       alert('Estoque atualizado com sucesso!');
       navigate(`/cliente/${clienteId}`);
     } catch (err) {
