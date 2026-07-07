@@ -433,7 +433,10 @@ export function StockCountPage() {
         const lastPurchaseItems = sortedVendas.filter(v => v.faturamento === ultVenda.faturamento);
         const qtdUltCompraInfo = lastPurchaseItems.reduce((acc, v) => acc + v.qtd, 0) * quantEmbalagem;
         const ultimaContagemValor = ultimaContagemMap[produtoId] || 0;
-        const ativoParaContagem = diasUltCompra <= 365 || ultimaContagemValor > 0;
+        const isProdutoAtivo = produto?.ativo !== false;
+        const ativoParaContagem = isProdutoAtivo
+          ? (diasUltCompra <= 365 || ultimaContagemValor > 0)
+          : (ultimaContagemValor !== 0);
 
         return {
           produto_id: produtoId,
