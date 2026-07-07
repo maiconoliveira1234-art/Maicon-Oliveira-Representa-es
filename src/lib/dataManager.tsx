@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useRef } from 
 import { supabase } from './supabase';
 import { Cliente, Produto, HistVenda, EstoqueCliente } from '../types';
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from './mockData';
+import { deduplicateSales } from './utils';
 
 interface ClientCache {
   historico: HistVenda[];
@@ -13,11 +14,13 @@ interface DataManagerContextType {
   clientes: Cliente[];
   produtos: Produto[];
   clientCache: Record<string, ClientCache>;
+  latestSalesMap: Record<string, { date: string; weight: number }>;
   loadingGlobal: boolean;
   
   loadInitialData: () => Promise<void>;
   loadClientDetails: (clientId: string, forceRefresh?: boolean) => Promise<ClientCache | undefined>;
   prefetchClientData: (clientId: string) => void;
+  loadLatestSalesMap: (forceRefresh?: boolean) => Promise<Record<string, { date: string; weight: number }>>;
   
   refreshClientes: () => Promise<void>;
   refreshProdutos: () => Promise<void>;
@@ -179,6 +182,79 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     }, 200);
   }, [loadClientDetails]);
 
+  const [latestSalesMap, setLatestSalesMap] = useState<Record<string, { date: string; weight: number }>>({});
+  const latestSalesCacheRef = useRef<{ map: Record<string, { date: string; weight: number }>; lastUpdated: number } | null>(null);
+  const latestSalesInFlight = useRef<Promise<Record<string, { date: string; weight: number }>> | null>(null);
+
+  const loadLatestSalesMap = useCallback(async (forceRefresh = false): Promise<Record<string, { date: string; weight: number }>> => {
+    if (!forceRefresh && latestSalesInFlight.current) {
+      return latestSalesInFlight.current;
+    }
+
+    const now = Date.now();
+    if (!forceRefresh && latestSalesCacheRef.current && (now - latestSalesCacheRef.current.lastUpdated < CACHE_TTL)) {
+      return latestSalesCacheRef.current.map;
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        const { data: histData, error: histError } = await supabase
+          .from('hist_vendas')
+          .select('cliente_id, faturamento, produto_id, qtd')
+          .order('faturamento', { ascending: false });
+
+        if (histError) throw histError;
+
+        // Ensure we have loaded products to get their weights
+        let currentProdutos = produtos;
+        if (currentProdutos.length === 0) {
+          const { data: prodData } = await supabase.from('produtos').select('*').order('produto');
+          if (prodData) {
+            currentProdutos = prodData;
+            setProdutos(prodData);
+          }
+        }
+
+        const productWeights: Record<string, number> = {};
+        currentProdutos.forEach(p => {
+          productWeights[p.id] = p.peso_embalagem || 0;
+        });
+
+        const map: Record<string, { date: string; weight: number }> = {};
+        if (histData) {
+          const uniqueSales = deduplicateSales(histData);
+          uniqueSales.forEach(h => {
+            const weight = (h.qtd || 0) * (productWeights[h.produto_id] || 0);
+            if (!map[h.cliente_id]) {
+              map[h.cliente_id] = { date: h.faturamento, weight: weight };
+            } else if (map[h.cliente_id].date === h.faturamento) {
+              map[h.cliente_id].weight += weight;
+            }
+          });
+        }
+
+        latestSalesCacheRef.current = {
+          map,
+          lastUpdated: Date.now()
+        };
+        setLatestSalesMap(map);
+        return map;
+      } catch (error) {
+        console.error('Error loading global latest sales map:', error);
+        const map: Record<string, { date: string; weight: number }> = {};
+        return map;
+      } finally {
+        latestSalesInFlight.current = null;
+      }
+    })();
+
+    if (!forceRefresh) {
+      latestSalesInFlight.current = fetchPromise;
+    }
+
+    return fetchPromise;
+  }, [produtos]);
+
   const refreshClientes = useCallback(async () => {
     const { data } = await supabase.from('clientes').select('*').order('cliente');
     if (data) setClientes(data);
@@ -194,10 +270,12 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       clientes,
       produtos,
       clientCache,
+      latestSalesMap,
       loadingGlobal,
       loadInitialData,
       loadClientDetails,
       prefetchClientData,
+      loadLatestSalesMap,
       refreshClientes,
       refreshProdutos
     }}>

@@ -15,7 +15,7 @@ import { useDataManager } from '../lib/dataManager';
 import { ClientPageSkeleton } from '../components/ui/Skeleton';
 
 export function ClientsPage() {
-  const { clientes: cachedClientes, loadingGlobal, loadInitialData, refreshClientes } = useDataManager();
+  const { clientes: cachedClientes, loadingGlobal, loadInitialData, refreshClientes, loadLatestSalesMap } = useDataManager();
   const [clientes, setClientes] = useState<(Cliente & { ultima_compra_peso?: number })[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -66,28 +66,7 @@ export function ClientsPage() {
         await loadInitialData();
       }
 
-      const [produtosRes, histRes] = await Promise.all([
-        supabase.from('produtos').select('id, peso_embalagem'),
-        supabase.from('hist_vendas').select('cliente_id, faturamento, produto_id, qtd').order('faturamento', { ascending: false })
-      ]);
-      
-      const productWeights: Record<string, number> = {};
-      produtosRes.data?.forEach(p => {
-        productWeights[p.id] = p.peso_embalagem || 0;
-      });
-
-      const latestSalesMap: Record<string, { date: string, weight: number }> = {};
-      if (histRes.data) {
-        const uniqueSales = deduplicateSales(histRes.data);
-        uniqueSales.forEach(h => {
-          const weight = (h.qtd || 0) * (productWeights[h.produto_id] || 0);
-          if (!latestSalesMap[h.cliente_id]) {
-            latestSalesMap[h.cliente_id] = { date: h.faturamento, weight: weight };
-          } else if (latestSalesMap[h.cliente_id].date === h.faturamento) {
-            latestSalesMap[h.cliente_id].weight += weight;
-          }
-        });
-      }
+      const latestSalesMap = await loadLatestSalesMap();
 
       const enrichedClientes = (cachedClientes.length > 0 ? cachedClientes : []).map(c => {
         const lastSale = latestSalesMap[c.id];
@@ -162,7 +141,8 @@ export function ClientsPage() {
     } finally {
       setLoading(false);
     }
-  }, [cachedClientes, loadInitialData]);
+  }, [cachedClientes, loadInitialData, loadLatestSalesMap]);
+
 
   useEffect(() => {
     fetchClientes();
