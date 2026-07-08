@@ -48,7 +48,7 @@ export function OrderPage() {
   const { clienteId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { produtos: allProducts, clientCache, loadClientDetails } = useDataManager();
+  const { produtos: allProducts, clientCache, loadClientDetails, clientes } = useDataManager();
   
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [produtos, setProdutos] = useState<Produto[]>([]);
@@ -165,20 +165,13 @@ export function OrderPage() {
  
         // Load Cliente
         const clientStartTime = performance.now();
-        const { data: clienteData, error: cError } = await supabase
-          .from('clientes')
-          .select('*')
-          .eq('id', clienteId)
-          .single();
+        const clienteData = (clientes || []).find(c => c.id === clienteId);
         
-        if (cError) {
-          console.error('Supabase Error (order cliente):', cError.message);
-          setCliente(MOCK_CLIENTES.find(c => c.id === clienteId) || null);
-        } else if (!clienteData) {
+        if (!clienteData) {
           setCliente(MOCK_CLIENTES.find(c => c.id === clienteId) || null);
         } else {
           setCliente(clienteData);
-          logDiagnostic('DEBUG_ORDER', `Cliente carregado do Supabase em ${(performance.now() - clientStartTime).toFixed(2)}ms: ${clienteData.cliente}`);
+          logDiagnostic('DEBUG_ORDER', `Cliente carregado do DataManager em ${(performance.now() - clientStartTime).toFixed(2)}ms: ${clienteData.cliente}`);
         }
 
         // Use products from context

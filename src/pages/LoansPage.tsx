@@ -27,7 +27,16 @@ import autoTable from 'jspdf-autotable';
 import { ActionButton, PageHeader } from '../components/ui/AppChrome';
 
 export function LoansPage() {
-  const { clientes: clients = [], produtos: allProducts = [] } = useDataManager();
+  const { 
+    clientes: clients = [], 
+    produtos: allProducts = [], 
+    emprestimos: dmEmprestimos = [], 
+    loadingGlobal,
+    addLoan,
+    updateLoanStatus,
+    deleteLoan: dmDeleteLoan
+  } = useDataManager();
+
   const [emprestimos, setEmprestimos] = useState<Emprestimo[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPaid, setShowPaid] = useState(false);
@@ -146,36 +155,29 @@ export function LoansPage() {
   };
 
   useEffect(() => {
-    fetchLoans();
-  }, []);
+    if (loadingGlobal) {
+      setLoading(true);
+      return;
+    }
+
+    const formatted = (dmEmprestimos || []).map((item: any) => {
+      const origin = (clients || []).find(c => c.id === item.cliente_origem_id);
+      const dest = (clients || []).find(c => c.id === item.cliente_destino_id);
+      const prod = (allProducts || []).find(p => p.id === item.produto_id);
+      return {
+        ...item,
+        cliente_origem_nome: origin?.cliente || item.cliente_origem_nome || 'N/A',
+        cliente_destino_nome: dest?.cliente || item.cliente_destino_nome || 'N/A',
+        produto_nome: prod?.produto || item.produto_nome || 'N/A'
+      };
+    });
+
+    setEmprestimos(formatted);
+    setLoading(false);
+  }, [loadingGlobal, dmEmprestimos, clients, allProducts]);
 
   async function fetchLoans() {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('emprestimos')
-        .select(`
-          *,
-          cliente_origem:clientes!cliente_origem_id(cliente),
-          cliente_destino:clientes!cliente_destino_id(cliente),
-          produto:produtos!produto_id(produto)
-        `);
-
-      if (error) throw error;
-
-      const formatted = (data || []).map((item: any) => ({
-        ...item,
-        cliente_origem_nome: item.cliente_origem?.cliente || 'N/A',
-        cliente_destino_nome: item.cliente_destino?.cliente || 'N/A',
-        produto_nome: item.produto?.produto || 'N/A'
-      }));
-
-      setEmprestimos(formatted);
-    } catch (err) {
-      console.error('Erro ao carregar empréstimos:', err);
-    } finally {
-      setLoading(false);
-    }
+    // Loaded via useEffect from central state
   }
 
   const filteredLoans = useMemo(() => {
@@ -228,19 +230,20 @@ export function LoansPage() {
         return;
       }
 
-      const { data, error } = await supabase
-        .from('emprestimos')
-        .insert([{
-          cliente_origem_id: form.cliente_origem_id,
-          cliente_destino_id: form.cliente_destino_id,
-          produto_id: form.produto_id,
-          quantidade: parseFloat(form.quantidade),
-          data_emprestimo: form.data_emprestimo,
-          status: 'pendente'
-        }])
-        .select();
+      const orig = clients.find(c => c.id === form.cliente_origem_id);
+      const dest = clients.find(c => c.id === form.cliente_destino_id);
+      const prod = allProducts.find(p => p.id === form.produto_id);
 
-      if (error) throw error;
+      await addLoan({
+        cliente_origem_id: form.cliente_origem_id,
+        cliente_destino_id: form.cliente_destino_id,
+        produto_id: form.produto_id,
+        quantidade: parseFloat(form.quantidade),
+        data_emprestimo: form.data_emprestimo,
+        cliente_origem_nome: orig?.cliente || 'N/A',
+        cliente_destino_nome: dest?.cliente || 'N/A',
+        produto_nome: prod?.produto || 'N/A'
+      });
 
       setIsModalOpen(false);
       setForm({
@@ -255,8 +258,6 @@ export function LoansPage() {
       setSearchDestino('');
       setSearchProduto('');
       setSelectedFamilia('');
-      
-      fetchLoans();
     } catch (err) {
       console.error('Erro ao adicionar empréstimo:', err);
     }
@@ -278,17 +279,8 @@ export function LoansPage() {
       const newStatus = isPaying ? 'pago' : 'pendente';
       const devDate = isPaying ? format(new Date(), 'yyyy-MM-dd') : null;
 
-      const { error } = await supabase
-        .from('emprestimos')
-        .update({ 
-          status: newStatus,
-          data_devolucao: devDate
-        })
-        .eq('id', loan.id);
-
-      if (error) throw error;
+      await updateLoanStatus(loan.id, newStatus, devDate);
       setLoanToPay(null);
-      fetchLoans();
     } catch (err) {
       console.error('Erro ao atualizar status:', err);
     }
@@ -301,14 +293,8 @@ export function LoansPage() {
   async function confirmDeleteLoan() {
     if (!loanToDelete) return;
     try {
-      const { error } = await supabase
-        .from('emprestimos')
-        .delete()
-        .eq('id', loanToDelete.id);
-
-      if (error) throw error;
+      await dmDeleteLoan(loanToDelete.id);
       setLoanToDelete(null);
-      fetchLoans();
     } catch (err) {
       console.error('Erro ao excluir:', err);
     }

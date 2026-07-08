@@ -1,7 +1,8 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Search, BarChart3, Settings, FileUp, ShoppingCart, PieChart, Calendar, ArrowLeftRight, Home } from 'lucide-react';
+import { LayoutDashboard, Users, Search, BarChart3, Settings, FileUp, ShoppingCart, PieChart, Calendar, ArrowLeftRight, Home, RefreshCw, Cloud, CloudOff } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useDataManager } from '../lib/dataManager';
 
 // Diagnostic mode toggle. Keep false in normal use.
 const DEBUG_LAYOUT = false;
@@ -9,6 +10,19 @@ const DEBUG_LAYOUT = false;
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const hideBottomNav = location.pathname.includes('/pedido/') || location.pathname.includes('/estoque/');
+  const { isSyncing, pendingQueueCount, syncAllData, lastSyncedTime } = useDataManager();
+  const [isOnline, setIsOnline] = React.useState(navigator.onLine);
+
+  React.useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Diagnostic Refs
   const sidebarRef = React.useRef<HTMLElement | null>(null);
@@ -130,6 +144,38 @@ export function Layout({ children }: { children: React.ReactNode }) {
       "min-h-screen bg-neutral-100 flex flex-col md:pl-[calc(5rem+env(safe-area-inset-left,0px))] pr-[env(safe-area-inset-right,0px)] pl-[env(safe-area-inset-left,0px)] w-full max-w-full overflow-x-hidden",
       hideBottomNav ? "pb-0 md:pb-0" : "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:pb-0"
     )}>
+      {/* Indicador de Conexão Inline (Não sobrepõe botões, flui no layout) */}
+      <div className={cn(
+        "w-full text-[11px] font-semibold py-1.5 px-4 border-b flex items-center justify-center gap-2 transition-all duration-300 shrink-0",
+        isOnline 
+          ? pendingQueueCount > 0 
+            ? "bg-amber-50 text-amber-700 border-amber-200" 
+            : isSyncing
+            ? "bg-orange-50 text-orange-700 border-orange-200 animate-pulse"
+            : "bg-green-50/60 text-green-700 border-green-200/50"
+          : "bg-neutral-100 text-neutral-600 border-neutral-200"
+      )}>
+        <span className={cn(
+          "w-2 h-2 rounded-full shrink-0",
+          isOnline 
+            ? pendingQueueCount > 0 
+              ? "bg-amber-500 animate-pulse" 
+              : isSyncing
+              ? "bg-orange-500 animate-pulse"
+              : "bg-green-500"
+            : "bg-neutral-400"
+        )} />
+        <span className="truncate">
+          {isSyncing 
+            ? "Sincronizando dados com o servidor..." 
+            : !isOnline 
+            ? "Você está offline — Usando banco de dados local" 
+            : pendingQueueCount > 0 
+            ? `Conectado — ${pendingQueueCount} alteração(ões) pendente(s) localmente` 
+            : `Conectado & Sincronizado — Último sincronismo: ${lastSyncedTime ? new Date(lastSyncedTime).toLocaleTimeString() : 'N/A'}`}
+        </span>
+      </div>
+
       {/* Sidebar Desktop */}
       <aside
         ref={sidebarRef}

@@ -35,6 +35,8 @@ import { DiaSemana, Visita, VisitaStatus } from '../types/agenda';
 import { cn, formatWeight } from '../lib/utils';
 import { getAgendaNoteAlert } from '../lib/agendaNoteAlert';
 
+import { useDataManager } from '../lib/dataManager';
+
 type MetaRow = {
   cliente_id: string;
   meta: number;
@@ -81,6 +83,16 @@ export function HomePage() {
   const location = useLocation();
   const selectedDate = (location.state as any)?.selectedDate;
   const today = useMemo(() => startOfToday(), []);
+  
+  const { 
+    clientes, 
+    produtos, 
+    metas, 
+    agenda_visitas, 
+    hist_vendas, 
+    loadingGlobal 
+  } = useDataManager();
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<HomeData>({
@@ -92,57 +104,32 @@ export function HomePage() {
   });
 
   useEffect(() => {
-    let isMounted = true;
-
-    async function loadData() {
-      try {
-        setLoading(true);
-        setError(null);
-        const historyStart = subMonths(today, 12).toISOString();
-
-        const [visitas, histRes, produtosRes, metasRes, activeClientsRes, visitsRes] = await Promise.all([
-          agendaService.getVisitas(),
-          supabase.from('hist_vendas').select('*').gte('faturamento', historyStart),
-          supabase.from('produtos').select('*'),
-          supabase.from('metas').select('cliente_id, meta'),
-          supabase.from('clientes').select('id').eq('ativo', true),
-          supabase.from('agenda_visitas').select('cliente_id')
-        ]);
-
-        if (histRes.error) throw histRes.error;
-        if (produtosRes.error) throw produtosRes.error;
-        if (metasRes.error) throw metasRes.error;
-        if (activeClientsRes.error) throw activeClientsRes.error;
-        if (visitsRes.error) throw visitsRes.error;
-
-        const metaMap: Record<string, number> = {};
-        (metasRes.data || []).forEach((row: MetaRow) => {
-          metaMap[row.cliente_id] = Number(row.meta) || 0;
-        });
-
-        const scheduledIds = new Set((visitsRes.data || []).map((row) => row.cliente_id).filter(Boolean));
-        const unscheduledClients = (activeClientsRes.data || []).filter((client) => !scheduledIds.has(client.id)).length;
-
-        if (!isMounted) return;
-        setData({
-          visitas,
-          historico: (histRes.data || []) as HistVenda[],
-          produtos: (produtosRes.data || []) as Produto[],
-          metas: metaMap,
-          unscheduledClients
-        });
-      } catch (err: any) {
-        if (isMounted) setError(err.message || 'Erro ao carregar rotina diaria');
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+    if (loadingGlobal) {
+      setLoading(true);
+      return;
     }
 
-    loadData();
-    return () => {
-      isMounted = false;
-    };
-  }, [today]);
+    try {
+      const activeClientIds = new Set(clientes.filter(c => c.ativo !== false).map(c => c.id));
+      const filteredVisitas = agenda_visitas.filter(v => activeClientIds.has(v.cliente_id));
+      
+      const scheduledIds = new Set(agenda_visitas.map(v => v.cliente_id).filter(Boolean));
+      const unscheduledClientsCount = clientes.filter(c => c.ativo !== false && !scheduledIds.has(c.id)).length;
+
+      setData({
+        visitas: filteredVisitas,
+        historico: hist_vendas,
+        produtos: produtos,
+        metas: metas,
+        unscheduledClients: unscheduledClientsCount
+      });
+      setError(null);
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao carregar rotina diária');
+    } finally {
+      setLoading(false);
+    }
+  }, [loadingGlobal, clientes, produtos, metas, agenda_visitas, hist_vendas]);
 
   const summary = useMemo(() => {
     const currentWeek = getCycleWeek(today);

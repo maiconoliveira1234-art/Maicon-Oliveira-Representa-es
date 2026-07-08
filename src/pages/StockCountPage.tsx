@@ -55,7 +55,7 @@ export function StockCountPage() {
   const { clienteId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { produtos, clientCache, loadClientDetails } = useDataManager();
+  const { produtos, clientCache, loadClientDetails, saveStockCount } = useDataManager();
   
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [estoqueMap, setEstoqueMap] = useState<Record<string, number>>({});
@@ -693,33 +693,8 @@ export function StockCountPage() {
         return;
       }
 
-      // Try upsert without explicit onConflict first, or use a more generic approach
-      // If the constraint error persists, it might be because the table doesn't have a unique constraint on (cliente_id, produto_id)
-      const { error } = await supabase
-        .from('estoque_cliente')
-        .upsert(itemsToUpsert, { 
-          onConflict: 'cliente_id,produto_id',
-          ignoreDuplicates: false
-        });
-
-      if (error) {
-        console.warn('Upsert failed, trying item-by-item replace fallback:', error);
-        for (const item of itemsToUpsert) {
-          const { error: deleteError } = await supabase
-            .from('estoque_cliente')
-            .delete()
-            .eq('cliente_id', item.cliente_id)
-            .eq('produto_id', item.produto_id);
-
-          if (deleteError) throw deleteError;
-
-          const { error: insertError } = await supabase
-            .from('estoque_cliente')
-            .insert(item);
-
-          if (insertError) throw insertError;
-        }
-      }
+      // Use the offline-safe central save wrapper!
+      await saveStockCount(clienteId, itemsToUpsert);
 
       // Clear local stock draft after successful save
       localStorage.removeItem(`estoque_${clienteId}`);
@@ -731,7 +706,7 @@ export function StockCountPage() {
       navigate(`/cliente/${clienteId}`);
     } catch (err) {
       console.error('Erro ao salvar estoque:', err);
-      alert('Erro ao salvar estoque. Verifique sua conexão.');
+      alert('Erro ao salvar estoque.');
     } finally {
       setSaving(false);
     }

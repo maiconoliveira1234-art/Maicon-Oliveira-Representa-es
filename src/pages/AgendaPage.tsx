@@ -31,6 +31,7 @@ import { logDiagnostic } from '../lib/diagnostics';
 import { HistVenda, Produto } from '../types';
 import { MapPin } from 'lucide-react';
 import { runAutoAgendaSyncIfEligible } from '../lib/autoAgendaSync';
+import { useDataManager } from '../lib/dataManager';
 
 const DIAS_MAP: Record<number, DiaSemana> = {
   1: 'Segunda',
@@ -43,6 +44,17 @@ const DIAS_MAP: Record<number, DiaSemana> = {
 export function AgendaPage() {
   const location = useLocation();
   
+  const { 
+    clientes, 
+    produtos: dmProdutos, 
+    metas: dmMetas, 
+    agenda_visitas: dmAgendaVisitas, 
+    hist_vendas: dmHistVendas, 
+    loadingGlobal,
+    updateVisitaStatus,
+    updateVisitaObservacoes
+  } = useDataManager();
+
   // Data Flow
   const [visitas, setVisitas] = useState<Visita[]>([]);
   const [historico, setHistorico] = useState<HistVenda[]>([]);
@@ -111,67 +123,33 @@ export function AgendaPage() {
       .trim();
 
   useEffect(() => {
-    fetchData();
-  }, []);
-
-  async function fetchData() {
-    const startTime = performance.now();
-    logDiagnostic('DEBUG_AGENDA', 'Iniciando carregamento de dados da agenda...');
-    try {
+    if (loadingGlobal) {
       setLoading(true);
+      return;
+    }
+
+    try {
+      setVisitas(dmAgendaVisitas);
+      setProdutos(dmProdutos);
+      setMetas(dmMetas);
+      setHistorico(dmHistVendas);
+
+      // Calculate unscheduled client count
+      const scheduledIds = new Set(dmAgendaVisitas.map(v => v.cliente_id).filter(Boolean));
+      const activeClients = clientes.filter(c => c.ativo !== false);
+      const unscheduled = activeClients.filter(c => !scheduledIds.has(c.id)).length;
+      setUnscheduledClientCount(unscheduled);
+      
       setError(null);
-
-      // Sincronização automática em background se for sábado/domingo de fim de ciclo da Semana 2
-      try {
-        await runAutoAgendaSyncIfEligible(false);
-      } catch (err) {
-        console.error('[BackgroundSync] Falha na sincronização em background:', err);
-      }
-      
-      const [agendaData, histDataRes, produtosRes, metasRes, activeClientsRes, existingVisitsRes] = await Promise.all([
-        agendaService.getVisitas(),
-        supabase.from('hist_vendas').select('*').gte('faturamento', subMonths(new Date(), 12).toISOString()),
-        supabase.from('produtos').select('*'),
-        supabase.from('metas').select('cliente_id, meta'),
-        supabase.from('clientes').select('id').eq('ativo', true),
-        supabase.from('agenda_visitas').select('cliente_id')
-      ]);
-
-      setVisitas(agendaData);
-      
-      if (produtosRes.data) {
-        setProdutos(produtosRes.data);
-      }
-
-      if (metasRes.data) {
-        const map: Record<string, number> = {};
-        metasRes.data.forEach(m => map[m.cliente_id] = m.meta);
-        setMetas(map);
-      }
-      
-      if (histDataRes.data) {
-        const uniqueMap = new Map();
-        histDataRes.data.forEach((h: HistVenda) => {
-          const key = `${h.faturamento}-${h.cliente_id}-${h.produto_id || h.produtos}-${h.qtd}-${h["r$_total"]}`;
-          if (!uniqueMap.has(key)) uniqueMap.set(key, h);
-        });
-        setHistorico(Array.from(uniqueMap.values()) as HistVenda[]);
-      }
-
-      // Calcula quantos clientes novos ainda não estão na agenda de visitas
-      if (activeClientsRes.data && existingVisitsRes.data) {
-        const scheduledIds = new Set(existingVisitsRes.data.map(v => v.cliente_id).filter(Boolean));
-        const unscheduled = activeClientsRes.data.filter(c => !scheduledIds.has(c.id)).length;
-        setUnscheduledClientCount(unscheduled);
-      }
-      
-      logDiagnostic('DEBUG_AGENDA', `Dados da agenda carregados com sucesso em ${(performance.now() - startTime).toFixed(2)}ms. Visitas: ${agendaData?.length || 0}, Clientes não agendados: ${unscheduledClientCount}`);
     } catch (err: any) {
-      setError(err.message || 'Erro ao carregar dados');
-      logDiagnostic('DEBUG_AGENDA', `Falha ao carregar dados da agenda: ${err.message || err}`);
+      setError(err?.message || 'Erro ao carregar dados da agenda');
     } finally {
       setLoading(false);
     }
+  }, [loadingGlobal, dmAgendaVisitas, dmProdutos, dmMetas, dmHistVendas, clientes]);
+
+  async function fetchData() {
+    // Loaded via useEffect above
   }
 
   const handleManualSync = async () => {
@@ -179,7 +157,6 @@ export function AgendaPage() {
       setSyncingNewClients(true);
       const res = await runAutoAgendaSyncIfEligible(true); // forceOverride = true
       alert(res.message);
-      await fetchData();
     } catch (err: any) {
       alert('Erro na integração: ' + err.message);
     } finally {
@@ -188,7 +165,7 @@ export function AgendaPage() {
   };
 
   async function fetchAgenda() {
-    fetchData();
+    // compatibility
   }
 
   const gapsMap = useMemo(() => {
@@ -228,10 +205,11 @@ export function AgendaPage() {
 
   async function handleStatusUpdate(id: string, newStatus: VisitaStatus) {
     try {
-      const updated = await agendaService.updateStatus(id, newStatus);
-      setVisitas(prev => prev.map(v => v.id === id ? updated : v));
+      await updateVisitaStatus(id, newStatus);
+      // State is updated instantly in context, but let's update local view if needed
+      setVisitas(prev => prev.map(v => v.id === id ? { ...v, status: newStatus, updated_at: new Date().toISOString() } : v));
       if (selectedVisita?.id === id) {
-        setSelectedVisita(updated);
+        setSelectedVisita(prev => prev ? { ...prev, status: newStatus, updated_at: new Date().toISOString() } : null);
       }
     } catch (err: any) {
       alert('Erro ao atualizar status');
@@ -240,10 +218,11 @@ export function AgendaPage() {
 
   async function handleNoteUpdate(id: string, note: string) {
     try {
-      const updated = await agendaService.updateObservacoes(id, note);
-      setVisitas(prev => prev.map(v => v.id === id ? updated : v));
+      await updateVisitaObservacoes(id, note);
+      // State is updated instantly in context, but let's update local view if needed
+      setVisitas(prev => prev.map(v => v.id === id ? { ...v, observacoes: note, updated_at: new Date().toISOString() } : v));
       if (selectedVisita?.id === id) {
-        setSelectedVisita(updated);
+        setSelectedVisita(prev => prev ? { ...prev, observacoes: note, updated_at: new Date().toISOString() } : null);
       }
     } catch (err: any) {
       alert('Erro ao atualizar nota');

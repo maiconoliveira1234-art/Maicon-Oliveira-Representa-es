@@ -5,8 +5,10 @@ import { APP_VERSION } from '../constants';
 import { runAutomaticInactivation } from '../lib/clientInactivation';
 import { optimizeAllTerritories } from '../lib/territoryOptimization';
 import { PageHeader, Panel } from '../components/ui/AppChrome';
+import { useDataManager } from '../lib/dataManager';
 
 export function SettingsPage() {
+  const { isSyncing, pendingQueueCount, syncAllData, lastSyncedTime } = useDataManager();
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const [isInactivating, setIsInactivating] = useState(false);
@@ -192,6 +194,45 @@ export function SettingsPage() {
                   'Otimizar 8 Dias'
                 )}
                 {optSuccess ? 'Concluído' : isOptimizing ? 'Processando' : ''}
+              </button>
+            </div>
+
+            <div className="flex justify-between items-center pt-4 border-t border-neutral-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                  <RefreshCw size={20} className={isSyncing ? "animate-spin" : ""} />
+                </div>
+                <div className="max-w-[200px] md:max-w-none">
+                  <p className="font-bold text-neutral-900">Sincronização Forçada</p>
+                  <p className="text-xs text-neutral-500">
+                    {pendingQueueCount > 0 
+                      ? `Sincronizar imediatamente (${pendingQueueCount} alteração(ões) pendente(s))` 
+                      : `Sincronizar dados locais com o servidor`}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    await syncAllData();
+                    alert('Sincronização concluída com sucesso!');
+                  } catch (err: any) {
+                    alert('Erro ao sincronizar: ' + (err?.message || err));
+                  }
+                }}
+                disabled={isSyncing}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+                  isSyncing 
+                    ? 'bg-amber-100 text-amber-600' 
+                    : 'bg-amber-600 text-white hover:bg-amber-700 active:scale-95 disabled:opacity-50'
+                }`}
+              >
+                {isSyncing ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <RefreshCw size={14} />
+                )}
+                {isSyncing ? 'Sincronizando' : 'Sincronizar'}
               </button>
             </div>
           </div>

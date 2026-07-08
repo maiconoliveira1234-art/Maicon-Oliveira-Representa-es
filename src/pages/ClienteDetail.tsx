@@ -181,7 +181,7 @@ export function ClienteDetail() {
           .from('verba_flex_extrato')
           .select('*')
           .eq('cliente_id', id)
-          .order('criado_em', { ascending: false });
+          .order('created_at', { ascending: false });
 
         const [clienteRes, metaRes] = await Promise.all([clientePromise, metaPromise]);
         if (cancelled) return;
@@ -307,7 +307,7 @@ export function ClienteDetail() {
         .from('verba_flex_extrato')
         .select('*')
         .eq('cliente_id', id)
-        .order('criado_em', { ascending: false });
+        .order('created_at', { ascending: false });
         
       if (freshExtrato) {
         setFlexExtrato(freshExtrato);
@@ -796,7 +796,7 @@ export function ClienteDetail() {
                     <div className="space-y-0.5">
                       <p className="font-bold text-neutral-800 leading-tight">{item.descricao || 'Lote faturado'}</p>
                       <p className="text-[10px] text-neutral-400 font-medium">
-                        {item.criado_em ? format(parseISO(item.criado_em), "dd/MM/yyyy HH:mm", { locale: ptBR }) : 'Pendente'}
+                        {(item.created_at || item.criado_em) ? format(parseISO(item.created_at || item.criado_em), "dd/MM/yyyy HH:mm", { locale: ptBR }) : 'Pendente'}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
