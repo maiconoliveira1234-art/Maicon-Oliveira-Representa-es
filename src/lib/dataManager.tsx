@@ -4,6 +4,7 @@ import { Cliente, Produto, HistVenda, EstoqueCliente } from '../types';
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from './mockData';
 import { deduplicateSales } from './utils';
 import { subMonths, format } from 'date-fns';
+import { getCacheValue, setCacheValue, setCacheValues } from './offline';
 
 export interface OfflineQueueItem {
   id: string;
@@ -56,6 +57,19 @@ interface DataManagerContextType {
 }
 
 const DataManagerContext = createContext<DataManagerContextType | undefined>(undefined);
+const DAILY_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+const getLocalStorageSafeData = (key: string, data: any) => {
+  if (key === 'offline_db_hist_vendas' && Array.isArray(data)) {
+    return data.slice(0, 500);
+  }
+
+  if (key === 'offline_db_verba_flex_extrato' && Array.isArray(data)) {
+    return data.slice(0, 100);
+  }
+
+  return data;
+};
 
 const loadLocal = <T,>(key: string, fallback: T): T => {
   try {
@@ -69,7 +83,7 @@ const loadLocal = <T,>(key: string, fallback: T): T => {
 
 const saveLocal = (key: string, data: any) => {
   try {
-    localStorage.setItem(key, JSON.stringify(data));
+    localStorage.setItem(key, JSON.stringify(getLocalStorageSafeData(key, data)));
   } catch (e: any) {
     console.error(`Error saving local key ${key}`, e);
     // Graceful recovery for localStorage QuotaExceededError
@@ -91,6 +105,30 @@ const saveLocal = (key: string, data: any) => {
       }
     }
   }
+};
+
+const loadPersisted = async <T,>(key: string, fallback: T): Promise<T> => {
+  const localFallback = loadLocal<T>(key, fallback);
+  try {
+    return await getCacheValue<T>(key, localFallback);
+  } catch (e) {
+    console.warn(`[OfflineManager] IndexedDB unavailable for ${key}, using localStorage fallback.`, e);
+    return localFallback;
+  }
+};
+
+const savePersisted = (key: string, data: any) => {
+  saveLocal(key, data);
+  setCacheValue(key, data).catch((e) => {
+    console.warn(`[OfflineManager] Could not persist ${key} to IndexedDB.`, e);
+  });
+};
+
+const savePersistedBatch = (values: Record<string, any>) => {
+  Object.entries(values).forEach(([key, value]) => saveLocal(key, value));
+  setCacheValues(values).catch((e) => {
+    console.warn('[OfflineManager] Could not persist batch to IndexedDB.', e);
+  });
 };
 
 export function DataManagerProvider({ children }: { children: React.ReactNode }) {
@@ -155,7 +193,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       
       // Successfully flushed everything, clear queue
       setPendingQueue([]);
-      saveLocal('offline_db_pending_queue', []);
+      savePersisted('offline_db_pending_queue', []);
       console.log('[OfflineManager] All pending actions successfully synced to cloud.');
       return true;
     } catch (error) {
@@ -175,7 +213,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     
     setPendingQueue(prev => {
       const updated = [...prev, newItem];
-      saveLocal('offline_db_pending_queue', updated);
+      savePersisted('offline_db_pending_queue', updated);
       // Try to flush immediately in background
       flushOfflineQueue(updated);
       return updated;
@@ -190,7 +228,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     
     try {
       // 1. Flush local queue first
-      const currentQueue = loadLocal<OfflineQueueItem[]>('offline_db_pending_queue', []);
+      const currentQueue = await loadPersisted<OfflineQueueItem[]>('offline_db_pending_queue', []);
       if (currentQueue.length > 0) {
         const flushSuccess = await flushOfflineQueue(currentQueue);
         if (!flushSuccess && !forceReflushQueue) {
@@ -247,16 +285,18 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       
       const syncTime = Date.now();
       
-      // 3. Save to Local Cache (keeping arrays within browser local storage safety bounds)
-      saveLocal('offline_db_clientes', dbClientes);
-      saveLocal('offline_db_produtos', dbProdutos);
-      saveLocal('offline_db_metas', dbMetas);
-      saveLocal('offline_db_agenda_visitas', dbVisitas);
-      saveLocal('offline_db_hist_vendas', dbHist.slice(0, 1500));
-      saveLocal('offline_db_estoque_cliente', dbEstoque);
-      saveLocal('offline_db_emprestimos', dbLoans);
-      saveLocal('offline_db_verba_flex_extrato', dbFlex.slice(0, 500));
-      saveLocal('offline_db_last_synced', syncTime);
+      // 3. Save to local cache. IndexedDB receives the full offline dataset.
+      savePersistedBatch({
+        offline_db_clientes: dbClientes,
+        offline_db_produtos: dbProdutos,
+        offline_db_metas: dbMetas,
+        offline_db_agenda_visitas: dbVisitas,
+        offline_db_hist_vendas: dbHist,
+        offline_db_estoque_cliente: dbEstoque,
+        offline_db_emprestimos: dbLoans,
+        offline_db_verba_flex_extrato: dbFlex,
+        offline_db_last_synced: syncTime
+      });
       
       // 4. Update memory states
       setClientes(dbClientes);
@@ -311,16 +351,16 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     
     setLoadingGlobal(true);
     try {
-      const cachedClientes = loadLocal<Cliente[]>('offline_db_clientes', []);
-      const cachedProdutos = loadLocal<Produto[]>('offline_db_produtos', []);
-      const cachedMetas = loadLocal<Record<string, number>>('offline_db_metas', {});
-      const cachedVisitas = loadLocal<any[]>('offline_db_agenda_visitas', []);
-      const cachedHist = loadLocal<HistVenda[]>('offline_db_hist_vendas', []);
-      const cachedEstoque = loadLocal<EstoqueCliente[]>('offline_db_estoque_cliente', []);
-      const cachedLoans = loadLocal<any[]>('offline_db_emprestimos', []);
-      const cachedFlex = loadLocal<any[]>('offline_db_verba_flex_extrato', []);
-      const cachedTime = loadLocal<number>('offline_db_last_synced', 0);
-      const cachedQueue = loadLocal<OfflineQueueItem[]>('offline_db_pending_queue', []);
+      const cachedClientes = await loadPersisted<Cliente[]>('offline_db_clientes', []);
+      const cachedProdutos = await loadPersisted<Produto[]>('offline_db_produtos', []);
+      const cachedMetas = await loadPersisted<Record<string, number>>('offline_db_metas', {});
+      const cachedVisitas = await loadPersisted<any[]>('offline_db_agenda_visitas', []);
+      const cachedHist = await loadPersisted<HistVenda[]>('offline_db_hist_vendas', []);
+      const cachedEstoque = await loadPersisted<EstoqueCliente[]>('offline_db_estoque_cliente', []);
+      const cachedLoans = await loadPersisted<any[]>('offline_db_emprestimos', []);
+      const cachedFlex = await loadPersisted<any[]>('offline_db_verba_flex_extrato', []);
+      const cachedTime = await loadPersisted<number>('offline_db_last_synced', 0);
+      const cachedQueue = await loadPersisted<OfflineQueueItem[]>('offline_db_pending_queue', []);
       
       setClientes(cachedClientes);
       setProdutos(cachedProdutos);
@@ -360,6 +400,12 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
         if (cachedQueue.length > 0) {
           flushOfflineQueue(cachedQueue);
         }
+        const syncIsStale = !cachedTime || Date.now() - cachedTime >= DAILY_SYNC_INTERVAL_MS;
+        if (syncIsStale && navigator.onLine !== false) {
+          window.setTimeout(() => {
+            syncAllDataInternal(false);
+          }, 0);
+        }
         return;
       }
       
@@ -391,7 +437,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     setEstoqueCliente(prev => {
       const otherClients = prev.filter(e => e.cliente_id !== clienteId);
       const updated = [...otherClients, ...updatedStockItems];
-      saveLocal('offline_db_estoque_cliente', updated);
+      savePersisted('offline_db_estoque_cliente', updated);
       return updated;
     });
     
@@ -404,7 +450,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
   const updateVisitaStatus = useCallback(async (visitaId: string, status: string) => {
     setAgendaVisitas(prev => {
       const updated = prev.map(v => v.id === visitaId ? { ...v, status, updated_at: new Date().toISOString() } : v);
-      saveLocal('offline_db_agenda_visitas', updated);
+      savePersisted('offline_db_agenda_visitas', updated);
       return updated;
     });
     
@@ -416,7 +462,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
   const updateVisitaObservacoes = useCallback(async (visitaId: string, observacoes: string) => {
     setAgendaVisitas(prev => {
       const updated = prev.map(v => v.id === visitaId ? { ...v, observacoes, updated_at: new Date().toISOString() } : v);
-      saveLocal('offline_db_agenda_visitas', updated);
+      savePersisted('offline_db_agenda_visitas', updated);
       return updated;
     });
     
@@ -441,7 +487,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     
     setEmprestimos(prev => {
       const updated = [...prev, completeLoan];
-      saveLocal('offline_db_emprestimos', updated);
+      savePersisted('offline_db_emprestimos', updated);
       return updated;
     });
     
@@ -460,7 +506,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
   const updateLoanStatus = useCallback(async (loanId: string, status: string, devDate: string | null) => {
     setEmprestimos(prev => {
       const updated = prev.map(l => l.id === loanId ? { ...l, status, data_devolucao: devDate } : l);
-      saveLocal('offline_db_emprestimos', updated);
+      savePersisted('offline_db_emprestimos', updated);
       return updated;
     });
     
@@ -472,7 +518,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
   const deleteLoan = useCallback(async (loanId: string) => {
     setEmprestimos(prev => {
       const updated = prev.filter(l => l.id !== loanId);
-      saveLocal('offline_db_emprestimos', updated);
+      savePersisted('offline_db_emprestimos', updated);
       return updated;
     });
     

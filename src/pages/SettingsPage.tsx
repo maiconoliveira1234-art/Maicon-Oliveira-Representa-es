@@ -203,7 +203,7 @@ export function SettingsPage() {
                   <RefreshCw size={20} className={isSyncing ? "animate-spin" : ""} />
                 </div>
                 <div className="max-w-[200px] md:max-w-none">
-                  <p className="font-bold text-neutral-900">Sincronização Forçada</p>
+                  <p className="font-bold text-neutral-900">Atualizar Dados Offline</p>
                   <p className="text-xs text-neutral-500">
                     {pendingQueueCount > 0 
                       ? `Sincronizar imediatamente (${pendingQueueCount} alteração(ões) pendente(s))` 
@@ -232,7 +232,7 @@ export function SettingsPage() {
                 ) : (
                   <RefreshCw size={14} />
                 )}
-                {isSyncing ? 'Sincronizando' : 'Sincronizar'}
+                {isSyncing ? 'Sincronizando' : 'Atualizar Dados'}
               </button>
             </div>
           </div>
