@@ -527,11 +527,26 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
 
   // Client Details compatibility lookup
   const clientCache = useMemo(() => {
+    const historicoByClient: Record<string, HistVenda[]> = {};
+    const estoqueByClient: Record<string, EstoqueCliente[]> = {};
+
+    histVendas.forEach(h => {
+      if (!h.cliente_id) return;
+      if (!historicoByClient[h.cliente_id]) historicoByClient[h.cliente_id] = [];
+      historicoByClient[h.cliente_id].push(h);
+    });
+
+    estoqueCliente.forEach(e => {
+      if (!e.cliente_id) return;
+      if (!estoqueByClient[e.cliente_id]) estoqueByClient[e.cliente_id] = [];
+      estoqueByClient[e.cliente_id].push(e);
+    });
+
     const cache: Record<string, ClientCache> = {};
     clientes.forEach(c => {
       cache[c.id] = {
-        historico: histVendas.filter(h => h.cliente_id === c.id),
-        estoque: estoqueCliente.filter(e => e.cliente_id === c.id),
+        historico: historicoByClient[c.id] || [],
+        estoque: estoqueByClient[c.id] || [],
         lastUpdated: Date.now()
       };
     });

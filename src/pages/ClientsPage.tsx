@@ -77,15 +77,21 @@ export function ClientsPage() {
         };
       });
 
+      setClientes(enrichedClientes);
+      setLoading(false);
+      logDiagnostic('DEBUG_CLIENTS', `Clientes exibidos em ${(performance.now() - startTime).toFixed(2)}ms. Total: ${enrichedClientes.length}`);
+
       // Fetch open orders from Supabase first
       let dbOpenOrders: any[] = [];
-      try {
-        const { data, error } = await supabase.from('pedidos_em_aberto').select('*');
-        if (!error && data) {
-          dbOpenOrders = data;
+      if (navigator.onLine !== false) {
+        try {
+          const { data, error } = await supabase.from('pedidos_em_aberto').select('*');
+          if (!error && data) {
+            dbOpenOrders = data;
+          }
+        } catch (dbErr) {
+          console.error('Error fetching pedidos_em_aberto:', dbErr);
         }
-      } catch (dbErr) {
-        console.error('Error fetching pedidos_em_aberto:', dbErr);
       }
 
       // Check for open orders in Supabase and fallback to localStorage
@@ -133,7 +139,6 @@ export function ClientsPage() {
         }
       });
       setOpenOrdersDates(openOrdersMap);
-      setClientes(enrichedClientes);
       logDiagnostic('DEBUG_CLIENTS', `Clientes carregados e enriquecidos em ${(performance.now() - startTime).toFixed(2)}ms. Total: ${enrichedClientes.length}`);
     } catch (err: any) {
       console.error('Erro ao carregar clientes:', err);
