@@ -115,7 +115,16 @@ export function ClienteDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { clientes: cachedClientes = [], produtos: allProducts = [], loadClientDetails, prefetchClientData } = useDataManager();
+  const {
+    clientes: cachedClientes = [],
+    produtos: allProducts = [],
+    metas = {},
+    agenda_visitas: cachedAgendaVisitas = [],
+    emprestimos: cachedEmprestimos = [],
+    verba_flex_extrato: cachedFlexExtrato = [],
+    loadClientDetails,
+    prefetchClientData
+  } = useDataManager();
   
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [historico, setHistorico] = useState<HistVenda[]>([]);
@@ -140,13 +149,64 @@ export function ClienteDetail() {
 
       try {
         setError(null);
-        setProdutos(allProducts.length > 0 ? allProducts : MOCK_PRODUTOS);
+        const availableProducts = allProducts.length > 0 ? allProducts : MOCK_PRODUTOS;
+        setProdutos(availableProducts);
+
+        const applyLocalData = (cache?: { historico: HistVenda[]; estoque: EstoqueCliente[] }) => {
+          const localCliente = cachedCliente
+            ? { ...cachedCliente, meta: metas[id] ?? cachedCliente.meta ?? 0 }
+            : MOCK_CLIENTES.find(c => c.id === id) || null;
+
+          setCliente(localCliente);
+          setHistorico(cache?.historico ?? MOCK_HISTORICO.filter(h => h.cliente_id === id));
+          setEstoque(cache?.estoque ?? []);
+
+          const clientsById = new Map(cachedClientes.map(c => [c.id, c.cliente]));
+          const productsById = new Map(availableProducts.map(p => [p.id, p.produto]));
+          setEmprestimos(
+            cachedEmprestimos
+              .filter((loan: any) => loan.cliente_destino_id === id && loan.status === 'pendente')
+              .map((loan: any) => ({
+                ...loan,
+                cliente_origem_nome: loan.cliente_origem_nome || loan.cliente_origem?.cliente || clientsById.get(loan.cliente_origem_id) || 'N/A',
+                produto_nome: loan.produto_nome || loan.produto?.produto || productsById.get(loan.produto_id) || 'N/A'
+              }))
+          );
+
+          const agenda = cachedAgendaVisitas.find((visita: any) => visita.cliente_id === id && visita.ativo !== false);
+          setVisitaAgenda(agenda ? {
+            semana: agenda.semana as 1 | 2,
+            dia_semana: agenda.dia_semana
+          } : null);
+
+          setFlexExtrato(
+            cachedFlexExtrato
+              .filter((item: any) => item.cliente_id === id)
+              .sort((left: any, right: any) => String(right.created_at || '').localeCompare(String(left.created_at || '')))
+          );
+
+          setLoading(false);
+        };
 
         if (cachedCliente) {
-          setCliente(prev => prev?.id === cachedCliente.id ? prev : cachedCliente);
+          setCliente(prev => prev?.id === cachedCliente.id ? prev : { ...cachedCliente, meta: metas[id] ?? cachedCliente.meta ?? 0 });
           setLoading(false);
         } else {
           setLoading(true);
+        }
+
+        const localCache = await detailsPromise;
+        if (cancelled) return;
+        if (cachedCliente || localCache) {
+          applyLocalData(localCache);
+        }
+
+        if (navigator.onLine === false) {
+          if (!cachedCliente && !localCache) {
+            setError('Sem internet e sem dados locais deste cliente. Conecte uma vez para sincronizar.');
+            setLoading(false);
+          }
+          return;
         }
 
         const clientePromise = supabase
@@ -200,8 +260,7 @@ export function ClienteDetail() {
         }
         setLoading(false);
 
-        const [cache, loanRes, agendaRes, flexRes] = await Promise.all([
-          detailsPromise,
+        const [loanRes, agendaRes, flexRes] = await Promise.all([
           loansPromise,
           agendaPromise,
           flexPromise
@@ -233,19 +292,25 @@ export function ClienteDetail() {
           setFlexExtrato([]);
         }
 
-        if (cache) {
-          setHistorico(cache.historico);
-          setEstoque(cache.estoque);
-        } else {
-          setHistorico(MOCK_HISTORICO.filter(h => h.cliente_id === id));
-          setEstoque([]);
+        if (localCache) {
+          setHistorico(localCache.historico);
+          setEstoque(localCache.estoque);
         }
       } catch (err) {
         if (cancelled) return;
         console.error('Erro ao carregar dados do cliente:', err);
-        setCliente(cachedCliente || MOCK_CLIENTES.find(c => c.id === id) || null);
-        setHistorico(MOCK_HISTORICO.filter(h => h.cliente_id === id));
-        setProdutos(MOCK_PRODUTOS);
+        const cache = await detailsPromise.catch(() => undefined);
+        if (cachedCliente || cache) {
+          setCliente(cachedCliente ? { ...cachedCliente, meta: metas[id] ?? cachedCliente.meta ?? 0 } : null);
+          setHistorico(cache?.historico ?? []);
+          setEstoque(cache?.estoque ?? []);
+          setError(null);
+        } else {
+          setCliente(MOCK_CLIENTES.find(c => c.id === id) || null);
+          setHistorico(MOCK_HISTORICO.filter(h => h.cliente_id === id));
+          setProdutos(MOCK_PRODUTOS);
+          setError('Sem internet e sem dados locais deste cliente. Conecte uma vez para sincronizar.');
+        }
         setLoading(false);
       }
     }
@@ -255,7 +320,7 @@ export function ClienteDetail() {
     return () => {
       cancelled = true;
     };
-  }, [id, allProducts, cachedClientes, loadClientDetails]);
+  }, [id, allProducts, cachedClientes, metas, cachedAgendaVisitas, cachedEmprestimos, cachedFlexExtrato, loadClientDetails]);
 
   const handleResetTrimestral = async () => {
     if (!id || !cliente) return;
