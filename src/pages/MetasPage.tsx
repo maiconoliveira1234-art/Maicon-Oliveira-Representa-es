@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Cliente, Produto, HistVenda } from '../types';
 import { supabase } from '../lib/supabase';
-import { cn, formatWeight } from '../lib/utils';
+import { cn, deduplicateSales, formatWeight } from '../lib/utils';
 import { 
   startOfMonth, 
   endOfMonth, 
@@ -29,11 +29,18 @@ import {
 import { ptBR } from 'date-fns/locale';
 import { classifySaleRecord } from '../lib/salesClassifier';
 import { ActionButton, PageHeader } from '../components/ui/AppChrome';
+import { useDataManager } from '../lib/dataManager';
 
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from '../lib/mockData';
 
 export function MetasPage() {
   const navigate = useNavigate();
+  const {
+    clientes: cachedClientes,
+    produtos: cachedProdutos,
+    metas: cachedMetas,
+    hist_vendas: cachedHistorico
+  } = useDataManager();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [historico, setHistorico] = useState<HistVenda[]>([]);
@@ -106,6 +113,20 @@ export function MetasPage() {
     async function loadData() {
       try {
         setLoading(true);
+        const applyLocalData = () => {
+          const localClientes = (cachedClientes.length > 0 ? cachedClientes : MOCK_CLIENTES).map(c => ({
+            ...c,
+            meta: cachedMetas[c.id] || c.meta || 0
+          }));
+
+          setClientes(localClientes);
+          setProdutos(cachedProdutos.length > 0 ? cachedProdutos : MOCK_PRODUTOS);
+          setHistorico(cachedHistorico.length > 0 ? deduplicateSales(cachedHistorico) : MOCK_HISTORICO);
+        };
+
+        applyLocalData();
+
+        if (navigator.onLine === false) return;
         
         // Load Clientes
         const { data: cData } = await supabase.from('clientes').select('*').order('cliente');
@@ -151,15 +172,17 @@ export function MetasPage() {
         }
       } catch (err) {
         console.error('Erro ao carregar metas:', err);
-        setClientes(MOCK_CLIENTES);
-        setProdutos(MOCK_PRODUTOS);
-        setHistorico(MOCK_HISTORICO);
+        if (cachedClientes.length === 0 && cachedProdutos.length === 0 && cachedHistorico.length === 0) {
+          setClientes(MOCK_CLIENTES);
+          setProdutos(MOCK_PRODUTOS);
+          setHistorico(MOCK_HISTORICO);
+        }
       } finally {
         setLoading(false);
       }
     }
     loadData();
-  }, []);
+  }, [cachedClientes, cachedProdutos, cachedMetas, cachedHistorico]);
 
   const handleUpdateMeta = async (clienteId: string, newMeta: number) => {
     try {

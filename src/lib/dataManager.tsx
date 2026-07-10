@@ -3,7 +3,6 @@ import { supabase } from './supabase';
 import { Cliente, Produto, HistVenda, EstoqueCliente } from '../types';
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from './mockData';
 import { deduplicateSales } from './utils';
-import { subMonths, format } from 'date-fns';
 import { getCacheValue, setCacheValue, setCacheValues } from './offline';
 
 export interface OfflineQueueItem {
@@ -236,8 +235,8 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
         }
       }
       
-      // Calculate 12-month boundary for sales history to avoid pulling huge volumes of old data
-      const historyStart = format(subMonths(new Date(), 12), 'yyyy-MM-dd');
+      // Keep the analytical history used by dashboard, commissions and goals available offline.
+      const historyStart = '2024-01-01';
 
       // 2. Fetch all tables from Supabase in parallel
       const [

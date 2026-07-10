@@ -8,8 +8,10 @@ import html2canvas from 'html2canvas';
 import { FilterDropdown } from '../components/FilterDropdown';
 import { format, parseISO } from 'date-fns';
 import { logDiagnostic } from '../lib/diagnostics';
+import { useDataManager } from '../lib/dataManager';
 
 export function PriceInquiryPage() {
+  const { produtos: cachedProdutos, hist_vendas: cachedHistorico } = useDataManager();
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,6 +26,33 @@ export function PriceInquiryPage() {
   const exportRef = useRef<HTMLDivElement>(null);
 
   const [showMargin, setShowMargin] = useState(false);
+
+  const applyLastPrices = (sales: HistVenda[]) => {
+    const sortedData = [...sales].sort((a, b) => {
+      const dateA = a.faturamento || '';
+      const dateB = b.faturamento || '';
+      return dateB.localeCompare(dateA);
+    });
+
+    const lastPrices: Record<string, number> = {};
+    const lastPricesByName: Record<string, number> = {};
+    
+    sortedData.forEach(sale => {
+      const total = sale['r$_total'] || 0;
+      const qty = sale.qtd || 1;
+      const unitPrice = total / qty;
+
+      if (sale.produto_id && !lastPrices[sale.produto_id]) {
+        lastPrices[sale.produto_id] = unitPrice;
+      }
+      if (sale.produtos && !lastPricesByName[sale.produtos.toLowerCase()]) {
+        lastPricesByName[sale.produtos.toLowerCase()] = unitPrice;
+      }
+    });
+    
+    setClientLastPrices(lastPrices);
+    setClientLastPricesByName(lastPricesByName);
+  };
 
   const getMarginString = (sugestao: number | undefined | null, valorUnitario: number): string => {
     if (sugestao === undefined || sugestao === null || sugestao <= 0 || valorUnitario === undefined || valorUnitario === null || valorUnitario <= 0) {
@@ -87,6 +116,12 @@ export function PriceInquiryPage() {
       const startTime = performance.now();
       logDiagnostic('DEBUG_PRICE', 'Iniciando busca de produtos para consulta de preços...');
       try {
+        const localProducts = cachedProdutos.filter(p => p.ativo !== false);
+        if (localProducts.length > 0) {
+          setProdutos([...localProducts].sort((a, b) => `${a.familia || ''}${a.produto}`.localeCompare(`${b.familia || ''}${b.produto}`)));
+        }
+        if (navigator.onLine === false) return;
+
         const { data, error } = await supabase
           .from('produtos')
           .select('*')
@@ -110,6 +145,12 @@ export function PriceInquiryPage() {
       const startTime = performance.now();
       logDiagnostic('DEBUG_PRICE', 'Buscando clientes a partir do histórico de vendas...');
       try {
+        if (cachedHistorico.length > 0) {
+          const uniqueClients = Array.from(new Set(cachedHistorico.map(d => d.cliente))).filter(Boolean).sort();
+          setClients(uniqueClients as string[]);
+        }
+        if (navigator.onLine === false) return;
+
         const { data, error } = await supabase
           .from('hist_vendas')
           .select('cliente')
@@ -127,7 +168,7 @@ export function PriceInquiryPage() {
       }
     }
     fetchClients();
-  }, []);
+  }, [cachedProdutos, cachedHistorico]);
 
   useEffect(() => {
     if (selectedClient === 'all') {
@@ -137,6 +178,12 @@ export function PriceInquiryPage() {
 
     async function fetchLastPrices() {
       try {
+        const localSales = cachedHistorico.filter(sale => sale.cliente === selectedClient);
+        if (localSales.length > 0) {
+          applyLastPrices(localSales);
+        }
+        if (navigator.onLine === false) return;
+
         console.log('Fetching last prices for client:', selectedClient);
         const { data, error } = await supabase
           .from('hist_vendas')
@@ -146,38 +193,14 @@ export function PriceInquiryPage() {
         if (error) throw error;
         if (data) {
           console.log('Sales data received:', data.length, 'records for', selectedClient);
-          const sortedData = [...data].sort((a, b) => {
-            const dateA = a.faturamento || '';
-            const dateB = b.faturamento || '';
-            return dateB.localeCompare(dateA);
-          });
-
-          const lastPrices: Record<string, number> = {};
-          const lastPricesByName: Record<string, number> = {};
-          
-          sortedData.forEach(sale => {
-            const total = sale['r$_total'] || 0;
-            const qty = sale.qtd || 1;
-            const unitPrice = total / qty;
-
-            if (sale.produto_id && !lastPrices[sale.produto_id]) {
-              lastPrices[sale.produto_id] = unitPrice;
-            }
-            if (sale.produtos && !lastPricesByName[sale.produtos.toLowerCase()]) {
-              lastPricesByName[sale.produtos.toLowerCase()] = unitPrice;
-            }
-          });
-          
-          console.log('Processed last prices for', Object.keys(lastPrices).length, 'products by ID and', Object.keys(lastPricesByName).length, 'by name');
-          setClientLastPrices(lastPrices);
-          setClientLastPricesByName(lastPricesByName);
+          applyLastPrices(data as HistVenda[]);
         }
       } catch (err) {
         console.error('Erro ao carregar últimos preços:', err);
       }
     }
     fetchLastPrices();
-  }, [selectedClient]);
+  }, [selectedClient, cachedHistorico]);
 
   useEffect(() => {
     if (!showHistory || !historyProductId) {
@@ -188,6 +211,12 @@ export function PriceInquiryPage() {
     async function fetchHistory() {
       setHistoryLoading(true);
       try {
+        const localHistory = cachedHistorico.filter(h => h.produto_id === historyProductId);
+        if (localHistory.length > 0) {
+          setHistoryData(deduplicateSales(localHistory));
+        }
+        if (navigator.onLine === false) return;
+
         const { data, error } = await supabase
           .from('hist_vendas')
           .select('*')
@@ -207,7 +236,7 @@ export function PriceInquiryPage() {
     }
 
     fetchHistory();
-  }, [showHistory, historyProductId]);
+  }, [showHistory, historyProductId, cachedHistorico]);
 
   const sortedHistoryData = useMemo(() => {
     if (!historyData.length) return [];

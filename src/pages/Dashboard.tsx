@@ -57,6 +57,7 @@ import { ptBR } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'motion/react';
 import { shouldExcludeSale } from '../constants';
 import { ActionButton, PageHeader } from '../components/ui/AppChrome';
+import { useDataManager } from '../lib/dataManager';
 
 // --- Types for Dashboard ---
 type DashboardFilters = {
@@ -137,6 +138,12 @@ const ChartCard: React.FC<{ title: string, children: React.ReactNode, className?
 );
 
 export function Dashboard() {
+  const {
+    clientes: cachedClientes,
+    produtos: cachedProdutos,
+    metas: cachedMetas,
+    hist_vendas: cachedHistorico
+  } = useDataManager();
   const [loading, setLoading] = useState(true);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
@@ -177,6 +184,13 @@ export function Dashboard() {
   useEffect(() => {
     async function loadBaseData() {
       try {
+        if (cachedClientes.length > 0) setClientes(cachedClientes);
+        if (cachedProdutos.length > 0) {
+          setProdutos(cachedProdutos.filter(p => p.familia?.toLowerCase() !== 'amostras e brindes'));
+        }
+        if (Object.keys(cachedMetas).length > 0) setMetas(cachedMetas);
+        if (navigator.onLine === false) return;
+
         const [
           { data: cData },
           { data: pData },
@@ -199,13 +213,18 @@ export function Dashboard() {
       }
     }
     loadBaseData();
-  }, []);
+  }, [cachedClientes, cachedProdutos, cachedMetas]);
 
   // --- Load Sales Data (All History) ---
   useEffect(() => {
     async function loadSalesData() {
       setLoading(true);
       try {
+        if (cachedHistorico.length > 0) {
+          setAllSalesData(deduplicateSales(cachedHistorico));
+        }
+        if (navigator.onLine === false) return;
+
         const { data } = await supabase.from('hist_vendas').select('*');
         setAllSalesData(deduplicateSales(data || []));
       } catch (err) {
@@ -215,7 +234,7 @@ export function Dashboard() {
       }
     }
     loadSalesData();
-  }, []);
+  }, [cachedHistorico]);
 
   // --- Derived Data & Filtering ---
   const produtosMap = useMemo(() => {

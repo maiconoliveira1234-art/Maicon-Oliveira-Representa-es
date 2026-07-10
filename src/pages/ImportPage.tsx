@@ -41,7 +41,12 @@ interface NewProductData {
 }
 
 export function ImportPage() {
-  const { loadClientDetails, clientCache } = useDataManager();
+  const {
+    clientes: cachedClientes,
+    produtos: cachedProdutos,
+    loadClientDetails,
+    clientCache
+  } = useDataManager();
 
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
@@ -96,6 +101,16 @@ export function ImportPage() {
   useEffect(() => {
     async function fetchData() {
       try {
+        if (cachedClientes.length > 0) setClientes(cachedClientes);
+        if (cachedProdutos.length > 0) setProdutos(cachedProdutos);
+
+        if (navigator.onLine === false) {
+          if (cachedClientes.length === 0 || cachedProdutos.length === 0) {
+            setError('Sem internet e sem dados locais suficientes. Conecte uma vez para sincronizar.');
+          }
+          return;
+        }
+
         const [clientesRes, produtosRes] = await Promise.all([
           supabase.from('clientes').select('*').order('cliente'),
           supabase.from('produtos').select('*').order('produto')
@@ -108,13 +123,15 @@ export function ImportPage() {
         setProdutos(produtosRes.data || []);
       } catch (err) {
         console.error('Erro ao carregar dados:', err);
-        setError('Falha ao carregar clientes e produtos.');
+        if (cachedClientes.length === 0 || cachedProdutos.length === 0) {
+          setError('Falha ao carregar clientes e produtos.');
+        }
       } finally {
         setLoading(false);
       }
     }
     fetchData();
-  }, []);
+  }, [cachedClientes, cachedProdutos]);
 
   useEffect(() => {
     if (selectedClienteId) {

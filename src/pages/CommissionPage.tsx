@@ -21,6 +21,7 @@ import { format, startOfMonth, endOfMonth, parseISO, eachDayOfInterval, isSameDa
 import { ptBR } from 'date-fns/locale';
 import { shouldExcludeSale } from '../constants';
 import { ActionButton, PageHeader } from '../components/ui/AppChrome';
+import { useDataManager } from '../lib/dataManager';
 import {
   BarChart,
   Bar,
@@ -67,6 +68,11 @@ function calculateCommissionValue(totalValue: number, commissionPercent: number,
 }
 
 export function CommissionPage() {
+  const {
+    clientes: cachedClientes,
+    produtos: cachedProdutos,
+    hist_vendas: cachedHistorico
+  } = useDataManager();
   const [loading, setLoading] = useState(true);
   const [vendas, setVendas] = useState<CommissionData[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
@@ -101,10 +107,48 @@ export function CommissionPage() {
     return localStorage.getItem('metas_deadline_date') || format(endOfMonth(new Date()), 'yyyy-MM-dd');
   }, []);
 
+  const buildCommissionData = (sales: HistVenda[], products: Produto[]) => {
+    const uniqueVendas = deduplicateSales(sales || []);
+    const productsMap = new Map();
+    (products || []).forEach(p => {
+      productsMap.set(p.id, p);
+      productsMap.set(p.produto.toLowerCase(), p);
+    });
+    
+    const enrichedVendas: CommissionData[] = uniqueVendas.map(v => {
+      const classification = classifySaleRecord(v);
+      const prod = productsMap.get(v.produto_id) || (v.produtos ? productsMap.get(v.produtos.toLowerCase()) : null);
+      
+      const comissao_percent = classification.entraComissao ? (prod?.comissao || 0) : 0;
+      const rTotalCorrected = classification.entraFaturamento ? (v["r$_total"] || 0) : 0;
+      const comissao_valor = calculateCommissionValue(rTotalCorrected, comissao_percent, prod);
+      const peso_venda = (v.qtd || 0) * (prod?.peso_embalagem || 0);
+
+      return {
+        ...v,
+        "r$_total": rTotalCorrected,
+        comissao_percent,
+        comissao_valor,
+        familia: prod?.familia || 'Sem FamÃ­lia',
+        peso_venda
+      };
+    });
+
+    return enrichedVendas.filter(v => !shouldExcludeSale(v.cliente, v.faturamento));
+  };
+
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
       try {
+        if (cachedHistorico.length > 0 || cachedProdutos.length > 0 || cachedClientes.length > 0) {
+          setAllHistoryVendas(buildCommissionData(cachedHistorico, cachedProdutos));
+          setProdutos(cachedProdutos);
+          setClientes(cachedClientes);
+        }
+
+        if (navigator.onLine === false) return;
+
         // Fetch from 2024 to allow evolution chart
         const startOfHistory = '2024-01-01';
         
@@ -166,7 +210,7 @@ export function CommissionPage() {
     }
 
     fetchData();
-  }, []);
+  }, [cachedClientes, cachedProdutos, cachedHistorico]);
 
   // Filter sales based on selected filters
   useEffect(() => {
