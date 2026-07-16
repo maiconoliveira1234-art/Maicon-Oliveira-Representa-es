@@ -9,6 +9,8 @@ import { FilterDropdown } from '../components/FilterDropdown';
 import { format, parseISO } from 'date-fns';
 import { logDiagnostic } from '../lib/diagnostics';
 import { useDataManager } from '../lib/dataManager';
+import { Link } from 'react-router-dom';
+import { FileChartColumn } from 'lucide-react';
 
 export function PriceInquiryPage() {
   const { produtos: cachedProdutos, hist_vendas: cachedHistorico } = useDataManager();
@@ -422,6 +424,13 @@ export function PriceInquiryPage() {
           <p className="text-neutral-500 text-sm">Gere listas de preços</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link
+            to="/relatorios-precos"
+            className="px-3 py-1.5 bg-neutral-900 text-white rounded-lg font-bold hover:bg-neutral-800 transition-all flex items-center gap-2 text-xs shadow-md"
+          >
+            <FileChartColumn size={15} />
+            Nova consulta e relatórios
+          </Link>
           {historyProductId && (
             <button
                onClick={() => {
