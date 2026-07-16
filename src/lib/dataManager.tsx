@@ -277,7 +277,8 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       });
       
       const dbVisitas = visitasRes.data || [];
-      const dbHist = histRes.data || [];
+      // Normalize legacy duplicate rows once, before any screen calculates totals.
+      const dbHist = deduplicateSales(histRes.data || []);
       const dbEstoque = estoqueRes.data || [];
       const dbLoans = emprestimosRes.data || [];
       const dbFlex = flexRes.data || [];
@@ -365,7 +366,8 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       setProdutos(cachedProdutos);
       setMetas(cachedMetas);
       setAgendaVisitas(cachedVisitas);
-      setHistVendas(cachedHist);
+      const uniqueCachedHist = deduplicateSales(cachedHist);
+      setHistVendas(uniqueCachedHist);
       setEstoqueCliente(cachedEstoque);
       setEmprestimos(cachedLoans);
       setVerbaFlexExtrato(cachedFlex);
@@ -380,8 +382,8 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       });
       
       const map: Record<string, { date: string; weight: number }> = {};
-      const actualHist = cachedHist.length > 0 ? cachedHist : MOCK_HISTORICO;
-      const uniqueSales = deduplicateSales(actualHist);
+      const actualHist = uniqueCachedHist.length > 0 ? uniqueCachedHist : deduplicateSales(MOCK_HISTORICO);
+      const uniqueSales = actualHist;
       uniqueSales.forEach(h => {
         const weight = (h.qtd || 0) * (productWeights[h.produto_id] || 0);
         if (!map[h.cliente_id]) {
@@ -416,7 +418,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       // fallback to mock data
       setClientes(MOCK_CLIENTES);
       setProdutos(MOCK_PRODUTOS);
-      setHistVendas(MOCK_HISTORICO);
+      setHistVendas(deduplicateSales(MOCK_HISTORICO));
     } finally {
       setLoadingGlobal(false);
     }

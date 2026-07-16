@@ -3,6 +3,7 @@
 
 import { getFaixaPreco, getValorUnitario, calcularSugestao, deveManterFaixaAnterior } from '../lib/calculations';
 import { classifySale } from '../lib/salesClassifier';
+import { deduplicateSales } from '../lib/utils';
 
 // Test interface helper
 export interface TestResult {
@@ -132,6 +133,21 @@ export class RegressionTestSuite {
     const classMerch = classifySale('BONIFICACAO BRINDE', 'BRINDES DA MARCA');
     this.assertEqual(classMerch.tipoOperacao, 'MERCHANDISING', 'classifySale Merchandising / Brindes', category, module);
     this.assertEqual(classMerch.entraFaturamento, false, 'classifySale Merch NÃO entra faturamento', category, module);
+    // Repeated legacy rows must not double quantities, weights or averages.
+    const duplicatedSales = [
+      { id: '1', faturamento: '2026-06-10', cliente_id: 'c1', produto_id: 'p1', qtd: 10, 'r$_total': 100 },
+      { id: '2', faturamento: '2026-06-10', cliente_id: 'c1', produto_id: 'p1', qtd: 10, 'r$_total': 100 },
+      { id: '3', faturamento: '2026-06-10', cliente_id: 'c1', produto_id: 'p2', qtd: 5, 'r$_total': 50 }
+    ];
+    const uniqueSales = deduplicateSales(duplicatedSales);
+    this.assertEqual(uniqueSales.length, 2, 'deduplicateSales remove linhas repetidas', category, module);
+    this.assertEqual(
+      uniqueSales.reduce((total, sale) => total + sale.qtd, 0),
+      15,
+      'deduplicateSales evita quantidade dobrada',
+      category,
+      module
+    );
   }
 
   // --- INTEGRATION TESTS ---
