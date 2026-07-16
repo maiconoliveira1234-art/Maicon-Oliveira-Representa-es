@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -95,6 +96,39 @@ export function OrderPage() {
   }, [historicoCliente, allProducts]);
   const itemsEndRef = React.useRef<HTMLDivElement>(null);
   const orderDetailsRef = React.useRef<HTMLDivElement>(null);
+  const orderFooterRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    let frameId = 0;
+
+    const positionFooter = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        if (!orderFooterRef.current) return;
+
+        const visualBottom = viewport
+          ? viewport.offsetTop + viewport.height
+          : window.innerHeight;
+        const offset = Math.min(0, visualBottom - window.innerHeight);
+        orderFooterRef.current.style.transform = `translate3d(0, ${Math.round(offset)}px, 0)`;
+      });
+    };
+
+    positionFooter();
+    window.addEventListener('resize', positionFooter);
+    window.addEventListener('orientationchange', positionFooter);
+    viewport?.addEventListener('resize', positionFooter);
+    viewport?.addEventListener('scroll', positionFooter);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener('resize', positionFooter);
+      window.removeEventListener('orientationchange', positionFooter);
+      viewport?.removeEventListener('resize', positionFooter);
+      viewport?.removeEventListener('scroll', positionFooter);
+    };
+  }, []);
 
   const families = useMemo(() => {
     const activeProducts = produtos.filter(p => p.ativo !== false);
@@ -1446,7 +1480,10 @@ export function OrderPage() {
       </div>
 
       {/* Bottom Section (Fixed) */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-neutral-200 shadow-[0_-8px_18px_rgba(0,0,0,0.08)] p-2 pb-[calc(8px+env(safe-area-inset-bottom))] md:p-3 md:pb-[calc(12px+env(safe-area-inset-bottom))]">
+      {createPortal(<div
+        ref={orderFooterRef}
+        className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-neutral-200 shadow-[0_-8px_18px_rgba(0,0,0,0.08)] p-2 pb-[calc(8px+env(safe-area-inset-bottom))] md:p-3 md:pb-[calc(12px+env(safe-area-inset-bottom))] will-change-transform"
+      >
         <div className="max-w-4xl mx-auto space-y-2">
           <div className="grid grid-cols-4 gap-2 rounded-lg bg-orange-600 p-2 text-white shadow-sm">
             <div className="min-w-0 text-center">
@@ -1548,7 +1585,7 @@ export function OrderPage() {
             </button>
           </div>
         </div>
-      </div>
+      </div>, document.body)}
 
       {/* PDF Preview Modal */}
       <AnimatePresence>
