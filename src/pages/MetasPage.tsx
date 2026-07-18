@@ -578,7 +578,17 @@ export function MetasPage() {
           <tbody className="divide-y divide-neutral-100">
             {sortedAndFilteredData.map((row) => (
               <tr key={row.id} className="hover:bg-neutral-50 transition-colors group">
-                <td data-label="Cliente" className="px-3 py-3 border-r border-b border-neutral-100 font-bold text-neutral-800 text-[12px] sticky left-0 bg-white group-hover:bg-neutral-50 z-10 leading-tight">
+                <td className="mobile-compact-row" colSpan={7}>
+                  <div className="mobile-compact-line">
+                    <button onClick={() => navigate(`/cliente/${row.id}`, { state: { fromMetas: true } })} className="mobile-compact-primary text-left">{row.cliente}</button>
+                    <span className="mobile-compact-value">{row.vend.toFixed(0)} / {row.meta.toFixed(0)} kg</span>
+                  </div>
+                  <div className="mobile-compact-line">
+                    <span className="mobile-compact-secondary">Ult. {row.ultPed} · Media {row.med6.toFixed(1)} kg · Intervalo {row.medDias || '-'} dias</span>
+                    <span className={cn('mobile-compact-value', row.gap <= 0 ? 'text-green-600' : 'text-red-500')}>{row.gap > 0 ? `Faltam ${row.gap}` : 'Meta atingida'}</span>
+                  </div>
+                </td>
+                <td data-label="Cliente" data-mobile-summary data-mobile-title className="px-3 py-3 border-r border-b border-neutral-100 font-bold text-neutral-800 text-[12px] sticky left-0 bg-white group-hover:bg-neutral-50 z-10 leading-tight">
                   <button 
                     onClick={() => navigate(`/cliente/${row.id}`, { state: { fromMetas: true } })}
                     className="text-left hover:text-orange-600 transition-colors"
@@ -595,13 +605,13 @@ export function MetasPage() {
                 <td data-label="Ultimo pedido" className="px-1 py-3 border-r border-b border-neutral-100 text-center text-[12px] text-neutral-500">
                   {row.ultPed}
                 </td>
-                <td data-label="Proximo pedido" className={cn(
+                <td data-label="Proximo pedido" data-mobile-summary className={cn(
                   "px-1 py-3 border-r border-b border-neutral-100 text-right text-[12px] font-bold",
                   row.gap <= 0 ? "text-green-600" : "text-red-500"
                 )}>
                   {row.gap}
                 </td>
-                <td data-label="Meta (kg)" className="px-1 py-2 border-r border-b border-neutral-100">
+                <td data-label="Meta (kg)" data-mobile-summary className="px-1 py-2 border-r border-b border-neutral-100">
                   <div className="relative flex items-center">
                     <input
                       type="number"
@@ -640,7 +650,7 @@ export function MetasPage() {
                     </div>
                   </div>
                 </td>
-                <td data-label="Vendido" className={cn(
+                <td data-label="Vendido" data-mobile-summary className={cn(
                   "px-2 py-3 border-b border-neutral-100 text-right text-[12px] font-black transition-colors duration-300",
                   row.vend === 0 
                     ? "bg-red-600 text-white" 

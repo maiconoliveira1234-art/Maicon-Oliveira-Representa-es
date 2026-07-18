@@ -1479,16 +1479,26 @@ export function StockCountPage() {
 
                         return (
                           <tr key={venda.id} className="text-xs hover:bg-neutral-50 transition-colors">
-                            <td data-label="Data" className="py-3 px-2 font-bold text-neutral-700">
+                            <td className="mobile-compact-row" colSpan={6}>
+                              <div className="mobile-compact-line">
+                                <span className="mobile-compact-primary">{format(parseISO(venda.faturamento), 'dd/MM/yyyy')}</span>
+                                <span className="mobile-compact-value">{formatCurrency(unitPrice)}</span>
+                              </div>
+                              <div className="mobile-compact-line">
+                                <span className="mobile-compact-secondary">{venda.qtd * selectedProductHistory.quant_embalagem} un. · {formatWeight(venda.qtd * selectedProductHistory.peso)} · Pedido {formatWeight(totalOrderWeight)}</span>
+                                <span className="mobile-compact-value">XDT {venda.xdt || 0}</span>
+                              </div>
+                            </td>
+                            <td data-label="Data" data-mobile-summary data-mobile-title className="py-3 px-2 font-bold text-neutral-700">
                               {format(parseISO(venda.faturamento), 'dd/MM/yyyy')}
                             </td>
-                            <td data-label="Quantidade" className="py-3 px-2 text-center font-medium text-neutral-600">
+                            <td data-label="Quantidade" data-mobile-summary className="py-3 px-2 text-center font-medium text-neutral-600">
                               {venda.qtd * selectedProductHistory.quant_embalagem} un
                             </td>
                             <td data-label="Peso total" className="py-3 px-2 text-center text-neutral-500">
                               {formatWeight(venda.qtd * selectedProductHistory.peso)}
                             </td>
-                            <td data-label="Valor pago" className="py-3 px-2 text-right font-bold text-neutral-800">
+                            <td data-label="Valor pago" data-mobile-summary className="py-3 px-2 text-right font-bold text-neutral-800">
                               {formatCurrency(unitPrice)}
                             </td>
                             <td data-label="Peso do pedido" className="py-3 px-2 text-center">
@@ -1496,7 +1506,7 @@ export function StockCountPage() {
                                 {formatWeight(totalOrderWeight)}
                               </span>
                             </td>
-                            <td data-label="Tabela (XDT)" className="py-3 px-2 text-center">
+                            <td data-label="Tabela (XDT)" data-mobile-summary className="py-3 px-2 text-center">
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-neutral-100 text-neutral-600">
                                 {venda.xdt || 0}
                               </span>

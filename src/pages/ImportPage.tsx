@@ -1175,7 +1175,18 @@ export function ImportPage() {
                     <tbody className="divide-y divide-neutral-100">
                       {processedRows.map((row) => (
                         <tr key={row.id} className={cn("text-xs hover:bg-neutral-50 transition-colors", !row.isValid && "bg-red-50")}>
-                          <td data-label="Status" className="px-4 py-2">
+                          <td className="mobile-compact-row" colSpan={9}>
+                            <div className="mobile-compact-line">
+                              <span className={cn('shrink-0 text-[10px] font-black', row.isValid ? 'text-green-600' : 'text-red-600')}>{row.isValid ? 'OK' : 'Revisar'}</span>
+                              <span className="mobile-compact-primary">{row.produto}</span>
+                              <span className="mobile-compact-value">R$ {row.valor_total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="mobile-compact-line">
+                              <span className="mobile-compact-secondary">{row.qtd} un. · {row.peso_total.toFixed(2)} kg{row.desconto ? ` · Desc. ${row.desconto}%` : ''}</span>
+                              <button type="button" onClick={() => removeRow(row.id)} className="shrink-0 p-1 text-neutral-400 hover:text-red-500" aria-label={`Remover ${row.produto}`}><Trash2 size={14} /></button>
+                            </div>
+                          </td>
+                          <td data-label="Status" data-mobile-summary className="px-4 py-2">
                             {row.isValid ? (
                               <CheckCircle2 className="text-green-500" size={16} />
                             ) : row.isMissingProduct ? (
@@ -1193,7 +1204,7 @@ export function ImportPage() {
                               </div>
                             )}
                           </td>
-                          <td data-label="Produto" className="px-4 py-2 min-w-[450px]">
+                          <td data-label="Produto" data-mobile-summary data-mobile-title className="px-4 py-2 min-w-[450px]">
                             <input
                               type="text"
                               value={row.produto}
@@ -1201,7 +1212,7 @@ export function ImportPage() {
                               className="w-full bg-transparent outline-none focus:bg-white p-1 rounded border border-transparent focus:border-neutral-200"
                             />
                           </td>
-                          <td data-label="Quantidade" className="px-4 py-2 text-right">
+                          <td data-label="Quantidade" data-mobile-summary className="px-4 py-2 text-right">
                             <input
                               type="number"
                               value={row.qtd}
@@ -1212,7 +1223,7 @@ export function ImportPage() {
                           <td data-label="Peso total" className="px-4 py-2 text-right font-bold text-orange-600">
                             {row.peso_total.toFixed(2)}kg
                           </td>
-                          <td data-label="Valor total" className="px-4 py-2 text-right">
+                          <td data-label="Valor total" data-mobile-summary className="px-4 py-2 text-right">
                             <input
                               type="number"
                               value={row.valor_total}
@@ -1354,7 +1365,17 @@ export function ImportPage() {
                               
                               return (
                                 <tr key={item.produtoId} className="hover:bg-neutral-50 transition-colors">
-                                  <td data-label="Produto" className="px-4 py-3 font-bold text-neutral-900">
+                                  <td className="mobile-compact-row" colSpan={10}>
+                                    <div className="mobile-compact-line">
+                                      <span className="mobile-compact-primary">{item.produtoNome}</span>
+                                      <span className={cn('mobile-compact-value', isPositive ? 'text-red-600' : 'text-blue-600')}>{isPositive ? '+' : ''}{item.diferencaPercentual.toFixed(1)}%</span>
+                                    </div>
+                                    <div className="mobile-compact-line">
+                                      <span className="mobile-compact-secondary">Atual R$ {item.custoTotalAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} · Calculado R$ {item.custoCaculadoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                      <span className="mobile-compact-value">{item.qtdImportada} un.</span>
+                                    </div>
+                                  </td>
+                                  <td data-label="Produto" data-mobile-summary data-mobile-title className="px-4 py-3 font-bold text-neutral-900">
                                     <div className="flex flex-col gap-0.5">
                                       <span>{item.produtoNome}</span>
                                       {isBonif && (
@@ -1364,20 +1385,20 @@ export function ImportPage() {
                                       )}
                                     </div>
                                   </td>
-                                  <td data-label="Quantidade" className="px-4 py-3 text-right font-mono text-neutral-500">{item.qtdImportada}</td>
+                                  <td data-label="Quantidade" data-mobile-summary className="px-4 py-3 text-right font-mono text-neutral-500">{item.qtdImportada}</td>
                                   <td data-label="Faturado unitario" className="px-4 py-3 text-right font-mono text-neutral-600">
                                     R$ {item.valorRealUnitImportado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </td>
                                   <td data-label="Desconto (XDT)" className="px-4 py-3 text-right font-mono text-red-600">
                                     {item.descontoAplicado > 0 ? `${item.descontoAplicado}%` : '0%'}
                                   </td>
-                                  <td data-label="Custo total atual" className="px-4 py-3 text-right font-mono text-neutral-500">
+                                  <td data-label="Custo total atual" data-mobile-summary className="px-4 py-3 text-right font-mono text-neutral-500">
                                     R$ {item.custoTotalAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </td>
-                                  <td data-label="Custo total calculado" className="px-4 py-3 text-right font-mono font-black text-neutral-900 bg-orange-50/20">
+                                  <td data-label="Custo total calculado" data-mobile-summary className="px-4 py-3 text-right font-mono font-black text-neutral-900 bg-orange-50/20">
                                     R$ {item.custoCaculadoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </td>
-                                  <td data-label="Diferenca percentual" className="px-4 py-3 text-right font-mono">
+                                  <td data-label="Diferenca percentual" data-mobile-summary className="px-4 py-3 text-right font-mono">
                                     <span className={cn(
                                       "inline-flex items-center gap-0.5 font-bold text-xs px-1.5 py-0.5 rounded-md",
                                       isPositive 

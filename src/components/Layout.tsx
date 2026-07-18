@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Search, PackageSearch, BarChart3, Settings, FileUp, ShoppingCart, PieChart, Calendar, ArrowLeftRight, Home, RefreshCw, Cloud, CloudOff } from 'lucide-react';
+import { LayoutDashboard, Users, Search, PackageSearch, BarChart3, Settings, FileUp, ShoppingCart, PieChart, Calendar, ArrowLeftRight, Home, RefreshCw, Cloud, CloudOff, List, Rows3 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useDataManager } from '../lib/dataManager';
 
@@ -12,6 +12,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const hideBottomNav = location.pathname.includes('/pedido/') || location.pathname.includes('/estoque/');
   const { isSyncing, pendingQueueCount, syncAllData, lastSyncedTime } = useDataManager();
   const [isOnline, setIsOnline] = React.useState(navigator.onLine);
+  const [mobileListMode, setMobileListMode] = React.useState<'compact' | 'complete'>(() => {
+    try {
+      return localStorage.getItem('mobile-list-mode') === 'complete' ? 'complete' : 'compact';
+    } catch {
+      return 'compact';
+    }
+  });
+  const hasMobileList = ['/consulta-preco', '/metas', '/comissoes', '/emprestimos', '/import'].includes(location.pathname) || location.pathname.includes('/estoque/');
+
+  const toggleMobileListMode = () => {
+    setMobileListMode(current => {
+      const next = current === 'compact' ? 'complete' : 'compact';
+      try {
+        localStorage.setItem('mobile-list-mode', next);
+      } catch {
+        // The preference is optional when browser storage is unavailable.
+      }
+      return next;
+    });
+  };
 
   React.useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -140,7 +160,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   }, [location.pathname]); // Run diagnostic whenever the route path changes to trace navigator mounts
 
   return (
-    <div className={cn(
+    <div data-mobile-density={mobileListMode} className={cn(
       "min-h-screen bg-neutral-100 flex flex-col md:pl-[calc(5rem+env(safe-area-inset-left,0px))] pr-[env(safe-area-inset-right,0px)] pl-[env(safe-area-inset-left,0px)] w-full max-w-full overflow-x-hidden",
       hideBottomNav ? "pb-0 md:pb-0" : "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:pb-0"
     )}>
@@ -211,6 +231,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <main className="min-w-0 flex-1 px-3 py-4 sm:px-4 md:p-8 max-w-7xl mx-auto w-full overflow-x-clip">
         {children}
       </main>
+
+      {hasMobileList && (
+        <button
+          type="button"
+          onClick={toggleMobileListMode}
+          className={cn(
+            'fixed right-3 z-[45] inline-flex h-10 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 text-xs font-black text-neutral-700 shadow-lg md:hidden',
+            hideBottomNav ? 'bottom-4' : 'bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))]'
+          )}
+          aria-label={mobileListMode === 'compact' ? 'Exibir informações completas' : 'Exibir lista resumida'}
+        >
+          {mobileListMode === 'compact' ? <Rows3 size={16} /> : <List size={16} />}
+          {mobileListMode === 'compact' ? 'Exibir completo' : 'Exibir resumido'}
+        </button>
+      )}
 
       {/* Bottom Nav Mobile */}
       {!hideBottomNav && (

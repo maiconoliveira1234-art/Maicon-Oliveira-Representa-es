@@ -30,7 +30,15 @@ button {
   max-width: 100%;
 }
 
+.mobile-compact-row {
+  display: none;
+}
+
 @media (max-width: 767px) {
+  .mobile-compact-row {
+    display: none !important;
+  }
+
   .mobile-card-table {
     overflow: visible !important;
   }
@@ -108,5 +116,82 @@ button {
 
   .mobile-card-table td[colspan]::before {
     content: none;
+  }
+
+  [data-mobile-density='compact'] .mobile-card-table tbody {
+    gap: 0.35rem;
+  }
+
+  [data-mobile-density='compact'] .mobile-card-table tbody tr {
+    border-radius: 0.4rem;
+  }
+
+  [data-mobile-density='compact'] .mobile-card-table tbody td:not(.mobile-compact-row),
+  [data-mobile-density='compact'] .mobile-card-table tfoot {
+    display: none !important;
+  }
+
+  [data-mobile-density='compact'] .mobile-card-table tbody td[colspan]:not(.mobile-compact-row) {
+    display: block !important;
+  }
+
+  [data-mobile-density='compact'] .mobile-card-table tbody td.mobile-compact-row {
+    display: block !important;
+    min-height: 0;
+    padding: 0.5rem 0.6rem !important;
+    border-bottom: 0 !important;
+    text-align: left !important;
+  }
+
+  [data-mobile-density='compact'] .mobile-card-table tbody td.mobile-compact-row::before {
+    content: none;
+  }
+
+  [data-mobile-density='compact'] .mobile-card-table tbody td.mobile-compact-row > * {
+    width: 100%;
+    max-width: 100%;
+    justify-self: stretch;
+  }
+
+  .mobile-compact-line {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.4rem;
+    line-height: 1.2;
+  }
+
+  .mobile-compact-line + .mobile-compact-line {
+    margin-top: 0.35rem;
+  }
+
+  .mobile-compact-primary {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    color: rgb(38 38 38);
+    font-size: 0.75rem;
+    font-weight: 900;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-compact-secondary {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    color: rgb(115 115 115);
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-compact-value {
+    flex-shrink: 0;
+    color: rgb(38 38 38);
+    font-size: 0.6875rem;
+    font-weight: 900;
+    white-space: nowrap;
   }
 }

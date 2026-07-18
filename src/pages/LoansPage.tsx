@@ -508,7 +508,24 @@ export function LoansPage() {
                         loan.status === 'pago' && "opacity-50"
                       )}
                     >
-                      <td data-label="Data" className="p-4">
+                      <td className="mobile-compact-row" colSpan={7}>
+                        <div className="mobile-compact-line">
+                          <span className="shrink-0 text-[10px] font-black text-neutral-500">{format(parseISO(loan.data_emprestimo), 'dd/MM')}</span>
+                          <span className="mobile-compact-primary">{loan.cliente_origem_nome} → {loan.cliente_destino_nome}</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleStatus(loan)}
+                            className={cn('shrink-0 rounded px-2 py-1 text-[9px] font-black uppercase', loan.status === 'pago' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-100 text-amber-800')}
+                          >
+                            {loan.status === 'pago' ? 'Pago' : 'Pendente'}
+                          </button>
+                        </div>
+                        <div className="mobile-compact-line">
+                          <span className="mobile-compact-secondary">{loan.produto_nome}</span>
+                          <span className="mobile-compact-value">{loan.quantidade} un.</span>
+                        </div>
+                      </td>
+                      <td data-label="Data" data-mobile-summary className="p-4">
                         <div className="text-sm font-bold text-neutral-900">{format(parseISO(loan.data_emprestimo), 'dd/MM/yyyy')}</div>
                         {loan.status === 'pendente' && (
                           <div className={cn(
@@ -519,21 +536,21 @@ export function LoansPage() {
                           </div>
                         )}
                       </td>
-                      <td data-label="Origem" className="p-4">
+                      <td data-label="Origem" data-mobile-summary data-mobile-title className="p-4">
                         <div className="text-sm font-bold text-neutral-900">{loan.cliente_origem_nome}</div>
                         <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-tight">Cedeu</div>
                       </td>
-                      <td data-label="Destino" className="p-4">
+                      <td data-label="Destino" data-mobile-summary className="p-4">
                         <div className="text-sm font-bold text-neutral-900">{loan.cliente_destino_nome}</div>
                         <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-tight">Recebeu</div>
                       </td>
-                      <td data-label="Mercadoria" className="p-4">
+                      <td data-label="Mercadoria" data-mobile-summary className="p-4">
                         <div className="text-sm font-bold text-neutral-900">{loan.produto_nome}</div>
                       </td>
-                      <td data-label="Quantidade" className="p-4">
+                      <td data-label="Quantidade" data-mobile-summary className="p-4">
                         <div className="text-sm font-black text-neutral-900">{loan.quantidade}</div>
                       </td>
-                      <td data-label="Status" className="p-4">
+                      <td data-label="Status" data-mobile-summary className="p-4">
                         <button 
                           onClick={() => toggleStatus(loan)}
                           className={cn(

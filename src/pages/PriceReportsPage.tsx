@@ -921,8 +921,34 @@ function ComparisonReport({ products, selectedIds, selectedTables, priceStats, c
           const negotiatedMarkup = markup(product.sugestao, negotiatedPrice);
           const discountedMarkup = markup(product.sugestao, discountedCost);
           return <tr key={product.id} onClick={() => onOpenProduct(product)} className={cn('cursor-pointer hover:bg-orange-50/50', selectedIds.has(product.id) && 'bg-orange-50')}>
+            <td className="mobile-compact-row" colSpan={30}>
+              <div className="mobile-compact-line">
+                <button
+                  type="button"
+                  onClick={event => {
+                    event.stopPropagation();
+                    onToggleProduct(product.id);
+                  }}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded"
+                  aria-label={`Selecionar ${product.produto}`}
+                  aria-pressed={selectedIds.has(product.id)}
+                >
+                  <span className={cn('flex h-4 w-4 items-center justify-center rounded border', selectedIds.has(product.id) ? 'border-orange-600 bg-orange-600 text-white' : 'border-neutral-300')}>{selectedIds.has(product.id) && <Check size={11} />}</span>
+                </button>
+                <span className="mobile-compact-primary">{product.produto}</span>
+                {(!custom || customColumns?.has('suggested')) && <span className="mobile-compact-value text-orange-700">{formatCurrency(product.sugestao)}</span>}
+              </div>
+              <div className="mobile-compact-line pl-7">
+                <span className="mobile-compact-secondary">
+                  {activeTables.map(table => `${table.label} ${formatCurrency(priceForTable(product, table.key))}`).join(' · ')}
+                  {custom && customColumns?.has('negotiatedPrice') && ` · Neg. ${negotiatedPrice ? formatCurrency(negotiatedPrice) : '-'}`}
+                  {custom && customColumns?.has('extraDiscount') && ` · Desc. ${formatCurrency(discountedCost)}`}
+                </span>
+              </div>
+            </td>
             <td
               data-label="Selecionar"
+              data-mobile-summary
               className="cursor-default px-2 py-1.5"
               onClick={event => {
                 event.stopPropagation();
@@ -938,13 +964,13 @@ function ComparisonReport({ products, selectedIds, selectedTables, priceStats, c
                 <span className={cn('flex h-5 w-5 items-center justify-center rounded border', selectedIds.has(product.id) ? 'border-orange-600 bg-orange-600 text-white' : 'border-neutral-300')}>{selectedIds.has(product.id) && <Check size={13} />}</span>
               </button>
             </td>
-            {(!custom || customColumns?.has('product')) && <td data-label="Produto" className="px-3 py-3"><p className="font-bold text-neutral-900">{product.produto}</p></td>}
+            {(!custom || customColumns?.has('product')) && <td data-label="Produto" data-mobile-summary data-mobile-title className="px-3 py-3"><p className="font-bold text-neutral-900">{product.produto}</p></td>}
             {custom && <>
               {customColumns?.has('family') && <td data-label="Familia" className="px-3 py-3 font-semibold">{product.familia}</td>}
               {customColumns?.has('units') && <td data-label="Unid. embalagem" className="px-3 py-3 text-right font-semibold">{product.quant_embalagem}</td>}
               {customColumns?.has('unitWeight') && <td data-label="Peso unitario" className="px-3 py-3 text-right font-semibold">{formatWeight(unitWeight(product))}</td>}
-              {customColumns?.has('lastPrice') && <td data-label="Ultimo preco" className="px-3 py-3 text-right font-semibold">{stat ? formatCurrency(lastUnitPrice) : '-'}</td>}
-              {customColumns?.has('averageCost') && <td data-label="Custo medio unitario" className="px-3 py-3 text-right font-semibold">{stat ? formatCurrency(averageUnitCost) : '-'}</td>}
+              {customColumns?.has('lastPrice') && <td data-label="Ultimo preco" data-mobile-summary className="px-3 py-3 text-right font-semibold">{stat ? formatCurrency(lastUnitPrice) : '-'}</td>}
+              {customColumns?.has('averageCost') && <td data-label="Custo medio unitario" data-mobile-summary className="px-3 py-3 text-right font-semibold">{stat ? formatCurrency(averageUnitCost) : '-'}</td>}
               {customColumns?.has('lastPurchaseDate') && <td data-label="Ultima compra" className="px-3 py-3 text-right">{stat ? format(parseISO(stat.lastDate), 'dd/MM/yyyy') : '-'}</td>}
               {customColumns?.has('lastPurchaseQty') && <td data-label="Qtd ultima" className="px-3 py-3 text-right">{stat?.lastQuantity ?? '-'}</td>}
               {customColumns?.has('purchaseCount') && <td data-label="Compras" className="px-3 py-3 text-right">{stat?.purchaseCount ?? '-'}</td>}
@@ -952,12 +978,12 @@ function ComparisonReport({ products, selectedIds, selectedTables, priceStats, c
               {customColumns?.has('monthlyAverage') && <td data-label="Media mensal" className="px-3 py-3 text-right">{stat ? stat.monthlyAverage.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '-'}</td>}
               {customColumns?.has('daysSincePurchase') && <td data-label="Sem comprar" className="px-3 py-3 text-right">{stat ? `${stat.daysSince} dias` : '-'}</td>}
             </>}
-            {activeTables.map(table => { const tableMarkup = markup(product.sugestao, priceForTable(product, table.key)); return <React.Fragment key={table.key}><td data-label={table.label} className="border-l-2 border-neutral-200 px-3 py-3 text-right font-bold text-neutral-800">{formatCurrency(priceForTable(product, table.key))}</td>{showTableMarkup && <td data-label={`Markup ${table.label}`} className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{tableMarkup === null ? '-' : `${tableMarkup.toFixed(1)}%`}</td>}</React.Fragment>; })}
+            {activeTables.map(table => { const tableMarkup = markup(product.sugestao, priceForTable(product, table.key)); return <React.Fragment key={table.key}><td data-label={table.label} data-mobile-summary className="border-l-2 border-neutral-200 px-3 py-3 text-right font-bold text-neutral-800">{formatCurrency(priceForTable(product, table.key))}</td>{showTableMarkup && <td data-label={`Markup ${table.label}`} className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{tableMarkup === null ? '-' : `${tableMarkup.toFixed(1)}%`}</td>}</React.Fragment>; })}
             {custom && customColumns?.has('tableSavings') && <td data-label="Economia" className="px-3 py-3 text-right font-semibold">{formatCurrency(Math.abs(priceForTable(product, savingsTables[0]) - priceForTable(product, savingsTables[1])))}</td>}
             {custom && customColumns?.has('markup') && <td data-label="Markup medio" className="px-3 py-3 text-right font-black">{averageMarkup === null ? '-' : `${averageMarkup.toFixed(1)}%`}</td>}
-            {custom && customColumns?.has('negotiatedPrice') && <><td data-label="Preco negociado" className="border-l-2 border-neutral-200 px-3 py-2"><input type="number" min="0" step="0.01" value={negotiatedPrice || ''} onClick={event => event.stopPropagation()} onChange={event => onNegotiatedPriceChange(product.id, Number(event.target.value))} className="w-28 rounded-md border border-neutral-200 px-2 py-1.5 text-right" placeholder="R$ 0,00" /></td>{showTableMarkup && <td data-label="Markup negociado" className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{negotiatedMarkup === null ? '-' : `${negotiatedMarkup.toFixed(1)}%`}</td>}</>}
-            {custom && customColumns?.has('extraDiscount') && <><td data-label="Desconto extra" className="border-l-2 border-neutral-200 px-3 py-2" onClick={event => event.stopPropagation()}><div className="flex min-w-36 items-center gap-2"><input type="number" min="0" max="100" step="0.01" value={extraDiscounts[product.id] || ''} onChange={event => onExtraDiscountChange(product.id, Number(event.target.value))} className="w-20 rounded-md border border-neutral-200 px-2 py-1.5 text-right" placeholder="0"/><span className="text-xs font-bold text-neutral-400">%</span><span className="ml-auto text-sm font-black text-orange-700">{formatCurrency(discountedCost)}</span></div></td>{showTableMarkup && <td data-label="Markup desconto" className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{discountedMarkup === null ? '-' : `${discountedMarkup.toFixed(1)}%`}</td>}</>}
-            {(!custom || customColumns?.has('suggested')) && <td data-label="Sugerido" className="px-3 py-3 text-right font-black text-orange-700">{formatCurrency(product.sugestao)}</td>}
+            {custom && customColumns?.has('negotiatedPrice') && <><td data-label="Preco negociado" data-mobile-summary className="border-l-2 border-neutral-200 px-3 py-2"><input type="number" min="0" step="0.01" value={negotiatedPrice || ''} onClick={event => event.stopPropagation()} onChange={event => onNegotiatedPriceChange(product.id, Number(event.target.value))} className="w-28 rounded-md border border-neutral-200 px-2 py-1.5 text-right" placeholder="R$ 0,00" /></td>{showTableMarkup && <td data-label="Markup negociado" className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{negotiatedMarkup === null ? '-' : `${negotiatedMarkup.toFixed(1)}%`}</td>}</>}
+            {custom && customColumns?.has('extraDiscount') && <><td data-label="Desconto extra" data-mobile-summary className="border-l-2 border-neutral-200 px-3 py-2" onClick={event => event.stopPropagation()}><div className="flex min-w-36 items-center gap-2"><input type="number" min="0" max="100" step="0.01" value={extraDiscounts[product.id] || ''} onChange={event => onExtraDiscountChange(product.id, Number(event.target.value))} className="w-20 rounded-md border border-neutral-200 px-2 py-1.5 text-right" placeholder="0"/><span className="text-xs font-bold text-neutral-400">%</span><span className="ml-auto text-sm font-black text-orange-700">{formatCurrency(discountedCost)}</span></div></td>{showTableMarkup && <td data-label="Markup desconto" className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{discountedMarkup === null ? '-' : `${discountedMarkup.toFixed(1)}%`}</td>}</>}
+            {(!custom || customColumns?.has('suggested')) && <td data-label="Sugerido" data-mobile-summary className="px-3 py-3 text-right font-black text-orange-700">{formatCurrency(product.sugestao)}</td>}
           </tr>;
         })}</tbody>
       </table>
@@ -981,7 +1007,7 @@ function HistoryReport({ products, selectedId, onSelect, rows, orderWeightMap }:
       <div className="overflow-x-auto border-y border-neutral-200 bg-white"><table className="w-full min-w-[850px] text-sm"><thead className="bg-neutral-900 text-white"><tr>{['Data','Cliente','Quantidade','Peso','Tabela','Preço médio','Total'].map(label => <th key={label} className="px-3 py-3 text-left">{label}</th>)}</tr></thead>
       */}
       <div className="mobile-card-table overflow-x-auto border-y border-neutral-200 bg-white p-2 md:p-0"><table className="w-full min-w-[720px] text-sm"><thead className="bg-neutral-900 text-white"><tr>{historyColumns.map(label => <th key={label} className="px-3 py-3 text-left">{label}</th>)}</tr></thead>
-        <tbody className="divide-y divide-neutral-100">{rows.map(sale => <tr key={sale.id}><td data-label="Data" className="px-3 py-3 font-semibold">{format(parseISO(sale.faturamento), 'dd/MM/yyyy')}</td><td data-label="Cliente" className="px-3 py-3 font-bold">{sale.cliente}</td><td data-label="Qtd" className="px-3 py-3">{sale.qtd}</td><td data-label="Peso" className="px-3 py-3">{formatWeight((Number(sale.qtd) || 0) * product.peso_embalagem)}</td><td data-label="Peso pedido" className="px-3 py-3 font-semibold">{formatWeight(orderWeightMap.get(saleOrderKey(sale)) || 0)}</td><td data-label="Preco pago" className="px-3 py-3 font-semibold">{formatCurrency((Number(sale['r$_total']) || 0) / Math.max(1, Number(sale.qtd) || 1))}</td><td data-label="Total" className="px-3 py-3 font-black">{formatCurrency(sale['r$_total'])}</td></tr>)}</tbody>
+        <tbody className="divide-y divide-neutral-100">{rows.map(sale => <tr key={sale.id}><td className="mobile-compact-row" colSpan={7}><div className="mobile-compact-line"><span className="shrink-0 text-[10px] font-black text-neutral-500">{format(parseISO(sale.faturamento), 'dd/MM')}</span><span className="mobile-compact-primary">{sale.cliente}</span><span className="mobile-compact-value">{formatCurrency((Number(sale['r$_total']) || 0) / Math.max(1, Number(sale.qtd) || 1))}</span></div><div className="mobile-compact-line"><span className="mobile-compact-secondary">{sale.qtd} un. · Pedido {formatWeight(orderWeightMap.get(saleOrderKey(sale)) || 0)}</span><span className="mobile-compact-value">Total {formatCurrency(sale['r$_total'])}</span></div></td><td data-label="Data" data-mobile-summary className="px-3 py-3 font-semibold">{format(parseISO(sale.faturamento), 'dd/MM/yyyy')}</td><td data-label="Cliente" data-mobile-summary data-mobile-title className="px-3 py-3 font-bold">{sale.cliente}</td><td data-label="Qtd" className="px-3 py-3">{sale.qtd}</td><td data-label="Peso" className="px-3 py-3">{formatWeight((Number(sale.qtd) || 0) * product.peso_embalagem)}</td><td data-label="Peso pedido" data-mobile-summary className="px-3 py-3 font-semibold">{formatWeight(orderWeightMap.get(saleOrderKey(sale)) || 0)}</td><td data-label="Preco pago" data-mobile-summary className="px-3 py-3 font-semibold">{formatCurrency((Number(sale['r$_total']) || 0) / Math.max(1, Number(sale.qtd) || 1))}</td><td data-label="Total" data-mobile-summary className="px-3 py-3 font-black">{formatCurrency(sale['r$_total'])}</td></tr>)}</tbody>
       </table>{!rows.length && <div className="py-16 text-center font-bold text-neutral-400">Nenhuma venda encontrada no periodo selecionado.</div>}</div>
     </>}
   </div>;
