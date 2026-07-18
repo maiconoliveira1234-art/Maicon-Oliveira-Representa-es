@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Search, BarChart3, Settings, FileUp, ShoppingCart, PieChart, Calendar, ArrowLeftRight, Home, RefreshCw, Cloud, CloudOff } from 'lucide-react';
+import { LayoutDashboard, Users, Search, PackageSearch, BarChart3, Settings, FileUp, ShoppingCart, PieChart, Calendar, ArrowLeftRight, Home, RefreshCw, Cloud, CloudOff } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useDataManager } from '../lib/dataManager';
 
@@ -195,7 +195,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <NavItem to="/" icon={<Home size={24} />} label="" />
           <NavItem to="/agenda" icon={<Calendar size={24} />} label="" />
           <NavItem to="/clientes" icon={<Users size={24} />} label="" />
-          <NavItem to="/consulta-preco" icon={<Search size={24} />} label="" />
+          <NavItem to="/consulta-preco" icon={<PackageSearch size={24} />} label="" />
           <NavItem to="/metas" icon={<BarChart3 size={24} />} label="" />
           <NavItem to="/comissoes" icon={<PieChart size={24} />} label="" />
           <NavItem to="/dashboard" icon={<LayoutDashboard size={24} />} label="" />
@@ -239,9 +239,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 function NavItem({ to, icon, label }: { to: string, icon: React.ReactNode, label: string }) {
+  const accessibleLabel = to === '/consulta-preco' ? 'Produto' : label;
   return (
     <NavLink
       to={to}
+      title={accessibleLabel || undefined}
+      aria-label={accessibleLabel || undefined}
       className={({ isActive }) => cn(
         "flex items-center rounded-lg transition-colors font-medium",
         label ? "gap-3 px-4 py-3" : "justify-center p-3",
@@ -257,6 +260,7 @@ function NavItem({ to, icon, label }: { to: string, icon: React.ReactNode, label
 }
 
 function MobileNavItem({ to, icon, label }: { to: string, icon: React.ReactNode, label: string }) {
+  const productItem = to === '/consulta-preco';
   return (
     <NavLink
       to={to}
@@ -265,8 +269,8 @@ function MobileNavItem({ to, icon, label }: { to: string, icon: React.ReactNode,
         isActive ? "text-orange-600" : "text-neutral-400"
       )}
     >
-      <div className="flex-shrink-0">{icon}</div>
-      <span className="text-[10px] font-medium truncate w-full text-center">{label}</span>
+      <div className="flex-shrink-0">{productItem ? <PackageSearch size={24} /> : icon}</div>
+      <span className="text-[10px] font-medium truncate w-full text-center">{productItem ? 'Produto' : label}</span>
     </NavLink>
   );
 }

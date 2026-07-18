@@ -10,7 +10,6 @@ import { Dashboard } from './pages/Dashboard';
 import { HomePage } from './pages/HomePage';
 import { AgendaPage } from './pages/AgendaPage';
 import { ClientsPage } from './pages/ClientsPage';
-import { PriceInquiryPage } from './pages/PriceInquiryPage';
 import { PriceReportsPage } from './pages/PriceReportsPage';
 import { ClienteDetail } from './pages/ClienteDetail';
 import { OrderPage } from './pages/OrderPage';
@@ -57,8 +56,8 @@ function AppContent() {
             <Route path="/agenda" element={<AgendaPage />} />
             <Route path="/clientes" element={<ClientsPage />} />
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/consulta-preco" element={<PriceInquiryPage />} />
-            <Route path="/relatorios-precos" element={<PriceReportsPage />} />
+            <Route path="/consulta-preco" element={<PriceReportsPage />} />
+            <Route path="/relatorios-precos" element={<Navigate to="/consulta-preco" replace />} />
             <Route path="/cliente/:id" element={<ClienteDetail />} />
             <Route path="/estoque/:clienteId" element={<StockCountPage />} />
             <Route path="/pedido/novo/:clienteId" element={<OrderPage />} />
