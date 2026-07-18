@@ -363,7 +363,7 @@ export function LoansPage() {
             />
           </div>
           
-          <div className="flex items-center gap-6 px-4 md:border-l border-neutral-100">
+          <div className="flex items-center gap-3 px-1 sm:px-4 md:border-l border-neutral-100">
             <label className="flex items-center gap-3 cursor-pointer group whitespace-nowrap">
               <div 
                 onClick={() => setShowPaid(!showPaid)}
@@ -385,7 +385,7 @@ export function LoansPage() {
 
       {/* Loans Table */}
       <div className="bg-white rounded-lg border border-neutral-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto custom-scrollbar">
+        <div className="mobile-card-table overflow-x-auto custom-scrollbar p-2 md:p-0">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-neutral-50/50 border-b border-neutral-100">
@@ -508,7 +508,7 @@ export function LoansPage() {
                         loan.status === 'pago' && "opacity-50"
                       )}
                     >
-                      <td className="p-4">
+                      <td data-label="Data" className="p-4">
                         <div className="text-sm font-bold text-neutral-900">{format(parseISO(loan.data_emprestimo), 'dd/MM/yyyy')}</div>
                         {loan.status === 'pendente' && (
                           <div className={cn(
@@ -519,21 +519,21 @@ export function LoansPage() {
                           </div>
                         )}
                       </td>
-                      <td className="p-4">
+                      <td data-label="Origem" className="p-4">
                         <div className="text-sm font-bold text-neutral-900">{loan.cliente_origem_nome}</div>
                         <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-tight">Cedeu</div>
                       </td>
-                      <td className="p-4">
+                      <td data-label="Destino" className="p-4">
                         <div className="text-sm font-bold text-neutral-900">{loan.cliente_destino_nome}</div>
                         <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-tight">Recebeu</div>
                       </td>
-                      <td className="p-4">
+                      <td data-label="Mercadoria" className="p-4">
                         <div className="text-sm font-bold text-neutral-900">{loan.produto_nome}</div>
                       </td>
-                      <td className="p-4">
+                      <td data-label="Quantidade" className="p-4">
                         <div className="text-sm font-black text-neutral-900">{loan.quantidade}</div>
                       </td>
-                      <td className="p-4">
+                      <td data-label="Status" className="p-4">
                         <button 
                           onClick={() => toggleStatus(loan)}
                           className={cn(
@@ -552,7 +552,7 @@ export function LoansPage() {
                           </div>
                         )}
                       </td>
-                      <td className="p-4 text-right">
+                      <td data-label="Acoes" className="p-4 text-right">
                         <button 
                           onClick={() => deleteLoan(loan)}
                           className="p-2 text-neutral-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"

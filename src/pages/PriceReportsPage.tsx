@@ -883,7 +883,7 @@ function ComparisonReport({ products, selectedIds, selectedTables, priceStats, c
         {selectedIds.size > 0 && <button type="button" onClick={onClear} className="font-bold text-red-600">Limpar</button>}
       </div>
     </div>
-    <div className="overflow-x-auto border-y border-neutral-200 bg-white">
+    <div className="mobile-card-table overflow-x-auto border-y border-neutral-200 bg-white p-2 md:p-0">
       <table className="w-full min-w-[900px] border-collapse text-sm">
         <thead className="sticky top-0 z-10 bg-neutral-900 text-white"><tr>
           <th className="w-16 px-3 py-3"><span className="sr-only">Selecionar</span></th>{(!custom || customColumns?.has('product')) && <th className="px-3 py-3 text-left">Produto</th>}
@@ -922,6 +922,7 @@ function ComparisonReport({ products, selectedIds, selectedTables, priceStats, c
           const discountedMarkup = markup(product.sugestao, discountedCost);
           return <tr key={product.id} onClick={() => onOpenProduct(product)} className={cn('cursor-pointer hover:bg-orange-50/50', selectedIds.has(product.id) && 'bg-orange-50')}>
             <td
+              data-label="Selecionar"
               className="cursor-default px-2 py-1.5"
               onClick={event => {
                 event.stopPropagation();
@@ -937,26 +938,26 @@ function ComparisonReport({ products, selectedIds, selectedTables, priceStats, c
                 <span className={cn('flex h-5 w-5 items-center justify-center rounded border', selectedIds.has(product.id) ? 'border-orange-600 bg-orange-600 text-white' : 'border-neutral-300')}>{selectedIds.has(product.id) && <Check size={13} />}</span>
               </button>
             </td>
-            {(!custom || customColumns?.has('product')) && <td className="px-3 py-3"><p className="font-bold text-neutral-900">{product.produto}</p></td>}
+            {(!custom || customColumns?.has('product')) && <td data-label="Produto" className="px-3 py-3"><p className="font-bold text-neutral-900">{product.produto}</p></td>}
             {custom && <>
-              {customColumns?.has('family') && <td className="px-3 py-3 font-semibold">{product.familia}</td>}
-              {customColumns?.has('units') && <td className="px-3 py-3 text-right font-semibold">{product.quant_embalagem}</td>}
-              {customColumns?.has('unitWeight') && <td className="px-3 py-3 text-right font-semibold">{formatWeight(unitWeight(product))}</td>}
-              {customColumns?.has('lastPrice') && <td className="px-3 py-3 text-right font-semibold">{stat ? formatCurrency(lastUnitPrice) : '-'}</td>}
-              {customColumns?.has('averageCost') && <td className="px-3 py-3 text-right font-semibold">{stat ? formatCurrency(averageUnitCost) : '-'}</td>}
-              {customColumns?.has('lastPurchaseDate') && <td className="px-3 py-3 text-right">{stat ? format(parseISO(stat.lastDate), 'dd/MM/yyyy') : '-'}</td>}
-              {customColumns?.has('lastPurchaseQty') && <td className="px-3 py-3 text-right">{stat?.lastQuantity ?? '-'}</td>}
-              {customColumns?.has('purchaseCount') && <td className="px-3 py-3 text-right">{stat?.purchaseCount ?? '-'}</td>}
-              {customColumns?.has('totalPurchased') && <td className="px-3 py-3 text-right">{stat?.quantity ?? '-'}</td>}
-              {customColumns?.has('monthlyAverage') && <td className="px-3 py-3 text-right">{stat ? stat.monthlyAverage.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '-'}</td>}
-              {customColumns?.has('daysSincePurchase') && <td className="px-3 py-3 text-right">{stat ? `${stat.daysSince} dias` : '-'}</td>}
+              {customColumns?.has('family') && <td data-label="Familia" className="px-3 py-3 font-semibold">{product.familia}</td>}
+              {customColumns?.has('units') && <td data-label="Unid. embalagem" className="px-3 py-3 text-right font-semibold">{product.quant_embalagem}</td>}
+              {customColumns?.has('unitWeight') && <td data-label="Peso unitario" className="px-3 py-3 text-right font-semibold">{formatWeight(unitWeight(product))}</td>}
+              {customColumns?.has('lastPrice') && <td data-label="Ultimo preco" className="px-3 py-3 text-right font-semibold">{stat ? formatCurrency(lastUnitPrice) : '-'}</td>}
+              {customColumns?.has('averageCost') && <td data-label="Custo medio unitario" className="px-3 py-3 text-right font-semibold">{stat ? formatCurrency(averageUnitCost) : '-'}</td>}
+              {customColumns?.has('lastPurchaseDate') && <td data-label="Ultima compra" className="px-3 py-3 text-right">{stat ? format(parseISO(stat.lastDate), 'dd/MM/yyyy') : '-'}</td>}
+              {customColumns?.has('lastPurchaseQty') && <td data-label="Qtd ultima" className="px-3 py-3 text-right">{stat?.lastQuantity ?? '-'}</td>}
+              {customColumns?.has('purchaseCount') && <td data-label="Compras" className="px-3 py-3 text-right">{stat?.purchaseCount ?? '-'}</td>}
+              {customColumns?.has('totalPurchased') && <td data-label="Qtd total" className="px-3 py-3 text-right">{stat?.quantity ?? '-'}</td>}
+              {customColumns?.has('monthlyAverage') && <td data-label="Media mensal" className="px-3 py-3 text-right">{stat ? stat.monthlyAverage.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '-'}</td>}
+              {customColumns?.has('daysSincePurchase') && <td data-label="Sem comprar" className="px-3 py-3 text-right">{stat ? `${stat.daysSince} dias` : '-'}</td>}
             </>}
-            {activeTables.map(table => { const tableMarkup = markup(product.sugestao, priceForTable(product, table.key)); return <React.Fragment key={table.key}><td className="border-l-2 border-neutral-200 px-3 py-3 text-right font-bold text-neutral-800">{formatCurrency(priceForTable(product, table.key))}</td>{showTableMarkup && <td className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{tableMarkup === null ? '-' : `${tableMarkup.toFixed(1)}%`}</td>}</React.Fragment>; })}
-            {custom && customColumns?.has('tableSavings') && <td className="px-3 py-3 text-right font-semibold">{formatCurrency(Math.abs(priceForTable(product, savingsTables[0]) - priceForTable(product, savingsTables[1])))}</td>}
-            {custom && customColumns?.has('markup') && <td className="px-3 py-3 text-right font-black">{averageMarkup === null ? '-' : `${averageMarkup.toFixed(1)}%`}</td>}
-            {custom && customColumns?.has('negotiatedPrice') && <><td className="border-l-2 border-neutral-200 px-3 py-2"><input type="number" min="0" step="0.01" value={negotiatedPrice || ''} onClick={event => event.stopPropagation()} onChange={event => onNegotiatedPriceChange(product.id, Number(event.target.value))} className="w-28 rounded-md border border-neutral-200 px-2 py-1.5 text-right" placeholder="R$ 0,00" /></td>{showTableMarkup && <td className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{negotiatedMarkup === null ? '-' : `${negotiatedMarkup.toFixed(1)}%`}</td>}</>}
-            {custom && customColumns?.has('extraDiscount') && <><td className="border-l-2 border-neutral-200 px-3 py-2" onClick={event => event.stopPropagation()}><div className="flex min-w-36 items-center gap-2"><input type="number" min="0" max="100" step="0.01" value={extraDiscounts[product.id] || ''} onChange={event => onExtraDiscountChange(product.id, Number(event.target.value))} className="w-20 rounded-md border border-neutral-200 px-2 py-1.5 text-right" placeholder="0"/><span className="text-xs font-bold text-neutral-400">%</span><span className="ml-auto text-sm font-black text-orange-700">{formatCurrency(discountedCost)}</span></div></td>{showTableMarkup && <td className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{discountedMarkup === null ? '-' : `${discountedMarkup.toFixed(1)}%`}</td>}</>}
-            {(!custom || customColumns?.has('suggested')) && <td className="px-3 py-3 text-right font-black text-orange-700">{formatCurrency(product.sugestao)}</td>}
+            {activeTables.map(table => { const tableMarkup = markup(product.sugestao, priceForTable(product, table.key)); return <React.Fragment key={table.key}><td data-label={table.label} className="border-l-2 border-neutral-200 px-3 py-3 text-right font-bold text-neutral-800">{formatCurrency(priceForTable(product, table.key))}</td>{showTableMarkup && <td data-label={`Markup ${table.label}`} className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{tableMarkup === null ? '-' : `${tableMarkup.toFixed(1)}%`}</td>}</React.Fragment>; })}
+            {custom && customColumns?.has('tableSavings') && <td data-label="Economia" className="px-3 py-3 text-right font-semibold">{formatCurrency(Math.abs(priceForTable(product, savingsTables[0]) - priceForTable(product, savingsTables[1])))}</td>}
+            {custom && customColumns?.has('markup') && <td data-label="Markup medio" className="px-3 py-3 text-right font-black">{averageMarkup === null ? '-' : `${averageMarkup.toFixed(1)}%`}</td>}
+            {custom && customColumns?.has('negotiatedPrice') && <><td data-label="Preco negociado" className="border-l-2 border-neutral-200 px-3 py-2"><input type="number" min="0" step="0.01" value={negotiatedPrice || ''} onClick={event => event.stopPropagation()} onChange={event => onNegotiatedPriceChange(product.id, Number(event.target.value))} className="w-28 rounded-md border border-neutral-200 px-2 py-1.5 text-right" placeholder="R$ 0,00" /></td>{showTableMarkup && <td data-label="Markup negociado" className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{negotiatedMarkup === null ? '-' : `${negotiatedMarkup.toFixed(1)}%`}</td>}</>}
+            {custom && customColumns?.has('extraDiscount') && <><td data-label="Desconto extra" className="border-l-2 border-neutral-200 px-3 py-2" onClick={event => event.stopPropagation()}><div className="flex min-w-36 items-center gap-2"><input type="number" min="0" max="100" step="0.01" value={extraDiscounts[product.id] || ''} onChange={event => onExtraDiscountChange(product.id, Number(event.target.value))} className="w-20 rounded-md border border-neutral-200 px-2 py-1.5 text-right" placeholder="0"/><span className="text-xs font-bold text-neutral-400">%</span><span className="ml-auto text-sm font-black text-orange-700">{formatCurrency(discountedCost)}</span></div></td>{showTableMarkup && <td data-label="Markup desconto" className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{discountedMarkup === null ? '-' : `${discountedMarkup.toFixed(1)}%`}</td>}</>}
+            {(!custom || customColumns?.has('suggested')) && <td data-label="Sugerido" className="px-3 py-3 text-right font-black text-orange-700">{formatCurrency(product.sugestao)}</td>}
           </tr>;
         })}</tbody>
       </table>
@@ -979,8 +980,8 @@ function HistoryReport({ products, selectedId, onSelect, rows, orderWeightMap }:
       </div>
       <div className="overflow-x-auto border-y border-neutral-200 bg-white"><table className="w-full min-w-[850px] text-sm"><thead className="bg-neutral-900 text-white"><tr>{['Data','Cliente','Quantidade','Peso','Tabela','Preço médio','Total'].map(label => <th key={label} className="px-3 py-3 text-left">{label}</th>)}</tr></thead>
       */}
-      <div className="overflow-x-auto border-y border-neutral-200 bg-white"><table className="w-full min-w-[720px] text-sm"><thead className="bg-neutral-900 text-white"><tr>{historyColumns.map(label => <th key={label} className="px-3 py-3 text-left">{label}</th>)}</tr></thead>
-        <tbody className="divide-y divide-neutral-100">{rows.map(sale => <tr key={sale.id}><td className="px-3 py-3 font-semibold">{format(parseISO(sale.faturamento), 'dd/MM/yyyy')}</td><td className="px-3 py-3 font-bold">{sale.cliente}</td><td className="px-3 py-3">{sale.qtd}</td><td className="px-3 py-3">{formatWeight((Number(sale.qtd) || 0) * product.peso_embalagem)}</td><td className="px-3 py-3 font-semibold">{formatWeight(orderWeightMap.get(saleOrderKey(sale)) || 0)}</td><td className="px-3 py-3 font-semibold">{formatCurrency((Number(sale['r$_total']) || 0) / Math.max(1, Number(sale.qtd) || 1))}</td><td className="px-3 py-3 font-black">{formatCurrency(sale['r$_total'])}</td></tr>)}</tbody>
+      <div className="mobile-card-table overflow-x-auto border-y border-neutral-200 bg-white p-2 md:p-0"><table className="w-full min-w-[720px] text-sm"><thead className="bg-neutral-900 text-white"><tr>{historyColumns.map(label => <th key={label} className="px-3 py-3 text-left">{label}</th>)}</tr></thead>
+        <tbody className="divide-y divide-neutral-100">{rows.map(sale => <tr key={sale.id}><td data-label="Data" className="px-3 py-3 font-semibold">{format(parseISO(sale.faturamento), 'dd/MM/yyyy')}</td><td data-label="Cliente" className="px-3 py-3 font-bold">{sale.cliente}</td><td data-label="Qtd" className="px-3 py-3">{sale.qtd}</td><td data-label="Peso" className="px-3 py-3">{formatWeight((Number(sale.qtd) || 0) * product.peso_embalagem)}</td><td data-label="Peso pedido" className="px-3 py-3 font-semibold">{formatWeight(orderWeightMap.get(saleOrderKey(sale)) || 0)}</td><td data-label="Preco pago" className="px-3 py-3 font-semibold">{formatCurrency((Number(sale['r$_total']) || 0) / Math.max(1, Number(sale.qtd) || 1))}</td><td data-label="Total" className="px-3 py-3 font-black">{formatCurrency(sale['r$_total'])}</td></tr>)}</tbody>
       </table>{!rows.length && <div className="py-16 text-center font-bold text-neutral-400">Nenhuma venda encontrada no periodo selecionado.</div>}</div>
     </>}
   </div>;

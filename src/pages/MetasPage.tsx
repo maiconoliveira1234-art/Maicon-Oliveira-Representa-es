@@ -527,7 +527,7 @@ export function MetasPage() {
       )}
 
       {/* Spreadsheet Table */}
-      <div className="bg-white rounded-lg border border-neutral-200 shadow-sm overflow-hidden overflow-y-auto flex-1 h-full min-h-0">
+      <div className="mobile-card-table bg-white rounded-lg border border-neutral-200 shadow-sm overflow-hidden overflow-y-auto flex-1 h-full min-h-0 p-2 md:p-0">
         <table className="w-full text-left border-separate border-spacing-0">
           <thead className="sticky top-0 z-20">
             <tr className="bg-neutral-50 text-[10px] font-bold uppercase text-neutral-500">
@@ -578,7 +578,7 @@ export function MetasPage() {
           <tbody className="divide-y divide-neutral-100">
             {sortedAndFilteredData.map((row) => (
               <tr key={row.id} className="hover:bg-neutral-50 transition-colors group">
-                <td className="px-3 py-3 border-r border-b border-neutral-100 font-bold text-neutral-800 text-[12px] sticky left-0 bg-white group-hover:bg-neutral-50 z-10 leading-tight">
+                <td data-label="Cliente" className="px-3 py-3 border-r border-b border-neutral-100 font-bold text-neutral-800 text-[12px] sticky left-0 bg-white group-hover:bg-neutral-50 z-10 leading-tight">
                   <button 
                     onClick={() => navigate(`/cliente/${row.id}`, { state: { fromMetas: true } })}
                     className="text-left hover:text-orange-600 transition-colors"
@@ -586,22 +586,22 @@ export function MetasPage() {
                     {row.cliente}
                   </button>
                 </td>
-                <td className="px-1 py-3 border-r border-b border-neutral-100 text-right text-[12px] text-neutral-600 font-medium">
+                <td data-label="Media 6 meses" className="px-1 py-3 border-r border-b border-neutral-100 text-right text-[12px] text-neutral-600 font-medium">
                   {row.med6.toFixed(1)}
                 </td>
-                <td className="px-1 py-3 border-r border-b border-neutral-100 text-center text-[12px] text-neutral-500">
+                <td data-label="Media de dias" className="px-1 py-3 border-r border-b border-neutral-100 text-center text-[12px] text-neutral-500">
                   {row.medDias || '-'}
                 </td>
-                <td className="px-1 py-3 border-r border-b border-neutral-100 text-center text-[12px] text-neutral-500">
+                <td data-label="Ultimo pedido" className="px-1 py-3 border-r border-b border-neutral-100 text-center text-[12px] text-neutral-500">
                   {row.ultPed}
                 </td>
-                <td className={cn(
+                <td data-label="Proximo pedido" className={cn(
                   "px-1 py-3 border-r border-b border-neutral-100 text-right text-[12px] font-bold",
                   row.gap <= 0 ? "text-green-600" : "text-red-500"
                 )}>
                   {row.gap}
                 </td>
-                <td className="px-1 py-2 border-r border-b border-neutral-100">
+                <td data-label="Meta (kg)" className="px-1 py-2 border-r border-b border-neutral-100">
                   <div className="relative flex items-center">
                     <input
                       type="number"
@@ -640,7 +640,7 @@ export function MetasPage() {
                     </div>
                   </div>
                 </td>
-                <td className={cn(
+                <td data-label="Vendido" className={cn(
                   "px-2 py-3 border-b border-neutral-100 text-right text-[12px] font-black transition-colors duration-300",
                   row.vend === 0 
                     ? "bg-red-600 text-white" 

@@ -240,7 +240,7 @@ export function ClientsPage() {
 
   return (
     <div className="space-y-4 pb-12">
-      <div className="sticky top-0 z-40 -mx-4 px-4 pt-3 pb-3 bg-neutral-50/95 backdrop-blur border-b border-neutral-200/80 shadow-sm">
+      <div className="sticky top-0 z-40 -mx-3 px-3 pt-3 pb-3 bg-neutral-50/95 backdrop-blur border-b border-neutral-200/80 shadow-sm sm:-mx-4 sm:px-4">
         <header className="space-y-3">
           <div className="flex items-end justify-between gap-3">
             <div className="min-w-0">

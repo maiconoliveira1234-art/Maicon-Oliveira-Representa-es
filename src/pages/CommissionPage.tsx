@@ -675,7 +675,7 @@ export function CommissionPage() {
             <Users className="text-neutral-500" size={18} />
             Ranking por {groupBy === 'cliente' ? 'Cliente' : groupBy === 'produto' ? 'Produto' : 'Família'}
           </h3>
-          <div className="overflow-x-auto">
+          <div className="mobile-card-table overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-neutral-200 text-[11px] text-neutral-500 uppercase font-black">
@@ -689,17 +689,17 @@ export function CommissionPage() {
               <tbody>
                 {groupedData.map((g, idx) => (
                   <tr key={idx} className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors">
-                    <td className="px-3 py-2.5 font-bold text-neutral-800 max-w-md truncate">{g.label}</td>
-                    <td className="px-3 py-2.5 text-right font-medium">
+                    <td data-label={groupBy === 'cliente' ? 'Cliente' : groupBy === 'produto' ? 'Produto' : 'Familia'} className="px-3 py-2.5 font-bold text-neutral-800 max-w-md truncate">{g.label}</td>
+                    <td data-label="Valor total" className="px-3 py-2.5 text-right font-medium">
                       R$ {g.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
-                    <td className="px-3 py-2.5 text-right font-black text-neutral-900">
+                    <td data-label="Comissao total" className="px-3 py-2.5 text-right font-black text-neutral-900">
                       R$ {g.comissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
-                    <td className="px-3 py-2.5 text-right font-medium">
+                    <td data-label="Percentual medio" className="px-3 py-2.5 text-right font-medium">
                       {((g.comissao / g.total) * 100).toFixed(2)}%
                     </td>
-                    <td className="px-3 py-2.5 text-right text-neutral-500">
+                    <td data-label="Peso" className="px-3 py-2.5 text-right text-neutral-500">
                       {g.peso.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kg
                     </td>
                   </tr>
@@ -707,11 +707,11 @@ export function CommissionPage() {
               </tbody>
               <tfoot className="bg-neutral-100 font-black border-t border-neutral-200">
                 <tr>
-                  <td className="px-3 py-2.5">TOTAL</td>
-                  <td className="px-3 py-2.5 text-right">R$ {stats.totalVendido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td className="px-3 py-2.5 text-right text-neutral-900">R$ {stats.totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td className="px-3 py-2.5 text-right">{stats.percentualMedio.toFixed(2)}%</td>
-                  <td className="px-3 py-2.5 text-right">{stats.pesoTotal.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kg</td>
+                  <td data-label="Resumo" className="px-3 py-2.5">TOTAL</td>
+                  <td data-label="Valor total" className="px-3 py-2.5 text-right">R$ {stats.totalVendido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td data-label="Comissao total" className="px-3 py-2.5 text-right text-neutral-900">R$ {stats.totalComissao.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td data-label="Percentual medio" className="px-3 py-2.5 text-right">{stats.percentualMedio.toFixed(2)}%</td>
+                  <td data-label="Peso" className="px-3 py-2.5 text-right">{stats.pesoTotal.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kg</td>
                 </tr>
               </tfoot>
             </table>

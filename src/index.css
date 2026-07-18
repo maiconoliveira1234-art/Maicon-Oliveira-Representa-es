@@ -1,2 +1,112 @@
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
+
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
+  overflow-x: clip;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+img,
+video,
+canvas {
+  max-width: 100%;
+}
+
+input,
+select,
+textarea,
+button {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 767px) {
+  .mobile-card-table {
+    overflow: visible !important;
+  }
+
+  .mobile-card-table table,
+  .mobile-card-table tbody,
+  .mobile-card-table tfoot,
+  .mobile-card-table tr,
+  .mobile-card-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .mobile-card-table table {
+    min-width: 0 !important;
+  }
+
+  .mobile-card-table thead {
+    display: none;
+  }
+
+  .mobile-card-table tbody {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .mobile-card-table tbody tr,
+  .mobile-card-table tfoot tr {
+    overflow: hidden;
+    border: 1px solid rgb(229 229 229);
+    border-radius: 0.5rem;
+    background: white;
+  }
+
+  .mobile-card-table tbody td,
+  .mobile-card-table tfoot td {
+    position: static !important;
+    display: grid;
+    grid-template-columns: minmax(6.75rem, 42%) minmax(0, 1fr);
+    align-items: center;
+    gap: 0.75rem;
+    max-width: none !important;
+    padding: 0.65rem 0.75rem !important;
+    border: 0 !important;
+    border-bottom: 1px solid rgb(245 245 245) !important;
+    text-align: right !important;
+    white-space: normal;
+  }
+
+  .mobile-card-table tbody td:last-child,
+  .mobile-card-table tfoot td:last-child {
+    border-bottom: 0 !important;
+  }
+
+  .mobile-card-table td::before {
+    content: attr(data-label);
+    min-width: 0;
+    color: rgb(115 115 115);
+    font-size: 0.625rem;
+    font-weight: 900;
+    line-height: 1.2;
+    text-align: left;
+    text-transform: uppercase;
+  }
+
+  .mobile-card-table td > * {
+    min-width: 0;
+    justify-self: end;
+  }
+
+  .mobile-card-table td[colspan] {
+    display: block;
+    text-align: center !important;
+  }
+
+  .mobile-card-table td[colspan]::before {
+    content: none;
+  }
+}

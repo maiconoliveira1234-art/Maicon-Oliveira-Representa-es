@@ -872,7 +872,7 @@ export function Dashboard() {
           {/* Revenue by Family */}
           {visibleCharts.includes('family') && (
             <ChartCard title={`${evolutionMetric === 'value' ? 'Faturamento' : 'Peso'} por Família`}>
-              <div className="flex h-full items-center gap-4">
+              <div className="flex h-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-4">
                 <div className="flex-1 h-full min-w-0">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -897,7 +897,7 @@ export function Dashboard() {
                   </ResponsiveContainer>
                 </div>
                 
-                <div className="w-[240px] max-h-full overflow-y-auto shrink-0 pr-2">
+                <div className="w-full max-h-36 overflow-y-auto shrink-0 pr-1 sm:max-h-full sm:w-[240px] sm:pr-2">
                   <table className="w-full text-[11px] font-bold text-neutral-600 border-collapse">
                     <thead>
                       <tr className="border-b border-neutral-100">

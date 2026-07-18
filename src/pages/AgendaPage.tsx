@@ -598,7 +598,7 @@ export function AgendaPage() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-6 mt-4">
+      <main className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-3 sm:px-6 mt-4">
         <AgendaStats 
           visitasTotal={agendaStatsData.visitasTotal} 
           metaDia={agendaStatsData.metaDia}
