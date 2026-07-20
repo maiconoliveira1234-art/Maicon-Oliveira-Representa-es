@@ -211,6 +211,7 @@ export function StockCountPage() {
     console.log(`[CONTAGEM] Inicializando mapas de estado para o cliente: ${clienteId}`);
 
     let initialEstoque: Record<string, number> = {};
+    let initialTouched = new Set<string>();
 
     // A local draft is authoritative. This keeps a cleared count empty when the
     // user leaves and returns, instead of reloading the previous stock count.
@@ -219,6 +220,9 @@ export function StockCountPage() {
       try {
         const parsed = JSON.parse(savedEstoque);
         initialEstoque = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        Object.keys(initialEstoque).forEach(key => {
+          initialTouched.add(key);
+        });
         console.log(`[CONTAGEM] Estoque restaurado do rascunho local para cliente: ${clienteId}`);
       } catch (e) {
         console.error('Erro ao fazer parse do estoque salvo no localStorage:', e);
@@ -232,6 +236,7 @@ export function StockCountPage() {
       });
     }
     setEstoqueMap(initialEstoque);
+    setTouchedItems(initialTouched);
 
     // Initializing pedidoMap
     const pMap: Record<string, number> = {};
@@ -350,7 +355,7 @@ export function StockCountPage() {
       return "grid-cols-[minmax(0,1fr)_38px_38px_42px_96px_38px]";
     }
 
-    return "grid-cols-[minmax(0,1fr)_38px_38px_42px_38px_96px]";
+    return "grid-cols-[minmax(0,1fr)_38px_38px_38px_42px_38px_96px]";
   }, [viewMode]);
 
   const orderWeightByDay = useMemo(() => {
@@ -678,14 +683,12 @@ export function StockCountPage() {
 
     try {
       const touchedProductIds = new Set(touchedItems);
-      const itemsToUpsert = processedItems
-        .filter(item => touchedProductIds.has(item.produto_id))
-        .map(item => ({
-          cliente_id: clienteId,
-          produto_id: item.produto_id,
-          quantidade_atual: estoqueMap[item.produto_id] || 0,
-          ultima_contagem: new Date().toISOString().split('T')[0]
-        }));
+      const itemsToUpsert = Array.from(touchedProductIds).map(prodId => ({
+        cliente_id: clienteId,
+        produto_id: prodId,
+        quantidade_atual: estoqueMap[prodId] || 0,
+        ultima_contagem: new Date().toISOString().split('T')[0]
+      }));
 
       if (itemsToUpsert.length === 0) {
         alert('Nenhuma contagem alterada para salvar.');
@@ -1239,9 +1242,10 @@ export function StockCountPage() {
                 {viewMode === 'pedido' && (
                   <>
                     <div className="px-1.5 border-r border-neutral-200 flex items-center h-8">Produto</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Cont.</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped.</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8">Qtd</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Cont.</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Est.</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
                     <div className="p-0.5 text-center flex items-center justify-center h-8">Pedido</div>
                   </>
@@ -1333,6 +1337,9 @@ export function StockCountPage() {
                         <div className="px-1.5 py-1 border-r border-neutral-100 flex items-center min-h-10 leading-tight min-w-0">
                           <span className="block font-bold text-[11px] md:text-[12px] whitespace-normal break-words line-clamp-2 md:line-clamp-none">{item.produto_nome}</span>
                         </div>
+                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
+                          {item.ultima_contagem_valor}
+                        </div>
                         <div className={cn(
                           "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
                           item.dias_ult_compra > 180 
@@ -1346,8 +1353,8 @@ export function StockCountPage() {
                         <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
                           {item.qtd_ult_compra}
                         </div>
-                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
-                          {item.ultima_contagem_valor}
+                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] font-bold text-orange-700 bg-orange-50/40">
+                          {estoqueMap[item.produto_id] ?? 0}
                         </div>
                         <div className={cn(
                           "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
@@ -1455,7 +1462,7 @@ export function StockCountPage() {
                 </button>
               </div>
 
-              <div className="mobile-card-table flex-1 overflow-auto p-3 md:p-4">
+              <div className="flex-1 overflow-auto p-4">
                 <table className="w-full min-w-[550px] md:min-w-0 text-left border-collapse">
                   <thead>
                     <tr className="text-[10px] font-black text-neutral-400 uppercase tracking-wider border-b border-neutral-100">
@@ -1479,34 +1486,24 @@ export function StockCountPage() {
 
                         return (
                           <tr key={venda.id} className="text-xs hover:bg-neutral-50 transition-colors">
-                            <td className="mobile-compact-row" colSpan={6}>
-                              <div className="mobile-compact-line">
-                                <span className="mobile-compact-primary">{format(parseISO(venda.faturamento), 'dd/MM/yyyy')}</span>
-                                <span className="mobile-compact-value">{formatCurrency(unitPrice)}</span>
-                              </div>
-                              <div className="mobile-compact-line">
-                                <span className="mobile-compact-secondary">{venda.qtd * selectedProductHistory.quant_embalagem} un. · {formatWeight(venda.qtd * selectedProductHistory.peso)} · Pedido {formatWeight(totalOrderWeight)}</span>
-                                <span className="mobile-compact-value">XDT {venda.xdt || 0}</span>
-                              </div>
-                            </td>
-                            <td data-label="Data" data-mobile-summary data-mobile-title className="py-3 px-2 font-bold text-neutral-700">
+                            <td className="py-3 px-2 font-bold text-neutral-700">
                               {format(parseISO(venda.faturamento), 'dd/MM/yyyy')}
                             </td>
-                            <td data-label="Quantidade" data-mobile-summary className="py-3 px-2 text-center font-medium text-neutral-600">
+                            <td className="py-3 px-2 text-center font-medium text-neutral-600">
                               {venda.qtd * selectedProductHistory.quant_embalagem} un
                             </td>
-                            <td data-label="Peso total" className="py-3 px-2 text-center text-neutral-500">
+                            <td className="py-3 px-2 text-center text-neutral-500">
                               {formatWeight(venda.qtd * selectedProductHistory.peso)}
                             </td>
-                            <td data-label="Valor pago" data-mobile-summary className="py-3 px-2 text-right font-bold text-neutral-800">
+                            <td className="py-3 px-2 text-right font-bold text-neutral-800">
                               {formatCurrency(unitPrice)}
                             </td>
-                            <td data-label="Peso do pedido" className="py-3 px-2 text-center">
+                            <td className="py-3 px-2 text-center">
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-100 text-orange-600">
                                 {formatWeight(totalOrderWeight)}
                               </span>
                             </td>
-                            <td data-label="Tabela (XDT)" data-mobile-summary className="py-3 px-2 text-center">
+                            <td className="py-3 px-2 text-center">
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-neutral-100 text-neutral-600">
                                 {venda.xdt || 0}
                               </span>

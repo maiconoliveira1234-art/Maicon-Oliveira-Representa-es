@@ -115,15 +115,15 @@ export function ClienteDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const {
-    clientes: cachedClientes = [],
-    produtos: allProducts = [],
-    metas = {},
-    agenda_visitas: cachedAgendaVisitas = [],
-    emprestimos: cachedEmprestimos = [],
-    verba_flex_extrato: cachedFlexExtrato = [],
-    loadClientDetails,
-    prefetchClientData
+  const { 
+    clientes: cachedClientes = [], 
+    produtos: allProducts = [], 
+    metas: cachedMetas = {},
+    agenda_visitas: cachedVisitas = [],
+    emprestimos: cachedLoans = [],
+    verba_flex_extrato: cachedFlex = [],
+    loadClientDetails, 
+    prefetchClientData 
   } = useDataManager();
   
   const [cliente, setCliente] = useState<Cliente | null>(null);
@@ -149,167 +149,198 @@ export function ClienteDetail() {
 
       try {
         setError(null);
-        const availableProducts = allProducts.length > 0 ? allProducts : MOCK_PRODUTOS;
-        setProdutos(availableProducts);
-
-        const applyLocalData = (cache?: { historico: HistVenda[]; estoque: EstoqueCliente[] }) => {
-          const localCliente = cachedCliente
-            ? { ...cachedCliente, meta: metas[id] ?? cachedCliente.meta ?? 0 }
-            : MOCK_CLIENTES.find(c => c.id === id) || null;
-
-          setCliente(localCliente);
-          setHistorico(cache?.historico ?? MOCK_HISTORICO.filter(h => h.cliente_id === id));
-          setEstoque(cache?.estoque ?? []);
-
-          const clientsById = new Map(cachedClientes.map(c => [c.id, c.cliente]));
-          const productsById = new Map(availableProducts.map(p => [p.id, p.produto]));
-          setEmprestimos(
-            cachedEmprestimos
-              .filter((loan: any) => loan.cliente_destino_id === id && loan.status === 'pendente')
-              .map((loan: any) => ({
-                ...loan,
-                cliente_origem_nome: loan.cliente_origem_nome || loan.cliente_origem?.cliente || clientsById.get(loan.cliente_origem_id) || 'N/A',
-                produto_nome: loan.produto_nome || loan.produto?.produto || productsById.get(loan.produto_id) || 'N/A'
-              }))
-          );
-
-          const agenda = cachedAgendaVisitas.find((visita: any) => visita.cliente_id === id && visita.ativo !== false);
-          setVisitaAgenda(agenda ? {
-            semana: agenda.semana as 1 | 2,
-            dia_semana: agenda.dia_semana
-          } : null);
-
-          setFlexExtrato(
-            cachedFlexExtrato
-              .filter((item: any) => item.cliente_id === id)
-              .sort((left: any, right: any) => String(right.created_at || '').localeCompare(String(left.created_at || '')))
-          );
-
-          setLoading(false);
-        };
+        setProdutos(allProducts.length > 0 ? allProducts : MOCK_PRODUTOS);
 
         if (cachedCliente) {
-          setCliente(prev => prev?.id === cachedCliente.id ? prev : { ...cachedCliente, meta: metas[id] ?? cachedCliente.meta ?? 0 });
+          setCliente(prev => prev?.id === cachedCliente.id ? prev : cachedCliente);
           setLoading(false);
         } else {
           setLoading(true);
         }
 
-        const localCache = await detailsPromise;
-        if (cancelled) return;
-        if (cachedCliente || localCache) {
-          applyLocalData(localCache);
-        }
-
-        if (navigator.onLine === false) {
-          if (!cachedCliente && !localCache) {
-            setError('Sem internet e sem dados locais deste cliente. Conecte uma vez para sincronizar.');
-            setLoading(false);
+        // 1. Safe query wrappers for each parallel Supabase fetch
+        const safeClientePromise = (async () => {
+          try {
+            const res = await supabase.from('clientes').select('*').eq('id', id).single();
+            if (res.error) throw res.error;
+            return res.data;
+          } catch (err) {
+            console.warn('[Offline Fallback] Erro ao carregar cliente do Supabase, usando cache local:', err);
+            return cachedCliente || MOCK_CLIENTES.find(c => c.id === id) || null;
           }
-          return;
-        }
+        })();
 
-        const clientePromise = supabase
-          .from('clientes')
-          .select('*')
-          .eq('id', id)
-          .single();
+        const safeMetaPromise = (async () => {
+          try {
+            const res = await supabase.from('metas').select('meta').eq('cliente_id', id).single();
+            if (res.error) throw res.error;
+            return res.data?.meta || 0;
+          } catch (err) {
+            console.warn('[Offline Fallback] Erro ao carregar meta do Supabase, usando cache local:', err);
+            return cachedMetas[id] || 0;
+          }
+        })();
 
-        const metaPromise = supabase
-          .from('metas')
-          .select('meta')
-          .eq('cliente_id', id)
-          .single();
+        const safeLoansPromise = (async () => {
+          try {
+            const res = await supabase
+              .from('emprestimos')
+              .select(`
+                *,
+                cliente_origem:clientes!cliente_origem_id(cliente),
+                produto:produtos!produto_id(produto)
+              `)
+              .eq('cliente_destino_id', id)
+              .eq('status', 'pendente');
+            if (res.error) throw res.error;
+            return (res.data || []).map((l: any) => ({
+              ...l,
+              cliente_origem_nome: l.cliente_origem?.cliente || 'N/A',
+              produto_nome: l.produto?.produto || 'N/A'
+            }));
+          } catch (err) {
+            console.warn('[Offline Fallback] Erro ao carregar empréstimos do Supabase, usando cache local:', err);
+            return cachedLoans
+              .filter((l: any) => l.cliente_destino_id === id && l.status === 'pendente')
+              .map((l: any) => {
+                const origClient = cachedClientes.find(c => c.id === l.cliente_origem_id);
+                const prod = allProducts.find(p => p.id === l.produto_id) || MOCK_PRODUTOS.find(p => p.id === l.produto_id);
+                return {
+                  ...l,
+                  cliente_origem_nome: origClient?.cliente || 'N/A',
+                  produto_nome: prod?.produto || 'N/A'
+                };
+              });
+          }
+        })();
 
-        const loansPromise = supabase
-          .from('emprestimos')
-          .select(`
-            *,
-            cliente_origem:clientes!cliente_origem_id(cliente),
-            produto:produtos!produto_id(produto)
-          `)
-          .eq('cliente_destino_id', id)
-          .eq('status', 'pendente');
+        const safeAgendaPromise = (async () => {
+          try {
+            const res = await supabase
+              .from('agenda_visitas')
+              .select('semana, dia_semana, ativo')
+              .eq('cliente_id', id)
+              .maybeSingle();
+            if (res.error) throw res.error;
+            return res.data;
+          } catch (err) {
+            console.warn('[Offline Fallback] Erro ao carregar agenda do Supabase, usando cache local:', err);
+            const localVisita = cachedVisitas.find(v => v.cliente_id === id);
+            return localVisita ? { semana: localVisita.semana, dia_semana: localVisita.dia_semana, ativo: localVisita.ativo } : null;
+          }
+        })();
 
-        const agendaPromise = supabase
-          .from('agenda_visitas')
-          .select('semana, dia_semana, ativo')
-          .eq('cliente_id', id)
-          .maybeSingle();
+        const safeFlexPromise = (async () => {
+          try {
+            const res = await supabase
+              .from('verba_flex_extrato')
+              .select('*')
+              .eq('cliente_id', id)
+              .order('created_at', { ascending: false });
+            if (res.error) throw res.error;
+            return res.data || [];
+          } catch (err) {
+            console.warn('[Offline Fallback] Erro ao carregar extrato flex do Supabase, usando cache local:', err);
+            return cachedFlex.filter(f => f.cliente_id === id);
+          }
+        })();
 
-        const flexPromise = supabase
-          .from('verba_flex_extrato')
-          .select('*')
-          .eq('cliente_id', id)
-          .order('created_at', { ascending: false });
-
-        const [clienteRes, metaRes] = await Promise.all([clientePromise, metaPromise]);
-        if (cancelled) return;
-
-        if (clienteRes.error) {
-          console.error('Supabase Error (cliente detail):', clienteRes.error.message);
-          setError('Erro ao conectar ao Supabase. Usando dados mock.');
-          setCliente(cachedCliente || MOCK_CLIENTES.find(c => c.id === id) || null);
-        } else if (!clienteRes.data) {
-          setCliente(cachedCliente || MOCK_CLIENTES.find(c => c.id === id) || null);
-        } else {
-          setCliente({
-            ...clienteRes.data,
-            meta: metaRes.data?.meta || 0
-          });
-        }
-        setLoading(false);
-
-        const [loanRes, agendaRes, flexRes] = await Promise.all([
-          loansPromise,
-          agendaPromise,
-          flexPromise
+        // 2. Resolve all queries in parallel without propagating rejections
+        const [
+          dbClienteData,
+          dbMetaVal,
+          dbLoansList,
+          dbAgendaItem,
+          dbFlexList,
+          cache
+        ] = await Promise.all([
+          safeClientePromise,
+          safeMetaPromise,
+          safeLoansPromise,
+          safeAgendaPromise,
+          safeFlexPromise,
+          detailsPromise
         ]);
+
         if (cancelled) return;
 
-        if (loanRes.data) {
-          setEmprestimos(loanRes.data.map((l: any) => ({
-            ...l,
-            cliente_origem_nome: l.cliente_origem?.cliente || 'N/A',
-            produto_nome: l.produto?.produto || 'N/A'
-          })));
+        // Set Client with its Meta
+        if (dbClienteData) {
+          setCliente({
+            ...dbClienteData,
+            meta: dbMetaVal
+          });
         } else {
-          setEmprestimos([]);
+          setCliente(cachedCliente || MOCK_CLIENTES.find(c => c.id === id) || null);
         }
 
-        if (!agendaRes.error && agendaRes.data && agendaRes.data.ativo !== false) {
+        // Set Loans
+        setEmprestimos(dbLoansList);
+
+        // Set Agenda Visitas
+        if (dbAgendaItem && dbAgendaItem.ativo !== false) {
           setVisitaAgenda({
-            semana: agendaRes.data.semana as 1 | 2,
-            dia_semana: agendaRes.data.dia_semana
+            semana: dbAgendaItem.semana as 1 | 2,
+            dia_semana: dbAgendaItem.dia_semana
           });
         } else {
           setVisitaAgenda(null);
         }
 
-        if (!flexRes.error && flexRes.data) {
-          setFlexExtrato(flexRes.data);
+        // Set Flex Extrato
+        setFlexExtrato(dbFlexList);
+
+        // Set Historico and Estoque
+        if (cache) {
+          setHistorico(cache.historico);
+          setEstoque(cache.estoque);
         } else {
-          setFlexExtrato([]);
+          setHistorico(MOCK_HISTORICO.filter(h => h.cliente_id === id));
+          setEstoque([]);
         }
 
-        if (localCache) {
-          setHistorico(localCache.historico);
-          setEstoque(localCache.estoque);
-        }
+        setLoading(false);
+
       } catch (err) {
         if (cancelled) return;
-        console.error('Erro ao carregar dados do cliente:', err);
-        const cache = await detailsPromise.catch(() => undefined);
-        if (cachedCliente || cache) {
-          setCliente(cachedCliente ? { ...cachedCliente, meta: metas[id] ?? cachedCliente.meta ?? 0 } : null);
-          setHistorico(cache?.historico ?? []);
-          setEstoque(cache?.estoque ?? []);
-          setError(null);
+        console.error('Erro crítico ao carregar dados do cliente:', err);
+        
+        // Final fallback block in case of absolute catastrophic failure
+        const fallbackCliente = cachedCliente || MOCK_CLIENTES.find(c => c.id === id) || null;
+        setCliente(fallbackCliente);
+        
+        const fallbackLoans = cachedLoans
+          .filter((l: any) => l.cliente_destino_id === id && l.status === 'pendente')
+          .map((l: any) => {
+            const origClient = cachedClientes.find(c => c.id === l.cliente_origem_id);
+            const prod = allProducts.find(p => p.id === l.produto_id) || MOCK_PRODUTOS.find(p => p.id === l.produto_id);
+            return {
+              ...l,
+              cliente_origem_nome: origClient?.cliente || 'N/A',
+              produto_nome: prod?.produto || 'N/A'
+            };
+          });
+        setEmprestimos(fallbackLoans);
+        
+        const localVisita = cachedVisitas.find(v => v.cliente_id === id);
+        if (localVisita && localVisita.ativo !== false) {
+          setVisitaAgenda({
+            semana: localVisita.semana,
+            dia_semana: localVisita.dia_semana
+          });
         } else {
-          setCliente(MOCK_CLIENTES.find(c => c.id === id) || null);
+          setVisitaAgenda(null);
+        }
+
+        setFlexExtrato(cachedFlex.filter(f => f.cliente_id === id));
+
+        const cache = await detailsPromise;
+        if (cache) {
+          setHistorico(cache.historico);
+          setEstoque(cache.estoque);
+        } else {
           setHistorico(MOCK_HISTORICO.filter(h => h.cliente_id === id));
-          setProdutos(MOCK_PRODUTOS);
-          setError('Sem internet e sem dados locais deste cliente. Conecte uma vez para sincronizar.');
+          setEstoque([]);
         }
         setLoading(false);
       }
@@ -320,7 +351,7 @@ export function ClienteDetail() {
     return () => {
       cancelled = true;
     };
-  }, [id, allProducts, cachedClientes, metas, cachedAgendaVisitas, cachedEmprestimos, cachedFlexExtrato, loadClientDetails]);
+  }, [id, allProducts, cachedClientes, cachedMetas, cachedVisitas, cachedLoans, cachedFlex, loadClientDetails]);
 
   const handleResetTrimestral = async () => {
     if (!id || !cliente) return;
