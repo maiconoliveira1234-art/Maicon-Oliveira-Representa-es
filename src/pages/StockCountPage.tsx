@@ -429,7 +429,8 @@ export function StockCountPage() {
         // We use the full mediaCiclo for ideal stock to ensure we have enough for one full cycle
         const rawEstoqueIdeal = Math.ceil(consumoDiario * mediaCiclo * quantEmbalagem);
         const currentStock = estoqueMap[produtoId] || 0;
-        const estoqueIdeal = Math.max(0, rawEstoqueIdeal - currentStock);
+        const orderedStock = (pedidoMap[produtoId] || 0) * quantEmbalagem;
+        const estoqueIdeal = Math.max(0, rawEstoqueIdeal - currentStock - orderedStock);
 
         // Tendencia (Column T in image) - Simplified logic: how many cycles passed
         const tendencia = mediaCiclo > 0 ? Math.floor(diasUltCompra / mediaCiclo) * -1 : 0;
@@ -485,7 +486,7 @@ export function StockCountPage() {
         
         return a.produto_nome.localeCompare(b.produto_nome);
       });
-  }, [historico, estoqueMap, ultimaContagemMap, produtosMap, showInactive, lastOrderDate, familyPriorityMap]);
+  }, [historico, estoqueMap, pedidoMap, ultimaContagemMap, produtosMap, showInactive, lastOrderDate, familyPriorityMap]);
 
   const diasDesdeUltimoPedidoGlobal = useMemo(() => {
     if (historico.length === 0) return 0;
