@@ -1,0 +1,1 @@
+Trigger temporário para aplicar o ajuste das colunas do modo Pedido.
