@@ -31,6 +31,7 @@ import { getFromLocal } from '../lib/offline';
 import { 
   getFaixaPreco, 
   getValorUnitario, 
+  calcularPrecoComDesconto,
   deveManterFaixaAnterior 
 } from '../lib/calculations';
 import { cn, formatCurrency, formatWeight } from '../lib/utils';
@@ -297,7 +298,7 @@ export function OrderPage() {
       const produto = produtos.find(p => p.id === item.produto_id);
       if (!produto) return item;
       const discount = getValorUnitario(produto, currentFaixa) || 0;
-      const unitario = produto.custo_und * (1 - discount);
+      const unitario = calcularPrecoComDesconto(produto.custo_und, discount);
       const valorTotalItem = unitario * (item.quantidade || 0) * (produto.quant_embalagem || 1);
       return {
         ...item,
@@ -462,7 +463,7 @@ export function OrderPage() {
               const extraQtd = item.quantidade || 0;
               if (extraQtd > 0) {
                 const discount = getValorUnitario(produto, tempFaixa) || 0;
-                const unitario = produto.custo_und * (1 - discount);
+                const unitario = calcularPrecoComDesconto(produto.custo_und, discount);
                 const valorTotalItem = unitario * extraQtd * (produto.quant_embalagem || 1);
 
                 newItens.push({
@@ -601,7 +602,7 @@ export function OrderPage() {
     setItens(prev => {
       const existing = prev.find(i => i.produto_id === produto.id && (i.tipo_operacao || 'VENDA') === tipoOps);
       const discount = getValorUnitario(produto, currentFaixa) || 0;
-      const unitario = produto.custo_und * (1 - discount);
+      const unitario = calcularPrecoComDesconto(produto.custo_und, discount);
 
       if (existing) {
         return prev.map(item => {
@@ -643,7 +644,7 @@ export function OrderPage() {
           const produto = produtos.find(p => p.id === produtoId)!;
           const pesoItem = qtd * produto.peso_embalagem;
           const discount = getValorUnitario(produto, currentFaixa) || 0;
-          const unitario = produto.custo_und * (1 - discount);
+          const unitario = calcularPrecoComDesconto(produto.custo_und, discount);
           const valorTotalItem = unitario * qtd * (produto.quant_embalagem || 1);
           
           return {
@@ -678,7 +679,7 @@ export function OrderPage() {
             const produto = produtos.find(p => p.id === produtoId)!;
             const pesoItem = mergedQty * produto.peso_embalagem;
             const discount = getValorUnitario(produto, currentFaixa) || 0;
-            const unitario = produto.custo_und * (1 - discount);
+            const unitario = calcularPrecoComDesconto(produto.custo_und, discount);
             const valorTotalItem = unitario * mergedQty * (produto.quant_embalagem || 1);
             return {
               ...item,
@@ -710,7 +711,7 @@ export function OrderPage() {
       const produto = produtos.find(p => p.id === item.produto_id);
       if (!produto) return item;
       const discount = getValorUnitario(produto, currentFaixa) || 0;
-      const unitario = produto.custo_und * (1 - discount);
+      const unitario = calcularPrecoComDesconto(produto.custo_und, discount);
       const valorTotalItem = unitario * (item.quantidade || 0) * (produto.quant_embalagem || 1);
       
       return {
@@ -1979,7 +1980,7 @@ export function OrderPage() {
                       </div>
                       <div className="text-right shrink-0">
                         <p className="font-bold text-orange-600">
-                          {formatCurrency(produto.custo_und * (1 - (getValorUnitario(produto, currentFaixa) || 0)))}
+                          {formatCurrency(calcularPrecoComDesconto(produto.custo_und, getValorUnitario(produto, currentFaixa)))}
                         </p>
                         <p className="text-[10px] text-neutral-400 font-bold uppercase">Por Unidade</p>
                       </div>

@@ -1,7 +1,7 @@
 // Permanent Regression Testing Suite for CRM/Stock/Order Application
 // Provides rich assertions, mocks, and coverage tracking for critical modules.
 
-import { getFaixaPreco, getValorUnitario, calcularSugestao, deveManterFaixaAnterior } from '../lib/calculations';
+import { calcularPrecoComDesconto, calcularSugestao, deveManterFaixaAnterior, getFaixaPreco, getValorUnitario, normalizarDesconto } from '../lib/calculations';
 import { classifySale } from '../lib/salesClassifier';
 import { deduplicateSales } from '../lib/utils';
 
@@ -105,6 +105,11 @@ export class RegressionTestSuite {
     this.assertEqual(getValorUnitario(mockProduto, '500kg'), 13.0, 'getValorUnitario 500kg', category, module);
     this.assertEqual(getValorUnitario(mockProduto, '200kg'), 14.0, 'getValorUnitario 200kg', category, module);
     this.assertEqual(getValorUnitario(mockProduto, 'livre'), 15.0, 'getValorUnitario livre', category, module);
+    this.assertEqual(normalizarDesconto(0.15), 0.15, 'normalizarDesconto formato decimal', category, module);
+    this.assertEqual(normalizarDesconto(15), 0.15, 'normalizarDesconto formato percentual', category, module);
+    this.assertEqual(normalizarDesconto('15,5'), 0.155, 'normalizarDesconto percentual com virgula', category, module);
+    this.assertEqual(calcularPrecoComDesconto(100, 0.15), 85, 'calcularPrecoComDesconto formato decimal', category, module);
+    this.assertEqual(calcularPrecoComDesconto(100, 15), 85, 'calcularPrecoComDesconto formato percentual', category, module);
 
     // 3. Estoque Ideal / Sugestão de Compra
     // consumoMedioDiario = 2, estoqueAtual = 10, diasDesdeUltimaCompra = 15, pesoEmbalagem = 15

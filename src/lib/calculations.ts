@@ -22,6 +22,23 @@ export function getValorUnitario(produto: Produto, faixa: PrecoFaixa): number {
   }
 }
 
+export function normalizarDesconto(value: unknown): number {
+  const parsed = typeof value === 'string'
+    ? Number(value.trim().replace(',', '.'))
+    : Number(value);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+
+  const normalized = parsed > 1 ? parsed / 100 : parsed;
+  return Math.min(1, normalized);
+}
+
+export function calcularPrecoComDesconto(basePrice: unknown, discount: unknown): number {
+  const base = Number(basePrice);
+  if (!Number.isFinite(base) || base <= 0) return 0;
+  return base * (1 - normalizarDesconto(discount));
+}
+
 export function calcularSugestao(
   consumoMedioDiario: number,
   estoqueAtual: number,

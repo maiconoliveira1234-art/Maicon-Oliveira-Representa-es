@@ -22,6 +22,7 @@ import { useDataManager } from '../lib/dataManager';
 import { supabase } from '../lib/supabase';
 import { classifySaleRecord } from '../lib/salesClassifier';
 import { cn, deduplicateSales, formatCurrency, formatWeight } from '../lib/utils';
+import { calcularPrecoComDesconto } from '../lib/calculations';
 import { Cliente, HistVenda, PrecoFaixa, Produto } from '../types';
 
 type ReportMode = 'comparison' | 'history' | 'custom';
@@ -56,8 +57,7 @@ const EMPTY_PRODUCT: NewProductForm = {
 };
 
 const priceForTable = (product: Produto, table: PrecoFaixa) => {
-  const discount = Number(product[table]) || 0;
-  return (Number(product.custo_und) || 0) * (1 - discount);
+  return calcularPrecoComDesconto(product.custo_und, product[table]);
 };
 
 const unitWeight = (product: Pick<Produto, 'peso_embalagem' | 'quant_embalagem'>) =>
@@ -183,9 +183,9 @@ export function PriceReportsPage() {
   const [dateTo, setDateTo] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedTables, setSelectedTables] = useState<Set<PrecoFaixa>>(
-    new Set(['livre', '500kg', '1000kg', '2000kg'])
+    new Set(['livre'])
   );
-  const [comparisonShowMarkup, setComparisonShowMarkup] = useState(false);
+  const [comparisonShowMarkup, setComparisonShowMarkup] = useState(true);
   const [historyProductId, setHistoryProductId] = useState('');
   const [onlyPurchased, setOnlyPurchased] = useState(false);
   const [customColumnDraft, setCustomColumnDraft] = useState<Set<CustomColumn>>(new Set(['product', 'lastPrice', 'averageCost', 'table:livre', 'table:500kg', 'table:1000kg', 'table:2000kg', 'suggested', 'markup']));
