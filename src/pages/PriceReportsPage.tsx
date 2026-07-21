@@ -669,9 +669,9 @@ export function PriceReportsPage() {
             : 'O cliente é opcional e serve apenas para identificar o destinatário no PDF; os preços das tabelas não são alterados.'}
         </p>}
         {(mode === 'history' || mode === 'custom') && (
-          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <label className="text-xs font-bold text-neutral-500">Data inicial<input type="date" value={dateFrom} onChange={event => setDateFrom(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm text-neutral-800" /></label>
-            <label className="text-xs font-bold text-neutral-500">Data final<input type="date" value={dateTo} onChange={event => setDateTo(event.target.value)} className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm text-neutral-800" /></label>
+          <div className="mt-3 grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <label className="block min-w-0 max-w-full overflow-hidden text-xs font-bold text-neutral-500">Data inicial<input type="date" value={dateFrom} onChange={event => setDateFrom(event.target.value)} className="mt-1 block min-w-0 max-w-full [inline-size:100%] rounded-lg border border-neutral-200 px-3 py-2 text-sm text-neutral-800" /></label>
+            <label className="block min-w-0 max-w-full overflow-hidden text-xs font-bold text-neutral-500">Data final<input type="date" value={dateTo} onChange={event => setDateTo(event.target.value)} className="mt-1 block min-w-0 max-w-full [inline-size:100%] rounded-lg border border-neutral-200 px-3 py-2 text-sm text-neutral-800" /></label>
             {mode === 'custom' && <>
               <Toggle checked={onlyPurchased} onChange={() => setOnlyPurchased(value => !value)} label="Itens positivados" />
               <ColumnSelector draft={customColumnDraft} onChange={setCustomColumnDraft} savingsTables={savingsTables} onSavingsTablesChange={setSavingsTables} onConfirm={() => setCustomColumns(new Set(customColumnDraft))} />
