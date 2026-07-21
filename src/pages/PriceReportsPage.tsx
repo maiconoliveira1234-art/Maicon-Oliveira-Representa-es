@@ -183,7 +183,7 @@ export function PriceReportsPage() {
   const [dateTo, setDateTo] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedTables, setSelectedTables] = useState<Set<PrecoFaixa>>(
-    new Set(['livre'])
+    new Set(['livre', '200kg'])
   );
   const [comparisonShowMarkup, setComparisonShowMarkup] = useState(true);
   const [historyProductId, setHistoryProductId] = useState('');
