@@ -57,6 +57,13 @@ interface DataManagerContextType {
 
 const DataManagerContext = createContext<DataManagerContextType | undefined>(undefined);
 const DAILY_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const IDLE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
+
+const mergeByKey = <T,>(current: T[], incoming: T[], getKey: (item: T) => string) => {
+  const merged = new Map(current.map(item => [getKey(item), item]));
+  incoming.forEach(item => merged.set(getKey(item), item));
+  return Array.from(merged.values());
+};
 
 const getLocalStorageSafeData = (key: string, data: any) => {
   if (key === 'offline_db_hist_vendas' && Array.isArray(data)) {
@@ -222,6 +229,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
   // Core Sync Pull Logic
   const syncAllDataInternal = useCallback(async (forceReflushQueue = true): Promise<boolean> => {
     if (isSyncingRef.current) return false;
+    const syncStartedAt = Date.now();
     isSyncingRef.current = true;
     setIsSyncing(true);
     
@@ -283,7 +291,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       const dbLoans = emprestimosRes.data || [];
       const dbFlex = flexRes.data || [];
       
-      const syncTime = Date.now();
+      const syncTime = syncStartedAt;
       
       // 3. Save to local cache. IndexedDB receives the full offline dataset.
       savePersistedBatch({
@@ -295,7 +303,8 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
         offline_db_estoque_cliente: dbEstoque,
         offline_db_emprestimos: dbLoans,
         offline_db_verba_flex_extrato: dbFlex,
-        offline_db_last_synced: syncTime
+        offline_db_last_synced: syncTime,
+        offline_db_last_full_synced: syncTime
       });
       
       // 4. Update memory states
@@ -339,6 +348,120 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     }
   }, [flushOfflineQueue]);
 
+  const syncChangedDataInternal = useCallback(async (): Promise<boolean> => {
+    if (isSyncingRef.current || navigator.onLine === false) return false;
+    const syncStartedAt = Date.now();
+    isSyncingRef.current = true;
+    setIsSyncing(true);
+
+    try {
+      const currentQueue = await loadPersisted<OfflineQueueItem[]>('offline_db_pending_queue', []);
+      if (currentQueue.length > 0) await flushOfflineQueue(currentQueue);
+
+      const lastSync = await loadPersisted<number>('offline_db_last_synced', 0);
+      const lastFullSync = await loadPersisted<number>('offline_db_last_full_synced', 0);
+      if (!lastSync || !lastFullSync || Date.now() - lastFullSync >= DAILY_SYNC_INTERVAL_MS) {
+        isSyncingRef.current = false;
+        setIsSyncing(false);
+        return await syncAllDataInternal(false);
+      }
+
+      const since = new Date(lastSync).toISOString();
+      const fetchChanges = async (table: string) => {
+        const incremental = await supabase.from(table).select('*').gt('updated_at', since);
+        if (!incremental.error) return { rows: incremental.data || [], full: false };
+
+        const missingUpdatedAt = incremental.error.code === '42703'
+          || incremental.error.code === 'PGRST204'
+          || incremental.error.message?.includes('updated_at');
+        if (!missingUpdatedAt) throw incremental.error;
+
+        // Legacy tables without updated_at are refreshed independently. Tables
+        // that support it continue using the much smaller incremental request.
+        const full = await supabase.from(table).select('*');
+        if (full.error) throw full.error;
+        return { rows: full.data || [], full: true };
+      };
+
+      const [clientesRes, produtosRes, metasRes, visitasRes, histRes, estoqueRes, loansRes, flexRes] = await Promise.all([
+        fetchChanges('clientes'),
+        fetchChanges('produtos'),
+        fetchChanges('metas'),
+        fetchChanges('agenda_visitas'),
+        fetchChanges('hist_vendas'),
+        fetchChanges('estoque_cliente'),
+        fetchChanges('emprestimos'),
+        fetchChanges('verba_flex_extrato')
+      ]);
+
+      const [cachedClientes, cachedProdutos, cachedMetas, cachedVisitas, cachedHist, cachedEstoque, cachedLoans, cachedFlex] = await Promise.all([
+        loadPersisted<Cliente[]>('offline_db_clientes', []),
+        loadPersisted<Produto[]>('offline_db_produtos', []),
+        loadPersisted<Record<string, number>>('offline_db_metas', {}),
+        loadPersisted<any[]>('offline_db_agenda_visitas', []),
+        loadPersisted<HistVenda[]>('offline_db_hist_vendas', []),
+        loadPersisted<EstoqueCliente[]>('offline_db_estoque_cliente', []),
+        loadPersisted<any[]>('offline_db_emprestimos', []),
+        loadPersisted<any[]>('offline_db_verba_flex_extrato', [])
+      ]);
+
+      const mergeResult = <T,>(cached: T[], result: { rows: any[]; full: boolean }, key: (item: T) => string) =>
+        result.full ? result.rows as T[] : mergeByKey(cached, result.rows as T[], key);
+
+      const dbClientes = mergeResult(cachedClientes, clientesRes, item => item.id);
+      const dbProdutos = mergeResult(cachedProdutos, produtosRes, item => item.id);
+      const dbVisitas = mergeResult(cachedVisitas, visitasRes, item => item.id);
+      const dbHist = deduplicateSales(mergeResult(cachedHist, histRes, item => item.id || `${item.cliente_id}:${item.produto_id}:${item.faturamento}:${item.qtd}`));
+      const dbEstoque = mergeResult(cachedEstoque, estoqueRes, item => `${item.cliente_id}:${item.produto_id}`);
+      const dbLoans = mergeResult(cachedLoans, loansRes, item => item.id);
+      const dbFlex = mergeResult(cachedFlex, flexRes, item => item.id);
+      const dbMetas = metasRes.full ? {} as Record<string, number> : { ...cachedMetas };
+      metasRes.rows.forEach((meta: any) => { dbMetas[meta.cliente_id] = meta.meta || 0; });
+
+      const syncTime = syncStartedAt;
+      savePersistedBatch({
+        offline_db_clientes: dbClientes,
+        offline_db_produtos: dbProdutos,
+        offline_db_metas: dbMetas,
+        offline_db_agenda_visitas: dbVisitas,
+        offline_db_hist_vendas: dbHist,
+        offline_db_estoque_cliente: dbEstoque,
+        offline_db_emprestimos: dbLoans,
+        offline_db_verba_flex_extrato: dbFlex,
+        offline_db_last_synced: syncTime
+      });
+
+      setClientes(dbClientes);
+      setProdutos(dbProdutos);
+      setMetas(dbMetas);
+      setAgendaVisitas(dbVisitas);
+      setHistVendas(dbHist);
+      setEstoqueCliente(dbEstoque);
+      setEmprestimos(dbLoans);
+      setVerbaFlexExtrato(dbFlex);
+      setLastSyncedTime(syncTime);
+
+      const productWeights = new Map(dbProdutos.map(product => [product.id, product.peso_embalagem || 0]));
+      const latestMap: Record<string, { date: string; weight: number }> = {};
+      dbHist.forEach(sale => {
+        const weight = (sale.qtd || 0) * (productWeights.get(sale.produto_id) || 0);
+        if (!latestMap[sale.cliente_id] || latestMap[sale.cliente_id].date < sale.faturamento) {
+          latestMap[sale.cliente_id] = { date: sale.faturamento, weight };
+        } else if (latestMap[sale.cliente_id].date === sale.faturamento) {
+          latestMap[sale.cliente_id].weight += weight;
+        }
+      });
+      setLatestSalesMap(latestMap);
+      return true;
+    } catch (error) {
+      console.error('[OfflineSync] Erro na sincronização incremental:', error);
+      return false;
+    } finally {
+      isSyncingRef.current = false;
+      setIsSyncing(false);
+    }
+  }, [flushOfflineQueue, syncAllDataInternal]);
+
   // Public wrapper for full sync
   const syncAllData = useCallback(async (force = true) => {
     return syncAllDataInternal(force);
@@ -360,6 +483,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       const cachedLoans = await loadPersisted<any[]>('offline_db_emprestimos', []);
       const cachedFlex = await loadPersisted<any[]>('offline_db_verba_flex_extrato', []);
       const cachedTime = await loadPersisted<number>('offline_db_last_synced', 0);
+      const cachedFullSyncTime = await loadPersisted<number>('offline_db_last_full_synced', 0);
       const cachedQueue = await loadPersisted<OfflineQueueItem[]>('offline_db_pending_queue', []);
       
       setClientes(cachedClientes);
@@ -401,7 +525,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
         if (cachedQueue.length > 0) {
           flushOfflineQueue(cachedQueue);
         }
-        const syncIsStale = !cachedTime || Date.now() - cachedTime >= DAILY_SYNC_INTERVAL_MS;
+        const syncIsStale = !cachedFullSyncTime || Date.now() - cachedFullSyncTime >= DAILY_SYNC_INTERVAL_MS;
         if (syncIsStale && navigator.onLine !== false) {
           window.setTimeout(() => {
             syncAllDataInternal(false);
@@ -423,6 +547,49 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       setLoadingGlobal(false);
     }
   }, [syncAllDataInternal, flushOfflineQueue]);
+
+  useEffect(() => {
+    let idleTimer: number | undefined;
+    let idleInterval: number | undefined;
+
+    const stopIdleInterval = () => {
+      if (idleInterval !== undefined) window.clearInterval(idleInterval);
+      idleInterval = undefined;
+    };
+
+    const beginIdleSync = () => {
+      syncChangedDataInternal();
+      stopIdleInterval();
+      idleInterval = window.setInterval(syncChangedDataInternal, IDLE_SYNC_INTERVAL_MS);
+    };
+
+    const registerActivity = () => {
+      if (idleTimer !== undefined) window.clearTimeout(idleTimer);
+      stopIdleInterval();
+      idleTimer = window.setTimeout(beginIdleSync, IDLE_SYNC_INTERVAL_MS);
+    };
+
+    const syncWhenReturning = () => {
+      if (document.visibilityState !== 'visible') return;
+      const lastSync = loadLocal<number>('offline_db_last_synced', 0);
+      if (!lastSync || Date.now() - lastSync >= IDLE_SYNC_INTERVAL_MS) syncChangedDataInternal();
+      registerActivity();
+    };
+
+    const activityEvents: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+    activityEvents.forEach(event => window.addEventListener(event, registerActivity, { passive: true }));
+    window.addEventListener('online', syncWhenReturning);
+    document.addEventListener('visibilitychange', syncWhenReturning);
+    registerActivity();
+
+    return () => {
+      if (idleTimer !== undefined) window.clearTimeout(idleTimer);
+      stopIdleInterval();
+      activityEvents.forEach(event => window.removeEventListener(event, registerActivity));
+      window.removeEventListener('online', syncWhenReturning);
+      document.removeEventListener('visibilitychange', syncWhenReturning);
+    };
+  }, [syncChangedDataInternal]);
 
   // Offline-Safe Write Wrapper: saveStockCount
   const saveStockCount = useCallback(async (clienteId: string, items: any[]) => {

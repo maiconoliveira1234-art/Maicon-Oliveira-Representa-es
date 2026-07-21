@@ -665,16 +665,10 @@ export function StockCountPage() {
 
   const confirmClearAll = () => {
     setEstoqueMap({});
-    setPedidoMap({});
-    setNonVendaItems([]);
     setTouchedItems(new Set());
     setShowClearConfirm(false);
     if (clienteId) {
       localStorage.setItem(`estoque_${clienteId}`, JSON.stringify({}));
-      localStorage.removeItem(`pedido_${clienteId}`);
-      supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId).then(({ error }) => {
-        if (error) console.error('Erro ao limpar pedido aberto pela contagem:', error);
-      });
     }
   };
 
@@ -683,6 +677,8 @@ export function StockCountPage() {
     setSaving(true);
 
     try {
+      await savePedidoDraft(buildPedidoItemsList());
+
       const touchedProductIds = new Set(touchedItems);
       const itemsToUpsert = Array.from(touchedProductIds).map(prodId => ({
         cliente_id: clienteId,
@@ -1415,7 +1411,7 @@ export function StockCountPage() {
               className="w-full max-w-sm rounded-lg bg-white p-5 shadow-2xl border border-neutral-200"
             >
               <h3 className="text-base font-black text-neutral-900">Zerar contagem</h3>
-              <p className="mt-2 text-sm font-medium text-neutral-600">Tem certeza que deseja zerar toda a contagem e também limpar os itens lançados no pedido?</p>
+              <p className="mt-2 text-sm font-medium text-neutral-600">Tem certeza que deseja zerar toda a contagem? Os itens lançados no pedido serão preservados.</p>
               <div className="mt-5 flex gap-3">
                 <button
                   onClick={() => setShowClearConfirm(false)}
@@ -1427,7 +1423,7 @@ export function StockCountPage() {
                   onClick={confirmClearAll}
                   className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-black text-white transition-colors hover:bg-red-700"
                 >
-                  Limpar tudo
+                  Limpar contagem
                 </button>
               </div>
             </motion.div>
