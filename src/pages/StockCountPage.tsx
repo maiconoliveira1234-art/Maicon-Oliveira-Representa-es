@@ -382,11 +382,15 @@ export function StockCountPage() {
   }, [historico, produtosMap]);
 
   const lastOrderDate = useMemo(() => {
-    if (historico.length === 0) return null;
-    const sortedDates = [...new Set(historico.map(h => h.faturamento))].sort((a: string, b: string) => 
-      parseISO(b).getTime() - parseISO(a).getTime()
+    const validDates = historico
+      .filter(sale => classifySaleRecord(sale).influenciaConsumo)
+      .map(sale => sale.faturamento)
+      .filter(date => Number.isFinite(parseISO(date).getTime()));
+
+    if (validDates.length === 0) return null;
+    return validDates.reduce((latest, date) =>
+      parseISO(date).getTime() > parseISO(latest).getTime() ? date : latest
     );
-    return sortedDates[0];
   }, [historico]);
 
   const processedItems = useMemo(() => {
@@ -499,12 +503,12 @@ export function StockCountPage() {
         
         return a.produto_nome.localeCompare(b.produto_nome);
       });
-  }, [historico, estoqueMap, pedidoMap, ultimaContagemMap, produtosMap, showInactive, lastOrderDate, familyPriorityMap]);
+  }, [historico, estoqueMap, pedidoMap, ultimaContagemMap, produtosMap, showInactive, familyPriorityMap]);
 
   const diasDesdeUltimoPedidoGlobal = useMemo(() => {
-    if (historico.length === 0) return 0;
-    return differenceInDays(new Date(), parseISO(historico[0].faturamento));
-  }, [historico]);
+    if (!lastOrderDate) return 0;
+    return Math.max(0, differenceInDays(new Date(), parseISO(lastOrderDate)));
+  }, [lastOrderDate]);
 
   const families = useMemo(() => {
     let list = processedItems;
