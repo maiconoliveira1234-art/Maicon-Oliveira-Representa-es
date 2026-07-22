@@ -284,7 +284,13 @@ export function StockCountPage() {
       .eq('cliente_id', clienteId)
       .maybeSingle()
       .then(({ data, error }) => {
-        if (error || !data || !Array.isArray(data.items)) return;
+        if (error) return;
+        if (!data || !Array.isArray(data.items)) {
+          setPedidoMap({});
+          setNonVendaItems([]);
+          localStorage.removeItem(`pedido_${clienteId}`);
+          return;
+        }
 
         const dbPedidoMap: Record<string, number> = {};
         const dbNonVenda = new Map<string, { produto_id: string, quantidade: number, tipo_operacao: 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' }>();
@@ -304,38 +310,16 @@ export function StockCountPage() {
           }
         });
 
-        setPedidoMap(prev => ({ ...dbPedidoMap, ...prev }));
-        setNonVendaItems(prev => {
-          const merged = new Map(dbNonVenda);
-          prev.forEach(item => merged.set(item.produto_id + '_' + item.tipo_operacao, item));
-          return Array.from(merged.values());
-        });
+        setPedidoMap(dbPedidoMap);
+        setNonVendaItems(Array.from(dbNonVenda.values()));
 
-        const saved = localStorage.getItem(`pedido_${clienteId}`);
-        let localDraft: any = {};
-        if (saved) {
-          try {
-            localDraft = JSON.parse(saved);
-          } catch (e) {}
-        }
-
-        const mergedItems = [
-          ...data.items.filter((item: any) => item?.tipo_operacao !== 'VENDA' && item?.tipo_operacao),
-          ...Object.entries({ ...dbPedidoMap, ...pMap })
-            .filter(([, quantidade]) => Number(quantidade) > 0)
-            .map(([produto_id, quantidade]) => ({
-              produto_id,
-              quantidade,
-              tipo_operacao: 'VENDA'
-            }))
-        ];
+        const mergedItems = data.items.filter((item: any) => item?.produto_id && Number(item.quantidade) > 0);
 
         localStorage.setItem(`pedido_${clienteId}`, JSON.stringify({
-          ...localDraft,
-          prazo: localDraft.prazo ?? data.prazo ?? '',
-          obs: localDraft.obs ?? data.obs ?? '',
-          manualFaixa: localDraft.manualFaixa ?? data.manual_faixa ?? null,
-          startedAt: localDraft.startedAt ?? data.started_at ?? null,
+          prazo: data.prazo ?? '',
+          obs: data.obs ?? '',
+          manualFaixa: data.manual_faixa ?? null,
+          startedAt: data.started_at ?? null,
           items: mergedItems
         }));
       });

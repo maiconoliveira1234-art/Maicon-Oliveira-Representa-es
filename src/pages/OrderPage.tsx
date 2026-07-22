@@ -71,6 +71,7 @@ export function OrderPage() {
   const [observacoes, setObservacoes] = useState('');
   const [manualFaixa, setManualFaixa] = useState<PrecoFaixa | null>(null);
   const [startedAt, setStartedAt] = useState<string | null>(null);
+  const suppressDraftPersistence = React.useRef(false);
 
   const historicoCliente = useMemo(() => {
     return clienteId ? clientCache[clienteId]?.historico || [] : [];
@@ -379,6 +380,7 @@ export function OrderPage() {
     const loadSavedOrder = async () => {
       if (!loading && produtos.length > 0 && clienteId && !initialLoadDone.current) {
         let savedData: any = null;
+        let serverStateLoaded = false;
         
         // 1. Try Supabase first
         try {
@@ -388,6 +390,7 @@ export function OrderPage() {
             .eq('cliente_id', clienteId)
             .maybeSingle();
           if (!error && data) {
+            serverStateLoaded = true;
             savedData = {
               items: data.items,
               prazo: data.prazo,
@@ -395,13 +398,16 @@ export function OrderPage() {
               manualFaixa: data.manual_faixa,
               startedAt: data.started_at
             };
+          } else if (!error) {
+            serverStateLoaded = true;
+            localStorage.removeItem(`pedido_${clienteId}`);
           }
         } catch (dbErr) {
           console.error('Error fetching open order from DB:', dbErr);
         }
 
         // 2. Fallback to localStorage if not found/error
-        if (!savedData) {
+        if (!serverStateLoaded && !savedData) {
           const saved = localStorage.getItem(`pedido_${clienteId}`);
           if (saved) {
             try {
@@ -508,7 +514,7 @@ export function OrderPage() {
 
   // Persist items to localStorage and database (Supabase)
   useEffect(() => {
-    if (isReady && clienteId) {
+    if (isReady && clienteId && !suppressDraftPersistence.current) {
       if (itens.length === 0) {
         localStorage.removeItem(`pedido_${clienteId}`);
         // Also clean up from Supabase DB asynchronously
@@ -537,6 +543,7 @@ export function OrderPage() {
 
       // Debounce saving to Supabase (e.g. 1 second delay) to prevent database spam on fast interactions
       const saveTimer = setTimeout(async () => {
+        if (suppressDraftPersistence.current) return;
         try {
           const { error } = await supabase
             .from('pedidos_em_aberto')
@@ -567,7 +574,16 @@ export function OrderPage() {
   const [showPreview, setShowPreview] = useState(false);
   const receiptRef = React.useRef<HTMLDivElement>(null);
 
-  const handleClearOrder = () => {
+  const handleClearOrder = async () => {
+    suppressDraftPersistence.current = true;
+    if (clienteId && navigator.onLine !== false) {
+      const { error } = await supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId);
+      if (error) {
+        suppressDraftPersistence.current = false;
+        alert('Não foi possível limpar o pedido no servidor. Tente novamente.');
+        return;
+      }
+    }
     setItens([]);
     setManualFaixa(null);
     setStartedAt(null);
@@ -576,11 +592,8 @@ export function OrderPage() {
     setShowClearConfirm(false);
     if (clienteId) {
       localStorage.removeItem(`pedido_${clienteId}`);
-      // Also clean up from Supabase DB
-      supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId).then(({ error }) => {
-        if (error) console.error('Erro ao deletar do DB:', error);
-      });
     }
+    suppressDraftPersistence.current = false;
   };
 
   const valorTotal = useMemo(() => {
@@ -853,11 +866,13 @@ export function OrderPage() {
 
       if (shouldClear) {
         if (clienteId) {
+          suppressDraftPersistence.current = true;
+          const { error } = await supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId);
+          if (error) {
+            suppressDraftPersistence.current = false;
+            throw new Error(`Não foi possível finalizar o pedido no servidor: ${error.message}`);
+          }
           localStorage.removeItem(`pedido_${clienteId}`);
-          // Also clean up from Supabase DB
-          supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId).then(({ error }) => {
-            if (error) console.error('Erro ao deletar do DB ao finalizar:', error);
-          });
         }
         alert('Orçamento gerado com sucesso!');
         navigate(`/cliente/${clienteId}`);

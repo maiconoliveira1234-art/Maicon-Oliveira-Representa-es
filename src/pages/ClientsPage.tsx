@@ -83,11 +83,15 @@ export function ClientsPage() {
 
       // Fetch open orders from Supabase first
       let dbOpenOrders: any[] = [];
+      let serverOpenOrdersLoaded = false;
       if (navigator.onLine !== false) {
         try {
           const { data, error } = await supabase.from('pedidos_em_aberto').select('*');
           if (!error && data) {
             dbOpenOrders = data;
+            serverOpenOrdersLoaded = true;
+          } else if (error) {
+            console.error('Error fetching pedidos_em_aberto:', error);
           }
         } catch (dbErr) {
           console.error('Error fetching pedidos_em_aberto:', dbErr);
@@ -112,9 +116,12 @@ export function ClientsPage() {
         }
       });
 
-      // 2. Fallback/merge with localStorage
+      // Local drafts are only a fallback while offline or when the server cannot
+      // be reached. When online, the shared database is the source of truth.
       enrichedClientes.forEach(c => {
-        if (!openOrdersMap[c.id]) {
+        if (serverOpenOrdersLoaded) {
+          if (!openOrdersMap[c.id]) localStorage.removeItem(`pedido_${c.id}`);
+        } else if (!openOrdersMap[c.id]) {
           const saved = localStorage.getItem(`pedido_${c.id}`);
           if (saved) {
             try {
@@ -151,6 +158,22 @@ export function ClientsPage() {
 
   useEffect(() => {
     fetchClientes();
+  }, [fetchClientes]);
+
+  useEffect(() => {
+    const refreshOpenOrders = () => {
+      if (document.visibilityState === 'visible') fetchClientes();
+    };
+    const channel = supabase
+      .channel('clientes-pedidos-em-aberto')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos_em_aberto' }, fetchClientes)
+      .subscribe();
+
+    document.addEventListener('visibilitychange', refreshOpenOrders);
+    return () => {
+      document.removeEventListener('visibilitychange', refreshOpenOrders);
+      supabase.removeChannel(channel);
+    };
   }, [fetchClientes]);
 
   const [successMessage, setSuccessMessage] = useState('Cliente cadastrado com sucesso!');
