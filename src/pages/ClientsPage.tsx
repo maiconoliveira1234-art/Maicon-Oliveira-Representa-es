@@ -232,6 +232,21 @@ export function ClientsPage() {
     }
   };
 
+  const compareClientName = (a: Cliente, b: Cliente) => {
+    const byName = (a.cliente || '').localeCompare(b.cliente || '', 'pt-BR', {
+      sensitivity: 'base',
+      numeric: true
+    });
+    if (byName !== 0) return byName;
+
+    const byCity = (a.cidade || '').localeCompare(b.cidade || '', 'pt-BR', {
+      sensitivity: 'base',
+      numeric: true
+    });
+    if (byCity !== 0) return byCity;
+    return a.id.localeCompare(b.id);
+  };
+
   const filteredClientes = clientes.filter(c => {
     const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word.length > 0);
     const clienteName = c.cliente || '';
@@ -254,9 +269,10 @@ export function ClientsPage() {
       }
       
       // If same date, largest weight first
-      return (b.ultima_compra_peso || 0) - (a.ultima_compra_peso || 0);
+      const weightDifference = (b.ultima_compra_peso || 0) - (a.ultima_compra_peso || 0);
+      return weightDifference !== 0 ? weightDifference : compareClientName(a, b);
     }
-    return 0; // Keep original order (by name from Supabase)
+    return compareClientName(a, b);
   });
 
   if (loading) return <ClientPageSkeleton />;
