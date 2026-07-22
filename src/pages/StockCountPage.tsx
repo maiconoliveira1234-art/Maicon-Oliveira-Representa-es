@@ -1101,12 +1101,12 @@ export function StockCountPage() {
               )}
             </div>
 
-            <div className="flex flex-wrap md:flex-nowrap items-center justify-between md:justify-end gap-1 md:gap-1.5 w-full pb-0.5">
-              <div className="flex bg-neutral-100 p-0.5 rounded border border-neutral-200 shrink-0 h-8">
+            <div className="flex flex-nowrap items-center justify-start md:justify-end gap-0.5 md:gap-1.5 w-full min-w-0 pb-0.5">
+              <div className="flex bg-neutral-100 p-0.5 rounded border border-neutral-200 shrink-0 h-7 md:h-8">
                 <button
                   onClick={() => setViewMode('contagem')}
                   className={cn(
-                    "px-3 md:px-4 rounded text-[10px] md:text-[11px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
+                    "px-1.5 sm:px-2 md:px-4 rounded text-[9px] sm:text-[10px] md:text-[11px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
                     viewMode === 'contagem' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
                   )}
                 >
@@ -1115,7 +1115,7 @@ export function StockCountPage() {
                 <button
                   onClick={() => setViewMode('pedido')}
                   className={cn(
-                    "px-3 md:px-4 rounded text-[10px] md:text-[11px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
+                    "px-1.5 sm:px-2 md:px-4 rounded text-[9px] sm:text-[10px] md:text-[11px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
                     viewMode === 'pedido' ? "bg-white text-green-600 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
                   )}
                 >
@@ -1127,7 +1127,7 @@ export function StockCountPage() {
                 <button
                   onClick={() => setIsActionsMenuOpen(open => !open)}
                   className={cn(
-                    "flex h-8 items-center gap-1.5 rounded border px-2.5 text-[10px] md:text-[11px] font-black transition-colors",
+                    "flex h-7 md:h-8 items-center gap-1 rounded border px-1.5 md:px-2.5 text-[9px] sm:text-[10px] md:text-[11px] font-black transition-colors",
                     isActionsMenuOpen || showInactive || showAverages
                       ? "border-neutral-900 bg-neutral-900 text-white"
                       : "border-neutral-200 bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
@@ -1135,7 +1135,7 @@ export function StockCountPage() {
                   aria-expanded={isActionsMenuOpen}
                   aria-haspopup="menu"
                 >
-                  <MoreHorizontal size={15} />
+                  <MoreHorizontal size={14} />
                   Ações
                 </button>
 
@@ -1182,7 +1182,7 @@ export function StockCountPage() {
                 <select
                   value={selectedWeight}
                   onChange={(e) => setSelectedWeight(e.target.value)}
-                  className="pl-2 pr-5 h-6 md:h-8 bg-neutral-100 rounded outline-none text-[9.5px] md:text-[11px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer max-w-[75px] md:max-w-[100px] truncate"
+                  className="w-[58px] sm:w-[70px] md:w-auto pl-1.5 md:pl-2 pr-4 md:pr-5 h-7 md:h-8 bg-neutral-100 rounded outline-none text-[9px] sm:text-[9.5px] md:text-[11px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer md:max-w-[100px] truncate"
                 >
                   {weights.map(w => (
                     <option key={w} value={w}>
@@ -1195,11 +1195,11 @@ export function StockCountPage() {
                 </div>
               </div>
 
-              <div className="relative shrink-0">
+              <div className="relative min-w-0 flex-1 md:flex-none">
                 <select
                   value={selectedFamily}
                   onChange={(e) => setSelectedFamily(e.target.value)}
-                  className="pl-2 pr-5 h-6 md:h-8 bg-neutral-100 rounded outline-none text-[9.5px] md:text-[11px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer max-w-[95px] md:max-w-[135px] truncate"
+                  className="w-full md:w-auto pl-1.5 md:pl-2 pr-4 md:pr-5 h-7 md:h-8 bg-neutral-100 rounded outline-none text-[9px] sm:text-[9.5px] md:text-[11px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer md:max-w-[135px] truncate"
                 >
                   {families.map(f => (
                     <option key={f} value={f}>{f === 'Todas' ? 'Fam: Todas' : f}</option>
