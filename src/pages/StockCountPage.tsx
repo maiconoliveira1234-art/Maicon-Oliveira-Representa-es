@@ -38,6 +38,7 @@ interface ItemEstoqueData {
   produto_nome: string;
   dias_ult_compra: number;
   qtd_ult_compra: number;
+  qtd_ultimo_pedido: number;
   quantidade_atual: number;
   ultima_contagem_valor: number;
   media_qtd: number;
@@ -455,6 +456,11 @@ export function StockCountPage() {
         // Get quantity in units of that item's own last purchase by the client
         const lastPurchaseItems = sortedVendas.filter(v => v.faturamento === ultVenda.faturamento);
         const qtdUltCompraInfo = lastPurchaseItems.reduce((acc, v) => acc + v.qtd, 0) * quantEmbalagem;
+        const qtdUltimoPedido = lastOrderDate
+          ? vendas
+              .filter(venda => venda.faturamento === lastOrderDate)
+              .reduce((total, venda) => total + venda.qtd, 0) * quantEmbalagem
+          : 0;
         const ultimaContagemValor = ultimaContagemMap[produtoId] || 0;
         const isProdutoAtivo = produto?.ativo !== false;
         const ativoParaContagem = isProdutoAtivo
@@ -466,6 +472,7 @@ export function StockCountPage() {
           produto_nome: ultVenda.produtos,
           dias_ult_compra: diasUltCompra,
           qtd_ult_compra: qtdUltCompraInfo,
+          qtd_ultimo_pedido: qtdUltimoPedido,
           quantidade_atual: currentStock,
           ultima_contagem_valor: ultimaContagemValor,
           media_qtd: Math.round(mediaQtd * quantEmbalagem),
@@ -503,7 +510,7 @@ export function StockCountPage() {
         
         return a.produto_nome.localeCompare(b.produto_nome);
       });
-  }, [historico, estoqueMap, pedidoMap, ultimaContagemMap, produtosMap, showInactive, familyPriorityMap]);
+  }, [historico, estoqueMap, pedidoMap, ultimaContagemMap, produtosMap, showInactive, lastOrderDate, familyPriorityMap]);
 
   const diasDesdeUltimoPedidoGlobal = useMemo(() => {
     if (!lastOrderDate) return 0;
@@ -1675,24 +1682,25 @@ export function StockCountPage() {
             <tbody className="divide-y" style={{ borderColor: '#f5f5f5' }}>
               {chunk.map((item, idx) => {
                 const currentStock = estoqueMap[item.produto_id] ?? 0;
-                const ultEstoque = item.ultima_contagem_valor + item.qtd_ult_compra;
+                const isZeroStock = currentStock === 0;
+                const ultEstoque = item.ultima_contagem_valor + item.qtd_ultimo_pedido;
                 const venda = ultEstoque - currentStock;
 
                 return (
                   <tr key={item.produto_id} className="text-[11px]" style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
-                    <td className="py-3 px-2 font-bold leading-tight break-words max-w-[200px]" style={{ color: '#262626' }}>
+                    <td className="py-3 px-2 font-bold leading-tight break-words max-w-[200px]" style={{ color: isZeroStock ? '#dc2626' : '#262626', fontWeight: isZeroStock ? 900 : 700 }}>
                       {item.produto_nome}
                     </td>
                     <td className="py-3 px-2 text-center font-bold" style={{ color: '#737373' }}>
                       {item.ultima_contagem_valor}
                     </td>
                     <td className="py-3 px-2 text-center font-bold" style={{ color: '#737373' }}>
-                      {item.qtd_ult_compra}
+                      {item.qtd_ultimo_pedido}
                     </td>
                     <td className="py-3 px-2 text-center font-black" style={{ borderRight: '2px solid #f5f5f5', color: '#171717' }}>
                       {ultEstoque}
                     </td>
-                    <td className="py-3 px-2 text-center font-black" style={{ backgroundColor: 'rgba(255, 247, 237, 0.3)', color: '#171717' }}>
+                    <td className="py-3 px-2 text-center font-black" style={{ backgroundColor: isZeroStock ? 'rgba(254, 226, 226, 0.45)' : 'rgba(255, 247, 237, 0.3)', color: isZeroStock ? '#dc2626' : '#171717', fontWeight: 900 }}>
                       {currentStock}
                     </td>
                     <td className="py-3 px-2 text-center font-black" style={{ color: venda > 0 ? '#dc2626' : (venda < 0 ? '#dc2626' : '#a3a3a3') }}>
