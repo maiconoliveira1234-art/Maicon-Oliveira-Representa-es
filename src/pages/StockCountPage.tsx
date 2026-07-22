@@ -14,7 +14,11 @@ import {
   X,
   FileText,
   Trash2,
-  Home
+  Home,
+  MoreHorizontal,
+  Eye,
+  EyeOff,
+  BarChart3
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -67,6 +71,8 @@ export function StockCountPage() {
   const [selectedFamily, setSelectedFamily] = useState('Todas');
   const [selectedWeight, setSelectedWeight] = useState('Todos');
   const [showInactive, setShowInactive] = useState(false);
+  const [showAverages, setShowAverages] = useState(false);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'contagem' | 'pedido'>('contagem');
   const [selectedProductHistory, setSelectedProductHistory] = useState<ItemEstoqueData | null>(null);
   const [isReady, setIsReady] = useState(false);
@@ -352,11 +358,15 @@ export function StockCountPage() {
 
   const gridCols = useMemo(() => {
     if (viewMode === 'contagem') {
-      return "grid-cols-[minmax(0,1fr)_38px_38px_42px_96px_38px]";
+      return showAverages
+        ? "grid-cols-[minmax(0,1fr)_38px_38px_42px_38px_38px_96px_38px]"
+        : "grid-cols-[minmax(0,1fr)_38px_38px_42px_96px_38px]";
     }
 
-    return "grid-cols-[minmax(0,1fr)_38px_38px_38px_42px_38px_96px]";
-  }, [viewMode]);
+    return showAverages
+      ? "grid-cols-[minmax(0,1fr)_38px_38px_38px_38px_38px_42px_38px_96px]"
+      : "grid-cols-[minmax(0,1fr)_38px_38px_38px_42px_38px_96px]";
+  }, [viewMode, showAverages]);
 
   const orderWeightByDay = useMemo(() => {
     const map: Record<string, number> = {};
@@ -416,9 +426,12 @@ export function StockCountPage() {
         const uniqueDates = [...new Set(vendas.map(v => parseISO(v.faturamento).getTime()))];
         const numPurchases = uniqueDates.length;
         
-        let mediaCiclo = Math.round(spanDias / numPurchases);
-        
-        // Ensure no 0 cycle
+        // A single purchase is not enough to establish a recurrence. In that
+        // case, preserve the historical 30-day minimum and let overdue items
+        // reflect the actual time elapsed since their last purchase.
+        let mediaCiclo = numPurchases === 1
+          ? Math.max(30, diasUltCompra)
+          : Math.round(spanDias / numPurchases);
         if (mediaCiclo === 0) mediaCiclo = Math.max(30, diasUltCompra);
 
         const produto = produtosMap[produtoId];
@@ -1106,25 +1119,60 @@ export function StockCountPage() {
                 </button>
               </div>
 
+              <div className="relative shrink-0">
+                <button
+                  onClick={() => setIsActionsMenuOpen(open => !open)}
+                  className={cn(
+                    "flex h-8 items-center gap-1.5 rounded border px-2.5 text-[10px] md:text-[11px] font-black transition-colors",
+                    isActionsMenuOpen || showInactive || showAverages
+                      ? "border-neutral-900 bg-neutral-900 text-white"
+                      : "border-neutral-200 bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                  )}
+                  aria-expanded={isActionsMenuOpen}
+                  aria-haspopup="menu"
+                >
+                  <MoreHorizontal size={15} />
+                  Ações
+                </button>
 
-              <button 
-                onClick={handleClearAll}
-                className="px-2 md:px-4 py-0.5 bg-red-600 text-white rounded text-[9.5px] md:text-[11px] font-black hover:bg-red-700 transition-all flex items-center gap-1 shrink-0 shadow-sm active:scale-95 cursor-pointer h-6 md:h-8"
-              >
-                <Trash2 size={12} /> Limpar
-              </button>
-
-              <button 
-                onClick={() => setShowInactive(!showInactive)}
-                className={cn(
-                  "px-2 md:px-4 py-0.5 rounded text-[9.5px] md:text-[11px] font-black transition-colors cursor-pointer shrink-0 border h-6 md:h-8 flex items-center gap-1",
-                  showInactive 
-                    ? "bg-orange-600 text-white border-orange-700 shadow-sm" 
-                    : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border-neutral-200"
+                {isActionsMenuOpen && (
+                  <div className="absolute right-0 top-9 z-[130] w-56 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl" role="menu">
+                    <button
+                      onClick={() => {
+                        setIsActionsMenuOpen(false);
+                        handleClearAll();
+                      }}
+                      className="flex h-11 w-full items-center gap-3 px-3 text-left text-sm font-bold text-red-600 hover:bg-red-50"
+                      role="menuitem"
+                    >
+                      <Trash2 size={17} />
+                      Limpar contagem
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowInactive(value => !value);
+                        setIsActionsMenuOpen(false);
+                      }}
+                      className="flex h-11 w-full items-center gap-3 px-3 text-left text-sm font-bold text-neutral-800 hover:bg-neutral-50"
+                      role="menuitem"
+                    >
+                      {showInactive ? <EyeOff size={17} /> : <Eye size={17} />}
+                      {showInactive ? 'Ocultar inativos' : 'Exibir inativos'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowAverages(value => !value);
+                        setIsActionsMenuOpen(false);
+                      }}
+                      className="flex h-11 w-full items-center gap-3 px-3 text-left text-sm font-bold text-neutral-800 hover:bg-neutral-50"
+                      role="menuitem"
+                    >
+                      <BarChart3 size={17} />
+                      {showAverages ? 'Ocultar média' : 'Média'}
+                    </button>
+                  </div>
                 )}
-              >
-                <span>{showInactive ? "Ocultar inativos" : "Mostrar inativos"}</span>
-              </button>
+              </div>
 
               <div className="relative shrink-0">
                 <select
@@ -1231,6 +1279,12 @@ export function StockCountPage() {
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped.</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8">Qtd</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Cont.</div>
+                    {showAverages && (
+                      <>
+                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Méd.<br/>Qtd</div>
+                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Méd.<br/>Dias</div>
+                      </>
+                    )}
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8">Est.</div>
                     <div className="p-0.5 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
                   </>
@@ -1242,6 +1296,12 @@ export function StockCountPage() {
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Cont.</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped.</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8">Qtd</div>
+                    {showAverages && (
+                      <>
+                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Méd.<br/>Qtd</div>
+                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Méd.<br/>Dias</div>
+                      </>
+                    )}
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Est.</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
                     <div className="p-0.5 text-center flex items-center justify-center h-8">Pedido</div>
@@ -1292,6 +1352,16 @@ export function StockCountPage() {
                         <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
                           {item.ultima_contagem_valor}
                         </div>
+                        {showAverages && (
+                          <>
+                            <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] text-neutral-500">
+                              {item.media_qtd}
+                            </div>
+                            <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] text-neutral-500">
+                              {item.media_ciclo}
+                            </div>
+                          </>
+                        )}
                         <div className={cn(
                           "p-0.5 border-r border-neutral-100 flex items-center justify-center gap-0.5 min-h-10",
                           isBelowIdeal ? "bg-red-50/30" : ""
@@ -1350,6 +1420,16 @@ export function StockCountPage() {
                         <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
                           {item.qtd_ult_compra}
                         </div>
+                        {showAverages && (
+                          <>
+                            <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] text-neutral-500">
+                              {item.media_qtd}
+                            </div>
+                            <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] text-neutral-500">
+                              {item.media_ciclo}
+                            </div>
+                          </>
+                        )}
                         <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] font-bold text-orange-700 bg-orange-50/40">
                           {estoqueMap[item.produto_id] ?? 0}
                         </div>
