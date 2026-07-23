@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Search, Filter, ChevronLeft, ChevronRight, Calendar as CalendarIcon, AlertCircle, RefreshCw, Loader2, CalendarDays, Map as MapIcon } from 'lucide-react';
+import { Search, Filter, ChevronLeft, ChevronRight, Calendar as CalendarIcon, AlertCircle, RefreshCw, Loader2, CalendarDays, Map as MapIcon, Plus, History, RotateCcw, ClipboardCheck, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   format, 
@@ -32,6 +32,11 @@ import { HistVenda, Produto } from '../types';
 import { MapPin } from 'lucide-react';
 import { runAutoAgendaSyncIfEligible } from '../lib/autoAgendaSync';
 import { useDataManager } from '../lib/dataManager';
+import { useAgendaPendencias } from '../hooks/useAgendaPendencias';
+import { AgendaPendencia } from '../types/agendaPendencia';
+import { AgendaPendenciaCard } from '../components/agenda/AgendaPendenciaCard';
+import { AgendaPendenciaModal } from '../components/agenda/AgendaPendenciaModal';
+import { isAgendaPendenciaAtiva, sortAgendaPendencias } from '../lib/agendaPendencias';
 
 const DIAS_MAP: Record<number, DiaSemana> = {
   1: 'Segunda',
@@ -78,6 +83,18 @@ export function AgendaPage() {
   const [filterAddress, setFilterAddress] = useState('');
   const [showAddressSuggestions, setShowAddressSuggestions] = useState(false);
   const [viewType, setViewType] = useState<'list' | 'map'>('list');
+  const [pendenciaModalOpen, setPendenciaModalOpen] = useState(false);
+  const [editingPendencia, setEditingPendencia] = useState<AgendaPendencia | null>(null);
+  const [savingPendencia, setSavingPendencia] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [completedType, setCompletedType] = useState<'TODOS' | 'VISITA_EXTRA' | 'TAREFA'>('TODOS');
+  const [completedPeriod, setCompletedPeriod] = useState<'30' | '90' | 'TODOS'>('30');
+  const {
+    pendencias,
+    create: createPendencia,
+    update: updatePendencia,
+    updateStatus: updatePendenciaStatus
+  } = useAgendaPendencias();
 
   useEffect(() => {
     if (location.state && (location.state as any).selectedDate) {
@@ -265,6 +282,30 @@ export function AgendaPage() {
     }
   }
 
+  async function handleSavePendencia(input: Parameters<typeof createPendencia>[0]) {
+    setSavingPendencia(true);
+    try {
+      if (editingPendencia) await updatePendencia(editingPendencia.id, input);
+      else await createPendencia(input);
+      setPendenciaModalOpen(false);
+      setEditingPendencia(null);
+    } catch (err: any) {
+      alert('Erro ao salvar: ' + (err?.message || 'tente novamente'));
+    } finally {
+      setSavingPendencia(false);
+    }
+  }
+
+  async function handlePendenciaStatus(item: AgendaPendencia, status: 'CONCLUIDA' | 'CANCELADA') {
+    try {
+      await updatePendenciaStatus(item.id, status);
+      setPendenciaModalOpen(false);
+      setEditingPendencia(null);
+    } catch (err: any) {
+      alert('Erro ao atualizar: ' + (err?.message || 'tente novamente'));
+    }
+  }
+
   const processedVisitas = useMemo(() => {
     const startMetaStr = localStorage.getItem('metas_start_date') || format(startOfMonth(new Date()), 'yyyy-MM-dd');
     const endMetaStr = localStorage.getItem('metas_deadline_date') || format(endOfMonth(new Date()), 'yyyy-MM-dd');
@@ -418,6 +459,26 @@ export function AgendaPage() {
     });
   }, [processedVisitas, selectedDate, searchTerm, filterAddress, gapsMap]);
 
+  const selectedDateKey = format(selectedDate, 'yyyy-MM-dd');
+  const dayPendencias = useMemo(() => sortAgendaPendencias(
+    pendencias.filter((item) => isAgendaPendenciaAtiva(item) && item.data_prevista === selectedDateKey)
+  ), [pendencias, selectedDateKey]);
+  const backlogPendencias = useMemo(() => isSameDay(selectedDate, startOfToday())
+    ? sortAgendaPendencias(pendencias.filter((item) => isAgendaPendenciaAtiva(item) && item.tipo === 'TAREFA' && !item.data_prevista))
+    : [], [pendencias, selectedDate]);
+  const completedPendencias = useMemo(() => {
+    const periodStart = completedPeriod === 'TODOS' ? null : subDays(startOfToday(), Number(completedPeriod));
+    return pendencias
+      .filter((item) => {
+        if (item.status !== 'CONCLUIDA') return false;
+        if (completedType !== 'TODOS' && item.tipo !== completedType) return false;
+        if (!periodStart) return true;
+        const completedAt = item.concluida_em || item.updated_at;
+        return Boolean(completedAt && parseISO(completedAt) >= periodStart);
+      })
+      .sort((a, b) => (b.concluida_em || b.updated_at).localeCompare(a.concluida_em || a.updated_at));
+  }, [pendencias, completedPeriod, completedType]);
+
   const agendaStatsData = useMemo(() => {
     const start = startOfMonth(selectedDate);
     const end = endOfMonth(selectedDate);
@@ -555,6 +616,32 @@ export function AgendaPage() {
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setShowCompleted((current) => !current);
+                    setShowFilters(false);
+                    setViewType('list');
+                  }}
+                  className={cn(
+                    'flex h-11 items-center justify-center gap-2 rounded-lg border px-3 text-[10px] font-black uppercase transition-all',
+                    showCompleted ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50'
+                  )}
+                  title={showCompleted ? 'Voltar para a agenda' : 'Consultar concluidos'}
+                >
+                  <History size={18} />
+                  <span className="hidden sm:inline">{showCompleted ? 'Agenda' : 'Concluidos'}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingPendencia(null);
+                    setPendenciaModalOpen(true);
+                  }}
+                  className="flex h-11 items-center justify-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 text-[10px] font-black uppercase text-orange-700 transition-all hover:bg-orange-100"
+                  title="Adicionar visita extra ou tarefa"
+                >
+                  <Plus size={18} />
+                  <span className="hidden sm:inline">Adicionar</span>
+                </button>
                 <div className="relative">
                   <button 
                     onClick={() => setShowDatePicker(!showDatePicker)}
@@ -599,6 +686,65 @@ export function AgendaPage() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-3 sm:px-6 mt-4">
+        {showCompleted ? (
+          <section className="min-w-0 space-y-3">
+            <div className="flex items-center gap-3 px-2">
+              <div className="h-px flex-1 bg-neutral-200" />
+              <div className="text-[9px] font-black uppercase tracking-[0.3em] text-neutral-400">Historico de concluidos</div>
+              <div className="h-px flex-1 bg-neutral-200" />
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 rounded-lg border border-neutral-200 bg-white p-3 shadow-sm sm:grid-cols-2">
+              <label>
+                <span className="mb-1 block text-[9px] font-black uppercase text-neutral-400">Tipo</span>
+                <select value={completedType} onChange={(event) => setCompletedType(event.target.value as typeof completedType)} className="h-10 w-full rounded-lg border border-neutral-200 bg-white px-3 text-xs font-black text-neutral-700 outline-none focus:border-orange-500">
+                  <option value="TODOS">Tarefas e visitas extras</option>
+                  <option value="TAREFA">Somente tarefas</option>
+                  <option value="VISITA_EXTRA">Somente visitas extras</option>
+                </select>
+              </label>
+              <label>
+                <span className="mb-1 block text-[9px] font-black uppercase text-neutral-400">Periodo da conclusao</span>
+                <select value={completedPeriod} onChange={(event) => setCompletedPeriod(event.target.value as typeof completedPeriod)} className="h-10 w-full rounded-lg border border-neutral-200 bg-white px-3 text-xs font-black text-neutral-700 outline-none focus:border-orange-500">
+                  <option value="30">Ultimos 30 dias</option>
+                  <option value="90">Ultimos 90 dias</option>
+                  <option value="TODOS">Todo o historico</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="space-y-2">
+              {completedPendencias.map((item) => {
+                const cliente = clientes.find((current) => current.id === item.cliente_id);
+                const completedAt = item.concluida_em || item.updated_at;
+                return (
+                  <div key={item.id} className="flex min-w-0 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-2.5 py-2 shadow-sm">
+                    <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', item.tipo === 'VISITA_EXTRA' ? 'bg-orange-50 text-orange-600' : 'bg-sky-50 text-sky-600')}>
+                      {item.tipo === 'VISITA_EXTRA' ? <MapPin size={16} /> : <ClipboardCheck size={16} />}
+                    </div>
+                    <button type="button" onClick={() => { setEditingPendencia(item); setPendenciaModalOpen(true); }} className="min-w-0 flex-1 text-left">
+                      <p className="truncate text-sm font-black text-neutral-900">{item.titulo}</p>
+                      <p className="truncate text-[10px] font-bold text-neutral-500">
+                        Concluida em {format(parseISO(completedAt), 'dd/MM/yyyy')}{cliente ? ` · ${cliente.cliente}` : ''}
+                      </p>
+                    </button>
+                    <button type="button" onClick={() => updatePendenciaStatus(item.id, 'PENDENTE')} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-neutral-200 text-neutral-500 hover:bg-neutral-50 hover:text-orange-600" title="Reabrir">
+                      <RotateCcw size={16} />
+                    </button>
+                  </div>
+                );
+              })}
+              {completedPendencias.length === 0 && (
+                <div className="rounded-lg border-2 border-dashed border-neutral-200 bg-white px-5 py-12 text-center">
+                  <CheckCircle2 className="mx-auto text-neutral-300" size={30} />
+                  <h3 className="mt-3 text-base font-black text-neutral-900">Nenhum registro concluido</h3>
+                  <p className="mt-1 text-xs font-bold text-neutral-400">Nao ha resultados para os filtros selecionados.</p>
+                </div>
+              )}
+            </div>
+          </section>
+        ) : (
+        <>
         <AgendaStats 
           visitasTotal={agendaStatsData.visitasTotal} 
           metaDia={agendaStatsData.metaDia}
@@ -764,7 +910,7 @@ export function AgendaPage() {
                 />
               </motion.div>
             ))
-          ) : (
+          ) : dayPendencias.length === 0 && backlogPendencias.length === 0 ? (
             <motion.div 
                initial={{ opacity: 0, scale: 0.9 }}
                animate={{ opacity: 1, scale: 1 }}
@@ -778,6 +924,49 @@ export function AgendaPage() {
                 Você não possui roteiro programado para este dia. Aproveite para prospectar ou descansar.
               </p>
             </motion.div>
+          ) : null}
+
+          {dayPendencias.length > 0 && (
+            <section className="mt-3 space-y-2">
+              <div className="flex items-center gap-3 px-2 py-1">
+                <div className="h-px flex-1 bg-neutral-200" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-black uppercase tracking-[0.3em] text-neutral-400">Visitas extras e tarefas</span>
+                  <span className="text-[9px] font-black text-orange-600">{dayPendencias.length}</span>
+                </div>
+                <div className="h-px flex-1 bg-neutral-200" />
+              </div>
+              {dayPendencias.map((item) => (
+                <AgendaPendenciaCard
+                  key={item.id}
+                  item={item}
+                  cliente={clientes.find((cliente) => cliente.id === item.cliente_id)}
+                  onEdit={() => {
+                    setEditingPendencia(item);
+                    setPendenciaModalOpen(true);
+                  }}
+                  onComplete={() => handlePendenciaStatus(item, 'CONCLUIDA')}
+                />
+              ))}
+            </section>
+          )}
+
+          {backlogPendencias.length > 0 && (
+            <section className="mt-3 space-y-2">
+              <div className="px-1 text-[9px] font-black uppercase tracking-[0.2em] text-neutral-400">Tarefas sem data</div>
+              {backlogPendencias.map((item) => (
+                <AgendaPendenciaCard
+                  key={item.id}
+                  item={item}
+                  cliente={clientes.find((cliente) => cliente.id === item.cliente_id)}
+                  onEdit={() => {
+                    setEditingPendencia(item);
+                    setPendenciaModalOpen(true);
+                  }}
+                  onComplete={() => handlePendenciaStatus(item, 'CONCLUIDA')}
+                />
+              ))}
+            </section>
           )}
 
           {filteredVisitas.length > 0 && (
@@ -789,6 +978,8 @@ export function AgendaPage() {
             </div>
           )}
         </div>
+        </>
+        )}
       </main>
 
       {/* Drawer */}
@@ -800,6 +991,19 @@ export function AgendaPage() {
         onNoteChange={(note) => selectedVisita && handleNoteUpdate(selectedVisita.id, note)}
         onAgendaUpdate={handleAgendaUpdate}
         onDelete={handleDeleteVisita}
+      />
+      <AgendaPendenciaModal
+        open={pendenciaModalOpen}
+        item={editingPendencia}
+        defaultDate={selectedDateKey}
+        clientes={clientes}
+        saving={savingPendencia}
+        onClose={() => {
+          setPendenciaModalOpen(false);
+          setEditingPendencia(null);
+        }}
+        onSave={handleSavePendencia}
+        onCancelItem={editingPendencia ? () => handlePendenciaStatus(editingPendencia, 'CANCELADA') : undefined}
       />
     </div>
   );

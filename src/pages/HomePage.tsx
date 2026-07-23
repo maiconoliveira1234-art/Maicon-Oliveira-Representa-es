@@ -12,6 +12,8 @@ import {
   PackageCheck,
   Route,
   Target,
+  ClipboardCheck,
+  MapPin,
   Users,
   WalletCards
 } from 'lucide-react';
@@ -34,6 +36,8 @@ import { HistVenda, Produto } from '../types';
 import { DiaSemana, Visita, VisitaStatus } from '../types/agenda';
 import { cn, formatWeight } from '../lib/utils';
 import { getAgendaNoteAlert } from '../lib/agendaNoteAlert';
+import { useAgendaPendencias } from '../hooks/useAgendaPendencias';
+import { isAgendaPendenciaAtiva, sortAgendaPendencias } from '../lib/agendaPendencias';
 
 import { useDataManager } from '../lib/dataManager';
 
@@ -49,6 +53,8 @@ type HomeData = {
   metas: Record<string, number>;
   unscheduledClients: number;
 };
+
+type TaskFilter = 'TODAS' | 'ATRASADAS' | 'HOJE' | 'FUTURAS' | 'SEM_DATA';
 
 const DIAS_MAP: Record<number, DiaSemana> = {
   1: 'Segunda',
@@ -95,6 +101,7 @@ export function HomePage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [taskFilter, setTaskFilter] = useState<TaskFilter>('TODAS');
   const [data, setData] = useState<HomeData>({
     visitas: [],
     historico: [],
@@ -102,6 +109,7 @@ export function HomePage() {
     metas: {},
     unscheduledClients: 0
   });
+  const { pendencias, updateStatus: updatePendenciaStatus } = useAgendaPendencias();
 
   useEffect(() => {
     if (loadingGlobal) {
@@ -241,6 +249,36 @@ export function HomePage() {
     };
   }, [data, today]);
 
+  const pendingAgendaItems = useMemo(() => {
+    const todayKey = format(today, 'yyyy-MM-dd');
+    return sortAgendaPendencias(pendencias.filter((item) =>
+      isAgendaPendenciaAtiva(item)
+      && (!item.data_prevista || item.data_prevista <= todayKey)
+    )).slice(0, 5);
+  }, [pendencias, today]);
+
+  const taskSummary = useMemo(() => {
+    const todayKey = format(today, 'yyyy-MM-dd');
+    const all = sortAgendaPendencias(pendencias.filter((item) =>
+      item.tipo === 'TAREFA' && isAgendaPendenciaAtiva(item)
+    ));
+    const matches = (date: string | null) => {
+      if (taskFilter === 'ATRASADAS') return Boolean(date && date < todayKey);
+      if (taskFilter === 'HOJE') return date === todayKey;
+      if (taskFilter === 'FUTURAS') return Boolean(date && date > todayKey);
+      if (taskFilter === 'SEM_DATA') return !date;
+      return true;
+    };
+    return {
+      all,
+      visible: all.filter((item) => matches(item.data_prevista)),
+      overdue: all.filter((item) => item.data_prevista && item.data_prevista < todayKey).length,
+      today: all.filter((item) => item.data_prevista === todayKey).length,
+      future: all.filter((item) => item.data_prevista && item.data_prevista > todayKey).length,
+      undated: all.filter((item) => !item.data_prevista).length
+    };
+  }, [pendencias, taskFilter, today]);
+
   if (selectedDate) {
     return <Navigate to="/agenda" state={{ selectedDate }} replace />;
   }
@@ -341,11 +379,32 @@ export function HomePage() {
           <div className="flex items-center justify-between mb-4">
             <div className="min-w-0">
               <p className="text-[10px] font-black text-neutral-400 uppercase tracking-[0.22em]">Atencao</p>
-              <h2 className="text-lg font-black text-neutral-950">Riscos do dia</h2>
+              <h2 className="text-lg font-black text-neutral-950">Riscos e pendencias</h2>
             </div>
             <AlertCircle className="shrink-0 text-amber-500" size={24} />
           </div>
           <div className="space-y-2">
+            {pendingAgendaItems.map((item) => {
+              const cliente = clientes.find((current) => current.id === item.cliente_id);
+              const overdue = item.data_prevista && item.data_prevista < format(today, 'yyyy-MM-dd');
+              return (
+                <div key={'pending-' + item.id} className={cn(
+                  'flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2',
+                  overdue ? 'border-rose-100 bg-rose-50' : 'border-neutral-200 bg-neutral-50'
+                )}>
+                  {item.tipo === 'VISITA_EXTRA' ? <MapPin size={17} className="shrink-0 text-orange-600" /> : <ClipboardCheck size={17} className="shrink-0 text-sky-600" />}
+                  <Link to="/agenda" state={{ selectedDate: item.data_prevista || format(today, 'yyyy-MM-dd') }} className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-black text-neutral-900">{item.titulo}</p>
+                    <p className={cn('truncate text-[10px] font-bold', overdue ? 'text-rose-600' : 'text-neutral-500')}>
+                      {overdue ? 'Atrasada' : item.data_prevista ? 'Para hoje' : 'Sem data'}{cliente ? ` · ${cliente.cliente}` : ''}
+                    </p>
+                  </Link>
+                  <button type="button" onClick={() => updatePendenciaStatus(item.id, 'CONCLUIDA')} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-white text-emerald-600" title="Concluir">
+                    <CheckCircle2 size={16} />
+                  </button>
+                </div>
+              );
+            })}
             {(summary.noteRiskCounts.pending > 0 || summary.noteRiskCounts.attention > 0 || summary.noteRiskCounts.note > 0) && (
               <div className="grid grid-cols-3 gap-1.5">
                 <RiskCount label="Pend." value={summary.noteRiskCounts.pending} tone="rose" />
@@ -397,10 +456,87 @@ export function HomePage() {
             {data.unscheduledClients > 0 && (
               <InfoLine icon={Users} text={data.unscheduledClients + ' cliente(s) ativos fora da agenda'} />
             )}
-            {summary.noteRisks.length === 0 && summary.overdueVisits.length === 0 && summary.fixedVisits === 0 && data.unscheduledClients === 0 && (
+            {pendingAgendaItems.length === 0 && summary.noteRisks.length === 0 && summary.overdueVisits.length === 0 && summary.fixedVisits === 0 && data.unscheduledClients === 0 && (
               <EmptyState icon={CheckCircle2} title="Tudo limpo" text="Nao encontrei alertas relevantes para hoje." compact />
             )}
           </div>
+        </div>
+      </section>
+
+      <section className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-neutral-400">Acompanhamento</p>
+            <h2 className="truncate text-lg font-black text-neutral-950">Tarefas pendentes</h2>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="rounded-lg bg-sky-50 px-2 py-1 text-xs font-black text-sky-700">{taskSummary.all.length}</span>
+            <Link to="/agenda" className="text-xs font-black text-orange-600">Abrir agenda</Link>
+          </div>
+        </div>
+
+        <div className="mb-3 grid grid-cols-3 gap-1.5 sm:grid-cols-5">
+          {([
+            ['TODAS', 'Todas', taskSummary.all.length],
+            ['ATRASADAS', 'Atrasadas', taskSummary.overdue],
+            ['HOJE', 'Hoje', taskSummary.today],
+            ['FUTURAS', 'Futuras', taskSummary.future],
+            ['SEM_DATA', 'Sem data', taskSummary.undated]
+          ] as Array<[TaskFilter, string, number]>).map(([value, label, count]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setTaskFilter(value)}
+              className={cn(
+                'flex h-9 min-w-0 items-center justify-center gap-1 rounded-lg border px-1 text-[10px] font-black transition-colors',
+                taskFilter === value ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50',
+                value === 'SEM_DATA' && 'col-span-2 sm:col-span-1'
+              )}
+            >
+              <span className="truncate">{label}</span>
+              <span className={cn('shrink-0', taskFilter === value ? 'text-neutral-300' : 'text-neutral-400')}>{count}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="max-h-[360px] space-y-1.5 overflow-y-auto pr-0.5">
+          {taskSummary.visible.map((item) => {
+            const cliente = clientes.find((current) => current.id === item.cliente_id);
+            const isOverdue = Boolean(item.data_prevista && item.data_prevista < format(today, 'yyyy-MM-dd'));
+            const dateLabel = !item.data_prevista
+              ? 'Sem data'
+              : item.data_prevista === format(today, 'yyyy-MM-dd')
+                ? 'Hoje'
+                : format(parseISO(item.data_prevista), 'dd/MM/yyyy');
+            return (
+              <div key={'task-list-' + item.id} className={cn(
+                'flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2',
+                isOverdue ? 'border-rose-100 bg-rose-50' : 'border-neutral-100 bg-neutral-50'
+              )}>
+                <ClipboardCheck size={17} className={cn('shrink-0', isOverdue ? 'text-rose-600' : 'text-sky-600')} />
+                <Link to="/agenda" state={{ selectedDate: item.data_prevista || format(today, 'yyyy-MM-dd') }} className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <p className="truncate text-sm font-black text-neutral-900">{item.titulo}</p>
+                    {item.prioridade !== 'NORMAL' && <span className={cn('shrink-0 text-[8px] font-black', item.prioridade === 'URGENTE' ? 'text-rose-600' : 'text-amber-600')}>{item.prioridade}</span>}
+                  </div>
+                  <p className={cn('truncate text-[10px] font-bold', isOverdue ? 'text-rose-600' : 'text-neutral-500')}>
+                    {dateLabel}{item.horario_inicio ? ` · ${item.horario_inicio.slice(0, 5)}` : ''}{cliente ? ` · ${cliente.cliente}` : ''}
+                  </p>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => updatePendenciaStatus(item.id, 'CONCLUIDA')}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-white text-emerald-600 hover:bg-emerald-50"
+                  title="Concluir tarefa"
+                >
+                  <CheckCircle2 size={16} />
+                </button>
+              </div>
+            );
+          })}
+          {taskSummary.visible.length === 0 && (
+            <EmptyState icon={CheckCircle2} title="Nenhuma tarefa" text="Nao existem tarefas pendentes neste filtro." compact />
+          )}
         </div>
       </section>
 
