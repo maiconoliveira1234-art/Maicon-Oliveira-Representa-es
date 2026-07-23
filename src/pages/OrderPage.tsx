@@ -30,6 +30,7 @@ import { supabase } from '../lib/supabase';
 import { getFromLocal } from '../lib/offline';
 import { 
   getFaixaPreco, 
+  getFaixaEfetiva,
   getValorUnitario, 
   calcularPrecoComDesconto,
   deveManterFaixaAnterior 
@@ -287,7 +288,7 @@ export function OrderPage() {
     return getFaixaPreco(pesoEfetivo);
   }, [pesoTotal, pesoConquistado]);
 
-  const currentFaixa = manualFaixa || faixaPreco;
+  const currentFaixa = getFaixaEfetiva(pesoTotal, pesoConquistado, manualFaixa);
 
   const computedItens = useMemo(() => {
     // 1. Separate normal sale items to compute unit values
@@ -1508,7 +1509,7 @@ export function OrderPage() {
             </div>
             <div className="min-w-0 text-center border-x border-white/20 px-1">
               <p className="text-[8px] uppercase font-bold opacity-80">Faixa</p>
-              <p className="text-[10px] md:text-xs font-black truncate">{faixaPreco}</p>
+              <p className="text-[10px] md:text-xs font-black truncate">{currentFaixa}</p>
             </div>
             <div className="min-w-0 text-center border-r border-white/20 px-1">
               <p className="text-[8px] uppercase font-bold opacity-80">Recompra</p>
@@ -1948,10 +1949,11 @@ export function OrderPage() {
                       <TrendingUp size={16} />
                     </div>
                     <select
-                      value={currentFaixa}
-                      onChange={(e) => setManualFaixa(e.target.value as PrecoFaixa)}
+                      value={manualFaixa || ''}
+                      onChange={(e) => setManualFaixa(e.target.value ? e.target.value as PrecoFaixa : null)}
                       className="w-full pl-9 pr-8 py-3 bg-orange-50 rounded-lg font-black text-orange-700 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all border border-orange-100 text-xs"
                     >
+                      <option value="">Automática ({faixaPreco})</option>
                       <option value="livre">Livre</option>
                       <option value="200kg">200kg</option>
                       <option value="500kg">500kg</option>

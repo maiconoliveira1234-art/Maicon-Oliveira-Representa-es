@@ -10,6 +10,15 @@ export function getFaixaPreco(pesoTotal: number): PrecoFaixa {
   return 'livre';
 }
 
+export function getFaixaEfetiva(
+  pesoPedido: number,
+  pesoRecompra: number,
+  faixaManual: PrecoFaixa | null = null
+): PrecoFaixa {
+  if (faixaManual) return faixaManual;
+  return getFaixaPreco(Math.max(pesoPedido, pesoRecompra));
+}
+
 export function getValorUnitario(produto: Produto, faixa: PrecoFaixa): number {
   switch (faixa) {
     case '4000kg': return produto["4000kg"];

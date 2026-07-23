@@ -66,7 +66,7 @@ export function ClientsPage() {
         await loadInitialData();
       }
 
-      const latestSalesMap = await loadLatestSalesMap();
+      const latestSalesMap = await loadLatestSalesMap(navigator.onLine !== false);
 
       const enrichedClientes = (cachedClientes.length > 0 ? cachedClientes : []).map(c => {
         const lastSale = latestSalesMap[c.id];

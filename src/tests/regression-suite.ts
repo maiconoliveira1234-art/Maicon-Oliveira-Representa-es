@@ -1,9 +1,10 @@
 // Permanent Regression Testing Suite for CRM/Stock/Order Application
 // Provides rich assertions, mocks, and coverage tracking for critical modules.
 
-import { calcularPrecoComDesconto, calcularSugestao, deveManterFaixaAnterior, getFaixaPreco, getValorUnitario, normalizarDesconto } from '../lib/calculations';
+import { calcularPrecoComDesconto, calcularSugestao, deveManterFaixaAnterior, getFaixaEfetiva, getFaixaPreco, getValorUnitario, normalizarDesconto } from '../lib/calculations';
 import { classifySale } from '../lib/salesClassifier';
 import { deduplicateSales } from '../lib/utils';
+import { getOpenOrderCleanupCutoff, shouldClearOpenOrderOnImport } from '../lib/openOrderCleanup';
 
 // Test interface helper
 export interface TestResult {
@@ -88,6 +89,38 @@ export class RegressionTestSuite {
     this.assertEqual(getFaixaPreco(600), '500kg', 'getFaixaPreco (>= 500kg)', category, module);
     this.assertEqual(getFaixaPreco(250), '200kg', 'getFaixaPreco (>= 200kg)', category, module);
     this.assertEqual(getFaixaPreco(100), 'livre', 'getFaixaPreco (< 200kg)', category, module);
+    this.assertEqual(getFaixaEfetiva(299.9, 0), '200kg', 'faixa efetiva usa peso atual sem recompra', category, module);
+    this.assertEqual(getFaixaEfetiva(299.9, 1100), '1000kg', 'faixa efetiva mantém regra de recompra em 28 dias', category, module);
+    this.assertEqual(getFaixaEfetiva(299.9, 0, '1000kg'), '1000kg', 'faixa manual explícita prevalece', category, module);
+    const cleanupNow = new Date('2026-07-23T12:00:00.000Z');
+    this.assertEqual(
+      getOpenOrderCleanupCutoff(cleanupNow),
+      '2026-07-13T12:00:00.000Z',
+      'limpeza de pedido aberto calcula janela de 10 dias',
+      category,
+      module
+    );
+    this.assertEqual(
+      shouldClearOpenOrderOnImport('2026-07-13T12:00:00.000Z', cleanupNow),
+      true,
+      'limpeza inclui pedido aberto com exatamente 10 dias',
+      category,
+      module
+    );
+    this.assertEqual(
+      shouldClearOpenOrderOnImport('2026-07-13T11:59:59.000Z', cleanupNow),
+      false,
+      'limpeza preserva pedido aberto com mais de 10 dias',
+      category,
+      module
+    );
+    this.assertEqual(
+      shouldClearOpenOrderOnImport('2026-07-23T12:00:01.000Z', cleanupNow),
+      false,
+      'limpeza preserva pedido aberto com data futura',
+      category,
+      module
+    );
 
     // 2. Valor Unitário Baseado na Faixa
     const mockProduto: any = {

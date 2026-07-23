@@ -329,7 +329,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
         const uniqueSales = deduplicateSales(dbHist);
         uniqueSales.forEach(h => {
           const weight = (h.qtd || 0) * (productWeights[h.produto_id] || 0);
-          if (!map[h.cliente_id]) {
+          if (!map[h.cliente_id] || map[h.cliente_id].date < h.faturamento) {
             map[h.cliente_id] = { date: h.faturamento, weight: weight };
           } else if (map[h.cliente_id].date === h.faturamento) {
             map[h.cliente_id].weight += weight;
@@ -510,7 +510,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       const uniqueSales = actualHist;
       uniqueSales.forEach(h => {
         const weight = (h.qtd || 0) * (productWeights[h.produto_id] || 0);
-        if (!map[h.cliente_id]) {
+        if (!map[h.cliente_id] || map[h.cliente_id].date < h.faturamento) {
           map[h.cliente_id] = { date: h.faturamento, weight: weight };
         } else if (map[h.cliente_id].date === h.faturamento) {
           map[h.cliente_id].weight += weight;
@@ -738,8 +738,61 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
   }, []);
 
   const loadLatestSalesMap = useCallback(async (forceRefresh = false) => {
+    if (forceRefresh && navigator.onLine !== false) {
+      const cutoff = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10);
+      const today = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from('hist_vendas')
+        .select('cliente_id, faturamento, qtd, produto_id')
+        .gte('faturamento', cutoff)
+        .lte('faturamento', today)
+        .order('faturamento', { ascending: false });
+
+      if (!error && data) {
+        const productWeights = new Map(produtos.map(product => [
+          product.id,
+          product.peso_embalagem || 0
+        ]));
+        const recentMap: Record<string, { date: string; weight: number }> = {};
+
+        data.forEach(sale => {
+          if (!sale.cliente_id) return;
+          const weight = (sale.qtd || 0) * (productWeights.get(sale.produto_id) || 0);
+          if (!recentMap[sale.cliente_id] || recentMap[sale.cliente_id].date < sale.faturamento) {
+            recentMap[sale.cliente_id] = { date: sale.faturamento, weight };
+          } else if (recentMap[sale.cliente_id].date === sale.faturamento) {
+            recentMap[sale.cliente_id].weight += weight;
+          }
+        });
+
+        const olderSalesMap = Object.fromEntries(
+          Object.entries(latestSalesMap).filter(([, sale]) => sale.date < cutoff)
+        );
+        const refreshedMap = { ...olderSalesMap, ...recentMap };
+        const currentKeys = Object.keys(latestSalesMap);
+        const refreshedKeys = Object.keys(refreshedMap);
+        const mapChanged = currentKeys.length !== refreshedKeys.length
+          || refreshedKeys.some(clientId => {
+            const current = latestSalesMap[clientId];
+            const refreshed = refreshedMap[clientId];
+            return !current
+              || current.date !== refreshed.date
+              || current.weight !== refreshed.weight;
+          });
+
+        if (mapChanged) setLatestSalesMap(refreshedMap);
+        return mapChanged ? refreshedMap : latestSalesMap;
+      }
+
+      if (error) {
+        console.error('[OfflineManager] Erro ao atualizar últimas compras:', error);
+      }
+    }
+
     return latestSalesMap;
-  }, [latestSalesMap]);
+  }, [latestSalesMap, produtos]);
 
   const refreshClientes = useCallback(async () => {
     await syncAllDataInternal(true);
