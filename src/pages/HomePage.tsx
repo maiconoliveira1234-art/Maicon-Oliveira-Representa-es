@@ -333,7 +333,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         <MetricCard icon={Calendar} label="Visitas" value={summary.todayVisits.length.toString()} detail={summary.completedVisits + ' feitas - ' + summary.pendingVisits + ' pendentes'} tone="orange" />
         <MetricCard icon={Target} label="Meta do Dia" value={formatWeight(summary.targetWeight)} detail={progress + '% realizado no mes'} tone="green" />
         <MetricCard icon={PackageCheck} label="Realizado" value={formatWeight(summary.realizedWeight)} detail="Clientes do roteiro" tone="blue" />
@@ -581,13 +581,17 @@ function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: React.El
   };
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-      <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center mb-3', toneClasses[tone])}>
-        <Icon size={21} />
+    <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white p-2.5 shadow-sm sm:p-4">
+      <div className="flex min-w-0 items-center gap-2 sm:block">
+        <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:mb-3 sm:h-10 sm:w-10', toneClasses[tone])}>
+          <Icon className="h-4 w-4 sm:h-[21px] sm:w-[21px]" />
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-[9px] font-black uppercase text-neutral-400 sm:text-[10px] sm:tracking-wider">{label}</p>
+          <p className="truncate text-base font-black leading-tight text-neutral-950 sm:mt-1 sm:text-xl">{value}</p>
+        </div>
       </div>
-      <p className="text-[10px] font-black text-neutral-400 uppercase tracking-wider">{label}</p>
-      <p className="mt-1 text-xl font-black text-neutral-950 truncate">{value}</p>
-      <p className="mt-1 text-xs font-bold text-neutral-500 truncate">{detail}</p>
+      <p className="mt-1.5 truncate text-[9px] font-bold leading-tight text-neutral-500 sm:mt-1 sm:text-xs">{detail}</p>
     </div>
   );
 }
