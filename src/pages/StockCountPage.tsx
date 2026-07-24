@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Cliente, Produto, EstoqueCliente, HistVenda } from '../types';
+import { Cliente, Produto, EstoqueCliente, HistVenda, PrecoFaixa } from '../types';
 import { supabase } from '../lib/supabase';
 import { cn, formatWeight, formatCurrency } from '../lib/utils';
 import { classifySaleRecord } from '../lib/salesClassifier';
@@ -30,6 +30,7 @@ import { differenceInDays, parseISO, format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { FAMILY_PRIORITY_ORDER } from '../constants';
 import { DIAGNOSTICS } from '../lib/diagnostics';
+import { calcularPrecoComDesconto, getFaixaEfetiva, getValorUnitario } from '../lib/calculations';
 
 const DEBUG_STOCK = DIAGNOSTICS.DEBUG_STOCK; // Centralized flag for stock counting screen
 
@@ -65,6 +66,7 @@ export function StockCountPage() {
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [estoqueMap, setEstoqueMap] = useState<Record<string, number>>({});
   const [pedidoMap, setPedidoMap] = useState<Record<string, number>>({});
+  const [manualFaixa, setManualFaixa] = useState<PrecoFaixa | null>(null);
   const [nonVendaItems, setNonVendaItems] = useState<Array<{ produto_id: string, quantidade: number, tipo_operacao: 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -248,12 +250,14 @@ export function StockCountPage() {
     // Initializing pedidoMap
     const pMap: Record<string, number> = {};
     const nonVenda: Array<{ produto_id: string, quantidade: number, tipo_operacao: 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' }> = [];
+    setManualFaixa(null);
     
     const savedPedido = localStorage.getItem(`pedido_${clienteId}`);
     if (savedPedido) {
       try {
         const parsed = JSON.parse(savedPedido);
         if (parsed && typeof parsed === 'object' && 'items' in parsed) {
+          setManualFaixa((parsed.manualFaixa as PrecoFaixa) || null);
           if (Array.isArray(parsed.items)) {
             parsed.items.forEach((item: any) => {
               if (item && item.produto_id) {
@@ -288,6 +292,7 @@ export function StockCountPage() {
         if (!data || !Array.isArray(data.items)) {
           setPedidoMap({});
           setNonVendaItems([]);
+          setManualFaixa(null);
           localStorage.removeItem(`pedido_${clienteId}`);
           return;
         }
@@ -312,6 +317,7 @@ export function StockCountPage() {
 
         setPedidoMap(dbPedidoMap);
         setNonVendaItems(Array.from(dbNonVenda.values()));
+        setManualFaixa((data.manual_faixa as PrecoFaixa) || null);
 
         const mergedItems = data.items.filter((item: any) => item?.produto_id && Number(item.quantidade) > 0);
 
@@ -579,6 +585,32 @@ export function StockCountPage() {
       return acc + (extra * item.peso);
     }, 0);
   }, [processedItems, pedidoMap]);
+
+  const pesoRecompra28Dias = useMemo(() => {
+    const today = new Date();
+    return historico.reduce((total, sale) => {
+      try {
+        const daysSince = differenceInDays(today, parseISO(sale.faturamento));
+        if (daysSince < 0 || daysSince > 28) return total;
+        const produto = produtosMap[sale.produto_id]
+          || produtos.find((item) => item.produto.toLocaleLowerCase('pt-BR') === sale.produtos?.toLocaleLowerCase('pt-BR'));
+        return produto ? total + ((Number(sale.qtd) || 0) * (produto.peso_embalagem || 0)) : total;
+      } catch {
+        return total;
+      }
+    }, 0);
+  }, [historico, produtosMap, produtos]);
+
+  const totalValorPedido = useMemo(() => {
+    const faixa = getFaixaEfetiva(totalPesoPedido, pesoRecompra28Dias, manualFaixa);
+    return Object.entries(pedidoMap).reduce((total, [produtoId, quantity]) => {
+      const produto = produtosMap[produtoId];
+      const qty = Number(quantity) || 0;
+      if (!produto || qty <= 0) return total;
+      const unitPrice = calcularPrecoComDesconto(produto.custo_und, getValorUnitario(produto, faixa));
+      return total + (unitPrice * qty * (produto.quant_embalagem || 1));
+    }, 0);
+  }, [pedidoMap, produtosMap, totalPesoPedido, pesoRecompra28Dias, manualFaixa]);
 
   const buildPedidoItemsList = () => {
     const itemsList: Array<{ produto_id: string, quantidade: number, tipo_operacao: string }> = [];
@@ -955,6 +987,12 @@ export function StockCountPage() {
                     {formatWeight(totalPesoPedido)}
                   </span>
                 </div>
+                <div className="text-center">
+                  <span className="text-[8px] font-bold text-neutral-400 uppercase block leading-none">Valor Ped.</span>
+                  <span className="text-[10px] font-black text-green-700 bg-green-50 px-1 py-0.2 rounded whitespace-nowrap">
+                    {formatCurrency(totalValorPedido)}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -1050,7 +1088,7 @@ export function StockCountPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-0.5 bg-neutral-50 py-0.5 px-1 rounded border border-neutral-100 text-center">
+            <div className="grid grid-cols-4 gap-0.5 bg-neutral-50 py-0.5 px-1 rounded border border-neutral-100 text-center">
               <div className="border-r border-neutral-200">
                 <p className="text-[7.5px] font-black text-neutral-400 uppercase leading-none">Ult. Pedido</p>
                 <p className={cn("text-[9px] font-black leading-tight", isOverdueGlobal ? "text-red-600" : "text-neutral-800")}>
@@ -1063,10 +1101,16 @@ export function StockCountPage() {
                   {mediaCicloGlobal}d
                 </p>
               </div>
-              <div>
+              <div className="border-r border-neutral-200">
                 <p className="text-[7.5px] font-black text-neutral-400 uppercase leading-none">Peso Pedido</p>
                 <p className="text-[9px] font-black text-orange-600 leading-tight">
                   {formatWeight(totalPesoPedido)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[7.5px] font-black text-neutral-400 uppercase leading-none">Valor Ped.</p>
+                <p className="text-[9px] font-black text-green-700 leading-tight whitespace-nowrap">
+                  {formatCurrency(totalValorPedido)}
                 </p>
               </div>
             </div>
