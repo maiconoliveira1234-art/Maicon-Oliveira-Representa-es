@@ -5,6 +5,7 @@ import { calcularPrecoComDesconto, calcularSugestao, deveManterFaixaAnterior, ge
 import { classifySale } from '../lib/salesClassifier';
 import { deduplicateSales } from '../lib/utils';
 import { getOpenOrderCleanupCutoff, shouldClearOpenOrderOnImport } from '../lib/openOrderCleanup';
+import { getFlexRateForDate } from '../lib/flexRules';
 
 // Test interface helper
 export interface TestResult {
@@ -92,6 +93,8 @@ export class RegressionTestSuite {
     this.assertEqual(getFaixaEfetiva(299.9, 0), '200kg', 'faixa efetiva usa peso atual sem recompra', category, module);
     this.assertEqual(getFaixaEfetiva(299.9, 1100), '1000kg', 'faixa efetiva mantém regra de recompra em 28 dias', category, module);
     this.assertEqual(getFaixaEfetiva(299.9, 0, '1000kg'), '1000kg', 'faixa manual explícita prevalece', category, module);
+    this.assertEqual(getFlexRateForDate('2026-06-30'), 0.02, 'Flex mantém 2% até junho/2026', category, module);
+    this.assertEqual(getFlexRateForDate('2026-07-01'), 0.015, 'Flex aplica 1,5% a partir de julho/2026', category, module);
     const cleanupNow = new Date('2026-07-23T12:00:00.000Z');
     this.assertEqual(
       getOpenOrderCleanupCutoff(cleanupNow),

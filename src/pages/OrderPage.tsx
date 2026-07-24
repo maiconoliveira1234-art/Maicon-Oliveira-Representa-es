@@ -46,6 +46,7 @@ import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from '../lib/mockData';
 import { useDataManager } from '../lib/dataManager';
 import { StockCountSkeleton } from '../components/ui/Skeleton';
 import { logDiagnostic } from '../lib/diagnostics';
+import { formatFlexRate, getFlexRateForDate } from '../lib/flexRules';
 
 export function OrderPage() {
   const { clienteId } = useParams();
@@ -338,8 +339,9 @@ export function OrderPage() {
   }, [computedItens]);
 
   const verbaGeradaEstimada = useMemo(() => {
-    return valorVendasSubtotal * 0.02;
+    return valorVendasSubtotal * getFlexRateForDate(new Date());
   }, [valorVendasSubtotal]);
+  const flexRateAtual = getFlexRateForDate(new Date());
 
   const totalBonificacoes = useMemo(() => {
     return computedItens
@@ -1381,7 +1383,7 @@ export function OrderPage() {
               </div>
               <div className="p-2.5 bg-white border border-neutral-200/50 rounded-lg">
                 <p className="text-[10px] text-neutral-400 uppercase tracking-widest font-black">Gerado no Faturamento</p>
-                <p className="text-sm font-extrabold text-green-600 mt-0.5">+{formatCurrency(verbaGeradaEstimada)} (2%)</p>
+                <p className="text-sm font-extrabold text-green-600 mt-0.5">+{formatCurrency(verbaGeradaEstimada)} ({formatFlexRate(flexRateAtual)})</p>
               </div>
             </div>
 

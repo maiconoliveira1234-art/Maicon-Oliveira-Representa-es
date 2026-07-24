@@ -8,6 +8,8 @@ import { auditRowCost, CostAuditResult } from '../lib/costAuditer';
 import { useDataManager } from '../lib/dataManager';
 import { getFaixaPreco, getValorUnitario } from '../lib/calculations';
 import { getOpenOrderCleanupCutoff } from '../lib/openOrderCleanup';
+import { getFlexRateForDate } from '../lib/flexRules';
+import { ensureQuarterlyFlexReset } from '../services/flexService';
 
 interface RawRow {
   id: string;
@@ -409,7 +411,10 @@ export function ImportPage() {
         }
       });
 
-      const flexGerado = totalVendaValor * 0.02;
+      await ensureQuarterlyFlexReset(true);
+
+      const flexRate = getFlexRateForDate(orderDate);
+      const flexGerado = totalVendaValor * flexRate;
       const totalConsumido = totalBonificacaoValor + totalMerchandisingValor;
       const incrementoSaldo = Number((flexGerado - totalConsumido).toFixed(2));
 
@@ -421,7 +426,7 @@ export function ImportPage() {
           cliente_id: selectedClienteId,
           tipo: 'GERADO',
           valor: Number(flexGerado.toFixed(2)),
-          descricao: `Pedido faturado (${format(new Date(orderDate), 'dd/MM/yyyy')}) - Vendas: ${formatCurrency(totalVendaValor)}`
+          descricao: `Pedido faturado (${format(new Date(orderDate), 'dd/MM/yyyy')}) - Vendas: ${formatCurrency(totalVendaValor)} - Flex: ${(flexRate * 100).toLocaleString('pt-BR')}%`
         });
       }
 

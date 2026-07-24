@@ -3,6 +3,7 @@ import { supabase } from './supabase';
 import { Cliente, Produto, HistVenda, EstoqueCliente } from '../types';
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from './mockData';
 import { deduplicateSales } from './utils';
+import { ensureQuarterlyFlexReset } from '../services/flexService';
 import { getCacheValue, setCacheValue, setCacheValues } from './offline';
 
 export interface OfflineQueueItem {
@@ -242,6 +243,8 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
           console.warn('[OfflineSync] Local queue failed to sync, continuing with download of current state.');
         }
       }
+
+      await ensureQuarterlyFlexReset(false);
       
       // Keep the analytical history used by dashboard, commissions and goals available offline.
       const historyStart = '2024-01-01';
@@ -357,6 +360,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     try {
       const currentQueue = await loadPersisted<OfflineQueueItem[]>('offline_db_pending_queue', []);
       if (currentQueue.length > 0) await flushOfflineQueue(currentQueue);
+      await ensureQuarterlyFlexReset(false);
 
       const lastSync = await loadPersisted<number>('offline_db_last_synced', 0);
       const lastFullSync = await loadPersisted<number>('offline_db_last_full_synced', 0);
