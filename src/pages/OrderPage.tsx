@@ -70,7 +70,7 @@ export function OrderPage() {
   const [pesoConquistado, setPesoConquistado] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [observacoes, setObservacoes] = useState('');
-  const [manualFaixa, setManualFaixa] = useState<PrecoFaixa | null>(null);
+  const [consultaFaixa, setConsultaFaixa] = useState<PrecoFaixa>('livre');
   const [startedAt, setStartedAt] = useState<string | null>(null);
   const suppressDraftPersistence = React.useRef(false);
 
@@ -282,13 +282,7 @@ export function OrderPage() {
     return itens.reduce((acc, item) => acc + (item.peso_total || 0), 0);
   }, [itens]);
 
-  const faixaPreco = useMemo(() => {
-    // Rule: Effective weight is the max between current order weight and weight from last 28 days
-    const pesoEfetivo = Math.max(pesoTotal, pesoConquistado);
-    return getFaixaPreco(pesoEfetivo);
-  }, [pesoTotal, pesoConquistado]);
-
-  const currentFaixa = getFaixaEfetiva(pesoTotal, pesoConquistado, manualFaixa);
+  const currentFaixa = getFaixaEfetiva(pesoTotal, pesoConquistado, null);
 
   const computedItens = useMemo(() => {
     // 1. Separate normal sale items to compute unit values
@@ -371,7 +365,7 @@ export function OrderPage() {
     initialLoadDone.current = false;
     setIsReady(false);
     prefilledApplied.current = false;
-    setManualFaixa(null);
+    setConsultaFaixa('livre');
     setStartedAt(null);
   }, [clienteId]);
 
@@ -396,7 +390,6 @@ export function OrderPage() {
               items: data.items,
               prazo: data.prazo,
               obs: data.obs,
-              manualFaixa: data.manual_faixa,
               startedAt: data.started_at
             };
           } else if (!error) {
@@ -438,7 +431,6 @@ export function OrderPage() {
               }
               if (savedData.prazo) setSelectedPrazo(savedData.prazo);
               if (savedData.obs) setObservacoes(savedData.obs);
-              if (savedData.manualFaixa) setManualFaixa(savedData.manualFaixa);
               if (savedData.startedAt) {
                 setStartedAt(savedData.startedAt);
               }
@@ -535,7 +527,7 @@ export function OrderPage() {
         items: rawItemList,
         prazo: selectedPrazo,
         obs: observacoes,
-        manualFaixa: manualFaixa,
+        manualFaixa: null,
         startedAt: startedAt || new Date().toISOString()
       };
       
@@ -553,7 +545,7 @@ export function OrderPage() {
               items: rawItemList,
               prazo: selectedPrazo || null,
               obs: observacoes || null,
-              manual_faixa: manualFaixa || null,
+              manual_faixa: null,
               desconto_extra: 0,
               started_at: startedAt || new Date().toISOString(),
               updated_at: new Date().toISOString()
@@ -568,7 +560,7 @@ export function OrderPage() {
 
       return () => clearTimeout(saveTimer);
     }
-  }, [itens, clienteId, isReady, selectedPrazo, observacoes, manualFaixa, startedAt]);
+  }, [itens, clienteId, isReady, selectedPrazo, observacoes, startedAt]);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -586,7 +578,7 @@ export function OrderPage() {
       }
     }
     setItens([]);
-    setManualFaixa(null);
+    setConsultaFaixa('livre');
     setStartedAt(null);
     setSelectedPrazo('');
     setObservacoes('');
@@ -1287,6 +1279,7 @@ export function OrderPage() {
         <button 
           onClick={() => {
             setProductSelectorType('VENDA');
+            setConsultaFaixa(currentFaixa);
             setShowProductSelector(true);
           }}
           className="w-full py-4 bg-white rounded-lg border-2 border-dashed border-orange-200 text-orange-600 font-bold flex items-center justify-center gap-2 hover:bg-orange-50 transition-all active:scale-95 mt-4"
@@ -1405,6 +1398,7 @@ export function OrderPage() {
                   type="button"
                   onClick={() => {
                     setProductSelectorType('BONIFICACAO_COMERCIAL');
+                    setConsultaFaixa(currentFaixa);
                     setShowProductSelector(true);
                   }}
                   className="px-2.5 py-1 bg-orange-600 text-white rounded-lg text-xs font-bold hover:bg-orange-700 transition-all flex items-center gap-1 shadow-sm active:scale-95"
@@ -1949,17 +1943,16 @@ export function OrderPage() {
                       <TrendingUp size={16} />
                     </div>
                     <select
-                      value={manualFaixa || ''}
-                      onChange={(e) => setManualFaixa(e.target.value ? e.target.value as PrecoFaixa : null)}
+                      value={consultaFaixa}
+                      onChange={(e) => setConsultaFaixa(e.target.value as PrecoFaixa)}
                       className="w-full pl-9 pr-8 py-3 bg-orange-50 rounded-lg font-black text-orange-700 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all border border-orange-100 text-xs"
                     >
-                      <option value="">Automática ({faixaPreco})</option>
-                      <option value="livre">Livre</option>
-                      <option value="200kg">200kg</option>
-                      <option value="500kg">500kg</option>
-                      <option value="1000kg">1000kg</option>
-                      <option value="2000kg">2000kg</option>
-                      <option value="4000kg">4000kg</option>
+                      <option value="livre">Consulta: Livre</option>
+                      <option value="200kg">Consulta: 200kg</option>
+                      <option value="500kg">Consulta: 500kg</option>
+                      <option value="1000kg">Consulta: 1000kg</option>
+                      <option value="2000kg">Consulta: 2000kg</option>
+                      <option value="4000kg">Consulta: 4000kg</option>
                     </select>
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-orange-400">
                       <ChevronDown size={16} />
@@ -1997,7 +1990,7 @@ export function OrderPage() {
                       </div>
                       <div className="text-right shrink-0">
                         <p className="font-bold text-orange-600">
-                          {formatCurrency(calcularPrecoComDesconto(produto.custo_und, getValorUnitario(produto, currentFaixa)))}
+                          {formatCurrency(calcularPrecoComDesconto(produto.custo_und, getValorUnitario(produto, consultaFaixa)))}
                         </p>
                         <p className="text-[10px] text-neutral-400 font-bold uppercase">Por Unidade</p>
                       </div>

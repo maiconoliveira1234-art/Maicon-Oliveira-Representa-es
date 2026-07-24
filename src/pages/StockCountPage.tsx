@@ -350,13 +350,13 @@ export function StockCountPage() {
   const gridCols = useMemo(() => {
     if (viewMode === 'contagem') {
       return showAverages
-        ? "grid-cols-[minmax(0,1fr)_38px_38px_42px_38px_38px_96px_38px]"
-        : "grid-cols-[minmax(0,1fr)_38px_38px_42px_96px_38px]";
+        ? "grid-cols-[minmax(0,1fr)_42px_38px_38px_96px_38px_38px_38px]"
+        : "grid-cols-[minmax(0,1fr)_42px_38px_38px_96px_38px]";
     }
 
     return showAverages
-      ? "grid-cols-[minmax(0,1fr)_38px_38px_38px_38px_38px_42px_38px_96px]"
-      : "grid-cols-[minmax(0,1fr)_38px_38px_38px_42px_38px_96px]";
+      ? "grid-cols-[minmax(0,1fr)_42px_38px_38px_42px_38px_38px_38px_96px]"
+      : "grid-cols-[minmax(0,1fr)_42px_38px_38px_42px_38px_96px]";
   }, [viewMode, showAverages]);
 
   const orderWeightByDay = useMemo(() => {
@@ -1315,17 +1315,17 @@ export function StockCountPage() {
                 {viewMode === 'contagem' && (
                   <>
                     <div className="px-1.5 border-r border-neutral-200 flex items-center h-8">Produto</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped.</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8">Qtd</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Cont.</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped.</div>
+                    <div className="p-0.5 border-r-2 border-neutral-300 text-center flex items-center justify-center h-8">Qtd</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8">Est.</div>
+                    <div className="p-0.5 border-r-2 border-neutral-300 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
                     {showAverages && (
                       <>
                         <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Méd.<br/>Qtd</div>
-                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Méd.<br/>Dias</div>
+                        <div className="p-0.5 text-center flex items-center justify-center h-8 leading-none">Méd.<br/>Dias</div>
                       </>
                     )}
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8">Est.</div>
-                    <div className="p-0.5 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
                   </>
                 )}
 
@@ -1334,15 +1334,15 @@ export function StockCountPage() {
                     <div className="px-1.5 border-r border-neutral-200 flex items-center h-8">Produto</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Cont.</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped.</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8">Qtd</div>
+                    <div className="p-0.5 border-r-2 border-neutral-300 text-center flex items-center justify-center h-8">Qtd</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Est.</div>
+                    <div className="p-0.5 border-r-2 border-neutral-300 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
                     {showAverages && (
                       <>
                         <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Méd.<br/>Qtd</div>
                         <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Méd.<br/>Dias</div>
                       </>
                     )}
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Est.</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
                     <div className="p-0.5 text-center flex items-center justify-center h-8">Pedido</div>
                   </>
                 )}
@@ -1375,6 +1375,9 @@ export function StockCountPage() {
                         <div className="px-1.5 py-1 border-r border-neutral-100 flex items-center min-h-10 leading-tight min-w-0">
                           <span className="block font-bold text-[11px] md:text-[12px] whitespace-normal break-words line-clamp-2 md:line-clamp-none">{item.produto_nome}</span>
                         </div>
+                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
+                          {item.ultima_contagem_valor}
+                        </div>
                         <div className={cn(
                           "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
                           item.dias_ult_compra > 180 
@@ -1385,22 +1388,9 @@ export function StockCountPage() {
                         )}>
                           {item.dias_ult_compra}
                         </div>
-                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
+                        <div className="p-0.5 border-r-2 border-neutral-200 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
                           {item.qtd_ult_compra}
                         </div>
-                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
-                          {item.ultima_contagem_valor}
-                        </div>
-                        {showAverages && (
-                          <>
-                            <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] text-neutral-500">
-                              {item.media_qtd}
-                            </div>
-                            <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] text-neutral-500">
-                              {item.media_ciclo}
-                            </div>
-                          </>
-                        )}
                         <div className={cn(
                           "p-0.5 border-r border-neutral-100 flex items-center justify-center gap-0.5 min-h-10",
                           isBelowIdeal ? "bg-red-50/30" : ""
@@ -1430,11 +1420,21 @@ export function StockCountPage() {
                           </button>
                         </div>
                         <div className={cn(
-                          "p-0.5 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
+                          "p-0.5 border-r-2 border-neutral-200 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
                           isBelowIdeal ? "text-red-600 font-black bg-red-50/30" : "font-bold"
                         )}>
                           {item.estoque_ideal}
                         </div>
+                        {showAverages && (
+                          <>
+                            <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] text-neutral-500">
+                              {item.media_qtd}
+                            </div>
+                            <div className="p-0.5 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] text-neutral-500">
+                              {item.media_ciclo}
+                            </div>
+                          </>
+                        )}
                       </>
                     )}
 
@@ -1456,8 +1456,17 @@ export function StockCountPage() {
                         )}>
                           {item.dias_ult_compra}
                         </div>
-                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
+                        <div className="p-0.5 border-r-2 border-neutral-200 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
                           {item.qtd_ult_compra}
+                        </div>
+                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] font-bold text-orange-700 bg-orange-50/40">
+                          {estoqueMap[item.produto_id] ?? 0}
+                        </div>
+                        <div className={cn(
+                          "p-0.5 border-r-2 border-neutral-200 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
+                          isBelowIdeal ? "text-red-600 font-black bg-red-50/30" : "font-bold"
+                        )}>
+                          {item.estoque_ideal}
                         </div>
                         {showAverages && (
                           <>
@@ -1469,15 +1478,6 @@ export function StockCountPage() {
                             </div>
                           </>
                         )}
-                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] font-bold text-orange-700 bg-orange-50/40">
-                          {estoqueMap[item.produto_id] ?? 0}
-                        </div>
-                        <div className={cn(
-                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
-                          isBelowIdeal ? "text-red-600 font-black bg-red-50/30" : "font-bold"
-                        )}>
-                          {item.estoque_ideal}
-                        </div>
                         <div className="p-0.5 flex items-center justify-center gap-0.5 min-h-10" onClick={(e) => e.stopPropagation()}>
                           <button 
                             onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) - 1)}
