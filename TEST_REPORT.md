@@ -6,10 +6,10 @@ Este documento apresenta o status consolidado da suíte de testes de regressão 
 
 ## 📊 Sumário Executivo
 
-- **Total de Casos de Teste:** 56
-- **Testes com Sucesso:** 56
+- **Total de Casos de Teste:** 60
+- **Testes com Sucesso:** 60
 - **Falhas de Regressão:** 0
-- **Tempo de Execução:** 6.20ms
+- **Tempo de Execução:** 6.64ms
 - **Status do Pipeline:** ✅ APROVADO
 
 ---

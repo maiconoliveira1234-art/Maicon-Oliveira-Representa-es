@@ -6,6 +6,9 @@ import { classifySale } from '../lib/salesClassifier';
 import { deduplicateSales } from '../lib/utils';
 import { getOpenOrderCleanupCutoff, shouldClearOpenOrderOnImport } from '../lib/openOrderCleanup';
 import { getFlexRateForDate } from '../lib/flexRules';
+import { calculateCommissionTrend } from '../lib/commissionTrend';
+import { getSalesOrderIdentity } from '../lib/orderIdentity';
+import { HistVenda } from '../types';
 
 // Test interface helper
 export interface TestResult {
@@ -107,6 +110,52 @@ export class RegressionTestSuite {
       calcularCicloPonderado(['2026-01-01', '2026-02-10', '2026-03-12', '2026-04-01']),
       28,
       'ciclo de compra combina media recente ponderada e historica',
+      category,
+      module
+    );
+    this.assertEqual(
+      calculateCommissionTrend(
+        1000,
+        [],
+        new Date(2026, 6, 1),
+        new Date(2026, 6, 31),
+        new Date(2026, 6, 15)
+      ),
+      2090.909090909091,
+      'tendencia de comissao usa dias uteis quando nao ha historico suficiente',
+      category,
+      module
+    );
+    this.assertEqual(
+      calculateCommissionTrend(
+        1000,
+        [],
+        new Date(2026, 6, 1),
+        new Date(2026, 6, 31),
+        new Date(2026, 6, 31)
+      ),
+      1000,
+      'tendencia de comissao converge para o realizado no encerramento',
+      category,
+      module
+    );
+    const legacyOrderBase = {
+      id: 'venda-1',
+      cliente_id: 'cliente-1',
+      faturamento: '2026-07-10',
+      produto_id: 'produto-1'
+    } as HistVenda;
+    this.assertEqual(
+      getSalesOrderIdentity({ ...legacyOrderBase, numero_pedido_erp: '1001' } as HistVenda),
+      'cliente-1-erp-1001',
+      'pedido usa numero ERP quando disponivel',
+      category,
+      module
+    );
+    this.assertEqual(
+      getSalesOrderIdentity(legacyOrderBase),
+      'cliente-1-data-2026-07-10',
+      'pedido antigo usa cliente e data como alternativa',
       category,
       module
     );

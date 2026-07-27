@@ -22,6 +22,7 @@ import { ptBR } from 'date-fns/locale';
 import { shouldExcludeSale } from '../constants';
 import { ActionButton, PageHeader } from '../components/ui/AppChrome';
 import { useDataManager } from '../lib/dataManager';
+import { calculateCommissionTrend } from '../lib/commissionTrend';
 import {
   BarChart,
   Bar,
@@ -281,13 +282,21 @@ export function CommissionPage() {
       const deadline = parseISO(deadlineDate);
       
       if (selectedDate.getMonth() === deadline.getMonth() && selectedDate.getFullYear() === deadline.getFullYear()) {
-        const start = startOfMonth(selectedDate);
-        const end = deadline;
-        const today = new Date();
-        const effectiveToday = isBefore(today, end) ? today : end;
-        const daysPassed = Math.max(1, differenceInDays(effectiveToday, start) + 1);
-        const totalDays = differenceInDays(end, start) + 1;
-        projetadoComissao = totalComissao * (totalDays / daysPassed);
+        const comparableHistory = allHistoryVendas.filter(v => {
+          if (selectedClienteId && v.cliente_id !== selectedClienteId) return false;
+          if (selectedProdutoId && v.produto_id !== selectedProdutoId) return false;
+          if (selectedFamilia && v.familia !== selectedFamilia) return false;
+          return true;
+        });
+        projetadoComissao = calculateCommissionTrend(
+          totalComissao,
+          comparableHistory.map(v => ({
+            date: v.faturamento,
+            commission: v.comissao_valor
+          })),
+          selectedDate,
+          deadline
+        );
         isProjection = true;
       }
     }
@@ -301,12 +310,24 @@ export function CommissionPage() {
       projetadoComissao,
       isPositiveTrend: projetadoComissao >= totalComissao
     };
-  }, [filteredVendas, useCustomRange, selectedYears, selectedMonths, deadlineDate]);
+  }, [
+    filteredVendas,
+    allHistoryVendas,
+    useCustomRange,
+    selectedYears,
+    selectedMonths,
+    deadlineDate,
+    selectedClienteId,
+    selectedProdutoId,
+    selectedFamilia
+  ]);
 
   const groupedData = useMemo(() => {
     const groups: Record<string, { label: string, total: number, comissao: number, peso: number }> = {};
 
     filteredVendas.forEach(v => {
+      if ((v["r$_total"] || 0) <= 0) return;
+
       let key = '';
       let label = '';
       
@@ -331,8 +352,7 @@ export function CommissionPage() {
     });
 
     return Object.values(groups)
-      .sort((a, b) => b.comissao - a.comissao)
-      .slice(0, 20);
+      .sort((a, b) => b.comissao - a.comissao);
   }, [filteredVendas, groupBy]);
 
   const uniqueFamilies = useMemo(() => {
@@ -674,6 +694,7 @@ export function CommissionPage() {
           <h3 className="text-base font-black text-neutral-900 mb-4 flex items-center gap-2">
             <Users className="text-neutral-500" size={18} />
             Ranking por {groupBy === 'cliente' ? 'Cliente' : groupBy === 'produto' ? 'Produto' : 'Família'}
+            <span className="text-xs font-bold text-neutral-400">({groupedData.length})</span>
           </h3>
           <div className="mobile-card-table overflow-x-auto">
             <table className="w-full text-left text-sm">

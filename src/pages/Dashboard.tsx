@@ -58,6 +58,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { shouldExcludeSale } from '../constants';
 import { ActionButton, PageHeader } from '../components/ui/AppChrome';
 import { useDataManager } from '../lib/dataManager';
+import { getSalesOrderIdentity } from '../lib/orderIdentity';
 
 // --- Types for Dashboard ---
 type DashboardFilters = {
@@ -364,7 +365,7 @@ export function Dashboard() {
         weight += q * (prod?.peso_embalagem || 0);
         commission += val * ((prod?.comissao || 0) / 100);
         clients.add(h.cliente_id);
-        orders.add(`${h.faturamento}-${h.cliente_id}`);
+        orders.add(getSalesOrderIdentity(h));
       });
 
       return { revenue, weight, commission, clientsCount: clients.size, ordersCount: orders.size };
