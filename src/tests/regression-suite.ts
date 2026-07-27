@@ -8,7 +8,8 @@ import { getOpenOrderCleanupCutoff, shouldClearOpenOrderOnImport } from '../lib/
 import { getFlexRateForDate } from '../lib/flexRules';
 import { calculateCommissionTrend } from '../lib/commissionTrend';
 import { getSalesOrderIdentity } from '../lib/orderIdentity';
-import { HistVenda } from '../types';
+import { HistVenda, Produto } from '../types';
+import { calculateOpenOrderGoalWeights } from '../lib/openOrderGoals';
 
 // Test interface helper
 export interface TestResult {
@@ -159,6 +160,21 @@ export class RegressionTestSuite {
       category,
       module
     );
+    const goalProduct = {
+      id: 'produto-meta',
+      peso_embalagem: 15
+    } as Produto;
+    const openGoalWeights = calculateOpenOrderGoalWeights([
+      {
+        cliente_id: 'cliente-1',
+        items: [
+          { produto_id: 'produto-meta', quantidade: 2, tipo_operacao: 'VENDA' },
+          { produto_id: 'produto-meta', quantidade: 3, tipo_operacao: 'BONIFICACAO_COMERCIAL' }
+        ]
+      }
+    ], { 'produto-meta': goalProduct });
+    this.assertEqual(openGoalWeights.total, 30, 'meta soma peso de venda em pedido aberto', category, module);
+    this.assertEqual(openGoalWeights.byClient['cliente-1'], 30, 'meta distribui pedido aberto por cliente', category, module);
     const cleanupNow = new Date('2026-07-23T12:00:00.000Z');
     this.assertEqual(
       getOpenOrderCleanupCutoff(cleanupNow),
