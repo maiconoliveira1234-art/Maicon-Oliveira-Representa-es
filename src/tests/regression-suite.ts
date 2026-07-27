@@ -1,7 +1,7 @@
 // Permanent Regression Testing Suite for CRM/Stock/Order Application
 // Provides rich assertions, mocks, and coverage tracking for critical modules.
 
-import { calcularPrecoComDesconto, calcularSugestao, deveManterFaixaAnterior, getFaixaEfetiva, getFaixaPreco, getValorUnitario, normalizarDesconto } from '../lib/calculations';
+import { calcularCicloPonderado, calcularPrecoComDesconto, calcularSugestao, deveManterFaixaAnterior, getFaixaEfetiva, getFaixaPreco, getValorUnitario, normalizarDesconto } from '../lib/calculations';
 import { classifySale } from '../lib/salesClassifier';
 import { deduplicateSales } from '../lib/utils';
 import { getOpenOrderCleanupCutoff, shouldClearOpenOrderOnImport } from '../lib/openOrderCleanup';
@@ -95,6 +95,21 @@ export class RegressionTestSuite {
     this.assertEqual(getFaixaEfetiva(299.9, 0, '1000kg'), '1000kg', 'faixa manual explícita prevalece', category, module);
     this.assertEqual(getFlexRateForDate('2026-06-30'), 0.02, 'Flex mantém 2% até junho/2026', category, module);
     this.assertEqual(getFlexRateForDate('2026-07-01'), 0.015, 'Flex aplica 1,5% a partir de julho/2026', category, module);
+    this.assertEqual(calcularCicloPonderado(['2026-07-01']), 0, 'ciclo de compra com um pedido exibe zero', category, module);
+    this.assertEqual(
+      calcularCicloPonderado(['2026-05-01', '2026-05-31']),
+      30,
+      'ciclo de compra usa o unico intervalo disponivel',
+      category,
+      module
+    );
+    this.assertEqual(
+      calcularCicloPonderado(['2026-01-01', '2026-02-10', '2026-03-12', '2026-04-01']),
+      28,
+      'ciclo de compra combina media recente ponderada e historica',
+      category,
+      module
+    );
     const cleanupNow = new Date('2026-07-23T12:00:00.000Z');
     this.assertEqual(
       getOpenOrderCleanupCutoff(cleanupNow),

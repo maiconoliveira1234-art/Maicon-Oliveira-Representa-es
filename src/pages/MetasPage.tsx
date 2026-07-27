@@ -30,6 +30,7 @@ import { ptBR } from 'date-fns/locale';
 import { classifySaleRecord } from '../lib/salesClassifier';
 import { ActionButton, PageHeader } from '../components/ui/AppChrome';
 import { useDataManager } from '../lib/dataManager';
+import { calcularCicloPonderado } from '../lib/calculations';
 
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from '../lib/mockData';
 
@@ -301,24 +302,13 @@ export function MetasPage() {
       const ultVenda = sortedRecompraVendas[0];
       const diasUltPedido = ultVenda ? differenceInDays(now, parseISO(ultVenda.faturamento)) : 0;
       
-      // Méd Dias: Average cycle (Total days from first purchase to now / Number of unique purchase days)
-      let medDias = 0;
-      if (sortedRecompraVendas.length > 0) {
-        const oldest = parseISO(sortedRecompraVendas[sortedRecompraVendas.length - 1].faturamento);
-        const totalDaysSinceFirst = differenceInDays(now, oldest);
-        
-        // Get unique days of purchase
-        const uniqueDays = new Set(recompraVendas
-          .map(v => format(parseISO(v.faturamento), 'yyyy-MM-dd')));
-        const uniqueDaysCount = uniqueDays.size;
-        
-        if (uniqueDaysCount > 0) {
-          medDias = Math.round(totalDaysSinceFirst / uniqueDaysCount);
-        }
-      }
+      // 70% dos tres intervalos mais recentes (pesos 50/30/20) + 30% do historico.
+      const medDias = calcularCicloPonderado(
+        recompraVendas.map(v => format(parseISO(v.faturamento), 'yyyy-MM-dd'))
+      );
 
       const vendMes = realizadoPorCliente[c.id] || 0;
-      const gapCliente = diasUltPedido - medDias;
+      const gapCliente = medDias > 0 ? diasUltPedido - medDias : 0;
 
       return {
         ...c,
@@ -584,7 +574,7 @@ export function MetasPage() {
                     <span className="mobile-compact-value">{row.vend.toFixed(0)} / {row.meta.toFixed(0)} kg</span>
                   </div>
                   <div className="mobile-compact-line">
-                    <span className="mobile-compact-secondary">Ult. {row.ultPed} · Media {row.med6.toFixed(1)} kg · Intervalo {row.medDias || '-'} dias</span>
+                    <span className="mobile-compact-secondary">Ult. {row.ultPed} · Media {row.med6.toFixed(1)} kg · Intervalo {row.medDias} dias</span>
                     <span className={cn('mobile-compact-value', row.gap <= 0 ? 'text-green-600' : 'text-red-500')}>{row.gap > 0 ? `Faltam ${row.gap}` : 'Meta atingida'}</span>
                   </div>
                 </td>
@@ -600,7 +590,7 @@ export function MetasPage() {
                   {row.med6.toFixed(1)}
                 </td>
                 <td data-label="Media de dias" className="px-1 py-3 border-r border-b border-neutral-100 text-center text-[12px] text-neutral-500">
-                  {row.medDias || '-'}
+                  {row.medDias}
                 </td>
                 <td data-label="Ultimo pedido" className="px-1 py-3 border-r border-b border-neutral-100 text-center text-[12px] text-neutral-500">
                   {row.ultPed}

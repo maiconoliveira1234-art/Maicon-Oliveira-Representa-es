@@ -75,3 +75,27 @@ export function deveManterFaixaAnterior(dataUltimaCompra?: string): boolean {
   const dias = differenceInDays(new Date(), new Date(dataUltimaCompra));
   return dias <= 28;
 }
+
+export function calcularCicloPonderado(datasDeCompra: string[]): number {
+  const datasUnicas = Array.from(new Set(
+    datasDeCompra
+      .map(data => data.slice(0, 10))
+      .filter(data => /^\d{4}-\d{2}-\d{2}$/.test(data))
+  )).sort();
+
+  if (datasUnicas.length < 2) return 0;
+
+  const intervalos = datasUnicas.slice(1).map((data, index) =>
+    Math.max(0, differenceInDays(new Date(`${data}T12:00:00`), new Date(`${datasUnicas[index]}T12:00:00`)))
+  );
+  const mediaHistorica = intervalos.reduce((total, intervalo) => total + intervalo, 0) / intervalos.length;
+  const intervalosRecentes = intervalos.slice(-3).reverse();
+  const pesos = [0.5, 0.3, 0.2];
+  const pesoAplicado = intervalosRecentes.reduce((total, _, index) => total + pesos[index], 0);
+  const mediaRecente = intervalosRecentes.reduce(
+    (total, intervalo, index) => total + intervalo * pesos[index],
+    0
+  ) / pesoAplicado;
+
+  return Math.round((mediaRecente * 0.7) + (mediaHistorica * 0.3));
+}
