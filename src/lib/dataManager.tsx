@@ -5,6 +5,11 @@ import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from './mockData';
 import { deduplicateSales } from './utils';
 import { ensureQuarterlyFlexReset } from '../services/flexService';
 import { getCacheValue, setCacheValue, setCacheValues } from './offline';
+import {
+  buildStockCountPayload,
+  isStockCountFullyConfirmed,
+  mergeStockCountRecords
+} from './stockCountPersistence';
 
 export interface OfflineQueueItem {
   id: string;
@@ -12,6 +17,11 @@ export interface OfflineQueueItem {
   payload: any;
   timestamp: number;
 }
+
+export type StockCountSaveResult = {
+  status: 'synced' | 'queued';
+  error?: string;
+};
 
 interface ClientCache {
   historico: HistVenda[];
@@ -40,7 +50,7 @@ interface DataManagerContextType {
   syncAllData: (force?: boolean) => Promise<boolean>;
   
   // Offline-safe write operations
-  saveStockCount: (clienteId: string, items: any[]) => Promise<boolean>;
+  saveStockCount: (clienteId: string, items: any[]) => Promise<StockCountSaveResult>;
   updateVisitaStatus: (visitaId: string, status: string) => Promise<boolean>;
   updateVisitaObservacoes: (visitaId: string, observacoes: string) => Promise<boolean>;
   addLoan: (loanData: any) => Promise<boolean>;
@@ -171,16 +181,14 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       for (const item of queueToFlush) {
         if (item.action === 'save_stock_count') {
           const { items } = item.payload;
+          const sanitizedItems = buildStockCountPayload(
+            item.payload.clienteId || items[0]?.cliente_id,
+            items
+          );
           const { error } = await supabase
             .from('estoque_cliente')
-            .upsert(items, { onConflict: 'cliente_id,produto_id' });
-            
-          if (error) {
-            for (const stockItem of items) {
-              await supabase.from('estoque_cliente').delete().eq('cliente_id', stockItem.cliente_id).eq('produto_id', stockItem.produto_id);
-              await supabase.from('estoque_cliente').insert(stockItem);
-            }
-          }
+            .upsert(sanitizedItems, { onConflict: 'cliente_id,produto_id' });
+          if (error) throw error;
         } else if (item.action === 'update_visita_status') {
           const { id, status } = item.payload;
           await supabase.from('agenda_visitas').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
@@ -595,28 +603,80 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     };
   }, [syncChangedDataInternal]);
 
-  // Offline-Safe Write Wrapper: saveStockCount
-  const saveStockCount = useCallback(async (clienteId: string, items: any[]) => {
-    const updatedStockItems = items.map(item => ({
-      id: item.id || `${clienteId}_${item.produto_id}`,
-      cliente_id: clienteId,
-      produto_id: item.produto_id,
-      quantidade_atual: item.quantidade_atual,
-      ultima_contagem: item.ultima_contagem || new Date().toISOString().split('T')[0]
-    }));
+  const queueStockCountForRetry = useCallback(async (clienteId: string, items: any[]) => {
+    const currentQueue = await loadPersisted<OfflineQueueItem[]>('offline_db_pending_queue', []);
+    const withoutOlderCount = currentQueue.filter(item =>
+      item.action !== 'save_stock_count' || item.payload?.clienteId !== clienteId
+    );
+    const queuedItem: OfflineQueueItem = {
+      id: `save_stock_count_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+      action: 'save_stock_count',
+      payload: { clienteId, items },
+      timestamp: Date.now()
+    };
+    const updatedQueue = [...withoutOlderCount, queuedItem];
+    setPendingQueue(updatedQueue);
+    savePersisted('offline_db_pending_queue', updatedQueue);
+  }, []);
 
-    // Update in-memory state instantly
+  const mergeStockCountIntoCache = useCallback((clienteId: string, items: EstoqueCliente[]) => {
     setEstoqueCliente(prev => {
-      const otherClients = prev.filter(e => e.cliente_id !== clienteId);
-      const updated = [...otherClients, ...updatedStockItems];
+      const updated = mergeStockCountRecords(prev, clienteId, items);
       savePersisted('offline_db_estoque_cliente', updated);
       return updated;
     });
-    
-    // Add to offline queue
-    await queueAction('save_stock_count', { clienteId, items: updatedStockItems });
-    return true;
-  }, [queueAction]);
+  }, []);
+
+  // Offline-safe stock count write with server confirmation.
+  const saveStockCount = useCallback(async (clienteId: string, items: any[]) => {
+    const updatedStockItems = buildStockCountPayload(clienteId, items);
+
+    const optimisticItems = updatedStockItems.map(item => ({
+      ...item,
+      id: `${item.cliente_id}:${item.produto_id}`
+    })) as EstoqueCliente[];
+    mergeStockCountIntoCache(clienteId, optimisticItems);
+
+    if (navigator.onLine === false) {
+      await queueStockCountForRetry(clienteId, updatedStockItems);
+      return { status: 'queued' as const };
+    }
+
+    const { data, error } = await supabase
+      .from('estoque_cliente')
+      .upsert(updatedStockItems, { onConflict: 'cliente_id,produto_id' })
+      .select('id,cliente_id,produto_id,quantidade_atual,ultima_contagem');
+
+    if (error) {
+      await queueStockCountForRetry(clienteId, updatedStockItems);
+      return { status: 'queued' as const, error: error.message };
+    }
+
+    const allConfirmed = isStockCountFullyConfirmed(
+      updatedStockItems,
+      (data || []) as EstoqueCliente[]
+    );
+
+    if (!allConfirmed) {
+      await queueStockCountForRetry(clienteId, updatedStockItems);
+      return {
+        status: 'queued' as const,
+        error: 'O Supabase não confirmou todos os produtos enviados.'
+      };
+    }
+
+    const confirmedItems = (data || []) as EstoqueCliente[];
+    mergeStockCountIntoCache(clienteId, confirmedItems);
+
+    const currentQueue = await loadPersisted<OfflineQueueItem[]>('offline_db_pending_queue', []);
+    const updatedQueue = currentQueue.filter(item =>
+      item.action !== 'save_stock_count' || item.payload?.clienteId !== clienteId
+    );
+    setPendingQueue(updatedQueue);
+    savePersisted('offline_db_pending_queue', updatedQueue);
+
+    return { status: 'synced' as const };
+  }, [mergeStockCountIntoCache, queueStockCountForRetry]);
 
   // Offline-Safe Write Wrapper: updateVisitaStatus
   const updateVisitaStatus = useCallback(async (visitaId: string, status: string) => {

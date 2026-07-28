@@ -724,7 +724,7 @@ export function StockCountPage() {
         cliente_id: clienteId,
         produto_id: prodId,
         quantidade_atual: estoqueMap[prodId] || 0,
-        ultima_contagem: new Date().toISOString().split('T')[0]
+        ultima_contagem: format(new Date(), 'yyyy-MM-dd')
       }));
 
       if (itemsToUpsert.length === 0) {
@@ -734,13 +734,20 @@ export function StockCountPage() {
       }
 
       // Use the offline-safe central save wrapper!
-      await saveStockCount(clienteId, itemsToUpsert);
+      const saveResult = await saveStockCount(clienteId, itemsToUpsert);
 
-      // Clear local stock draft after successful save
+      if (saveResult.status !== 'synced') {
+        const detail = saveResult.error ? `\n\nDetalhe: ${saveResult.error}` : '';
+        alert(
+          navigator.onLine === false
+            ? 'Contagem salva neste dispositivo e aguardando conexão para sincronizar.'
+            : `Não foi possível confirmar a contagem no Supabase. O rascunho foi preservado e a sincronização será tentada novamente.${detail}`
+        );
+        return;
+      }
+
+      // Clear the draft only after every item is confirmed by Supabase.
       localStorage.removeItem(`estoque_${clienteId}`);
-
-      // Force cache update in global dataManager so subsequent page visits reflect the new stock count immediately
-      await loadClientDetails(clienteId, true);
 
       alert('Estoque atualizado com sucesso!');
       navigate(`/cliente/${clienteId}`);

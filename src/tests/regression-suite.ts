@@ -10,6 +10,11 @@ import { calculateCommissionTrend } from '../lib/commissionTrend';
 import { getSalesOrderIdentity } from '../lib/orderIdentity';
 import { HistVenda, Produto } from '../types';
 import { calculateOpenOrderGoalWeights } from '../lib/openOrderGoals';
+import {
+  buildStockCountPayload,
+  isStockCountFullyConfirmed,
+  mergeStockCountRecords
+} from '../lib/stockCountPersistence';
 
 // Test interface helper
 export interface TestResult {
@@ -175,6 +180,63 @@ export class RegressionTestSuite {
     ], { 'produto-meta': goalProduct });
     this.assertEqual(openGoalWeights.total, 30, 'meta soma peso de venda em pedido aberto', category, module);
     this.assertEqual(openGoalWeights.byClient['cliente-1'], 30, 'meta distribui pedido aberto por cliente', category, module);
+    const stockPayload = buildStockCountPayload('cliente-estoque', [{
+      id: 'identificador-invalido',
+      produto_id: 'produto-contado',
+      quantidade_atual: 7,
+      ultima_contagem: '2026-07-28'
+    }]);
+    this.assertEqual(
+      Object.prototype.hasOwnProperty.call(stockPayload[0], 'id'),
+      false,
+      'contagem nao envia identificador fabricado ao Supabase',
+      category,
+      module
+    );
+    const currentStock = [
+      {
+        id: 'uuid-1',
+        cliente_id: 'cliente-estoque',
+        produto_id: 'produto-contado',
+        quantidade_atual: 1,
+        ultima_contagem: '2026-07-20'
+      },
+      {
+        id: 'uuid-2',
+        cliente_id: 'cliente-estoque',
+        produto_id: 'produto-preservado',
+        quantidade_atual: 5,
+        ultima_contagem: '2026-07-20'
+      }
+    ];
+    const confirmedStock = [{
+      id: 'uuid-1',
+      cliente_id: 'cliente-estoque',
+      produto_id: 'produto-contado',
+      quantidade_atual: 7,
+      ultima_contagem: '2026-07-28'
+    }];
+    this.assertEqual(
+      mergeStockCountRecords(currentStock, 'cliente-estoque', confirmedStock).length,
+      2,
+      'contagem preserva produtos nao alterados no cache',
+      category,
+      module
+    );
+    this.assertEqual(
+      isStockCountFullyConfirmed(stockPayload, confirmedStock),
+      true,
+      'contagem confirma todos os valores devolvidos pelo Supabase',
+      category,
+      module
+    );
+    this.assertEqual(
+      isStockCountFullyConfirmed(stockPayload, [{ ...confirmedStock[0], quantidade_atual: 6 }]),
+      false,
+      'contagem rejeita confirmacao com quantidade divergente',
+      category,
+      module
+    );
     const cleanupNow = new Date('2026-07-23T12:00:00.000Z');
     this.assertEqual(
       getOpenOrderCleanupCutoff(cleanupNow),
