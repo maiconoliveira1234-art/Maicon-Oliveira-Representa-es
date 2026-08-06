@@ -30,9 +30,7 @@ import { supabase } from '../lib/supabase';
 import { getFromLocal } from '../lib/offline';
 import { 
   getFaixaPreco, 
-  getFaixaEfetiva,
   getValorUnitario, 
-  calcularPrecoComDesconto,
   deveManterFaixaAnterior 
 } from '../lib/calculations';
 import { cn, formatCurrency, formatWeight } from '../lib/utils';
@@ -46,7 +44,6 @@ import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from '../lib/mockData';
 import { useDataManager } from '../lib/dataManager';
 import { StockCountSkeleton } from '../components/ui/Skeleton';
 import { logDiagnostic } from '../lib/diagnostics';
-import { formatFlexRate, getFlexRateForDate } from '../lib/flexRules';
 
 export function OrderPage() {
   const { clienteId } = useParams();
@@ -71,9 +68,8 @@ export function OrderPage() {
   const [pesoConquistado, setPesoConquistado] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [observacoes, setObservacoes] = useState('');
-  const [consultaFaixa, setConsultaFaixa] = useState<PrecoFaixa>('livre');
+  const [manualFaixa, setManualFaixa] = useState<PrecoFaixa | null>(null);
   const [startedAt, setStartedAt] = useState<string | null>(null);
-  const suppressDraftPersistence = React.useRef(false);
 
   const historicoCliente = useMemo(() => {
     return clienteId ? clientCache[clienteId]?.historico || [] : [];
@@ -283,7 +279,13 @@ export function OrderPage() {
     return itens.reduce((acc, item) => acc + (item.peso_total || 0), 0);
   }, [itens]);
 
-  const currentFaixa = getFaixaEfetiva(pesoTotal, pesoConquistado, null);
+  const faixaPreco = useMemo(() => {
+    // Rule: Effective weight is the max between current order weight and weight from last 28 days
+    const pesoEfetivo = Math.max(pesoTotal, pesoConquistado);
+    return getFaixaPreco(pesoEfetivo);
+  }, [pesoTotal, pesoConquistado]);
+
+  const currentFaixa = manualFaixa || faixaPreco;
 
   const computedItens = useMemo(() => {
     // 1. Separate normal sale items to compute unit values
@@ -295,7 +297,7 @@ export function OrderPage() {
       const produto = produtos.find(p => p.id === item.produto_id);
       if (!produto) return item;
       const discount = getValorUnitario(produto, currentFaixa) || 0;
-      const unitario = calcularPrecoComDesconto(produto.custo_und, discount);
+      const unitario = produto.custo_und * (1 - discount);
       const valorTotalItem = unitario * (item.quantidade || 0) * (produto.quant_embalagem || 1);
       return {
         ...item,
@@ -339,9 +341,8 @@ export function OrderPage() {
   }, [computedItens]);
 
   const verbaGeradaEstimada = useMemo(() => {
-    return valorVendasSubtotal * getFlexRateForDate(new Date());
+    return valorVendasSubtotal * 0.02;
   }, [valorVendasSubtotal]);
-  const flexRateAtual = getFlexRateForDate(new Date());
 
   const totalBonificacoes = useMemo(() => {
     return computedItens
@@ -367,7 +368,7 @@ export function OrderPage() {
     initialLoadDone.current = false;
     setIsReady(false);
     prefilledApplied.current = false;
-    setConsultaFaixa('livre');
+    setManualFaixa(null);
     setStartedAt(null);
   }, [clienteId]);
 
@@ -377,7 +378,6 @@ export function OrderPage() {
     const loadSavedOrder = async () => {
       if (!loading && produtos.length > 0 && clienteId && !initialLoadDone.current) {
         let savedData: any = null;
-        let serverStateLoaded = false;
         
         // 1. Try Supabase first
         try {
@@ -387,23 +387,20 @@ export function OrderPage() {
             .eq('cliente_id', clienteId)
             .maybeSingle();
           if (!error && data) {
-            serverStateLoaded = true;
             savedData = {
               items: data.items,
               prazo: data.prazo,
               obs: data.obs,
+              manualFaixa: data.manual_faixa,
               startedAt: data.started_at
             };
-          } else if (!error) {
-            serverStateLoaded = true;
-            localStorage.removeItem(`pedido_${clienteId}`);
           }
         } catch (dbErr) {
           console.error('Error fetching open order from DB:', dbErr);
         }
 
         // 2. Fallback to localStorage if not found/error
-        if (!serverStateLoaded && !savedData) {
+        if (!savedData) {
           const saved = localStorage.getItem(`pedido_${clienteId}`);
           if (saved) {
             try {
@@ -433,6 +430,7 @@ export function OrderPage() {
               }
               if (savedData.prazo) setSelectedPrazo(savedData.prazo);
               if (savedData.obs) setObservacoes(savedData.obs);
+              if (savedData.manualFaixa) setManualFaixa(savedData.manualFaixa);
               if (savedData.startedAt) {
                 setStartedAt(savedData.startedAt);
               }
@@ -464,7 +462,7 @@ export function OrderPage() {
               const extraQtd = item.quantidade || 0;
               if (extraQtd > 0) {
                 const discount = getValorUnitario(produto, tempFaixa) || 0;
-                const unitario = calcularPrecoComDesconto(produto.custo_und, discount);
+                const unitario = produto.custo_und * (1 - discount);
                 const valorTotalItem = unitario * extraQtd * (produto.quant_embalagem || 1);
 
                 newItens.push({
@@ -509,7 +507,7 @@ export function OrderPage() {
 
   // Persist items to localStorage and database (Supabase)
   useEffect(() => {
-    if (isReady && clienteId && !suppressDraftPersistence.current) {
+    if (isReady && clienteId) {
       if (itens.length === 0) {
         localStorage.removeItem(`pedido_${clienteId}`);
         // Also clean up from Supabase DB asynchronously
@@ -529,7 +527,7 @@ export function OrderPage() {
         items: rawItemList,
         prazo: selectedPrazo,
         obs: observacoes,
-        manualFaixa: null,
+        manualFaixa: manualFaixa,
         startedAt: startedAt || new Date().toISOString()
       };
       
@@ -538,7 +536,6 @@ export function OrderPage() {
 
       // Debounce saving to Supabase (e.g. 1 second delay) to prevent database spam on fast interactions
       const saveTimer = setTimeout(async () => {
-        if (suppressDraftPersistence.current) return;
         try {
           const { error } = await supabase
             .from('pedidos_em_aberto')
@@ -547,7 +544,7 @@ export function OrderPage() {
               items: rawItemList,
               prazo: selectedPrazo || null,
               obs: observacoes || null,
-              manual_faixa: null,
+              manual_faixa: manualFaixa || null,
               desconto_extra: 0,
               started_at: startedAt || new Date().toISOString(),
               updated_at: new Date().toISOString()
@@ -562,33 +559,27 @@ export function OrderPage() {
 
       return () => clearTimeout(saveTimer);
     }
-  }, [itens, clienteId, isReady, selectedPrazo, observacoes, startedAt]);
+  }, [itens, clienteId, isReady, selectedPrazo, observacoes, manualFaixa, startedAt]);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const receiptRef = React.useRef<HTMLDivElement>(null);
 
-  const handleClearOrder = async () => {
-    suppressDraftPersistence.current = true;
-    if (clienteId && navigator.onLine !== false) {
-      const { error } = await supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId);
-      if (error) {
-        suppressDraftPersistence.current = false;
-        alert('Não foi possível limpar o pedido no servidor. Tente novamente.');
-        return;
-      }
-    }
+  const handleClearOrder = () => {
     setItens([]);
-    setConsultaFaixa('livre');
+    setManualFaixa(null);
     setStartedAt(null);
     setSelectedPrazo('');
     setObservacoes('');
     setShowClearConfirm(false);
     if (clienteId) {
       localStorage.removeItem(`pedido_${clienteId}`);
+      // Also clean up from Supabase DB
+      supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId).then(({ error }) => {
+        if (error) console.error('Erro ao deletar do DB:', error);
+      });
     }
-    suppressDraftPersistence.current = false;
   };
 
   const valorTotal = useMemo(() => {
@@ -610,7 +601,7 @@ export function OrderPage() {
     setItens(prev => {
       const existing = prev.find(i => i.produto_id === produto.id && (i.tipo_operacao || 'VENDA') === tipoOps);
       const discount = getValorUnitario(produto, currentFaixa) || 0;
-      const unitario = calcularPrecoComDesconto(produto.custo_und, discount);
+      const unitario = produto.custo_und * (1 - discount);
 
       if (existing) {
         return prev.map(item => {
@@ -652,7 +643,7 @@ export function OrderPage() {
           const produto = produtos.find(p => p.id === produtoId)!;
           const pesoItem = qtd * produto.peso_embalagem;
           const discount = getValorUnitario(produto, currentFaixa) || 0;
-          const unitario = calcularPrecoComDesconto(produto.custo_und, discount);
+          const unitario = produto.custo_und * (1 - discount);
           const valorTotalItem = unitario * qtd * (produto.quant_embalagem || 1);
           
           return {
@@ -687,7 +678,7 @@ export function OrderPage() {
             const produto = produtos.find(p => p.id === produtoId)!;
             const pesoItem = mergedQty * produto.peso_embalagem;
             const discount = getValorUnitario(produto, currentFaixa) || 0;
-            const unitario = calcularPrecoComDesconto(produto.custo_und, discount);
+            const unitario = produto.custo_und * (1 - discount);
             const valorTotalItem = unitario * mergedQty * (produto.quant_embalagem || 1);
             return {
               ...item,
@@ -719,7 +710,7 @@ export function OrderPage() {
       const produto = produtos.find(p => p.id === item.produto_id);
       if (!produto) return item;
       const discount = getValorUnitario(produto, currentFaixa) || 0;
-      const unitario = calcularPrecoComDesconto(produto.custo_und, discount);
+      const unitario = produto.custo_und * (1 - discount);
       const valorTotalItem = unitario * (item.quantidade || 0) * (produto.quant_embalagem || 1);
       
       return {
@@ -861,13 +852,11 @@ export function OrderPage() {
 
       if (shouldClear) {
         if (clienteId) {
-          suppressDraftPersistence.current = true;
-          const { error } = await supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId);
-          if (error) {
-            suppressDraftPersistence.current = false;
-            throw new Error(`Não foi possível finalizar o pedido no servidor: ${error.message}`);
-          }
           localStorage.removeItem(`pedido_${clienteId}`);
+          // Also clean up from Supabase DB
+          supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId).then(({ error }) => {
+            if (error) console.error('Erro ao deletar do DB ao finalizar:', error);
+          });
         }
         alert('Orçamento gerado com sucesso!');
         navigate(`/cliente/${clienteId}`);
@@ -1281,7 +1270,6 @@ export function OrderPage() {
         <button 
           onClick={() => {
             setProductSelectorType('VENDA');
-            setConsultaFaixa(currentFaixa);
             setShowProductSelector(true);
           }}
           className="w-full py-4 bg-white rounded-lg border-2 border-dashed border-orange-200 text-orange-600 font-bold flex items-center justify-center gap-2 hover:bg-orange-50 transition-all active:scale-95 mt-4"
@@ -1383,7 +1371,7 @@ export function OrderPage() {
               </div>
               <div className="p-2.5 bg-white border border-neutral-200/50 rounded-lg">
                 <p className="text-[10px] text-neutral-400 uppercase tracking-widest font-black">Gerado no Faturamento</p>
-                <p className="text-sm font-extrabold text-green-600 mt-0.5">+{formatCurrency(verbaGeradaEstimada)} ({formatFlexRate(flexRateAtual)})</p>
+                <p className="text-sm font-extrabold text-green-600 mt-0.5">+{formatCurrency(verbaGeradaEstimada)} (2%)</p>
               </div>
             </div>
 
@@ -1400,7 +1388,6 @@ export function OrderPage() {
                   type="button"
                   onClick={() => {
                     setProductSelectorType('BONIFICACAO_COMERCIAL');
-                    setConsultaFaixa(currentFaixa);
                     setShowProductSelector(true);
                   }}
                   className="px-2.5 py-1 bg-orange-600 text-white rounded-lg text-xs font-bold hover:bg-orange-700 transition-all flex items-center gap-1 shadow-sm active:scale-95"
@@ -1505,7 +1492,7 @@ export function OrderPage() {
             </div>
             <div className="min-w-0 text-center border-x border-white/20 px-1">
               <p className="text-[8px] uppercase font-bold opacity-80">Faixa</p>
-              <p className="text-[10px] md:text-xs font-black truncate">{currentFaixa}</p>
+              <p className="text-[10px] md:text-xs font-black truncate">{faixaPreco}</p>
             </div>
             <div className="min-w-0 text-center border-r border-white/20 px-1">
               <p className="text-[8px] uppercase font-bold opacity-80">Recompra</p>
@@ -1945,16 +1932,16 @@ export function OrderPage() {
                       <TrendingUp size={16} />
                     </div>
                     <select
-                      value={consultaFaixa}
-                      onChange={(e) => setConsultaFaixa(e.target.value as PrecoFaixa)}
+                      value={currentFaixa}
+                      onChange={(e) => setManualFaixa(e.target.value as PrecoFaixa)}
                       className="w-full pl-9 pr-8 py-3 bg-orange-50 rounded-lg font-black text-orange-700 outline-none focus:ring-2 focus:ring-orange-500 appearance-none transition-all border border-orange-100 text-xs"
                     >
-                      <option value="livre">Consulta: Livre</option>
-                      <option value="200kg">Consulta: 200kg</option>
-                      <option value="500kg">Consulta: 500kg</option>
-                      <option value="1000kg">Consulta: 1000kg</option>
-                      <option value="2000kg">Consulta: 2000kg</option>
-                      <option value="4000kg">Consulta: 4000kg</option>
+                      <option value="livre">Livre</option>
+                      <option value="200kg">200kg</option>
+                      <option value="500kg">500kg</option>
+                      <option value="1000kg">1000kg</option>
+                      <option value="2000kg">2000kg</option>
+                      <option value="4000kg">4000kg</option>
                     </select>
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-orange-400">
                       <ChevronDown size={16} />
@@ -1992,7 +1979,7 @@ export function OrderPage() {
                       </div>
                       <div className="text-right shrink-0">
                         <p className="font-bold text-orange-600">
-                          {formatCurrency(calcularPrecoComDesconto(produto.custo_und, getValorUnitario(produto, consultaFaixa)))}
+                          {formatCurrency(produto.custo_und * (1 - (getValorUnitario(produto, currentFaixa) || 0)))}
                         </p>
                         <p className="text-[10px] text-neutral-400 font-bold uppercase">Por Unidade</p>
                       </div>

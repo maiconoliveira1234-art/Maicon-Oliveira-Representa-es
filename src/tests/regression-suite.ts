@@ -1,20 +1,9 @@
 // Permanent Regression Testing Suite for CRM/Stock/Order Application
 // Provides rich assertions, mocks, and coverage tracking for critical modules.
 
-import { calcularCicloPonderado, calcularPrecoComDesconto, calcularSugestao, deveManterFaixaAnterior, getFaixaEfetiva, getFaixaPreco, getValorUnitario, normalizarDesconto } from '../lib/calculations';
+import { getFaixaPreco, getValorUnitario, calcularSugestao, deveManterFaixaAnterior } from '../lib/calculations';
 import { classifySale } from '../lib/salesClassifier';
 import { deduplicateSales } from '../lib/utils';
-import { getOpenOrderCleanupCutoff, shouldClearOpenOrderOnImport } from '../lib/openOrderCleanup';
-import { getFlexRateForDate } from '../lib/flexRules';
-import { calculateCommissionTrend } from '../lib/commissionTrend';
-import { getSalesOrderIdentity } from '../lib/orderIdentity';
-import { HistVenda, Produto } from '../types';
-import { calculateOpenOrderGoalWeights } from '../lib/openOrderGoals';
-import {
-  buildStockCountPayload,
-  isStockCountFullyConfirmed,
-  mergeStockCountRecords
-} from '../lib/stockCountPersistence';
 
 // Test interface helper
 export interface TestResult {
@@ -99,173 +88,6 @@ export class RegressionTestSuite {
     this.assertEqual(getFaixaPreco(600), '500kg', 'getFaixaPreco (>= 500kg)', category, module);
     this.assertEqual(getFaixaPreco(250), '200kg', 'getFaixaPreco (>= 200kg)', category, module);
     this.assertEqual(getFaixaPreco(100), 'livre', 'getFaixaPreco (< 200kg)', category, module);
-    this.assertEqual(getFaixaEfetiva(299.9, 0), '200kg', 'faixa efetiva usa peso atual sem recompra', category, module);
-    this.assertEqual(getFaixaEfetiva(299.9, 1100), '1000kg', 'faixa efetiva mantém regra de recompra em 28 dias', category, module);
-    this.assertEqual(getFaixaEfetiva(299.9, 0, '1000kg'), '1000kg', 'faixa manual explícita prevalece', category, module);
-    this.assertEqual(getFlexRateForDate('2026-06-30'), 0.02, 'Flex mantém 2% até junho/2026', category, module);
-    this.assertEqual(getFlexRateForDate('2026-07-01'), 0.015, 'Flex aplica 1,5% a partir de julho/2026', category, module);
-    this.assertEqual(calcularCicloPonderado(['2026-07-01']), 0, 'ciclo de compra com um pedido exibe zero', category, module);
-    this.assertEqual(
-      calcularCicloPonderado(['2026-05-01', '2026-05-31']),
-      30,
-      'ciclo de compra usa o unico intervalo disponivel',
-      category,
-      module
-    );
-    this.assertEqual(
-      calcularCicloPonderado(['2026-01-01', '2026-02-10', '2026-03-12', '2026-04-01']),
-      28,
-      'ciclo de compra combina media recente ponderada e historica',
-      category,
-      module
-    );
-    this.assertEqual(
-      calculateCommissionTrend(
-        1000,
-        [],
-        new Date(2026, 6, 1),
-        new Date(2026, 6, 31),
-        new Date(2026, 6, 15)
-      ),
-      2090.909090909091,
-      'tendencia de comissao usa dias uteis quando nao ha historico suficiente',
-      category,
-      module
-    );
-    this.assertEqual(
-      calculateCommissionTrend(
-        1000,
-        [],
-        new Date(2026, 6, 1),
-        new Date(2026, 6, 31),
-        new Date(2026, 6, 31)
-      ),
-      1000,
-      'tendencia de comissao converge para o realizado no encerramento',
-      category,
-      module
-    );
-    const legacyOrderBase = {
-      id: 'venda-1',
-      cliente_id: 'cliente-1',
-      faturamento: '2026-07-10',
-      produto_id: 'produto-1'
-    } as HistVenda;
-    this.assertEqual(
-      getSalesOrderIdentity({ ...legacyOrderBase, numero_pedido_erp: '1001' } as HistVenda),
-      'cliente-1-erp-1001',
-      'pedido usa numero ERP quando disponivel',
-      category,
-      module
-    );
-    this.assertEqual(
-      getSalesOrderIdentity(legacyOrderBase),
-      'cliente-1-data-2026-07-10',
-      'pedido antigo usa cliente e data como alternativa',
-      category,
-      module
-    );
-    const goalProduct = {
-      id: 'produto-meta',
-      peso_embalagem: 15
-    } as Produto;
-    const openGoalWeights = calculateOpenOrderGoalWeights([
-      {
-        cliente_id: 'cliente-1',
-        items: [
-          { produto_id: 'produto-meta', quantidade: 2, tipo_operacao: 'VENDA' },
-          { produto_id: 'produto-meta', quantidade: 3, tipo_operacao: 'BONIFICACAO_COMERCIAL' }
-        ]
-      }
-    ], { 'produto-meta': goalProduct });
-    this.assertEqual(openGoalWeights.total, 30, 'meta soma peso de venda em pedido aberto', category, module);
-    this.assertEqual(openGoalWeights.byClient['cliente-1'], 30, 'meta distribui pedido aberto por cliente', category, module);
-    const stockPayload = buildStockCountPayload('cliente-estoque', [{
-      id: 'identificador-invalido',
-      produto_id: 'produto-contado',
-      quantidade_atual: 7,
-      ultima_contagem: '2026-07-28'
-    }]);
-    this.assertEqual(
-      Object.prototype.hasOwnProperty.call(stockPayload[0], 'id'),
-      false,
-      'contagem nao envia identificador fabricado ao Supabase',
-      category,
-      module
-    );
-    const currentStock = [
-      {
-        id: 'uuid-1',
-        cliente_id: 'cliente-estoque',
-        produto_id: 'produto-contado',
-        quantidade_atual: 1,
-        ultima_contagem: '2026-07-20'
-      },
-      {
-        id: 'uuid-2',
-        cliente_id: 'cliente-estoque',
-        produto_id: 'produto-preservado',
-        quantidade_atual: 5,
-        ultima_contagem: '2026-07-20'
-      }
-    ];
-    const confirmedStock = [{
-      id: 'uuid-1',
-      cliente_id: 'cliente-estoque',
-      produto_id: 'produto-contado',
-      quantidade_atual: 7,
-      ultima_contagem: '2026-07-28'
-    }];
-    this.assertEqual(
-      mergeStockCountRecords(currentStock, 'cliente-estoque', confirmedStock).length,
-      2,
-      'contagem preserva produtos nao alterados no cache',
-      category,
-      module
-    );
-    this.assertEqual(
-      isStockCountFullyConfirmed(stockPayload, confirmedStock),
-      true,
-      'contagem confirma todos os valores devolvidos pelo Supabase',
-      category,
-      module
-    );
-    this.assertEqual(
-      isStockCountFullyConfirmed(stockPayload, [{ ...confirmedStock[0], quantidade_atual: 6 }]),
-      false,
-      'contagem rejeita confirmacao com quantidade divergente',
-      category,
-      module
-    );
-    const cleanupNow = new Date('2026-07-23T12:00:00.000Z');
-    this.assertEqual(
-      getOpenOrderCleanupCutoff(cleanupNow),
-      '2026-07-13T12:00:00.000Z',
-      'limpeza de pedido aberto calcula janela de 10 dias',
-      category,
-      module
-    );
-    this.assertEqual(
-      shouldClearOpenOrderOnImport('2026-07-13T12:00:00.000Z', cleanupNow),
-      true,
-      'limpeza inclui pedido aberto com exatamente 10 dias',
-      category,
-      module
-    );
-    this.assertEqual(
-      shouldClearOpenOrderOnImport('2026-07-13T11:59:59.000Z', cleanupNow),
-      false,
-      'limpeza preserva pedido aberto com mais de 10 dias',
-      category,
-      module
-    );
-    this.assertEqual(
-      shouldClearOpenOrderOnImport('2026-07-23T12:00:01.000Z', cleanupNow),
-      false,
-      'limpeza preserva pedido aberto com data futura',
-      category,
-      module
-    );
 
     // 2. Valor Unitário Baseado na Faixa
     const mockProduto: any = {
@@ -283,11 +105,6 @@ export class RegressionTestSuite {
     this.assertEqual(getValorUnitario(mockProduto, '500kg'), 13.0, 'getValorUnitario 500kg', category, module);
     this.assertEqual(getValorUnitario(mockProduto, '200kg'), 14.0, 'getValorUnitario 200kg', category, module);
     this.assertEqual(getValorUnitario(mockProduto, 'livre'), 15.0, 'getValorUnitario livre', category, module);
-    this.assertEqual(normalizarDesconto(0.15), 0.15, 'normalizarDesconto formato decimal', category, module);
-    this.assertEqual(normalizarDesconto(15), 0.15, 'normalizarDesconto formato percentual', category, module);
-    this.assertEqual(normalizarDesconto('15,5'), 0.155, 'normalizarDesconto percentual com virgula', category, module);
-    this.assertEqual(calcularPrecoComDesconto(100, 0.15), 85, 'calcularPrecoComDesconto formato decimal', category, module);
-    this.assertEqual(calcularPrecoComDesconto(100, 15), 85, 'calcularPrecoComDesconto formato percentual', category, module);
 
     // 3. Estoque Ideal / Sugestão de Compra
     // consumoMedioDiario = 2, estoqueAtual = 10, diasDesdeUltimaCompra = 15, pesoEmbalagem = 15

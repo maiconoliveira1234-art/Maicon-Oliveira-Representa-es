@@ -14,9 +14,7 @@ import {
   ArrowLeftRight,
   MapPin,
   Phone,
-  Coins,
-  Eye,
-  EyeOff
+  Coins
 } from 'lucide-react';
 import { Cliente, HistVenda, EstoqueCliente } from '../types';
 import { supabase } from '../lib/supabase';
@@ -139,7 +137,6 @@ export function ClienteDetail() {
   const [error, setError] = useState<string | null>(null);
   const [selectedOrderDate, setSelectedOrderDate] = useState<string | null>(null);
   const [showAllHistory, setShowAllHistory] = useState(false);
-  const [showFlex, setShowFlex] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -355,6 +352,71 @@ export function ClienteDetail() {
       cancelled = true;
     };
   }, [id, allProducts, cachedClientes, cachedMetas, cachedVisitas, cachedLoans, cachedFlex, loadClientDetails]);
+
+  const handleResetTrimestral = async () => {
+    if (!id || !cliente) return;
+    const currentSaldo = cliente.flex_saldo || 0;
+    if (currentSaldo === 0) {
+      alert('O saldo acumulado já é R$ 0,00.');
+      return;
+    }
+    
+    if (!window.confirm(`Confirma o zeramento trimestral de R$ ${currentSaldo.toFixed(2)} do saldo flex deste cliente? O histórico completo de extratos será mantido para auditoria.`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const { error: updError } = await supabase
+        .from('clientes')
+        .update({ flex_saldo: 0 })
+        .eq('id', id);
+
+      if (updError) throw updError;
+
+      const { error: insError } = await supabase
+        .from('verba_flex_extrato')
+        .insert([{
+          cliente_id: id,
+          valor: -currentSaldo,
+          tipo: 'AJUSTE',
+          descricao: 'Zeramento Trimestral de Conta Flex Comercial'
+        }]);
+
+      if (insError) {
+        const errMsg = insError.message || '';
+        const isMissingTable = errMsg.includes('verba_flex_extrato') || 
+                               errMsg.includes('relation') || 
+                               errMsg.includes('schema cache') || 
+                               insError.code === '42P01';
+        if (isMissingTable) {
+          console.warn('Tabela verba_flex_extrato não encontrada no banco. Saldo flex foi zerado na tabela de clientes, mas log do extrato não pôde ser salvo.');
+        } else {
+          throw insError;
+        }
+      }
+
+      setCliente(prev => prev ? { ...prev, flex_saldo: 0 } : null);
+      
+      const { data: freshExtrato } = await supabase
+        .from('verba_flex_extrato')
+        .select('*')
+        .eq('cliente_id', id)
+        .order('created_at', { ascending: false });
+        
+      if (freshExtrato) {
+        setFlexExtrato(freshExtrato);
+      }
+      
+      alert('Conta Flex zerada com sucesso e evento registrado no extrato histórico!');
+    } catch(err: any) {
+      console.error('Erro ao realizar zeramento trimestral:', err.message);
+      alert('Erro ao realizar zeramento trimestral: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const formattedNextVisit = React.useMemo(() => {
     if (!visitaAgenda) return null;
@@ -777,32 +839,18 @@ export function ClienteDetail() {
       </section>
 
       {/* Conta de Verba Flex Comercial & Extrato de Auditoria (Interno CRM) */}
-      {!showFlex ? (
-        <button
-          type="button"
-          onClick={() => setShowFlex(true)}
-          className="flex h-12 w-full items-center justify-between rounded-lg border border-neutral-200 bg-white px-4 text-sm font-black text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50"
-        >
-          <span className="flex items-center gap-2">
-            <Coins className="text-orange-600" size={19} />
-            Conta Flex
-          </span>
-          <Eye size={18} className="text-neutral-400" />
-        </button>
-      ) : (
-      <section className="bg-white p-4 sm:p-6 rounded-lg border border-neutral-200 shadow-sm space-y-4">
+      <section className="bg-white p-6 rounded-lg border border-neutral-200 shadow-sm space-y-4">
         <div className="flex justify-between items-center pb-2 border-b border-neutral-100">
           <h3 className="font-bold text-neutral-800 flex items-center gap-2">
             <Coins className="text-orange-600" size={20} />
-            Conta Flex
+            Conta Flex & Extrato Coerente
           </h3>
           <button
-            type="button"
-            onClick={() => setShowFlex(false)}
-            className="flex h-9 items-center gap-1.5 rounded-lg border border-neutral-200 px-3 text-[10px] font-black uppercase text-neutral-500 transition-colors hover:bg-neutral-50"
+            onClick={handleResetTrimestral}
+            className="text-[10px] bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-155 px-3 py-1 rounded-full font-bold transition-all active:scale-95"
+            title="Zera o saldo acumulado trimestral mantendo o extrato completo para fins de compliance."
           >
-            <EyeOff size={15} />
-            Ocultar
+            Zerar Saldo Trimestral
           </button>
         </div>
 
@@ -862,7 +910,6 @@ export function ClienteDetail() {
           )}
         </div>
       </section>
-      )}
 
       {/* Recent History */}
       <section className="space-y-3">

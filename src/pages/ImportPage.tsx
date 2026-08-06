@@ -7,9 +7,6 @@ import { format, differenceInDays, parseISO } from 'date-fns';
 import { auditRowCost, CostAuditResult } from '../lib/costAuditer';
 import { useDataManager } from '../lib/dataManager';
 import { getFaixaPreco, getValorUnitario } from '../lib/calculations';
-import { getOpenOrderCleanupCutoff } from '../lib/openOrderCleanup';
-import { getFlexRateForDate } from '../lib/flexRules';
-import { ensureQuarterlyFlexReset } from '../services/flexService';
 
 interface RawRow {
   id: string;
@@ -58,7 +55,6 @@ export function ImportPage() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [openOrderCleanupStatus, setOpenOrderCleanupStatus] = useState<'cleared' | 'failed' | null>(null);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
   const [statusImportacao, setStatusImportacao] = useState<'IDLE' | 'PROCESSANDO'>('IDLE');
   const [showNewProductModal, setShowNewProductModal] = useState(false);
@@ -161,7 +157,6 @@ export function ImportPage() {
     setProcessing(true);
     setError(null);
     setSuccess(false);
-    setOpenOrderCleanupStatus(null);
 
     try {
       const lines = rawData.split('\n').filter(line => line.trim() !== '');
@@ -299,7 +294,6 @@ export function ImportPage() {
     setSaving(true);
     setStatusImportacao('PROCESSANDO');
     setError(null);
-    setOpenOrderCleanupStatus(null);
     let salesInserted = false;
 
     try {
@@ -411,10 +405,7 @@ export function ImportPage() {
         }
       });
 
-      await ensureQuarterlyFlexReset(true);
-
-      const flexRate = getFlexRateForDate(orderDate);
-      const flexGerado = totalVendaValor * flexRate;
+      const flexGerado = totalVendaValor * 0.02;
       const totalConsumido = totalBonificacaoValor + totalMerchandisingValor;
       const incrementoSaldo = Number((flexGerado - totalConsumido).toFixed(2));
 
@@ -426,7 +417,7 @@ export function ImportPage() {
           cliente_id: selectedClienteId,
           tipo: 'GERADO',
           valor: Number(flexGerado.toFixed(2)),
-          descricao: `Pedido faturado (${format(new Date(orderDate), 'dd/MM/yyyy')}) - Vendas: ${formatCurrency(totalVendaValor)} - Flex: ${(flexRate * 100).toLocaleString('pt-BR')}%`
+          descricao: `Pedido faturado (${format(new Date(orderDate), 'dd/MM/yyyy')}) - Vendas: ${formatCurrency(totalVendaValor)}`
         });
       }
 
@@ -579,31 +570,6 @@ export function ImportPage() {
             }
           }
         }
-      }
-
-      // The invoiced order is already safely stored at this point. Clear only a
-      // recent draft for the same client, without turning cleanup failure into
-      // a second import attempt.
-      try {
-        const cleanupNow = new Date();
-        const { data: deletedDrafts, error: cleanupError } = await supabase
-          .from('pedidos_em_aberto')
-          .delete()
-          .eq('cliente_id', selectedClienteId)
-          .gte('started_at', getOpenOrderCleanupCutoff(cleanupNow))
-          .lte('started_at', cleanupNow.toISOString())
-          .select('cliente_id');
-
-        if (cleanupError) {
-          console.error('Pedido importado, mas o rascunho em aberto não pôde ser limpo:', cleanupError);
-          setOpenOrderCleanupStatus('failed');
-        } else if (deletedDrafts && deletedDrafts.length > 0) {
-          localStorage.removeItem(`pedido_${selectedClienteId}`);
-          setOpenOrderCleanupStatus('cleared');
-        }
-      } catch (cleanupError) {
-        console.error('Pedido importado, mas ocorreu uma falha ao limpar o rascunho:', cleanupError);
-        setOpenOrderCleanupStatus('failed');
       }
 
       setShowConfirmSave(false);
@@ -1113,21 +1079,7 @@ export function ImportPage() {
           {success && (
             <div className="bg-green-50 border border-green-100 text-green-600 p-4 rounded-lg flex items-start gap-3">
               <CheckCircle2 className="shrink-0 mt-0.5" size={18} />
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Dados importados com sucesso!</p>
-                {openOrderCleanupStatus === 'cleared' && (
-                  <p className="text-xs font-bold">O pedido em aberto recente deste cliente também foi encerrado.</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {openOrderCleanupStatus === 'failed' && (
-            <div className="bg-amber-50 border border-amber-200 text-amber-700 p-4 rounded-lg flex items-start gap-3">
-              <AlertCircle className="shrink-0 mt-0.5" size={18} />
-              <p className="text-sm font-medium">
-                O pedido foi importado, mas o rascunho em aberto não pôde ser encerrado automaticamente.
-              </p>
+              <p className="text-sm font-medium">Dados importados com sucesso!</p>
             </div>
           )}
 

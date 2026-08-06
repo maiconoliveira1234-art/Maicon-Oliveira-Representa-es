@@ -22,7 +22,7 @@ import { ptBR } from 'date-fns/locale';
 import { shouldExcludeSale } from '../constants';
 import { ActionButton, PageHeader } from '../components/ui/AppChrome';
 import { useDataManager } from '../lib/dataManager';
-import { calculateCommissionTrend } from '../lib/commissionTrend';
+import { fetchOpenOrderSales } from '../lib/openOrderSales';
 import {
   BarChart,
   Bar,
@@ -142,8 +142,13 @@ export function CommissionPage() {
     async function fetchData() {
       setLoading(true);
       try {
+        let initialHistory = cachedHistorico;
+        let initialProdutos = cachedProdutos;
+        let initialClientes = cachedClientes;
+
         if (cachedHistorico.length > 0 || cachedProdutos.length > 0 || cachedClientes.length > 0) {
-          setAllHistoryVendas(buildCommissionData(cachedHistorico, cachedProdutos));
+          const cachedOpenSales = await fetchOpenOrderSales(cachedClientes, cachedProdutos);
+          setAllHistoryVendas(buildCommissionData([...cachedHistorico, ...cachedOpenSales], cachedProdutos));
           setProdutos(cachedProdutos);
           setClientes(cachedClientes);
         }
@@ -166,43 +171,19 @@ export function CommissionPage() {
         if (produtosRes.error) throw produtosRes.error;
         if (clientesRes.error) throw clientesRes.error;
 
-        // Deduplicate data
-        const uniqueVendas = deduplicateSales(vendasRes.data || []);
+        const currentClientes = clientesRes.data || initialClientes;
+        const currentProdutos = produtosRes.data || initialProdutos;
+        const currentVendas = vendasRes.data || initialHistory;
 
-        // Create a more robust products map with name fallback
-        const productsMap = new Map();
-        (produtosRes.data || []).forEach(p => {
-          productsMap.set(p.id, p);
-          productsMap.set(p.produto.toLowerCase(), p);
-        });
-        
-        const enrichedVendas: CommissionData[] = uniqueVendas.map(v => {
-          const classification = classifySaleRecord(v);
-          const prod = productsMap.get(v.produto_id) || (v.produtos ? productsMap.get(v.produtos.toLowerCase()) : null);
-          
-          const comissao_percent = classification.entraComissao ? (prod?.comissao || 0) : 0;
-          const rTotalCorrected = classification.entraFaturamento ? (v["r$_total"] || 0) : 0;
-          const comissao_valor = calculateCommissionValue(rTotalCorrected, comissao_percent, prod);
-          const peso_venda = (v.qtd || 0) * (prod?.peso_embalagem || 0);
+        // Fetch open order sales from Supabase / localStorage
+        const dbOpenSales = await fetchOpenOrderSales(currentClientes, currentProdutos);
 
-          return {
-            ...v,
-            "r$_total": rTotalCorrected,
-            comissao_percent,
-            comissao_valor,
-            familia: prod?.familia || 'Sem Família',
-            peso_venda
-          };
-        });
+        // Combine imported sales and open order sales
+        const combinedSales = [...currentVendas, ...dbOpenSales];
 
-        // Apply selective cutoff globally just to be safe with this data source
-        const finalEnriched = enrichedVendas.filter(v => {
-          return !shouldExcludeSale(v.cliente, v.faturamento);
-        });
-
-        setAllHistoryVendas(finalEnriched);
-        setProdutos(produtosRes.data || []);
-        setClientes(clientesRes.data || []);
+        setAllHistoryVendas(buildCommissionData(combinedSales, currentProdutos));
+        setProdutos(currentProdutos);
+        setClientes(currentClientes);
       } catch (err) {
         console.error('Erro ao carregar dados de comissão:', err);
       } finally {
@@ -282,21 +263,13 @@ export function CommissionPage() {
       const deadline = parseISO(deadlineDate);
       
       if (selectedDate.getMonth() === deadline.getMonth() && selectedDate.getFullYear() === deadline.getFullYear()) {
-        const comparableHistory = allHistoryVendas.filter(v => {
-          if (selectedClienteId && v.cliente_id !== selectedClienteId) return false;
-          if (selectedProdutoId && v.produto_id !== selectedProdutoId) return false;
-          if (selectedFamilia && v.familia !== selectedFamilia) return false;
-          return true;
-        });
-        projetadoComissao = calculateCommissionTrend(
-          totalComissao,
-          comparableHistory.map(v => ({
-            date: v.faturamento,
-            commission: v.comissao_valor
-          })),
-          selectedDate,
-          deadline
-        );
+        const start = startOfMonth(selectedDate);
+        const end = deadline;
+        const today = new Date();
+        const effectiveToday = isBefore(today, end) ? today : end;
+        const daysPassed = Math.max(1, differenceInDays(effectiveToday, start) + 1);
+        const totalDays = differenceInDays(end, start) + 1;
+        projetadoComissao = totalComissao * (totalDays / daysPassed);
         isProjection = true;
       }
     }
@@ -310,24 +283,12 @@ export function CommissionPage() {
       projetadoComissao,
       isPositiveTrend: projetadoComissao >= totalComissao
     };
-  }, [
-    filteredVendas,
-    allHistoryVendas,
-    useCustomRange,
-    selectedYears,
-    selectedMonths,
-    deadlineDate,
-    selectedClienteId,
-    selectedProdutoId,
-    selectedFamilia
-  ]);
+  }, [filteredVendas, useCustomRange, selectedYears, selectedMonths, deadlineDate]);
 
   const groupedData = useMemo(() => {
     const groups: Record<string, { label: string, total: number, comissao: number, peso: number }> = {};
 
     filteredVendas.forEach(v => {
-      if ((v["r$_total"] || 0) <= 0) return;
-
       let key = '';
       let label = '';
       
@@ -352,7 +313,8 @@ export function CommissionPage() {
     });
 
     return Object.values(groups)
-      .sort((a, b) => b.comissao - a.comissao);
+      .sort((a, b) => b.comissao - a.comissao)
+      .slice(0, 20);
   }, [filteredVendas, groupBy]);
 
   const uniqueFamilies = useMemo(() => {
@@ -694,7 +656,6 @@ export function CommissionPage() {
           <h3 className="text-base font-black text-neutral-900 mb-4 flex items-center gap-2">
             <Users className="text-neutral-500" size={18} />
             Ranking por {groupBy === 'cliente' ? 'Cliente' : groupBy === 'produto' ? 'Produto' : 'Família'}
-            <span className="text-xs font-bold text-neutral-400">({groupedData.length})</span>
           </h3>
           <div className="mobile-card-table overflow-x-auto">
             <table className="w-full text-left text-sm">

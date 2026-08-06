@@ -66,7 +66,7 @@ export function ClientsPage() {
         await loadInitialData();
       }
 
-      const latestSalesMap = await loadLatestSalesMap(navigator.onLine !== false);
+      const latestSalesMap = await loadLatestSalesMap();
 
       const enrichedClientes = (cachedClientes.length > 0 ? cachedClientes : []).map(c => {
         const lastSale = latestSalesMap[c.id];
@@ -83,15 +83,11 @@ export function ClientsPage() {
 
       // Fetch open orders from Supabase first
       let dbOpenOrders: any[] = [];
-      let serverOpenOrdersLoaded = false;
       if (navigator.onLine !== false) {
         try {
           const { data, error } = await supabase.from('pedidos_em_aberto').select('*');
           if (!error && data) {
             dbOpenOrders = data;
-            serverOpenOrdersLoaded = true;
-          } else if (error) {
-            console.error('Error fetching pedidos_em_aberto:', error);
           }
         } catch (dbErr) {
           console.error('Error fetching pedidos_em_aberto:', dbErr);
@@ -116,12 +112,9 @@ export function ClientsPage() {
         }
       });
 
-      // Local drafts are only a fallback while offline or when the server cannot
-      // be reached. When online, the shared database is the source of truth.
+      // 2. Fallback/merge with localStorage
       enrichedClientes.forEach(c => {
-        if (serverOpenOrdersLoaded) {
-          if (!openOrdersMap[c.id]) localStorage.removeItem(`pedido_${c.id}`);
-        } else if (!openOrdersMap[c.id]) {
+        if (!openOrdersMap[c.id]) {
           const saved = localStorage.getItem(`pedido_${c.id}`);
           if (saved) {
             try {
@@ -158,22 +151,6 @@ export function ClientsPage() {
 
   useEffect(() => {
     fetchClientes();
-  }, [fetchClientes]);
-
-  useEffect(() => {
-    const refreshOpenOrders = () => {
-      if (document.visibilityState === 'visible') fetchClientes();
-    };
-    const channel = supabase
-      .channel('clientes-pedidos-em-aberto')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos_em_aberto' }, fetchClientes)
-      .subscribe();
-
-    document.addEventListener('visibilitychange', refreshOpenOrders);
-    return () => {
-      document.removeEventListener('visibilitychange', refreshOpenOrders);
-      supabase.removeChannel(channel);
-    };
   }, [fetchClientes]);
 
   const [successMessage, setSuccessMessage] = useState('Cliente cadastrado com sucesso!');
@@ -232,21 +209,6 @@ export function ClientsPage() {
     }
   };
 
-  const compareClientName = (a: Cliente, b: Cliente) => {
-    const byName = (a.cliente || '').localeCompare(b.cliente || '', 'pt-BR', {
-      sensitivity: 'base',
-      numeric: true
-    });
-    if (byName !== 0) return byName;
-
-    const byCity = (a.cidade || '').localeCompare(b.cidade || '', 'pt-BR', {
-      sensitivity: 'base',
-      numeric: true
-    });
-    if (byCity !== 0) return byCity;
-    return a.id.localeCompare(b.id);
-  };
-
   const filteredClientes = clientes.filter(c => {
     const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word.length > 0);
     const clienteName = c.cliente || '';
@@ -269,10 +231,9 @@ export function ClientsPage() {
       }
       
       // If same date, largest weight first
-      const weightDifference = (b.ultima_compra_peso || 0) - (a.ultima_compra_peso || 0);
-      return weightDifference !== 0 ? weightDifference : compareClientName(a, b);
+      return (b.ultima_compra_peso || 0) - (a.ultima_compra_peso || 0);
     }
-    return compareClientName(a, b);
+    return 0; // Keep original order (by name from Supabase)
   });
 
   if (loading) return <ClientPageSkeleton />;

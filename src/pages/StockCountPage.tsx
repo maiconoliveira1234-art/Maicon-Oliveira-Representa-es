@@ -14,15 +14,11 @@ import {
   X,
   FileText,
   Trash2,
-  Home,
-  MoreHorizontal,
-  Eye,
-  EyeOff,
-  BarChart3
+  Home
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { Cliente, Produto, EstoqueCliente, HistVenda, PrecoFaixa } from '../types';
+import { Cliente, Produto, EstoqueCliente, HistVenda } from '../types';
 import { supabase } from '../lib/supabase';
 import { cn, formatWeight, formatCurrency } from '../lib/utils';
 import { classifySaleRecord } from '../lib/salesClassifier';
@@ -30,7 +26,6 @@ import { differenceInDays, parseISO, format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { FAMILY_PRIORITY_ORDER } from '../constants';
 import { DIAGNOSTICS } from '../lib/diagnostics';
-import { calcularPrecoComDesconto, getFaixaEfetiva, getValorUnitario } from '../lib/calculations';
 
 const DEBUG_STOCK = DIAGNOSTICS.DEBUG_STOCK; // Centralized flag for stock counting screen
 
@@ -39,7 +34,6 @@ interface ItemEstoqueData {
   produto_nome: string;
   dias_ult_compra: number;
   qtd_ult_compra: number;
-  qtd_ultimo_pedido: number;
   quantidade_atual: number;
   ultima_contagem_valor: number;
   media_qtd: number;
@@ -66,7 +60,6 @@ export function StockCountPage() {
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [estoqueMap, setEstoqueMap] = useState<Record<string, number>>({});
   const [pedidoMap, setPedidoMap] = useState<Record<string, number>>({});
-  const [manualFaixa, setManualFaixa] = useState<PrecoFaixa | null>(null);
   const [nonVendaItems, setNonVendaItems] = useState<Array<{ produto_id: string, quantidade: number, tipo_operacao: 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -74,8 +67,6 @@ export function StockCountPage() {
   const [selectedFamily, setSelectedFamily] = useState('Todas');
   const [selectedWeight, setSelectedWeight] = useState('Todos');
   const [showInactive, setShowInactive] = useState(false);
-  const [showAverages, setShowAverages] = useState(false);
-  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'contagem' | 'pedido'>('contagem');
   const [selectedProductHistory, setSelectedProductHistory] = useState<ItemEstoqueData | null>(null);
   const [isReady, setIsReady] = useState(false);
@@ -250,14 +241,12 @@ export function StockCountPage() {
     // Initializing pedidoMap
     const pMap: Record<string, number> = {};
     const nonVenda: Array<{ produto_id: string, quantidade: number, tipo_operacao: 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' }> = [];
-    setManualFaixa(null);
     
     const savedPedido = localStorage.getItem(`pedido_${clienteId}`);
     if (savedPedido) {
       try {
         const parsed = JSON.parse(savedPedido);
         if (parsed && typeof parsed === 'object' && 'items' in parsed) {
-          setManualFaixa((parsed.manualFaixa as PrecoFaixa) || null);
           if (Array.isArray(parsed.items)) {
             parsed.items.forEach((item: any) => {
               if (item && item.produto_id) {
@@ -288,14 +277,7 @@ export function StockCountPage() {
       .eq('cliente_id', clienteId)
       .maybeSingle()
       .then(({ data, error }) => {
-        if (error) return;
-        if (!data || !Array.isArray(data.items)) {
-          setPedidoMap({});
-          setNonVendaItems([]);
-          setManualFaixa(null);
-          localStorage.removeItem(`pedido_${clienteId}`);
-          return;
-        }
+        if (error || !data || !Array.isArray(data.items)) return;
 
         const dbPedidoMap: Record<string, number> = {};
         const dbNonVenda = new Map<string, { produto_id: string, quantidade: number, tipo_operacao: 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' }>();
@@ -315,17 +297,38 @@ export function StockCountPage() {
           }
         });
 
-        setPedidoMap(dbPedidoMap);
-        setNonVendaItems(Array.from(dbNonVenda.values()));
-        setManualFaixa((data.manual_faixa as PrecoFaixa) || null);
+        setPedidoMap(prev => ({ ...dbPedidoMap, ...prev }));
+        setNonVendaItems(prev => {
+          const merged = new Map(dbNonVenda);
+          prev.forEach(item => merged.set(item.produto_id + '_' + item.tipo_operacao, item));
+          return Array.from(merged.values());
+        });
 
-        const mergedItems = data.items.filter((item: any) => item?.produto_id && Number(item.quantidade) > 0);
+        const saved = localStorage.getItem(`pedido_${clienteId}`);
+        let localDraft: any = {};
+        if (saved) {
+          try {
+            localDraft = JSON.parse(saved);
+          } catch (e) {}
+        }
+
+        const mergedItems = [
+          ...data.items.filter((item: any) => item?.tipo_operacao !== 'VENDA' && item?.tipo_operacao),
+          ...Object.entries({ ...dbPedidoMap, ...pMap })
+            .filter(([, quantidade]) => Number(quantidade) > 0)
+            .map(([produto_id, quantidade]) => ({
+              produto_id,
+              quantidade,
+              tipo_operacao: 'VENDA'
+            }))
+        ];
 
         localStorage.setItem(`pedido_${clienteId}`, JSON.stringify({
-          prazo: data.prazo ?? '',
-          obs: data.obs ?? '',
-          manualFaixa: data.manual_faixa ?? null,
-          startedAt: data.started_at ?? null,
+          ...localDraft,
+          prazo: localDraft.prazo ?? data.prazo ?? '',
+          obs: localDraft.obs ?? data.obs ?? '',
+          manualFaixa: localDraft.manualFaixa ?? data.manual_faixa ?? null,
+          startedAt: localDraft.startedAt ?? data.started_at ?? null,
           items: mergedItems
         }));
       });
@@ -349,15 +352,11 @@ export function StockCountPage() {
 
   const gridCols = useMemo(() => {
     if (viewMode === 'contagem') {
-      return showAverages
-        ? "grid-cols-[minmax(0,1fr)_42px_38px_38px_96px_38px_38px_38px]"
-        : "grid-cols-[minmax(0,1fr)_42px_38px_38px_96px_38px]";
+      return "grid-cols-[minmax(0,1fr)_38px_38px_42px_96px_38px]";
     }
 
-    return showAverages
-      ? "grid-cols-[minmax(0,1fr)_42px_38px_38px_42px_38px_38px_38px_96px]"
-      : "grid-cols-[minmax(0,1fr)_42px_38px_38px_42px_38px_96px]";
-  }, [viewMode, showAverages]);
+    return "grid-cols-[minmax(0,1fr)_38px_38px_38px_42px_38px_96px]";
+  }, [viewMode]);
 
   const orderWeightByDay = useMemo(() => {
     const map: Record<string, number> = {};
@@ -373,15 +372,11 @@ export function StockCountPage() {
   }, [historico, produtosMap]);
 
   const lastOrderDate = useMemo(() => {
-    const validDates = historico
-      .filter(sale => classifySaleRecord(sale).influenciaConsumo)
-      .map(sale => sale.faturamento)
-      .filter(date => Number.isFinite(parseISO(date).getTime()));
-
-    if (validDates.length === 0) return null;
-    return validDates.reduce((latest, date) =>
-      parseISO(date).getTime() > parseISO(latest).getTime() ? date : latest
+    if (historico.length === 0) return null;
+    const sortedDates = [...new Set(historico.map(h => h.faturamento))].sort((a: string, b: string) => 
+      parseISO(b).getTime() - parseISO(a).getTime()
     );
+    return sortedDates[0];
   }, [historico]);
 
   const processedItems = useMemo(() => {
@@ -421,12 +416,9 @@ export function StockCountPage() {
         const uniqueDates = [...new Set(vendas.map(v => parseISO(v.faturamento).getTime()))];
         const numPurchases = uniqueDates.length;
         
-        // A single purchase is not enough to establish a recurrence. In that
-        // case, preserve the historical 30-day minimum and let overdue items
-        // reflect the actual time elapsed since their last purchase.
-        let mediaCiclo = numPurchases === 1
-          ? Math.max(30, diasUltCompra)
-          : Math.round(spanDias / numPurchases);
+        let mediaCiclo = Math.round(spanDias / numPurchases);
+        
+        // Ensure no 0 cycle
         if (mediaCiclo === 0) mediaCiclo = Math.max(30, diasUltCompra);
 
         const produto = produtosMap[produtoId];
@@ -446,11 +438,6 @@ export function StockCountPage() {
         // Get quantity in units of that item's own last purchase by the client
         const lastPurchaseItems = sortedVendas.filter(v => v.faturamento === ultVenda.faturamento);
         const qtdUltCompraInfo = lastPurchaseItems.reduce((acc, v) => acc + v.qtd, 0) * quantEmbalagem;
-        const qtdUltimoPedido = lastOrderDate
-          ? vendas
-              .filter(venda => venda.faturamento === lastOrderDate)
-              .reduce((total, venda) => total + venda.qtd, 0) * quantEmbalagem
-          : 0;
         const ultimaContagemValor = ultimaContagemMap[produtoId] || 0;
         const isProdutoAtivo = produto?.ativo !== false;
         const ativoParaContagem = isProdutoAtivo
@@ -462,7 +449,6 @@ export function StockCountPage() {
           produto_nome: ultVenda.produtos,
           dias_ult_compra: diasUltCompra,
           qtd_ult_compra: qtdUltCompraInfo,
-          qtd_ultimo_pedido: qtdUltimoPedido,
           quantidade_atual: currentStock,
           ultima_contagem_valor: ultimaContagemValor,
           media_qtd: Math.round(mediaQtd * quantEmbalagem),
@@ -503,9 +489,9 @@ export function StockCountPage() {
   }, [historico, estoqueMap, pedidoMap, ultimaContagemMap, produtosMap, showInactive, lastOrderDate, familyPriorityMap]);
 
   const diasDesdeUltimoPedidoGlobal = useMemo(() => {
-    if (!lastOrderDate) return 0;
-    return Math.max(0, differenceInDays(new Date(), parseISO(lastOrderDate)));
-  }, [lastOrderDate]);
+    if (historico.length === 0) return 0;
+    return differenceInDays(new Date(), parseISO(historico[0].faturamento));
+  }, [historico]);
 
   const families = useMemo(() => {
     let list = processedItems;
@@ -585,32 +571,6 @@ export function StockCountPage() {
       return acc + (extra * item.peso);
     }, 0);
   }, [processedItems, pedidoMap]);
-
-  const pesoRecompra28Dias = useMemo(() => {
-    const today = new Date();
-    return historico.reduce((total, sale) => {
-      try {
-        const daysSince = differenceInDays(today, parseISO(sale.faturamento));
-        if (daysSince < 0 || daysSince > 28) return total;
-        const produto = produtosMap[sale.produto_id]
-          || produtos.find((item) => item.produto.toLocaleLowerCase('pt-BR') === sale.produtos?.toLocaleLowerCase('pt-BR'));
-        return produto ? total + ((Number(sale.qtd) || 0) * (produto.peso_embalagem || 0)) : total;
-      } catch {
-        return total;
-      }
-    }, 0);
-  }, [historico, produtosMap, produtos]);
-
-  const totalValorPedido = useMemo(() => {
-    const faixa = getFaixaEfetiva(totalPesoPedido, pesoRecompra28Dias, manualFaixa);
-    return Object.entries(pedidoMap).reduce((total, [produtoId, quantity]) => {
-      const produto = produtosMap[produtoId];
-      const qty = Number(quantity) || 0;
-      if (!produto || qty <= 0) return total;
-      const unitPrice = calcularPrecoComDesconto(produto.custo_und, getValorUnitario(produto, faixa));
-      return total + (unitPrice * qty * (produto.quant_embalagem || 1));
-    }, 0);
-  }, [pedidoMap, produtosMap, totalPesoPedido, pesoRecompra28Dias, manualFaixa]);
 
   const buildPedidoItemsList = () => {
     const itemsList: Array<{ produto_id: string, quantidade: number, tipo_operacao: string }> = [];
@@ -705,10 +665,16 @@ export function StockCountPage() {
 
   const confirmClearAll = () => {
     setEstoqueMap({});
+    setPedidoMap({});
+    setNonVendaItems([]);
     setTouchedItems(new Set());
     setShowClearConfirm(false);
     if (clienteId) {
       localStorage.setItem(`estoque_${clienteId}`, JSON.stringify({}));
+      localStorage.removeItem(`pedido_${clienteId}`);
+      supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId).then(({ error }) => {
+        if (error) console.error('Erro ao limpar pedido aberto pela contagem:', error);
+      });
     }
   };
 
@@ -717,14 +683,12 @@ export function StockCountPage() {
     setSaving(true);
 
     try {
-      await savePedidoDraft(buildPedidoItemsList());
-
       const touchedProductIds = new Set(touchedItems);
       const itemsToUpsert = Array.from(touchedProductIds).map(prodId => ({
         cliente_id: clienteId,
         produto_id: prodId,
         quantidade_atual: estoqueMap[prodId] || 0,
-        ultima_contagem: format(new Date(), 'yyyy-MM-dd')
+        ultima_contagem: new Date().toISOString().split('T')[0]
       }));
 
       if (itemsToUpsert.length === 0) {
@@ -734,20 +698,13 @@ export function StockCountPage() {
       }
 
       // Use the offline-safe central save wrapper!
-      const saveResult = await saveStockCount(clienteId, itemsToUpsert);
+      await saveStockCount(clienteId, itemsToUpsert);
 
-      if (saveResult.status !== 'synced') {
-        const detail = saveResult.error ? `\n\nDetalhe: ${saveResult.error}` : '';
-        alert(
-          navigator.onLine === false
-            ? 'Contagem salva neste dispositivo e aguardando conexão para sincronizar.'
-            : `Não foi possível confirmar a contagem no Supabase. O rascunho foi preservado e a sincronização será tentada novamente.${detail}`
-        );
-        return;
-      }
-
-      // Clear the draft only after every item is confirmed by Supabase.
+      // Clear local stock draft after successful save
       localStorage.removeItem(`estoque_${clienteId}`);
+
+      // Force cache update in global dataManager so subsequent page visits reflect the new stock count immediately
+      await loadClientDetails(clienteId, true);
 
       alert('Estoque atualizado com sucesso!');
       navigate(`/cliente/${clienteId}`);
@@ -994,12 +951,6 @@ export function StockCountPage() {
                     {formatWeight(totalPesoPedido)}
                   </span>
                 </div>
-                <div className="text-center">
-                  <span className="text-[8px] font-bold text-neutral-400 uppercase block leading-none">Valor Ped.</span>
-                  <span className="text-[10px] font-black text-green-700 bg-green-50 px-1 py-0.2 rounded whitespace-nowrap">
-                    {formatCurrency(totalValorPedido)}
-                  </span>
-                </div>
               </div>
             </div>
 
@@ -1095,7 +1046,7 @@ export function StockCountPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-4 gap-0.5 bg-neutral-50 py-0.5 px-1 rounded border border-neutral-100 text-center">
+            <div className="grid grid-cols-3 gap-0.5 bg-neutral-50 py-0.5 px-1 rounded border border-neutral-100 text-center">
               <div className="border-r border-neutral-200">
                 <p className="text-[7.5px] font-black text-neutral-400 uppercase leading-none">Ult. Pedido</p>
                 <p className={cn("text-[9px] font-black leading-tight", isOverdueGlobal ? "text-red-600" : "text-neutral-800")}>
@@ -1108,16 +1059,10 @@ export function StockCountPage() {
                   {mediaCicloGlobal}d
                 </p>
               </div>
-              <div className="border-r border-neutral-200">
+              <div>
                 <p className="text-[7.5px] font-black text-neutral-400 uppercase leading-none">Peso Pedido</p>
                 <p className="text-[9px] font-black text-orange-600 leading-tight">
                   {formatWeight(totalPesoPedido)}
-                </p>
-              </div>
-              <div>
-                <p className="text-[7.5px] font-black text-neutral-400 uppercase leading-none">Valor Ped.</p>
-                <p className="text-[9px] font-black text-green-700 leading-tight whitespace-nowrap">
-                  {formatCurrency(totalValorPedido)}
                 </p>
               </div>
             </div>
@@ -1143,12 +1088,12 @@ export function StockCountPage() {
               )}
             </div>
 
-            <div className="flex flex-nowrap items-center justify-start md:justify-end gap-0.5 md:gap-1.5 w-full min-w-0 pb-0.5">
-              <div className="flex bg-neutral-100 p-0.5 rounded border border-neutral-200 shrink-0 h-7 md:h-8">
+            <div className="flex flex-wrap md:flex-nowrap items-center justify-between md:justify-end gap-1 md:gap-1.5 w-full pb-0.5">
+              <div className="flex bg-neutral-100 p-0.5 rounded border border-neutral-200 shrink-0 h-8">
                 <button
                   onClick={() => setViewMode('contagem')}
                   className={cn(
-                    "px-1.5 sm:px-2 md:px-4 rounded text-[9px] sm:text-[10px] md:text-[11px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
+                    "px-3 md:px-4 rounded text-[10px] md:text-[11px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
                     viewMode === 'contagem' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
                   )}
                 >
@@ -1157,7 +1102,7 @@ export function StockCountPage() {
                 <button
                   onClick={() => setViewMode('pedido')}
                   className={cn(
-                    "px-1.5 sm:px-2 md:px-4 rounded text-[9px] sm:text-[10px] md:text-[11px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
+                    "px-3 md:px-4 rounded text-[10px] md:text-[11px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
                     viewMode === 'pedido' ? "bg-white text-green-600 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
                   )}
                 >
@@ -1165,66 +1110,31 @@ export function StockCountPage() {
                 </button>
               </div>
 
-              <div className="relative shrink-0">
-                <button
-                  onClick={() => setIsActionsMenuOpen(open => !open)}
-                  className={cn(
-                    "flex h-7 md:h-8 items-center gap-1 rounded border px-1.5 md:px-2.5 text-[9px] sm:text-[10px] md:text-[11px] font-black transition-colors",
-                    isActionsMenuOpen || showInactive || showAverages
-                      ? "border-neutral-900 bg-neutral-900 text-white"
-                      : "border-neutral-200 bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
-                  )}
-                  aria-expanded={isActionsMenuOpen}
-                  aria-haspopup="menu"
-                >
-                  <MoreHorizontal size={14} />
-                  Ações
-                </button>
 
-                {isActionsMenuOpen && (
-                  <div className="absolute right-0 top-9 z-[130] w-56 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl" role="menu">
-                    <button
-                      onClick={() => {
-                        setIsActionsMenuOpen(false);
-                        handleClearAll();
-                      }}
-                      className="flex h-11 w-full items-center gap-3 px-3 text-left text-sm font-bold text-red-600 hover:bg-red-50"
-                      role="menuitem"
-                    >
-                      <Trash2 size={17} />
-                      Limpar contagem
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowInactive(value => !value);
-                        setIsActionsMenuOpen(false);
-                      }}
-                      className="flex h-11 w-full items-center gap-3 px-3 text-left text-sm font-bold text-neutral-800 hover:bg-neutral-50"
-                      role="menuitem"
-                    >
-                      {showInactive ? <EyeOff size={17} /> : <Eye size={17} />}
-                      {showInactive ? 'Ocultar inativos' : 'Exibir inativos'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowAverages(value => !value);
-                        setIsActionsMenuOpen(false);
-                      }}
-                      className="flex h-11 w-full items-center gap-3 px-3 text-left text-sm font-bold text-neutral-800 hover:bg-neutral-50"
-                      role="menuitem"
-                    >
-                      <BarChart3 size={17} />
-                      {showAverages ? 'Ocultar média' : 'Média'}
-                    </button>
-                  </div>
+              <button 
+                onClick={handleClearAll}
+                className="px-2 md:px-4 py-0.5 bg-red-600 text-white rounded text-[9.5px] md:text-[11px] font-black hover:bg-red-700 transition-all flex items-center gap-1 shrink-0 shadow-sm active:scale-95 cursor-pointer h-6 md:h-8"
+              >
+                <Trash2 size={12} /> Limpar
+              </button>
+
+              <button 
+                onClick={() => setShowInactive(!showInactive)}
+                className={cn(
+                  "px-2 md:px-4 py-0.5 rounded text-[9.5px] md:text-[11px] font-black transition-colors cursor-pointer shrink-0 border h-6 md:h-8 flex items-center gap-1",
+                  showInactive 
+                    ? "bg-orange-600 text-white border-orange-700 shadow-sm" 
+                    : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 border-neutral-200"
                 )}
-              </div>
+              >
+                <span>{showInactive ? "Ocultar inativos" : "Mostrar inativos"}</span>
+              </button>
 
               <div className="relative shrink-0">
                 <select
                   value={selectedWeight}
                   onChange={(e) => setSelectedWeight(e.target.value)}
-                  className="w-[58px] sm:w-[70px] md:w-auto pl-1.5 md:pl-2 pr-4 md:pr-5 h-7 md:h-8 bg-neutral-100 rounded outline-none text-[9px] sm:text-[9.5px] md:text-[11px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer md:max-w-[100px] truncate"
+                  className="pl-2 pr-5 h-6 md:h-8 bg-neutral-100 rounded outline-none text-[9.5px] md:text-[11px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer max-w-[75px] md:max-w-[100px] truncate"
                 >
                   {weights.map(w => (
                     <option key={w} value={w}>
@@ -1237,11 +1147,11 @@ export function StockCountPage() {
                 </div>
               </div>
 
-              <div className="relative min-w-0 flex-1 md:flex-none">
+              <div className="relative shrink-0">
                 <select
                   value={selectedFamily}
                   onChange={(e) => setSelectedFamily(e.target.value)}
-                  className="w-full md:w-auto pl-1.5 md:pl-2 pr-4 md:pr-5 h-7 md:h-8 bg-neutral-100 rounded outline-none text-[9px] sm:text-[9.5px] md:text-[11px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer md:max-w-[135px] truncate"
+                  className="pl-2 pr-5 h-6 md:h-8 bg-neutral-100 rounded outline-none text-[9.5px] md:text-[11px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer max-w-[95px] md:max-w-[135px] truncate"
                 >
                   {families.map(f => (
                     <option key={f} value={f}>{f === 'Todas' ? 'Fam: Todas' : f}</option>
@@ -1322,17 +1232,11 @@ export function StockCountPage() {
                 {viewMode === 'contagem' && (
                   <>
                     <div className="px-1.5 border-r border-neutral-200 flex items-center h-8">Produto</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Cont.</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped.</div>
-                    <div className="p-0.5 border-r-2 border-neutral-300 text-center flex items-center justify-center h-8">Qtd</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8">Qtd</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Cont.</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8">Est.</div>
-                    <div className="p-0.5 border-r-2 border-neutral-300 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
-                    {showAverages && (
-                      <>
-                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Méd.<br/>Qtd</div>
-                        <div className="p-0.5 text-center flex items-center justify-center h-8 leading-none">Méd.<br/>Dias</div>
-                      </>
-                    )}
+                    <div className="p-0.5 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
                   </>
                 )}
 
@@ -1341,15 +1245,9 @@ export function StockCountPage() {
                     <div className="px-1.5 border-r border-neutral-200 flex items-center h-8">Produto</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Cont.</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped.</div>
-                    <div className="p-0.5 border-r-2 border-neutral-300 text-center flex items-center justify-center h-8">Qtd</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8">Qtd</div>
                     <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Est.</div>
-                    <div className="p-0.5 border-r-2 border-neutral-300 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
-                    {showAverages && (
-                      <>
-                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Méd.<br/>Qtd</div>
-                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Méd.<br/>Dias</div>
-                      </>
-                    )}
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
                     <div className="p-0.5 text-center flex items-center justify-center h-8">Pedido</div>
                   </>
                 )}
@@ -1382,9 +1280,6 @@ export function StockCountPage() {
                         <div className="px-1.5 py-1 border-r border-neutral-100 flex items-center min-h-10 leading-tight min-w-0">
                           <span className="block font-bold text-[11px] md:text-[12px] whitespace-normal break-words line-clamp-2 md:line-clamp-none">{item.produto_nome}</span>
                         </div>
-                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
-                          {item.ultima_contagem_valor}
-                        </div>
                         <div className={cn(
                           "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
                           item.dias_ult_compra > 180 
@@ -1395,8 +1290,11 @@ export function StockCountPage() {
                         )}>
                           {item.dias_ult_compra}
                         </div>
-                        <div className="p-0.5 border-r-2 border-neutral-200 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
+                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
                           {item.qtd_ult_compra}
+                        </div>
+                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
+                          {item.ultima_contagem_valor}
                         </div>
                         <div className={cn(
                           "p-0.5 border-r border-neutral-100 flex items-center justify-center gap-0.5 min-h-10",
@@ -1427,21 +1325,11 @@ export function StockCountPage() {
                           </button>
                         </div>
                         <div className={cn(
-                          "p-0.5 border-r-2 border-neutral-200 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
+                          "p-0.5 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
                           isBelowIdeal ? "text-red-600 font-black bg-red-50/30" : "font-bold"
                         )}>
                           {item.estoque_ideal}
                         </div>
-                        {showAverages && (
-                          <>
-                            <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] text-neutral-500">
-                              {item.media_qtd}
-                            </div>
-                            <div className="p-0.5 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] text-neutral-500">
-                              {item.media_ciclo}
-                            </div>
-                          </>
-                        )}
                       </>
                     )}
 
@@ -1463,28 +1351,18 @@ export function StockCountPage() {
                         )}>
                           {item.dias_ult_compra}
                         </div>
-                        <div className="p-0.5 border-r-2 border-neutral-200 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
+                        <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
                           {item.qtd_ult_compra}
                         </div>
                         <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] font-bold text-orange-700 bg-orange-50/40">
                           {estoqueMap[item.produto_id] ?? 0}
                         </div>
                         <div className={cn(
-                          "p-0.5 border-r-2 border-neutral-200 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
+                          "p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
                           isBelowIdeal ? "text-red-600 font-black bg-red-50/30" : "font-bold"
                         )}>
                           {item.estoque_ideal}
                         </div>
-                        {showAverages && (
-                          <>
-                            <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] text-neutral-500">
-                              {item.media_qtd}
-                            </div>
-                            <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] text-neutral-500">
-                              {item.media_ciclo}
-                            </div>
-                          </>
-                        )}
                         <div className="p-0.5 flex items-center justify-center gap-0.5 min-h-10" onClick={(e) => e.stopPropagation()}>
                           <button 
                             onClick={() => updatePedido(item.produto_id, (pedidoMap[item.produto_id] || 0) - 1)}
@@ -1537,7 +1415,7 @@ export function StockCountPage() {
               className="w-full max-w-sm rounded-lg bg-white p-5 shadow-2xl border border-neutral-200"
             >
               <h3 className="text-base font-black text-neutral-900">Zerar contagem</h3>
-              <p className="mt-2 text-sm font-medium text-neutral-600">Tem certeza que deseja zerar toda a contagem? Os itens lançados no pedido serão preservados.</p>
+              <p className="mt-2 text-sm font-medium text-neutral-600">Tem certeza que deseja zerar toda a contagem e também limpar os itens lançados no pedido?</p>
               <div className="mt-5 flex gap-3">
                 <button
                   onClick={() => setShowClearConfirm(false)}
@@ -1549,7 +1427,7 @@ export function StockCountPage() {
                   onClick={confirmClearAll}
                   className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-black text-white transition-colors hover:bg-red-700"
                 >
-                  Limpar contagem
+                  Limpar tudo
                 </button>
               </div>
             </motion.div>
@@ -1717,25 +1595,24 @@ export function StockCountPage() {
             <tbody className="divide-y" style={{ borderColor: '#f5f5f5' }}>
               {chunk.map((item, idx) => {
                 const currentStock = estoqueMap[item.produto_id] ?? 0;
-                const isZeroStock = currentStock === 0;
-                const ultEstoque = item.ultima_contagem_valor + item.qtd_ultimo_pedido;
+                const ultEstoque = item.ultima_contagem_valor + item.qtd_ult_compra;
                 const venda = ultEstoque - currentStock;
 
                 return (
                   <tr key={item.produto_id} className="text-[11px]" style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
-                    <td className="py-3 px-2 font-bold leading-tight break-words max-w-[200px]" style={{ color: isZeroStock ? '#dc2626' : '#262626', fontWeight: isZeroStock ? 900 : 700 }}>
+                    <td className="py-3 px-2 font-bold leading-tight break-words max-w-[200px]" style={{ color: '#262626' }}>
                       {item.produto_nome}
                     </td>
                     <td className="py-3 px-2 text-center font-bold" style={{ color: '#737373' }}>
                       {item.ultima_contagem_valor}
                     </td>
                     <td className="py-3 px-2 text-center font-bold" style={{ color: '#737373' }}>
-                      {item.qtd_ultimo_pedido}
+                      {item.qtd_ult_compra}
                     </td>
                     <td className="py-3 px-2 text-center font-black" style={{ borderRight: '2px solid #f5f5f5', color: '#171717' }}>
                       {ultEstoque}
                     </td>
-                    <td className="py-3 px-2 text-center font-black" style={{ backgroundColor: isZeroStock ? 'rgba(254, 226, 226, 0.45)' : 'rgba(255, 247, 237, 0.3)', color: isZeroStock ? '#dc2626' : '#171717', fontWeight: 900 }}>
+                    <td className="py-3 px-2 text-center font-black" style={{ backgroundColor: 'rgba(255, 247, 237, 0.3)', color: '#171717' }}>
                       {currentStock}
                     </td>
                     <td className="py-3 px-2 text-center font-black" style={{ color: venda > 0 ? '#dc2626' : (venda < 0 ? '#dc2626' : '#a3a3a3') }}>
