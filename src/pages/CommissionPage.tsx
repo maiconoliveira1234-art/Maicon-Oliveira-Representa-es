@@ -22,6 +22,7 @@ import { ptBR } from 'date-fns/locale';
 import { shouldExcludeSale } from '../constants';
 import { ActionButton, PageHeader } from '../components/ui/AppChrome';
 import { useDataManager } from '../lib/dataManager';
+import { calculateCommissionTrend } from '../lib/commissionTrend';
 import { fetchOpenOrderSales } from '../lib/openOrderSales';
 import {
   BarChart,
@@ -130,7 +131,7 @@ export function CommissionPage() {
         "r$_total": rTotalCorrected,
         comissao_percent,
         comissao_valor,
-        familia: prod?.familia || 'Sem FamÃ­lia',
+        familia: prod?.familia || 'Sem Família',
         peso_venda
       };
     });
@@ -138,23 +139,14 @@ export function CommissionPage() {
     return enrichedVendas.filter(v => !shouldExcludeSale(v.cliente, v.faturamento));
   };
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      try {
-        let initialHistory = cachedHistorico;
-        let initialProdutos = cachedProdutos;
-        let initialClientes = cachedClientes;
+  const loadAllCommissionData = async () => {
+    setLoading(true);
+    try {
+      let currentClientes = cachedClientes;
+      let currentProdutos = cachedProdutos;
+      let currentVendas = cachedHistorico;
 
-        if (cachedHistorico.length > 0 || cachedProdutos.length > 0 || cachedClientes.length > 0) {
-          const cachedOpenSales = await fetchOpenOrderSales(cachedClientes, cachedProdutos);
-          setAllHistoryVendas(buildCommissionData([...cachedHistorico, ...cachedOpenSales], cachedProdutos));
-          setProdutos(cachedProdutos);
-          setClientes(cachedClientes);
-        }
-
-        if (navigator.onLine === false) return;
-
+      if (navigator.onLine !== false) {
         // Fetch from 2024 to allow evolution chart
         const startOfHistory = '2024-01-01';
         
@@ -167,32 +159,53 @@ export function CommissionPage() {
           supabase.from('clientes').select('*').order('cliente')
         ]);
 
-        if (vendasRes.error) throw vendasRes.error;
-        if (produtosRes.error) throw produtosRes.error;
-        if (clientesRes.error) throw clientesRes.error;
-
-        const currentClientes = clientesRes.data || initialClientes;
-        const currentProdutos = produtosRes.data || initialProdutos;
-        const currentVendas = vendasRes.data || initialHistory;
-
-        // Fetch open order sales from Supabase / localStorage
-        const dbOpenSales = await fetchOpenOrderSales(currentClientes, currentProdutos);
-
-        // Combine imported sales and open order sales
-        const combinedSales = [...currentVendas, ...dbOpenSales];
-
-        setAllHistoryVendas(buildCommissionData(combinedSales, currentProdutos));
-        setProdutos(currentProdutos);
-        setClientes(currentClientes);
-      } catch (err) {
-        console.error('Erro ao carregar dados de comissão:', err);
-      } finally {
-        setLoading(false);
+        if (!vendasRes.error && vendasRes.data) {
+          currentVendas = vendasRes.data;
+        }
+        if (!produtosRes.error && produtosRes.data) {
+          currentProdutos = produtosRes.data;
+        }
+        if (!clientesRes.error && clientesRes.data) {
+          currentClientes = clientesRes.data;
+        }
       }
-    }
 
-    fetchData();
+      setProdutos(currentProdutos);
+      setClientes(currentClientes);
+
+      // Fetch open order sales from DB / localStorage
+      const openSales = await fetchOpenOrderSales(currentClientes, currentProdutos);
+      const combinedSales = [...currentVendas, ...openSales];
+
+      setAllHistoryVendas(buildCommissionData(combinedSales, currentProdutos));
+    } catch (err) {
+      console.error('Erro ao carregar dados de comissão:', err);
+      if (allHistoryVendas.length === 0) {
+        setAllHistoryVendas(buildCommissionData(cachedHistorico, cachedProdutos));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadAllCommissionData();
   }, [cachedClientes, cachedProdutos, cachedHistorico]);
+
+  useEffect(() => {
+    if (navigator.onLine === false) return;
+
+    const channel = supabase
+      .channel('comissao-pedidos-em-aberto')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos_em_aberto' }, () => {
+        void loadAllCommissionData();
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Filter sales based on selected filters
   useEffect(() => {
@@ -263,13 +276,21 @@ export function CommissionPage() {
       const deadline = parseISO(deadlineDate);
       
       if (selectedDate.getMonth() === deadline.getMonth() && selectedDate.getFullYear() === deadline.getFullYear()) {
-        const start = startOfMonth(selectedDate);
-        const end = deadline;
-        const today = new Date();
-        const effectiveToday = isBefore(today, end) ? today : end;
-        const daysPassed = Math.max(1, differenceInDays(effectiveToday, start) + 1);
-        const totalDays = differenceInDays(end, start) + 1;
-        projetadoComissao = totalComissao * (totalDays / daysPassed);
+        const comparableHistory = allHistoryVendas.filter(v => {
+          if (selectedClienteId && v.cliente_id !== selectedClienteId) return false;
+          if (selectedProdutoId && v.produto_id !== selectedProdutoId) return false;
+          if (selectedFamilia && v.familia !== selectedFamilia) return false;
+          return true;
+        });
+        projetadoComissao = calculateCommissionTrend(
+          totalComissao,
+          comparableHistory.map(v => ({
+            date: v.faturamento,
+            commission: v.comissao_valor
+          })),
+          selectedDate,
+          deadline
+        );
         isProjection = true;
       }
     }
@@ -283,12 +304,24 @@ export function CommissionPage() {
       projetadoComissao,
       isPositiveTrend: projetadoComissao >= totalComissao
     };
-  }, [filteredVendas, useCustomRange, selectedYears, selectedMonths, deadlineDate]);
+  }, [
+    filteredVendas,
+    allHistoryVendas,
+    useCustomRange,
+    selectedYears,
+    selectedMonths,
+    deadlineDate,
+    selectedClienteId,
+    selectedProdutoId,
+    selectedFamilia
+  ]);
 
   const groupedData = useMemo(() => {
     const groups: Record<string, { label: string, total: number, comissao: number, peso: number }> = {};
 
     filteredVendas.forEach(v => {
+      if ((v["r$_total"] || 0) <= 0) return;
+
       let key = '';
       let label = '';
       
@@ -313,8 +346,7 @@ export function CommissionPage() {
     });
 
     return Object.values(groups)
-      .sort((a, b) => b.comissao - a.comissao)
-      .slice(0, 20);
+      .sort((a, b) => b.comissao - a.comissao);
   }, [filteredVendas, groupBy]);
 
   const uniqueFamilies = useMemo(() => {
@@ -656,6 +688,7 @@ export function CommissionPage() {
           <h3 className="text-base font-black text-neutral-900 mb-4 flex items-center gap-2">
             <Users className="text-neutral-500" size={18} />
             Ranking por {groupBy === 'cliente' ? 'Cliente' : groupBy === 'produto' ? 'Produto' : 'Família'}
+            <span className="text-xs font-bold text-neutral-400">({groupedData.length})</span>
           </h3>
           <div className="mobile-card-table overflow-x-auto">
             <table className="w-full text-left text-sm">

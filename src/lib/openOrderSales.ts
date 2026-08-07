@@ -75,7 +75,7 @@ export async function fetchOpenOrderSales(
           }
         }
       } catch (e) {
-        // ignore JSON parse error
+        // ignore
       }
     }
   });
@@ -118,7 +118,6 @@ export async function fetchOpenOrderSales(
         } else if (typeof item.preco_unitario === 'number' && item.preco_unitario > 0) {
           rTotal = item.preco_unitario * qtdEmbalagens * (prod.quant_embalagem || 1);
         } else {
-          // Fallback unit cost
           const unitario = prod.custo_und || prod.livre || 0;
           rTotal = unitario * qtdEmbalagens * (prod.quant_embalagem || 1);
         }
