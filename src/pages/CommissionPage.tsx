@@ -131,7 +131,7 @@ export function CommissionPage() {
         "r$_total": rTotalCorrected,
         comissao_percent,
         comissao_valor,
-        familia: prod?.familia || 'Sem Família',
+        familia: prod?.familia || 'Sem FamÃ­lia',
         peso_venda
       };
     });
@@ -139,14 +139,19 @@ export function CommissionPage() {
     return enrichedVendas.filter(v => !shouldExcludeSale(v.cliente, v.faturamento));
   };
 
-  const loadAllCommissionData = async () => {
-    setLoading(true);
-    try {
-      let currentClientes = cachedClientes;
-      let currentProdutos = cachedProdutos;
-      let currentVendas = cachedHistorico;
+  useEffect(() => {
+    async function fetchData() {
+      setLoading(true);
+      try {
+        if (cachedHistorico.length > 0 || cachedProdutos.length > 0 || cachedClientes.length > 0) {
+          const cachedOpenSales = await fetchOpenOrderSales(cachedClientes, cachedProdutos);
+          setAllHistoryVendas(buildCommissionData([...cachedHistorico, ...cachedOpenSales], cachedProdutos));
+          setProdutos(cachedProdutos);
+          setClientes(cachedClientes);
+        }
 
-      if (navigator.onLine !== false) {
+        if (navigator.onLine === false) return;
+
         // Fetch from 2024 to allow evolution chart
         const startOfHistory = '2024-01-01';
         
@@ -159,53 +164,62 @@ export function CommissionPage() {
           supabase.from('clientes').select('*').order('cliente')
         ]);
 
-        if (!vendasRes.error && vendasRes.data) {
-          currentVendas = vendasRes.data;
-        }
-        if (!produtosRes.error && produtosRes.data) {
-          currentProdutos = produtosRes.data;
-        }
-        if (!clientesRes.error && clientesRes.data) {
-          currentClientes = clientesRes.data;
-        }
+        if (vendasRes.error) throw vendasRes.error;
+        if (produtosRes.error) throw produtosRes.error;
+        if (clientesRes.error) throw clientesRes.error;
+
+        // Deduplicate data
+        const uniqueVendas = deduplicateSales(vendasRes.data || []);
+        const currentClientes = clientesRes.data || [];
+        const currentProdutos = produtosRes.data || [];
+
+        // Fetch open order sales
+        const openSales = await fetchOpenOrderSales(currentClientes, currentProdutos);
+        const combinedSales = [...uniqueVendas, ...openSales];
+
+        // Create a more robust products map with name fallback
+        const productsMap = new Map();
+        currentProdutos.forEach(p => {
+          productsMap.set(p.id, p);
+          productsMap.set(p.produto.toLowerCase(), p);
+        });
+        
+        const enrichedVendas: CommissionData[] = combinedSales.map(v => {
+          const classification = classifySaleRecord(v);
+          const prod = productsMap.get(v.produto_id) || (v.produtos ? productsMap.get(v.produtos.toLowerCase()) : null);
+          
+          const comissao_percent = classification.entraComissao ? (prod?.comissao || 0) : 0;
+          const rTotalCorrected = classification.entraFaturamento ? (v["r$_total"] || 0) : 0;
+          const comissao_valor = calculateCommissionValue(rTotalCorrected, comissao_percent, prod);
+          const peso_venda = (v.qtd || 0) * (prod?.peso_embalagem || 0);
+
+          return {
+            ...v,
+            "r$_total": rTotalCorrected,
+            comissao_percent,
+            comissao_valor,
+            familia: prod?.familia || 'Sem Família',
+            peso_venda
+          };
+        });
+
+        // Apply selective cutoff globally just to be safe with this data source
+        const finalEnriched = enrichedVendas.filter(v => {
+          return !shouldExcludeSale(v.cliente, v.faturamento);
+        });
+
+        setAllHistoryVendas(finalEnriched);
+        setProdutos(produtosRes.data || []);
+        setClientes(clientesRes.data || []);
+      } catch (err) {
+        console.error('Erro ao carregar dados de comissão:', err);
+      } finally {
+        setLoading(false);
       }
-
-      setProdutos(currentProdutos);
-      setClientes(currentClientes);
-
-      // Fetch open order sales from DB / localStorage
-      const openSales = await fetchOpenOrderSales(currentClientes, currentProdutos);
-      const combinedSales = [...currentVendas, ...openSales];
-
-      setAllHistoryVendas(buildCommissionData(combinedSales, currentProdutos));
-    } catch (err) {
-      console.error('Erro ao carregar dados de comissão:', err);
-      if (allHistoryVendas.length === 0) {
-        setAllHistoryVendas(buildCommissionData(cachedHistorico, cachedProdutos));
-      }
-    } finally {
-      setLoading(false);
     }
-  };
 
-  useEffect(() => {
-    void loadAllCommissionData();
+    fetchData();
   }, [cachedClientes, cachedProdutos, cachedHistorico]);
-
-  useEffect(() => {
-    if (navigator.onLine === false) return;
-
-    const channel = supabase
-      .channel('comissao-pedidos-em-aberto')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos_em_aberto' }, () => {
-        void loadAllCommissionData();
-      })
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, []);
 
   // Filter sales based on selected filters
   useEffect(() => {
@@ -218,16 +232,10 @@ export function CommissionPage() {
       });
     } else {
       if (selectedYears.length > 0) {
-        filtered = filtered.filter(v => {
-          const [y] = (v.faturamento || '').slice(0, 10).split('-').map(Number);
-          return selectedYears.includes(y);
-        });
+        filtered = filtered.filter(v => selectedYears.includes(new Date(v.faturamento).getFullYear()));
       }
       if (selectedMonths.length > 0) {
-        filtered = filtered.filter(v => {
-          const [, m] = (v.faturamento || '').slice(0, 10).split('-').map(Number);
-          return selectedMonths.includes(m);
-        });
+        filtered = filtered.filter(v => selectedMonths.includes(new Date(v.faturamento).getMonth() + 1));
       }
     }
 
@@ -255,8 +263,8 @@ export function CommissionPage() {
       const entry: any = { month };
       years.forEach(year => {
         const yearMonthData = allHistoryVendas.filter(h => {
-          const [y, m] = (h.faturamento || '').slice(0, 10).split('-').map(Number);
-          return y === year && (m - 1) === index;
+          const date = new Date(h.faturamento);
+          return date.getFullYear() === year && date.getMonth() === index;
         });
         entry[`comissao_${year}`] = yearMonthData.reduce((acc, h) => acc + (h.comissao_valor || 0), 0);
       });

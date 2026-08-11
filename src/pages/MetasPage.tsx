@@ -30,7 +30,8 @@ import { ptBR } from 'date-fns/locale';
 import { classifySaleRecord } from '../lib/salesClassifier';
 import { ActionButton, PageHeader } from '../components/ui/AppChrome';
 import { useDataManager } from '../lib/dataManager';
-import { fetchOpenOrderSales } from '../lib/openOrderSales';
+import { calcularCicloPonderado } from '../lib/calculations';
+import { calculateOpenOrderGoalWeights, OpenOrderGoalRecord } from '../lib/openOrderGoals';
 
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from '../lib/mockData';
 
@@ -45,6 +46,7 @@ export function MetasPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [historico, setHistorico] = useState<HistVenda[]>([]);
+  const [openOrders, setOpenOrders] = useState<OpenOrderGoalRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -114,22 +116,18 @@ export function MetasPage() {
     async function loadData() {
       try {
         setLoading(true);
-        const applyLocalData = async () => {
+        const applyLocalData = () => {
           const localClientes = (cachedClientes.length > 0 ? cachedClientes : MOCK_CLIENTES).map(c => ({
             ...c,
             meta: cachedMetas[c.id] || c.meta || 0
           }));
-          const localProdutos = cachedProdutos.length > 0 ? cachedProdutos : MOCK_PRODUTOS;
 
           setClientes(localClientes);
-          setProdutos(localProdutos);
-
-          const localOpenSales = await fetchOpenOrderSales(localClientes, localProdutos);
-          const localCombined = [...(cachedHistorico.length > 0 ? cachedHistorico : MOCK_HISTORICO), ...localOpenSales];
-          setHistorico(deduplicateSales(localCombined));
+          setProdutos(cachedProdutos.length > 0 ? cachedProdutos : MOCK_PRODUTOS);
+          setHistorico(cachedHistorico.length > 0 ? deduplicateSales(cachedHistorico) : MOCK_HISTORICO);
         };
 
-        await applyLocalData();
+        applyLocalData();
 
         if (navigator.onLine === false) return;
         
@@ -153,8 +151,7 @@ export function MetasPage() {
 
         // Load Produtos
         const { data: pData } = await supabase.from('produtos').select('*');
-        const finalProdutos = pData && pData.length > 0 ? pData : MOCK_PRODUTOS;
-        setProdutos(finalProdutos);
+        setProdutos(pData && pData.length > 0 ? pData : MOCK_PRODUTOS);
 
         // Load Historico (last 12 months for better averages)
         const twelveMonthsAgo = subMonths(new Date(), 12);
@@ -164,13 +161,9 @@ export function MetasPage() {
           .select('*')
           .gte('faturamento', twelveMonthsAgo.toISOString());
         
-        // Load open order sales from Supabase / localStorage
-        const openSales = await fetchOpenOrderSales(finalClientes, finalProdutos);
-        const combinedSales = [...(hData || []), ...openSales];
-
-        if (combinedSales.length > 0) {
+        if (hData) {
           const uniqueMap = new Map();
-          combinedSales.forEach((h: HistVenda) => {
+          hData.forEach((h: HistVenda) => {
             const key = `${h.faturamento}-${h.cliente_id}-${h.produto_id || h.produtos}-${h.qtd}-${h["r$_total"]}`;
             if (!uniqueMap.has(key)) {
               uniqueMap.set(key, h);
@@ -193,6 +186,33 @@ export function MetasPage() {
     }
     loadData();
   }, [cachedClientes, cachedProdutos, cachedMetas, cachedHistorico]);
+
+  useEffect(() => {
+    if (navigator.onLine === false) return;
+    let active = true;
+
+    const loadOpenOrders = async () => {
+      const { data, error } = await supabase
+        .from('pedidos_em_aberto')
+        .select('cliente_id, items');
+      if (error) {
+        console.error('Erro ao carregar pedidos em aberto nas metas:', error);
+        return;
+      }
+      if (active) setOpenOrders((data || []) as OpenOrderGoalRecord[]);
+    };
+
+    void loadOpenOrders();
+    const channel = supabase
+      .channel('metas-pedidos-em-aberto')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos_em_aberto' }, loadOpenOrders)
+      .subscribe();
+
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, []);
 
   const handleUpdateMeta = async (clienteId: string, newMeta: number) => {
     try {
@@ -266,17 +286,24 @@ export function MetasPage() {
     const activeClientes = clientes.filter(c => c.ativo);
     const metaTotal = activeClientes.reduce((acc, c) => acc + (c.meta || 0), 0);
     
-    let realizadoTotal = 0;
-    const realizadoPorCliente: Record<string, number> = {};
+    let faturadoTotal = 0;
+    const faturadoPorCliente: Record<string, number> = {};
 
     currentMonthVendas.forEach(v => {
       if (!classifySaleRecord(v).entraMetas) return;
       const prod = produtosMap[v.produto_id];
       if (!prod) return;
       const weight = v.qtd * (prod.peso_embalagem || 0);
-      realizadoTotal += weight;
-      realizadoPorCliente[v.cliente_id] = (realizadoPorCliente[v.cliente_id] || 0) + weight;
+      faturadoTotal += weight;
+      faturadoPorCliente[v.cliente_id] = (faturadoPorCliente[v.cliente_id] || 0) + weight;
     });
+
+    const todayKey = format(now, 'yyyy-MM-dd');
+    const includesCurrentBusiness = todayKey >= startDate && todayKey <= deadlineDate;
+    const openOrderWeights = includesCurrentBusiness
+      ? calculateOpenOrderGoalWeights(openOrders, produtosMap)
+      : { byClient: {} as Record<string, number>, total: 0 };
+    const realizadoTotal = faturadoTotal + openOrderWeights.total;
 
     const percentualAtual = metaTotal > 0 ? (realizadoTotal / metaTotal) * 100 : 0;
     const esperadoPercent = totalDays > 0 ? (daysPassed / totalDays) * 100 : 0;
@@ -311,24 +338,15 @@ export function MetasPage() {
       const ultVenda = sortedRecompraVendas[0];
       const diasUltPedido = ultVenda ? differenceInDays(now, parseISO(ultVenda.faturamento)) : 0;
       
-      // Méd Dias: Average cycle (Total days from first purchase to now / Number of unique purchase days)
-      let medDias = 0;
-      if (sortedRecompraVendas.length > 0) {
-        const oldest = parseISO(sortedRecompraVendas[sortedRecompraVendas.length - 1].faturamento);
-        const totalDaysSinceFirst = differenceInDays(now, oldest);
-        
-        // Get unique days of purchase
-        const uniqueDays = new Set(recompraVendas
-          .map(v => format(parseISO(v.faturamento), 'yyyy-MM-dd')));
-        const uniqueDaysCount = uniqueDays.size;
-        
-        if (uniqueDaysCount > 0) {
-          medDias = Math.round(totalDaysSinceFirst / uniqueDaysCount);
-        }
-      }
+      // 70% dos tres intervalos mais recentes (pesos 50/30/20) + 30% do historico.
+      const medDias = calcularCicloPonderado(
+        recompraVendas.map(v => format(parseISO(v.faturamento), 'yyyy-MM-dd'))
+      );
 
-      const vendMes = realizadoPorCliente[c.id] || 0;
-      const gapCliente = diasUltPedido - medDias;
+      const faturadoMes = faturadoPorCliente[c.id] || 0;
+      const abertoMes = openOrderWeights.byClient[c.id] || 0;
+      const vendMes = faturadoMes + abertoMes;
+      const gapCliente = medDias > 0 ? diasUltPedido - medDias : 0;
 
       return {
         ...c,
@@ -336,20 +354,24 @@ export function MetasPage() {
         medDias,
         ultPed: diasUltPedido,
         gap: gapCliente,
-        vend: vendMes
+        vend: vendMes,
+        faturado: faturadoMes,
+        aberto: abertoMes
       };
     });
 
     return {
       metaTotal,
       realizadoTotal,
+      faturadoTotal,
+      abertoTotal: openOrderWeights.total,
       percentualAtual,
       projetadoHoje,
       gapTotal,
       esperadoPercent,
       tableData
     };
-  }, [historico, clientes, produtosMap, startDate, deadlineDate]);
+  }, [historico, clientes, produtosMap, openOrders, startDate, deadlineDate]);
 
   const handleSort = (key: string) => {
     setSortConfig(prev => {
@@ -430,7 +452,12 @@ export function MetasPage() {
 
             <div className="grid min-w-0 grid-cols-[repeat(2,minmax(0,1fr))] gap-1.5 sm:grid-cols-[repeat(4,minmax(0,1fr))]">
               <SummaryMetric label="Projetado" value={formatWeight(stats.projetadoHoje)} />
-              <SummaryMetric label="Vendas" value={formatWeight(stats.realizadoTotal)} strong />
+              <SummaryMetric
+                label="Realizado"
+                value={formatWeight(stats.realizadoTotal)}
+                strong
+                title={`Faturado: ${formatWeight(stats.faturadoTotal)} | Em aberto: ${formatWeight(stats.abertoTotal)}`}
+              />
               <SummaryMetric label="Meta" value={formatWeight(stats.metaTotal)} />
               <div className={cn(
                 "min-w-0 overflow-hidden rounded-md border px-2 py-1",
@@ -591,10 +618,15 @@ export function MetasPage() {
                 <td className="mobile-compact-row" colSpan={7}>
                   <div className="mobile-compact-line">
                     <button onClick={() => navigate(`/cliente/${row.id}`, { state: { fromMetas: true } })} className="mobile-compact-primary text-left">{row.cliente}</button>
-                    <span className="mobile-compact-value">{row.vend.toFixed(0)} / {row.meta.toFixed(0)} kg</span>
+                    <span
+                      className="mobile-compact-value"
+                      title={`Faturado: ${row.faturado.toFixed(1)} kg | Em aberto: ${row.aberto.toFixed(1)} kg`}
+                    >
+                      {row.vend.toFixed(0)} / {row.meta.toFixed(0)} kg
+                    </span>
                   </div>
                   <div className="mobile-compact-line">
-                    <span className="mobile-compact-secondary">Ult. {row.ultPed} · Media {row.med6.toFixed(1)} kg · Intervalo {row.medDias || '-'} dias</span>
+                    <span className="mobile-compact-secondary">Ult. {row.ultPed} · Media {row.med6.toFixed(1)} kg · Intervalo {row.medDias} dias</span>
                     <span className={cn('mobile-compact-value', row.gap <= 0 ? 'text-green-600' : 'text-red-500')}>{row.gap > 0 ? `Faltam ${row.gap}` : 'Meta atingida'}</span>
                   </div>
                 </td>
@@ -610,7 +642,7 @@ export function MetasPage() {
                   {row.med6.toFixed(1)}
                 </td>
                 <td data-label="Media de dias" className="px-1 py-3 border-r border-b border-neutral-100 text-center text-[12px] text-neutral-500">
-                  {row.medDias || '-'}
+                  {row.medDias}
                 </td>
                 <td data-label="Ultimo pedido" className="px-1 py-3 border-r border-b border-neutral-100 text-center text-[12px] text-neutral-500">
                   {row.ultPed}
@@ -660,14 +692,19 @@ export function MetasPage() {
                     </div>
                   </div>
                 </td>
-                <td data-label="Vendido" data-mobile-summary className={cn(
+                <td
+                  data-label="Realizado"
+                  data-mobile-summary
+                  title={`Faturado: ${row.faturado.toFixed(1)} kg | Em aberto: ${row.aberto.toFixed(1)} kg`}
+                  className={cn(
                   "px-2 py-3 border-b border-neutral-100 text-right text-[12px] font-black transition-colors duration-300",
                   row.vend === 0 
                     ? "bg-red-600 text-white" 
                     : row.vend >= row.meta 
                       ? "bg-green-600 text-white"
                       : "bg-orange-500 text-white"
-                )}>
+                  )}
+                >
                   {row.vend.toFixed(1)}
                 </td>
               </tr>
@@ -698,9 +735,9 @@ function ProgressBar({ label, value, tone }: { label: string; value: number; ton
   );
 }
 
-function SummaryMetric({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+function SummaryMetric({ label, value, strong = false, title }: { label: string; value: string; strong?: boolean; title?: string }) {
   return (
-    <div className="min-w-0 overflow-hidden rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1">
+    <div title={title} className="min-w-0 overflow-hidden rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1">
       <p className="block max-w-full truncate text-[9px] font-black uppercase leading-none text-neutral-400">{label}</p>
       <p className={cn("mt-0.5 block max-w-full truncate whitespace-nowrap text-[11px] font-black leading-tight sm:text-xs", strong ? "text-orange-600" : "text-neutral-900")}>{value}</p>
     </div>

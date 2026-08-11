@@ -11,6 +11,7 @@ import { logDiagnostic } from '../lib/diagnostics';
 import { useDataManager } from '../lib/dataManager';
 import { Link } from 'react-router-dom';
 import { FileChartColumn } from 'lucide-react';
+import { calcularPrecoComDesconto } from '../lib/calculations';
 
 export function PriceInquiryPage() {
   const { produtos: cachedProdutos, hist_vendas: cachedHistorico } = useDataManager();
@@ -679,7 +680,7 @@ export function PriceInquiryPage() {
             filteredProdutos.map((produto) => {
               const unitPrice = selectedClient !== 'all' 
                 ? (clientLastPrices[produto.id] || clientLastPricesByName[produto.produto?.toLowerCase() || ''] || 0)
-                : ((produto.custo_und || 0) * (1 - (produto[selectedTable] || 0)));
+                : calcularPrecoComDesconto(produto.custo_und, produto[selectedTable]);
 
               return (
                 <div
@@ -824,7 +825,7 @@ export function PriceInquiryPage() {
               {chunk.map((p, idx) => {
                 const price = selectedClient !== 'all'
                   ? (clientLastPrices[p.id] || clientLastPricesByName[p.produto?.toLowerCase() || ''] || 0)
-                  : ((p.custo_und || 0) * (1 - (p[selectedTable] || 0)));
+                  : calcularPrecoComDesconto(p.custo_und, p[selectedTable]);
                 
                 return (
                   <tr key={p.id} className="text-sm" style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
