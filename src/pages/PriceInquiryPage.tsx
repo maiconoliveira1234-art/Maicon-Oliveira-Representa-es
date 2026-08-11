@@ -357,8 +357,12 @@ export function PriceInquiryPage() {
         const canvas = await html2canvas(page, {
           scale: 2,
           useCORS: true,
+          allowTaint: true,
+          logging: false,
           backgroundColor: '#ffffff',
-          windowWidth: 800
+          windowWidth: 800,
+          scrollX: 0,
+          scrollY: 0
         });
         
         const imgData = canvas.toDataURL('image/jpeg', 0.85);
@@ -747,9 +751,16 @@ export function PriceInquiryPage() {
       </div>
 
 <div 
-  className="fixed top-0 left-0 bg-white opacity-0 pointer-events-none z-[-100]" 
   ref={exportRef}
-  style={{ width: '800px', color: '#171717' }}
+  style={{ 
+    position: 'absolute', 
+    left: '-9999px', 
+    top: '0px', 
+    width: '800px', 
+    color: '#171717', 
+    backgroundColor: '#ffffff',
+    pointerEvents: 'none' 
+  }}
 >
   {(() => {
     const itemsPerPage = 18;

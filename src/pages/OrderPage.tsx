@@ -813,8 +813,12 @@ export function OrderPage() {
           const canvas = await html2canvas(page, {
             scale: 2,
             useCORS: true,
+            allowTaint: true,
+            logging: false,
             backgroundColor: '#ffffff',
-            windowWidth: 800
+            windowWidth: 800,
+            scrollX: 0,
+            scrollY: 0
           });
           
           const imgData = canvas.toDataURL('image/jpeg', 0.85);
@@ -938,9 +942,16 @@ export function OrderPage() {
       </header>
 
 <div 
-  className="fixed top-0 left-0 bg-white opacity-0 pointer-events-none z-[-100]" 
   ref={receiptRef}
-  style={{ width: '800px', color: '#171717' }}
+  style={{ 
+    position: 'absolute', 
+    left: '-9999px', 
+    top: '0px', 
+    width: '800px', 
+    color: '#171717', 
+    backgroundColor: '#ffffff',
+    pointerEvents: 'none' 
+  }}
 >
   {(() => {
     // Sort items alphabetically by product name
@@ -999,9 +1010,10 @@ export function OrderPage() {
             <img 
               src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png" 
               alt="ADIMAX" 
-              className="h-12 w-auto mb-1"
+              className="h-12 w-auto mb-1 object-contain"
               crossOrigin="anonymous"
               referrerPolicy="no-referrer"
+              onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
             />
             <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Parceiro Oficial</span>
           </div>
