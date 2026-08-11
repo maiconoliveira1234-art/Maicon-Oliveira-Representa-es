@@ -218,10 +218,16 @@ export function CommissionPage() {
       });
     } else {
       if (selectedYears.length > 0) {
-        filtered = filtered.filter(v => selectedYears.includes(new Date(v.faturamento).getFullYear()));
+        filtered = filtered.filter(v => {
+          const [y] = (v.faturamento || '').slice(0, 10).split('-').map(Number);
+          return selectedYears.includes(y);
+        });
       }
       if (selectedMonths.length > 0) {
-        filtered = filtered.filter(v => selectedMonths.includes(new Date(v.faturamento).getMonth() + 1));
+        filtered = filtered.filter(v => {
+          const [, m] = (v.faturamento || '').slice(0, 10).split('-').map(Number);
+          return selectedMonths.includes(m);
+        });
       }
     }
 
@@ -249,8 +255,8 @@ export function CommissionPage() {
       const entry: any = { month };
       years.forEach(year => {
         const yearMonthData = allHistoryVendas.filter(h => {
-          const date = new Date(h.faturamento);
-          return date.getFullYear() === year && date.getMonth() === index;
+          const [y, m] = (h.faturamento || '').slice(0, 10).split('-').map(Number);
+          return y === year && (m - 1) === index;
         });
         entry[`comissao_${year}`] = yearMonthData.reduce((acc, h) => acc + (h.comissao_valor || 0), 0);
       });
