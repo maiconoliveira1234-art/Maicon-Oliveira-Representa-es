@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Cliente } from '../types';
+import { Cliente, Produto } from '../types';
 import { Loader2, Search, UserCheck, UserX, ChevronRight, Calendar, Filter, X, UserPlus, CheckCircle2, ShoppingCart, Power, ToggleLeft, ToggleRight, Edit3, MessageCircle, MoreHorizontal } from 'lucide-react';
 import { cn, deduplicateSales } from '../lib/utils';
 import { differenceInDays, parseISO, startOfWeek, endOfWeek, isWithinInterval, addDays } from 'date-fns';
@@ -11,13 +11,15 @@ import { NewClientModal } from '../components/NewClientModal';
 import { runAutoAgendaSyncIfEligible } from '../lib/autoAgendaSync';
 
 import { useDataManager } from '../lib/dataManager';
+import { fetchOpenOrderSales } from '../lib/openOrderSales';
 
 import { ClientPageSkeleton } from '../components/ui/Skeleton';
 
 export function ClientsPage() {
-  const { clientes: cachedClientes, loadingGlobal, loadInitialData, refreshClientes, loadLatestSalesMap } = useDataManager();
+  const { clientes: cachedClientes, produtos: cachedProdutos, loadingGlobal, loadInitialData, refreshClientes, loadLatestSalesMap } = useDataManager();
   const [clientes, setClientes] = useState<(Cliente & { ultima_compra_peso?: number })[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openOrdersStats, setOpenOrdersStats] = useState<Record<string, { peso: number; valor: number }>>({});
 
   const sendWhatsAppMessage = (cliente: Cliente) => {
     if (!cliente.telefone) {
@@ -146,6 +148,38 @@ export function ClientsPage() {
         }
       });
       setOpenOrdersDates(openOrdersMap);
+
+      // Calculate weight and value totals for open orders
+      const currentProdutos = cachedProdutos.length > 0 ? cachedProdutos : [];
+      try {
+        const openSales = await fetchOpenOrderSales(enrichedClientes, currentProdutos);
+        const productsMap = new Map<string, Produto>();
+        currentProdutos.forEach(p => {
+          if (p.id) productsMap.set(p.id, p);
+          if (p.produto) productsMap.set(p.produto.toLowerCase(), p);
+        });
+
+        const statsMap: Record<string, { peso: number; valor: number }> = {};
+        openSales.forEach(sale => {
+          const clienteId = sale.cliente_id;
+          if (!clienteId) return;
+
+          const prod = productsMap.get(sale.produto_id) || (sale.produtos ? productsMap.get(sale.produtos.toLowerCase()) : null);
+          const itemWeight = (Number(sale.qtd) || 0) * (prod?.peso_embalagem || 0);
+          const itemValue = Number(sale['r$_total']) || 0;
+
+          if (!statsMap[clienteId]) {
+            statsMap[clienteId] = { peso: 0, valor: 0 };
+          }
+          statsMap[clienteId].peso += itemWeight;
+          statsMap[clienteId].valor += itemValue;
+        });
+
+        setOpenOrdersStats(statsMap);
+      } catch (openErr) {
+        console.error('Error computing open order stats:', openErr);
+      }
+
       logDiagnostic('DEBUG_CLIENTS', `Clientes carregados e enriquecidos em ${(performance.now() - startTime).toFixed(2)}ms. Total: ${enrichedClientes.length}`);
     } catch (err: any) {
       console.error('Erro ao carregar clientes:', err);
@@ -275,10 +309,34 @@ export function ClientsPage() {
     return compareClientName(a, b);
   });
 
+  const totalOpenOrdersPeso = useMemo(() => {
+    return filteredClientes.reduce((acc, c) => acc + (openOrdersStats[c.id]?.peso || 0), 0);
+  }, [filteredClientes, openOrdersStats]);
+
+  const totalOpenOrdersValor = useMemo(() => {
+    return filteredClientes.reduce((acc, c) => acc + (openOrdersStats[c.id]?.valor || 0), 0);
+  }, [filteredClientes, openOrdersStats]);
+
+  const formatCurrency = (val: number) => {
+    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
+  const formatWeight = (weightInKg: number) => {
+    if (weightInKg >= 1000) {
+      const tons = weightInKg / 1000;
+      return `${Math.round(weightInKg).toLocaleString('pt-BR')} kg (${tons.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} t)`;
+    }
+    return `${Math.round(weightInKg).toLocaleString('pt-BR')} kg`;
+  };
+
+  const formatWeightCompact = (weightInKg: number) => {
+    return `${Math.round(weightInKg).toLocaleString('pt-BR')} kg`;
+  };
+
   if (loading) return <ClientPageSkeleton />;
 
   return (
-    <div className="space-y-4 pb-12">
+    <div className={cn("space-y-4", filterOpenOrders ? "pb-32 md:pb-24" : "pb-12")}>
       <div className="sticky top-0 z-40 -mx-3 px-3 pt-3 pb-3 bg-neutral-50/95 backdrop-blur border-b border-neutral-200/80 shadow-sm sm:-mx-4 sm:px-4">
         <header className="space-y-3">
           <div className="flex items-end justify-between gap-3">
@@ -489,7 +547,17 @@ export function ClientsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  {filterRepurchase && cliente.ultima_compra && (
+                  {filterOpenOrders && openOrdersStats[cliente.id] && (
+                    <div className="text-right shrink-0">
+                      <p className="text-xs sm:text-sm font-black text-orange-600 whitespace-nowrap">
+                        {formatWeightCompact(openOrdersStats[cliente.id].peso)}
+                      </p>
+                      <p className="text-[11px] sm:text-xs font-bold text-neutral-600 whitespace-nowrap">
+                        {formatCurrency(openOrdersStats[cliente.id].valor)}
+                      </p>
+                    </div>
+                  )}
+                  {filterRepurchase && cliente.ultima_compra && !filterOpenOrders && (
                     <div className="text-right">
                       <p className="text-sm font-black text-orange-600">
                         {differenceInDays(new Date(), parseISO(cliente.ultima_compra))} dias
@@ -551,6 +619,38 @@ export function ClientsPage() {
           <div className="bg-green-600 text-white px-6 py-3 rounded-lg shadow-2xl flex items-center gap-3 font-bold">
             <CheckCircle2 size={20} />
             {successMessage}
+          </div>
+        </div>
+      )}
+
+      {filterOpenOrders && (
+        <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] md:bottom-0 left-0 md:left-[calc(5rem+env(safe-area-inset-left,0px))] right-0 z-40 bg-neutral-900 text-white border-t border-neutral-800 shadow-2xl px-4 py-3 sm:px-6">
+          <div className="max-w-7xl mx-auto flex flex-row items-center justify-between gap-2 sm:gap-4">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs uppercase font-extrabold text-neutral-400 tracking-wider truncate">
+                  Totais em Aberto
+                </p>
+                <p className="text-[11px] sm:text-xs text-neutral-300 font-bold truncate">
+                  {filteredClientes.length} {filteredClientes.length === 1 ? 'cliente' : 'clientes'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 sm:gap-6 text-right shrink-0">
+              <div>
+                <p className="text-[9px] sm:text-[10px] uppercase font-bold text-neutral-400">Peso Total</p>
+                <p className="text-xs sm:text-base font-black text-orange-400 leading-tight">
+                  {formatWeight(totalOpenOrdersPeso)}
+                </p>
+              </div>
+              <div className="border-l border-neutral-700 pl-3 sm:pl-6">
+                <p className="text-[9px] sm:text-[10px] uppercase font-bold text-neutral-400">Valor Total</p>
+                <p className="text-xs sm:text-base font-black text-green-400 leading-tight">
+                  {formatCurrency(totalOpenOrdersValor)}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       )}
