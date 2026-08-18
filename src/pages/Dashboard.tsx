@@ -223,11 +223,21 @@ export function Dashboard() {
       try {
         if (cachedHistorico.length > 0) {
           setAllSalesData(deduplicateSales(cachedHistorico));
+          setLoading(false);
+          return;
         }
-        if (navigator.onLine === false) return;
+        if (navigator.onLine === false) {
+          setLoading(false);
+          return;
+        }
 
-        const { data } = await supabase.from('hist_vendas').select('*');
-        setAllSalesData(deduplicateSales(data || []));
+        const { data, error } = await supabase
+          .from('hist_vendas')
+          .select('*')
+          .gte('faturamento', '2024-01-01');
+        if (!error && data) {
+          setAllSalesData(deduplicateSales(data));
+        }
       } catch (err) {
         console.error('Error loading sales data:', err);
       } finally {

@@ -37,6 +37,8 @@ import { AgendaPendencia } from '../types/agendaPendencia';
 import { AgendaPendenciaCard } from '../components/agenda/AgendaPendenciaCard';
 import { AgendaPendenciaModal } from '../components/agenda/AgendaPendenciaModal';
 import { isAgendaPendenciaAtiva, sortAgendaPendencias } from '../lib/agendaPendencias';
+import { classifySaleRecord } from '../lib/salesClassifier';
+import { calcularCicloPonderado } from '../lib/calculations';
 
 const DIAS_MAP: Record<number, DiaSemana> = {
   1: 'Segunda',
@@ -197,24 +199,24 @@ export function AgendaPage() {
     });
 
     Object.keys(histByClient).forEach(clientId => {
-      const clientHist = histByClient[clientId].sort((a, b) => 
-        parseISO(b.faturamento).getTime() - parseISO(a.faturamento).getTime()
-      );
+      const clientHist = histByClient[clientId];
+
+      // Use only commercial sales for purchase cycle (exclude merchandising / gifts)
+      const recompraVendas = clientHist.filter(v => classifySaleRecord(v).influenciaConsumo);
+      const sortedRecompraVendas = [...recompraVendas]
+        .sort((a, b) => parseISO(b.faturamento).getTime() - parseISO(a.faturamento).getTime());
 
       // Ult Ped: Days since last order
-      const ultVenda = clientHist[0];
+      const ultVenda = sortedRecompraVendas[0];
       const diasUltPedido = ultVenda ? differenceInDays(now, parseISO(ultVenda.faturamento)) : 0;
 
-      // Méd Dias: Average cycle
-      let medDias = 0;
-      const oldest = parseISO(clientHist[clientHist.length - 1].faturamento);
-      const totalDaysSinceFirst = differenceInDays(now, oldest);
-      const uniqueDays = new Set(clientHist.map(v => format(parseISO(v.faturamento), 'yyyy-MM-dd')));
-      if (uniqueDays.size > 0) {
-        medDias = Math.round(totalDaysSinceFirst / uniqueDays.size);
-      }
+      // 70% dos tres intervalos mais recentes (pesos 50/30/20) + 30% do historico.
+      const medDias = calcularCicloPonderado(
+        recompraVendas.map(v => format(parseISO(v.faturamento), 'yyyy-MM-dd'))
+      );
 
-      map[clientId] = diasUltPedido - medDias;
+      const gapCliente = medDias > 0 ? diasUltPedido - medDias : 0;
+      map[clientId] = gapCliente;
     });
 
     return map;

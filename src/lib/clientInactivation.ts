@@ -11,10 +11,15 @@ export async function runAutomaticInactivation() {
     if (fetchError) throw fetchError;
     if (!allClients || allClients.length === 0) return;
 
-    // 2. Fetch the latest sale for each client
+    // 2. Define the threshold (6 months ago)
+    const thresholdDate = subMonths(new Date(), 6);
+    const thresholdStr = thresholdDate.toISOString().slice(0, 10);
+
+    // 3. Fetch recent sales (only from threshold date onwards)
     const { data: sales, error: salesError } = await supabase
       .from('hist_vendas')
-      .select('cliente_id, faturamento');
+      .select('cliente_id, faturamento')
+      .gte('faturamento', thresholdStr);
 
     if (salesError) throw salesError;
 
@@ -25,9 +30,6 @@ export async function runAutomaticInactivation() {
       }
     });
 
-    // 3. Define the threshold (6 months ago)
-    const thresholdDate = subMonths(new Date(), 6);
-    
     // 4. Identify clients to inactivate (Never automatically reactivate to honor manual choices)
     const idsToInactivate: string[] = [];
 

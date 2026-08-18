@@ -151,12 +151,14 @@ export function PriceInquiryPage() {
         if (cachedHistorico.length > 0) {
           const uniqueClients = Array.from(new Set(cachedHistorico.map(d => d.cliente))).filter(Boolean).sort();
           setClients(uniqueClients as string[]);
+          return;
         }
         if (navigator.onLine === false) return;
 
         const { data, error } = await supabase
           .from('hist_vendas')
           .select('cliente')
+          .gte('faturamento', '2024-01-01')
           .not('cliente', 'is', null);
         
         if (error) throw error;

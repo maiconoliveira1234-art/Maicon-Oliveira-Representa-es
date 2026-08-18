@@ -148,6 +148,106 @@ const savePersistedBatch = (values: Record<string, any>) => {
   });
 };
 
+// Helper to safely execute a query with retry on 57014 (statement timeout) or transient network failures
+async function executeWithRetry<T = any>(
+  queryFn: () => PromiseLike<{ data: T | null; error: any }>,
+  retries = 2,
+  delayMs = 500
+): Promise<{ data: T | null; error: any }> {
+  let lastResult: { data: T | null; error: any } = { data: null, error: null };
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await queryFn();
+      if (!res.error) return res as { data: T | null; error: any };
+      lastResult = res as { data: T | null; error: any };
+      const isTimeout = res.error.code === '57014' || res.error.message?.includes('timeout') || res.error.message?.includes('canceling statement');
+      if (isTimeout && attempt < retries) {
+        console.warn(`[OfflineSync] Query timed out (attempt ${attempt + 1}/${retries + 1}), retrying in ${(attempt + 1) * delayMs}ms...`);
+        await new Promise(r => setTimeout(r, (attempt + 1) * delayMs));
+        continue;
+      }
+      return res as { data: T | null; error: any };
+    } catch (e: any) {
+      lastResult = { data: null, error: e };
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, (attempt + 1) * delayMs));
+      }
+    }
+  }
+  return lastResult;
+}
+
+// Safely fetch hist_vendas in chunks to prevent PostgreSQL statement_timeout (code 57014)
+async function fetchHistVendasChunked(startDate = '2024-01-01'): Promise<{ data: HistVenda[]; error: any }> {
+  const CHUNK_SIZE = 1000;
+  let allRows: HistVenda[] = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const to = from + CHUNK_SIZE - 1;
+    const res = await executeWithRetry<HistVenda[]>(() =>
+      supabase
+        .from('hist_vendas')
+        .select('*')
+        .gte('faturamento', startDate)
+        .range(from, to)
+    );
+
+    if (res.error) {
+      console.warn(`[OfflineSync] Error fetching hist_vendas range [${from}..${to}]:`, res.error);
+      const isTimeout = res.error.code === '57014' || res.error.message?.includes('timeout') || res.error.message?.includes('canceling statement');
+      if (isTimeout) {
+        // Fallback with smaller chunk size
+        const smallChunkSize = 300;
+        let subFrom = from;
+        let subFailed = false;
+        while (subFrom <= to && !subFailed) {
+          const subTo = subFrom + smallChunkSize - 1;
+          const subRes = await executeWithRetry<HistVenda[]>(() =>
+            supabase
+              .from('hist_vendas')
+              .select('*')
+              .gte('faturamento', startDate)
+              .range(subFrom, subTo)
+          );
+          if (subRes.error) {
+            subFailed = true;
+            break;
+          }
+          if (subRes.data && subRes.data.length > 0) {
+            allRows = allRows.concat(subRes.data);
+            if (subRes.data.length < smallChunkSize) {
+              hasMore = false;
+              break;
+            }
+            subFrom += smallChunkSize;
+          } else {
+            hasMore = false;
+            break;
+          }
+        }
+        if (subFailed) {
+          return { data: allRows, error: res.error };
+        }
+        from = subFrom;
+        continue;
+      }
+      return { data: allRows, error: res.error };
+    }
+
+    const rows = res.data || [];
+    allRows = allRows.concat(rows);
+    if (rows.length < CHUNK_SIZE) {
+      hasMore = false;
+    } else {
+      from += CHUNK_SIZE;
+    }
+  }
+
+  return { data: allRows, error: null };
+}
+
 export function DataManagerProvider({ children }: { children: React.ReactNode }) {
   // Global table states (Single Source of Truth)
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -257,50 +357,74 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       // Keep the analytical history used by dashboard, commissions and goals available offline.
       const historyStart = '2024-01-01';
 
-      // 2. Fetch all tables from Supabase in parallel
+      // Load existing caches for graceful fallback
+      const [
+        cachedClientes,
+        cachedProdutos,
+        cachedMetas,
+        cachedVisitas,
+        cachedHist,
+        cachedEstoque,
+        cachedLoans,
+        cachedFlex
+      ] = await Promise.all([
+        loadPersisted<Cliente[]>('offline_db_clientes', []),
+        loadPersisted<Produto[]>('offline_db_produtos', []),
+        loadPersisted<Record<string, number>>('offline_db_metas', {}),
+        loadPersisted<any[]>('offline_db_agenda_visitas', []),
+        loadPersisted<HistVenda[]>('offline_db_hist_vendas', []),
+        loadPersisted<EstoqueCliente[]>('offline_db_estoque_cliente', []),
+        loadPersisted<any[]>('offline_db_emprestimos', []),
+        loadPersisted<any[]>('offline_db_verba_flex_extrato', [])
+      ]);
+
+      // 2. Fetch all tables from Supabase safely with retries and chunking
       const [
         clientesRes,
         produtosRes,
         metasRes,
         visitasRes,
-        histRes,
         estoqueRes,
         emprestimosRes,
-        flexRes
+        flexRes,
+        histRes
       ] = await Promise.all([
-        supabase.from('clientes').select('*').order('cliente'),
-        supabase.from('produtos').select('*').order('produto'),
-        supabase.from('metas').select('*'),
-        supabase.from('agenda_visitas').select('*').order('semana', { ascending: true }).order('dia_semana', { ascending: true }),
-        supabase.from('hist_vendas').select('*').gte('faturamento', historyStart).order('faturamento', { ascending: false }),
-        supabase.from('estoque_cliente').select('*'),
-        supabase.from('emprestimos').select('*'),
-        supabase.from('verba_flex_extrato').select('*').order('created_at', { ascending: false })
+        executeWithRetry<Cliente[]>(() => supabase.from('clientes').select('*').order('cliente')),
+        executeWithRetry<Produto[]>(() => supabase.from('produtos').select('*').order('produto')),
+        executeWithRetry<any[]>(() => supabase.from('metas').select('*')),
+        executeWithRetry<any[]>(() => supabase.from('agenda_visitas').select('*').order('semana', { ascending: true }).order('dia_semana', { ascending: true })),
+        executeWithRetry<EstoqueCliente[]>(() => supabase.from('estoque_cliente').select('*')),
+        executeWithRetry<any[]>(() => supabase.from('emprestimos').select('*')),
+        executeWithRetry<any[]>(() => supabase.from('verba_flex_extrato').select('*').order('created_at', { ascending: false })),
+        fetchHistVendasChunked(historyStart)
       ]);
       
-      if (clientesRes.error) throw clientesRes.error;
-      if (produtosRes.error) throw produtosRes.error;
-      if (metasRes.error) throw metasRes.error;
-      if (visitasRes.error) throw visitasRes.error;
-      if (histRes.error) throw histRes.error;
-      if (estoqueRes.error) throw estoqueRes.error;
-      if (emprestimosRes.error) throw emprestimosRes.error;
-      if (flexRes.error) throw flexRes.error;
+      if (clientesRes.error) console.warn('[OfflineSync] Clientes query warning:', clientesRes.error);
+      if (produtosRes.error) console.warn('[OfflineSync] Produtos query warning:', produtosRes.error);
+      if (metasRes.error) console.warn('[OfflineSync] Metas query warning:', metasRes.error);
+      if (visitasRes.error) console.warn('[OfflineSync] Visitas query warning:', visitasRes.error);
+      if (histRes.error) console.warn('[OfflineSync] HistVendas query warning (falling back to cache):', histRes.error);
+      if (estoqueRes.error) console.warn('[OfflineSync] Estoque query warning:', estoqueRes.error);
+      if (emprestimosRes.error) console.warn('[OfflineSync] Emprestimos query warning:', emprestimosRes.error);
+      if (flexRes.error) console.warn('[OfflineSync] Flex query warning:', flexRes.error);
       
-      const dbClientes = clientesRes.data || [];
-      const dbProdutos = produtosRes.data || [];
+      const dbClientes: Cliente[] = (clientesRes.data && clientesRes.data.length > 0) ? clientesRes.data : cachedClientes;
+      const dbProdutos: Produto[] = (produtosRes.data && produtosRes.data.length > 0) ? produtosRes.data : cachedProdutos;
       
-      const dbMetas: Record<string, number> = {};
-      (metasRes.data || []).forEach(m => {
-        dbMetas[m.cliente_id] = m.meta || 0;
-      });
+      const dbMetas: Record<string, number> = { ...cachedMetas };
+      if (metasRes.data) {
+        metasRes.data.forEach((m: any) => {
+          dbMetas[m.cliente_id] = m.meta || 0;
+        });
+      }
       
-      const dbVisitas = visitasRes.data || [];
+      const dbVisitas = visitasRes.data || cachedVisitas;
       // Normalize legacy duplicate rows once, before any screen calculates totals.
-      const dbHist = deduplicateSales(histRes.data || []);
-      const dbEstoque = estoqueRes.data || [];
-      const dbLoans = emprestimosRes.data || [];
-      const dbFlex = flexRes.data || [];
+      const rawHist = (histRes.data && histRes.data.length > 0) ? histRes.data : cachedHist;
+      const dbHist = deduplicateSales(rawHist);
+      const dbEstoque = estoqueRes.data || cachedEstoque;
+      const dbLoans = emprestimosRes.data || cachedLoans;
+      const dbFlex = flexRes.data || cachedFlex;
       
       const syncTime = syncStartedAt;
       
@@ -379,20 +503,54 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       }
 
       const since = new Date(lastSync).toISOString();
-      const fetchChanges = async (table: string) => {
-        const incremental = await supabase.from(table).select('*').gt('updated_at', since);
-        if (!incremental.error) return { rows: incremental.data || [], full: false };
+      const historyStart = '2024-01-01';
 
-        const missingUpdatedAt = incremental.error.code === '42703'
-          || incremental.error.code === 'PGRST204'
-          || incremental.error.message?.includes('updated_at');
-        if (!missingUpdatedAt) throw incremental.error;
+      const fetchChanges = async (table: string): Promise<{ rows: any[]; full: boolean }> => {
+        if (table === 'hist_vendas') {
+          // Check if importado_em exists
+          const histIncremental = await executeWithRetry<any[]>(() =>
+            supabase.from('hist_vendas').select('*').gt('importado_em', since)
+          );
+          if (!histIncremental.error && histIncremental.data) {
+            return { rows: histIncremental.data, full: false };
+          }
+          // If importado_em failed or not supported, do chunked fetch with date filter
+          const chunked = await fetchHistVendasChunked(historyStart);
+          if (chunked.data && chunked.data.length > 0) {
+            return { rows: chunked.data, full: true };
+          }
+          return { rows: [], full: false };
+        }
 
-        // Legacy tables without updated_at are refreshed independently. Tables
-        // that support it continue using the much smaller incremental request.
-        const full = await supabase.from(table).select('*');
-        if (full.error) throw full.error;
-        return { rows: full.data || [], full: true };
+        if (table === 'verba_flex_extrato' || table === 'emprestimos') {
+          const createdIncremental = await executeWithRetry<any[]>(() =>
+            supabase.from(table).select('*').gt('created_at', since)
+          );
+          if (!createdIncremental.error && createdIncremental.data) {
+            return { rows: createdIncremental.data, full: false };
+          }
+        }
+
+        const incremental = await executeWithRetry<any[]>(() =>
+          supabase.from(table).select('*').gt('updated_at', since)
+        );
+        if (!incremental.error && incremental.data) {
+          return { rows: incremental.data, full: false };
+        }
+
+        const missingUpdatedAt = incremental.error?.code === '42703'
+          || incremental.error?.code === 'PGRST204'
+          || incremental.error?.message?.includes('updated_at');
+
+        if (missingUpdatedAt || incremental.error?.code === '57014') {
+          // Fallback to full select for small tables
+          const full = await executeWithRetry<any[]>(() => supabase.from(table).select('*'));
+          if (!full.error && full.data) {
+            return { rows: full.data, full: true };
+          }
+        }
+
+        return { rows: [], full: false };
       };
 
       const [clientesRes, produtosRes, metasRes, visitasRes, histRes, estoqueRes, loansRes, flexRes] = await Promise.all([
@@ -418,7 +576,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       ]);
 
       const mergeResult = <T,>(cached: T[], result: { rows: any[]; full: boolean }, key: (item: T) => string) =>
-        result.full ? result.rows as T[] : mergeByKey(cached, result.rows as T[], key);
+        result.full ? (result.rows.length > 0 ? result.rows as T[] : cached) : mergeByKey(cached, result.rows as T[], key);
 
       const dbClientes = mergeResult(cachedClientes, clientesRes, item => item.id);
       const dbProdutos = mergeResult(cachedProdutos, produtosRes, item => item.id);
@@ -427,7 +585,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       const dbEstoque = mergeResult(cachedEstoque, estoqueRes, item => `${item.cliente_id}:${item.produto_id}`);
       const dbLoans = mergeResult(cachedLoans, loansRes, item => item.id);
       const dbFlex = mergeResult(cachedFlex, flexRes, item => item.id);
-      const dbMetas = metasRes.full ? {} as Record<string, number> : { ...cachedMetas };
+      const dbMetas = metasRes.full ? (metasRes.rows.length > 0 ? {} as Record<string, number> : { ...cachedMetas }) : { ...cachedMetas };
       metasRes.rows.forEach((meta: any) => { dbMetas[meta.cliente_id] = meta.meta || 0; });
 
       const syncTime = syncStartedAt;
