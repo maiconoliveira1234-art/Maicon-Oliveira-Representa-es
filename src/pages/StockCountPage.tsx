@@ -10,7 +10,7 @@ import {
   Calendar,
   TrendingDown,
   ShoppingCart,
-  Download,
+  Share2,
   X,
   FileText,
   Trash2,
@@ -31,6 +31,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import { FAMILY_PRIORITY_ORDER } from '../constants';
 import { DIAGNOSTICS } from '../lib/diagnostics';
 import { calcularPrecoComDesconto, getFaixaEfetiva, getValorUnitario } from '../lib/calculations';
+import { 
+  ExportReportModal, 
+  StockReportColumnId, 
+  DEFAULT_SELECTED_COLUMNS, 
+  STOCK_REPORT_COLUMNS 
+} from '../components/stock/ExportReportModal';
 
 const DEBUG_STOCK = DIAGNOSTICS.DEBUG_STOCK; // Centralized flag for stock counting screen
 
@@ -82,6 +88,9 @@ export function StockCountPage() {
   const [touchedItems, setTouchedItems] = useState<Set<string>>(new Set());
   const [countedGraceItems, setCountedGraceItems] = useState<Set<string>>(new Set());
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [selectedReportColumns, setSelectedReportColumns] = useState<StockReportColumnId[]>(DEFAULT_SELECTED_COLUMNS);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const countedGraceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   
@@ -765,7 +774,29 @@ export function StockCountPage() {
 
     navigate(`/pedido/novo/${clienteId}`);
   };
-  const handleExportPDF = async () => {
+  const handleOpenExportModal = () => {
+    setIsExportModalOpen(true);
+  };
+
+  const handleConfirmExportReport = async (chosenColumns: StockReportColumnId[]) => {
+    setSelectedReportColumns(chosenColumns);
+    setIsGeneratingPDF(true);
+
+    // Give React a tick to update the hidden DOM with the chosen columns
+    setTimeout(async () => {
+      try {
+        await executePDFExport();
+        setIsExportModalOpen(false);
+      } catch (err) {
+        console.error('Erro ao exportar PDF:', err);
+        alert('Erro ao exportar PDF.');
+      } finally {
+        setIsGeneratingPDF(false);
+      }
+    }, 150);
+  };
+
+  const executePDFExport = async () => {
     if (!exportRef.current) return;
     
     try {
@@ -826,7 +857,7 @@ export function StockCountPage() {
       }
     } catch (err) {
       console.error('Erro ao exportar PDF:', err);
-      alert('Erro ao exportar PDF.');
+      throw err;
     }
   };
 
@@ -1009,11 +1040,12 @@ export function StockCountPage() {
 
             <div className="row-span-2 flex items-center justify-end gap-2 shrink-0">
               <button 
-                onClick={handleExportPDF}
+                id="stock-count-export-pdf-desktop-btn"
+                onClick={handleOpenExportModal}
                 className="w-10 h-10 flex items-center justify-center bg-white text-neutral-700 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
                 title="Exportar PDF"
               >
-                <Download size={20} />
+                <Share2 size={20} />
               </button>
               <button 
                 onClick={handleSave}
@@ -1069,11 +1101,12 @@ export function StockCountPage() {
                 {cliente?.cliente}
               </h1>
               <button 
-                onClick={handleExportPDF}
+                id="stock-count-export-pdf-mobile-btn"
+                onClick={handleOpenExportModal}
                 className="w-8 h-8 flex items-center justify-center bg-white text-neutral-700 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95 shrink-0"
                 title="Exportar PDF"
               >
-                <Download size={17} />
+                <Share2 size={17} />
               </button>
               <button 
                 onClick={handleSave}
@@ -1714,50 +1747,143 @@ export function StockCountPage() {
 
         {/* Table */}
         <div className="flex-1">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr style={{ backgroundColor: '#171717', color: '#ffffff' }}>
-                <th className="py-3 px-2 text-left text-[9px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
-                <th className="py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest">Ult. Contagem</th>
-                <th className="py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest">Ult. Pedido ({diasDesdeUltimoPedidoGlobal}d)</th>
-                <th className="py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest" style={{ borderRight: '2px solid #e5e5e5' }}>Ult. Estoque</th>
-                <th className="py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest">Contagem Atual</th>
-                <th className="py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest rounded-tr-lg">Venda</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y" style={{ borderColor: '#f5f5f5' }}>
-              {chunk.map((item, idx) => {
-                const currentStock = estoqueMap[item.produto_id] ?? 0;
-                const isZeroStock = currentStock === 0;
-                const ultEstoque = item.ultima_contagem_valor + item.qtd_ultimo_pedido;
-                const venda = ultEstoque - currentStock;
+          {(() => {
+            const activeReportColumns = STOCK_REPORT_COLUMNS
+              .map(col => col.id)
+              .filter(colId => selectedReportColumns.includes(colId));
 
-                return (
-                  <tr key={item.produto_id} className="text-[11px]" style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
-                    <td className="py-3 px-2 font-bold leading-tight break-words max-w-[200px]" style={{ color: isZeroStock ? '#dc2626' : '#262626', fontWeight: isZeroStock ? 900 : 700 }}>
-                      {item.produto_nome}
-                    </td>
-                    <td className="py-3 px-2 text-center font-bold" style={{ color: '#737373' }}>
-                      {item.ultima_contagem_valor}
-                    </td>
-                    <td className="py-3 px-2 text-center font-bold" style={{ color: '#737373' }}>
-                      {item.qtd_ultimo_pedido}
-                    </td>
-                    <td className="py-3 px-2 text-center font-black" style={{ borderRight: '2px solid #f5f5f5', color: '#171717' }}>
-                      {ultEstoque}
-                    </td>
-                    <td className="py-3 px-2 text-center font-black" style={{ backgroundColor: isZeroStock ? 'rgba(254, 226, 226, 0.45)' : 'rgba(255, 247, 237, 0.3)', color: isZeroStock ? '#dc2626' : '#171717', fontWeight: 900 }}>
-                      {currentStock}
-                    </td>
-                    <td className="py-3 px-2 text-center font-black" style={{ color: venda > 0 ? '#dc2626' : (venda < 0 ? '#dc2626' : '#a3a3a3') }}>
-                      {venda}
-                    </td>
+            return (
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr style={{ backgroundColor: '#171717', color: '#ffffff' }}>
+                    {activeReportColumns.map((colId, cIdx) => {
+                      const isFirst = cIdx === 0;
+                      const isLast = cIdx === activeReportColumns.length - 1;
+                      const roundedClass = isFirst && isLast 
+                        ? 'rounded-lg' 
+                        : isFirst 
+                          ? 'rounded-tl-lg' 
+                          : isLast 
+                            ? 'rounded-tr-lg' 
+                            : '';
+
+                      switch (colId) {
+                        case 'produto':
+                          return (
+                            <th key="col-produto" className={`py-3 px-2 text-left text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
+                              Produto
+                            </th>
+                          );
+                        case 'ult_contagem':
+                          return (
+                            <th key="col-ult_contagem" className={`py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
+                              Ult. Contagem
+                            </th>
+                          );
+                        case 'ult_pedido':
+                          return (
+                            <th key="col-ult_pedido" className={`py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
+                              Ult. Pedido ({diasDesdeUltimoPedidoGlobal}d)
+                            </th>
+                          );
+                        case 'ult_estoque':
+                          return (
+                            <th key="col-ult_estoque" className={`py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`} style={{ borderRight: '2px solid #e5e5e5' }}>
+                              Ult. Estoque
+                            </th>
+                          );
+                        case 'contagem_atual':
+                          return (
+                            <th key="col-contagem_atual" className={`py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
+                              Contagem Atual
+                            </th>
+                          );
+                        case 'venda':
+                          return (
+                            <th key="col-venda" className={`py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
+                              Venda
+                            </th>
+                          );
+                        default:
+                          return null;
+                      }
+                    })}
                   </tr>
-                );
-              })}
+                </thead>
+                <tbody className="divide-y" style={{ borderColor: '#f5f5f5' }}>
+                  {chunk.map((item, idx) => {
+                    const currentStock = estoqueMap[item.produto_id] ?? 0;
+                    const isZeroStock = currentStock === 0;
+                    const ultEstoque = item.ultima_contagem_valor + item.qtd_ultimo_pedido;
+                    const venda = ultEstoque - currentStock;
 
-            </tbody>
-          </table>
+                    return (
+                      <tr key={item.produto_id} className="text-[11px]" style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
+                        {activeReportColumns.map((colId) => {
+                          switch (colId) {
+                            case 'produto':
+                              return (
+                                <td 
+                                  key="cell-produto"
+                                  className="py-3 px-2 font-bold leading-tight break-words max-w-[200px]" 
+                                  style={{ color: isZeroStock ? '#dc2626' : '#262626', fontWeight: isZeroStock ? 900 : 700 }}
+                                >
+                                  {item.produto_nome}
+                                </td>
+                              );
+                            case 'ult_contagem':
+                              return (
+                                <td key="cell-ult_contagem" className="py-3 px-2 text-center font-bold" style={{ color: '#737373' }}>
+                                  {item.ultima_contagem_valor}
+                                </td>
+                              );
+                            case 'ult_pedido':
+                              return (
+                                <td key="cell-ult_pedido" className="py-3 px-2 text-center font-bold" style={{ color: '#737373' }}>
+                                  {item.qtd_ultimo_pedido}
+                                </td>
+                              );
+                            case 'ult_estoque':
+                              return (
+                                <td key="cell-ult_estoque" className="py-3 px-2 text-center font-black" style={{ borderRight: '2px solid #f5f5f5', color: '#171717' }}>
+                                  {ultEstoque}
+                                </td>
+                              );
+                            case 'contagem_atual':
+                              return (
+                                <td 
+                                  key="cell-contagem_atual"
+                                  className="py-3 px-2 text-center font-black" 
+                                  style={{ 
+                                    backgroundColor: isZeroStock ? 'rgba(254, 226, 226, 0.45)' : 'rgba(255, 247, 237, 0.3)', 
+                                    color: isZeroStock ? '#dc2626' : '#171717', 
+                                    fontWeight: 900 
+                                  }}
+                                >
+                                  {currentStock}
+                                </td>
+                              );
+                            case 'venda':
+                              return (
+                                <td 
+                                  key="cell-venda"
+                                  className="py-3 px-2 text-center font-black" 
+                                  style={{ color: venda > 0 ? '#dc2626' : (venda < 0 ? '#dc2626' : '#a3a3a3') }}
+                                >
+                                  {venda}
+                                </td>
+                              );
+                            default:
+                              return null;
+                          }
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            );
+          })()}
         </div>
 
         {/* Footer */}
@@ -1770,6 +1896,18 @@ export function StockCountPage() {
     ));
   })()}
 </div>
+
+      {/* Modal de Configuração e Compartilhamento de Relatório */}
+      <ExportReportModal
+        isOpen={isExportModalOpen}
+        onClose={() => {
+          if (!isGeneratingPDF) {
+            setIsExportModalOpen(false);
+          }
+        }}
+        onConfirm={handleConfirmExportReport}
+        isGenerating={isGeneratingPDF}
+      />
     </div>
   );
 }
