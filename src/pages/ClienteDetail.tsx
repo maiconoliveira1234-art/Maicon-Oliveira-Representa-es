@@ -16,12 +16,15 @@ import {
   Phone,
   Coins,
   Eye,
-  EyeOff
+  EyeOff,
+  Pencil
 } from 'lucide-react';
-import { Cliente, HistVenda, EstoqueCliente } from '../types';
+import { Cliente, HistVenda, EstoqueCliente, Produto, Emprestimo } from '../types';
 import { supabase } from '../lib/supabase';
 import { cn, formatWeight, formatCurrency } from '../lib/utils';
 import { classifySaleRecord } from '../lib/salesClassifier';
+import { getSalesOrderIdentity } from '../lib/orderIdentity';
+import { OrderEditModal, EditableOrderGroup } from '../components/orders/OrderEditModal';
 import { 
   BarChart, 
   Bar, 
@@ -48,12 +51,8 @@ import {
 import { ptBR } from 'date-fns/locale';
 
 import { MOCK_CLIENTES, MOCK_HISTORICO, MOCK_PRODUTOS } from '../lib/mockData';
-import { Produto } from '../types';
 import { shouldExcludeSale } from '../constants';
-
 import { useDataManager } from '../lib/dataManager';
-import { Emprestimo } from '../types';
-
 import { StockCountSkeleton } from '../components/ui/Skeleton';
 
 // Helper to determine order core category visual styling list
@@ -124,6 +123,7 @@ export function ClienteDetail() {
     agenda_visitas: cachedVisitas = [],
     emprestimos: cachedLoans = [],
     verba_flex_extrato: cachedFlex = [],
+    hist_vendas: cachedHistVendas = [],
     loadClientDetails, 
     prefetchClientData 
   } = useDataManager();
@@ -137,7 +137,8 @@ export function ClienteDetail() {
   const [flexExtrato, setFlexExtrato] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedOrderDate, setSelectedOrderDate] = useState<string | null>(null);
+  const [selectedOrderKey, setSelectedOrderKey] = useState<string | null>(null);
+  const [editingOrderGroup, setEditingOrderGroup] = useState<EditableOrderGroup | null>(null);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [showFlex, setShowFlex] = useState(false);
 
@@ -415,47 +416,56 @@ export function ClienteDetail() {
     }, {} as Record<string, Produto>);
   }, [produtos]);
 
-  const ordersByDate = React.useMemo(() => {
+  // Reative Client History synchronized with Global DataManager
+  const activeHistorico = React.useMemo(() => {
+    if (!id) return [];
+    const fromDM = cachedHistVendas.filter(h => h.cliente_id === id);
+    if (fromDM.length > 0) return fromDM;
+    return historico;
+  }, [cachedHistVendas, id, historico]);
+
+  const ordersGrouped = React.useMemo<EditableOrderGroup[]>(() => {
     const groups: Record<string, HistVenda[]> = {};
-    historico.forEach(h => {
-      const date = h.faturamento;
-      if (!groups[date]) groups[date] = [];
-      groups[date].push(h);
+    activeHistorico.forEach(h => {
+      const key = getSalesOrderIdentity(h);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(h);
     });
     
     return Object.entries(groups)
-      .map(([date, items]) => {
-        // Group items by product to avoid duplicates
-        const groupedItems: Record<string, HistVenda> = {};
-        items.forEach(item => {
-          const key = item.produto_id || item.produtos;
-          if (!groupedItems[key]) {
-            groupedItems[key] = { ...item };
-          } else {
-            groupedItems[key].qtd += item.qtd;
-            groupedItems[key]["r$_total"] += item["r$_total"];
-          }
-        });
-
-        const finalItems = Object.values(groupedItems);
+      .map(([key, items]) => {
+        const date = items[0]?.faturamento || '';
+        const pedidoId = items[0]?.pedido_id;
+        const numeroPedidoErp = items[0]?.numero_pedido_erp;
+        const clienteId = items[0]?.cliente_id || id || '';
+        const clienteNome = items[0]?.cliente || cliente?.cliente || '';
 
         return {
+          key,
+          pedidoId,
+          numeroPedidoErp,
           date,
-          items: finalItems,
-          total: finalItems.reduce((acc, item) => acc + (item["r$_total"] || 0), 0),
-          totalWeight: finalItems.reduce((acc, item) => {
+          clienteId,
+          clienteNome,
+          items,
+          total: items.reduce((acc, item) => acc + (Number(item["r$_total"]) || 0), 0),
+          totalWeight: items.reduce((acc, item) => {
             const prod = produtosMap[item.produto_id];
-            return acc + (item.qtd * (prod?.peso_embalagem || 0));
+            return acc + ((Number(item.qtd) || 0) * (prod?.peso_embalagem || 0));
           }, 0)
         };
       })
-      .sort((a, b) => parseISO(b.date).getTime() - parseISO(a.date).getTime());
-  }, [historico, produtosMap]);
+      .sort((a, b) => {
+        const timeA = a.date ? parseISO(a.date).getTime() : 0;
+        const timeB = b.date ? parseISO(b.date).getTime() : 0;
+        return timeB - timeA;
+      });
+  }, [activeHistorico, produtosMap, id, cliente]);
 
   const selectedOrder = React.useMemo(() => {
-    if (!selectedOrderDate) return null;
-    return ordersByDate.find(o => o.date === selectedOrderDate);
-  }, [ordersByDate, selectedOrderDate]);
+    if (!selectedOrderKey) return null;
+    return ordersGrouped.find(o => o.key === selectedOrderKey) || null;
+  }, [ordersGrouped, selectedOrderKey]);
 
   if (loading) return <StockCountSkeleton />;
   if (!cliente) return <div className="p-8 text-center">Cliente não encontrado.</div>;
@@ -466,7 +476,7 @@ export function ClienteDetail() {
   const endOfCurrentMonth = endOfMonth(now);
 
   // Realizado (Current Month)
-  const realizado = historico
+  const realizado = activeHistorico
     .filter(h => {
       // Selective cutoff filter
       if (shouldExcludeSale(cliente.cliente, h.faturamento)) return false;
@@ -481,7 +491,7 @@ export function ClienteDetail() {
 
   // Média 6m (excluding current month)
   const sixMonthsAgo = startOfMonth(subMonths(now, 6));
-  const media6mData = historico
+  const media6mData = activeHistorico
     .filter(h => {
       // Selective cutoff filter
       if (shouldExcludeSale(cliente.cliente, h.faturamento)) return false;
@@ -496,7 +506,7 @@ export function ClienteDetail() {
 
   // Média 12m (excluding current month)
   const twelveMonthsAgo = startOfMonth(subMonths(now, 12));
-  const media12mData = historico
+  const media12mData = activeHistorico
     .filter(h => {
       // Selective cutoff filter
       if (shouldExcludeSale(cliente.cliente, h.faturamento)) return false;
@@ -513,7 +523,7 @@ export function ClienteDetail() {
   let mediaCiclo = 0;
   let diasUltima = 0;
   
-  const recompraHistorico = historico.filter(h => classifySaleRecord(h).influenciaConsumo);
+  const recompraHistorico = activeHistorico.filter(h => classifySaleRecord(h).influenciaConsumo);
   if (recompraHistorico.length > 0) {
     const sortedVendas = [...recompraHistorico].sort((a, b) => parseISO(b.faturamento).getTime() - parseISO(a.faturamento).getTime());
     const ultVenda = sortedVendas[0];
@@ -879,12 +889,12 @@ export function ClienteDetail() {
           </button>
         </div>
         
-        {ordersByDate.slice(0, 3).map((order) => {
+        {ordersGrouped.slice(0, 3).map((order) => {
           const classifs = getOrderClassificationsList(order.items);
           return (
             <button 
-              key={order.date} 
-              onClick={() => setSelectedOrderDate(order.date)}
+              key={order.key} 
+              onClick={() => setSelectedOrderKey(order.key)}
               className="w-full bg-white p-4 pl-6 rounded-lg border border-neutral-200 shadow-sm flex justify-between items-center transition-all text-left relative overflow-hidden hover:bg-neutral-50/80 active:scale-[0.99]"
             >
               {/* Custom multi-color indicator side bar */}
@@ -905,7 +915,12 @@ export function ClienteDetail() {
                       />
                     ))}
                   </div>
-                  <p className="font-bold text-neutral-950">Pedido em {format(parseISO(order.date), 'dd/MM/yyyy')}</p>
+                  <p className="font-bold text-neutral-950">Pedido em {order.date ? format(parseISO(order.date), 'dd/MM/yyyy') : 'Sem data'}</p>
+                  {order.numeroPedidoErp && (
+                    <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.2 bg-neutral-100 text-neutral-600 rounded">
+                      ERP: {order.numeroPedidoErp}
+                    </span>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5 mt-1">
                   {classifs.map((c) => (
@@ -940,17 +955,37 @@ export function ClienteDetail() {
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white w-full max-w-lg rounded-t-lg sm:rounded-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="p-6 border-b border-neutral-100 flex justify-between items-center bg-neutral-50">
-              <div>
-                <h3 className="text-xl font-black text-neutral-900">Detalhes do Pedido</h3>
-                <p className="text-sm text-neutral-500 font-bold">{format(parseISO(selectedOrder.date), 'dd/MM/yyyy')}</p>
+            <div className="p-5 sm:p-6 border-b border-neutral-100 flex justify-between items-center bg-neutral-50">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xl font-black text-neutral-900">Detalhes do Pedido</h3>
+                  {selectedOrder.numeroPedidoErp && (
+                    <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 bg-neutral-200 text-neutral-700 rounded-md">
+                      ERP: {selectedOrder.numeroPedidoErp}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-neutral-500 font-bold">
+                  {selectedOrder.date ? format(parseISO(selectedOrder.date), 'dd/MM/yyyy') : 'Data não informada'}
+                </p>
               </div>
-              <button 
-                onClick={() => setSelectedOrderDate(null)}
-                className="p-2 hover:bg-neutral-200 rounded-full transition-colors"
-              >
-                <XCircle size={24} className="text-neutral-400" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingOrderGroup(selectedOrder)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 text-xs font-black rounded-lg transition-colors border border-orange-200/60"
+                  title="Editar pedido"
+                >
+                  <Pencil size={13} />
+                  <span>Editar</span>
+                </button>
+                <button 
+                  onClick={() => setSelectedOrderKey(null)}
+                  className="p-2 hover:bg-neutral-200 rounded-full transition-colors"
+                >
+                  <XCircle size={24} className="text-neutral-400" />
+                </button>
+              </div>
             </div>
             
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
@@ -996,16 +1031,14 @@ export function ClienteDetail() {
               })}
             </div>
 
-            <div className="p-6 bg-orange-50 border-t border-orange-100">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-[10px] font-bold text-orange-400 uppercase">Total do Pedido</p>
-                  <p className="text-2xl font-black text-orange-600">{formatCurrency(selectedOrder.total)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] font-bold text-orange-400 uppercase">Peso Total</p>
-                  <p className="text-xl font-black text-neutral-700">{formatWeight(selectedOrder.totalWeight)}</p>
-                </div>
+            <div className="p-5 sm:p-6 bg-orange-50 border-t border-orange-100 flex justify-between items-center">
+              <div>
+                <p className="text-[10px] font-bold text-orange-400 uppercase">Total do Pedido</p>
+                <p className="text-2xl font-black text-orange-600">{formatCurrency(selectedOrder.total)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-bold text-orange-400 uppercase">Peso Total</p>
+                <p className="text-xl font-black text-neutral-700">{formatWeight(selectedOrder.totalWeight)}</p>
               </div>
             </div>
           </div>
@@ -1027,12 +1060,12 @@ export function ClienteDetail() {
           </header>
           
           <div className="flex-1 overflow-y-auto p-4 max-w-4xl mx-auto w-full space-y-3">
-            {ordersByDate.map((order) => {
+            {ordersGrouped.map((order) => {
               const classifs = getOrderClassificationsList(order.items);
               return (
                 <button 
-                  key={order.date} 
-                  onClick={() => setSelectedOrderDate(order.date)}
+                  key={order.key} 
+                  onClick={() => setSelectedOrderKey(order.key)}
                   className="w-full bg-white p-4 pl-6 rounded-lg border border-neutral-200 shadow-sm flex justify-between items-center text-left transition-all relative overflow-hidden hover:bg-neutral-50/80 active:scale-[0.99]"
                 >
                   {/* Custom multi-color indicator side bar */}
@@ -1053,7 +1086,12 @@ export function ClienteDetail() {
                           />
                         ))}
                       </div>
-                      <p className="font-bold text-neutral-950">{format(parseISO(order.date), 'dd/MM/yyyy')}</p>
+                      <p className="font-bold text-neutral-950">Pedido em {order.date ? format(parseISO(order.date), 'dd/MM/yyyy') : 'Sem data'}</p>
+                      {order.numeroPedidoErp && (
+                        <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.2 bg-neutral-100 text-neutral-600 rounded">
+                          ERP: {order.numeroPedidoErp}
+                        </span>
+                      )}
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 mt-1">
                       {classifs.map((c) => (
@@ -1084,6 +1122,22 @@ export function ClienteDetail() {
             })}
           </div>
         </div>
+      )}
+
+      {/* Order Edit Modal */}
+      {editingOrderGroup && (
+        <OrderEditModal
+          isOpen={!!editingOrderGroup}
+          onClose={() => setEditingOrderGroup(null)}
+          order={editingOrderGroup}
+          clienteOriginal={cliente}
+          clientes={cachedClientes}
+          produtos={produtos}
+          onSaved={() => {
+            setSelectedOrderKey(null);
+            setEditingOrderGroup(null);
+          }}
+        />
       )}
     </div>
   );

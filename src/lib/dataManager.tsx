@@ -18,6 +18,41 @@ export interface OfflineQueueItem {
   timestamp: number;
 }
 
+export type UpdateOrderItemPayload = {
+  id: string;
+  produto_id: string;
+  produtos: string;
+  qtd: number;
+  "r$_total": number;
+  vendas?: string;
+  tabela?: string;
+  xdt?: number;
+  "acresc."?: number;
+};
+
+export type NewOrderItemPayload = {
+  produto_id: string;
+  produtos: string;
+  qtd: number;
+  "r$_total": number;
+  vendas?: string;
+  tabela?: string;
+  xdt?: number;
+  "acresc."?: number;
+  numero_pedido_erp?: string;
+};
+
+export type UpdateOrderSalesParams = {
+  pedidoId: string;
+  clienteOriginalId: string;
+  novoClienteId: string;
+  novoClienteNome: string;
+  novaData: string;
+  itensAtualizados: UpdateOrderItemPayload[];
+  itensNovos: NewOrderItemPayload[];
+  itensRemovidosIds: string[];
+};
+
 export type StockCountSaveResult = {
   status: 'synced' | 'queued';
   error?: string;
@@ -51,6 +86,7 @@ interface DataManagerContextType {
   
   // Offline-safe write operations
   saveStockCount: (clienteId: string, items: any[]) => Promise<StockCountSaveResult>;
+  updateOrderSales: (params: UpdateOrderSalesParams) => Promise<{ success: boolean; error?: string }>;
   updateVisitaStatus: (visitaId: string, status: string) => Promise<boolean>;
   updateVisitaObservacoes: (visitaId: string, observacoes: string) => Promise<boolean>;
   addLoan: (loanData: any) => Promise<boolean>;
@@ -916,6 +952,307 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     return true;
   }, [queueAction]);
 
+  // Transactional Order Editor (ATOMIC)
+  const updateOrderSales = useCallback(async (params: UpdateOrderSalesParams): Promise<{ success: boolean; error?: string }> => {
+    try {
+      let rpcSuccess = false;
+
+      // 1. TENTATIVA 1: RPC PostgreSQL Transacional (Tudo ou Nada)
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('editar_pedido_venda_transacional', {
+          p_pedido_id: params.pedidoId,
+          p_cliente_id_origem: String(params.clienteOriginalId),
+          p_cliente_id_destino: String(params.novoClienteId),
+          p_cliente_nome_destino: params.novoClienteNome,
+          p_nova_data: params.novaData,
+          p_itens_atualizados: params.itensAtualizados.map(i => ({
+            id: String(i.id),
+            produto_id: String(i.produto_id),
+            produtos: i.produtos,
+            qtd: Number(i.qtd),
+            r_total: Number(i["r$_total"]),
+            vendas: i.vendas || 'VENDA',
+            tabela: i.tabela || 'TABELA PADRAO',
+            xdt: Number(i.xdt || 0),
+            acresc_val: Number(i["acresc."] || 0)
+          })),
+          p_itens_novos: params.itensNovos.map(n => ({
+            produto_id: String(n.produto_id),
+            produtos: n.produtos,
+            qtd: Number(n.qtd),
+            r_total: Number(n["r$_total"]),
+            vendas: n.vendas || 'VENDA',
+            tabela: n.tabela || 'TABELA PADRAO',
+            xdt: Number(n.xdt || 0),
+            acresc_val: Number(n["acresc."] || 0),
+            numero_pedido_erp: n.numero_pedido_erp || null
+          })),
+          p_itens_removidos_ids: params.itensRemovidosIds.map(id => String(id))
+        });
+
+        if (rpcError) {
+          console.warn('[DataManager] RPC editar_pedido_venda_transacional retornou erro, acionando fallback seguro:', rpcError.message);
+          rpcSuccess = false;
+        } else {
+          rpcSuccess = true;
+          console.log('[DataManager] Pedido editado com sucesso via RPC PostgreSQL transacional:', rpcData);
+        }
+      } catch (rpcErr: any) {
+        console.warn('[DataManager] Exceção ao chamar RPC editar_pedido_venda_transacional, acionando fallback:', rpcErr);
+        rpcSuccess = false;
+      }
+
+      // 2. TENTATIVA 2: FALLBACK ATÔMICO COM ROLLBACK POR APLICAÇÃO
+      if (!rpcSuccess) {
+        // Snapshot dos registros originais antes da mutação para garantir rollback completo em caso de falha
+        const originalRows = histVendas.filter(h => 
+          (h.pedido_id && h.pedido_id === params.pedidoId) || 
+          params.itensAtualizados.some(i => String(i.id) === String(h.id)) ||
+          params.itensRemovidosIds.some(remId => String(remId) === String(h.id))
+        );
+
+        const createdNewIds: string[] = [];
+        let canUsePedidoId = true;
+
+        try {
+          // A. Excluir itens removidos
+          if (params.itensRemovidosIds.length > 0) {
+            const { error: delError } = await supabase
+              .from('hist_vendas')
+              .delete()
+              .in('id', params.itensRemovidosIds);
+            if (delError) throw delError;
+          }
+
+          // B. Atualizar itens existentes modificados
+          for (const item of params.itensAtualizados) {
+            const buildPayload = (includePedidoId: boolean) => {
+              const payload: Record<string, any> = {
+                cliente_id: params.novoClienteId,
+                cliente: params.novoClienteNome,
+                faturamento: params.novaData,
+                produto_id: item.produto_id,
+                produtos: item.produtos,
+                qtd: Number(item.qtd),
+                "r$_total": Number(item["r$_total"])
+              };
+              if (includePedidoId && canUsePedidoId && params.pedidoId) {
+                payload.pedido_id = params.pedidoId;
+              }
+              if (item.vendas) payload.vendas = item.vendas;
+              if (item.tabela) payload.tabela = item.tabela;
+              if (item.xdt !== undefined) payload.xdt = Number(item.xdt);
+              if (item["acresc."] !== undefined) payload["acresc."] = Number(item["acresc."]);
+              return payload;
+            };
+
+            let { error: updError } = await supabase
+              .from('hist_vendas')
+              .update(buildPayload(true))
+              .eq('id', item.id);
+
+            // Caso o PostgREST schema cache ainda não tenha registrado pedido_id (PGRST204)
+            if (updError && (updError.code === 'PGRST204' || updError.message?.includes('pedido_id'))) {
+              canUsePedidoId = false;
+              const retryResult = await supabase
+                .from('hist_vendas')
+                .update(buildPayload(false))
+                .eq('id', item.id);
+              updError = retryResult.error;
+            }
+
+            if (updError) throw updError;
+          }
+
+          // C. Atualizar cliente e data para outras linhas remanescentes do mesmo pedido_id
+          if (canUsePedidoId && params.pedidoId) {
+            const { error: syncRemainingError } = await supabase
+              .from('hist_vendas')
+              .update({
+                pedido_id: params.pedidoId,
+                cliente_id: params.novoClienteId,
+                cliente: params.novoClienteNome,
+                faturamento: params.novaData
+              })
+              .eq('pedido_id', params.pedidoId);
+            
+            if (syncRemainingError && syncRemainingError.code !== 'PGRST204') {
+              console.warn('[DataManager] Erro ao sincronizar linhas remanescentes por pedido_id:', syncRemainingError.message);
+            }
+          }
+
+          // D. Inserir novos itens
+          if (params.itensNovos.length > 0) {
+            const buildInsertList = (includePedidoId: boolean) => params.itensNovos.map(n => {
+              const itemObj: Record<string, any> = {
+                cliente_id: params.novoClienteId,
+                cliente: params.novoClienteNome,
+                faturamento: params.novaData,
+                produto_id: n.produto_id,
+                produtos: n.produtos,
+                qtd: Number(n.qtd),
+                "r$_total": Number(n["r$_total"]),
+                vendas: n.vendas || 'VENDA',
+                tabela: n.tabela || 'TABELA PADRAO',
+                xdt: Number(n.xdt || 0),
+                "acresc.": Number(n["acresc."] || 0),
+                numero_pedido_erp: n.numero_pedido_erp || null,
+                importado_em: new Date().toISOString()
+              };
+              if (includePedidoId && canUsePedidoId && params.pedidoId) {
+                itemObj.pedido_id = params.pedidoId;
+              }
+              return itemObj;
+            });
+
+            let { data: insData, error: insError } = await supabase
+              .from('hist_vendas')
+              .insert(buildInsertList(true))
+              .select('id');
+
+            if (insError && (insError.code === 'PGRST204' || insError.message?.includes('pedido_id'))) {
+              canUsePedidoId = false;
+              const retryIns = await supabase
+                .from('hist_vendas')
+                .insert(buildInsertList(false))
+                .select('id');
+              insData = retryIns.data;
+              insError = retryIns.error;
+            }
+
+            if (insError) throw insError;
+            if (insData) {
+              insData.forEach(d => createdNewIds.push(d.id));
+            }
+          }
+        } catch (fallbackError: any) {
+          console.error('[DataManager] Falha no fallback de edição de pedido. Executando Rollback Transacional:', fallbackError);
+          // Rollback: deleta os novos criados e restaura o snapshot original
+          if (createdNewIds.length > 0) {
+            try {
+              await supabase.from('hist_vendas').delete().in('id', createdNewIds);
+            } catch (e) {
+              console.error('Rollback delete error:', e);
+            }
+          }
+          if (originalRows.length > 0) {
+            try {
+              await supabase.from('hist_vendas').upsert(originalRows);
+            } catch (e) {
+              console.error('Rollback upsert error:', e);
+            }
+          }
+          throw fallbackError;
+        }
+      }
+
+      // 3. SINCRONIZAÇÃO ATÔMICA DO ESTADO LOCAL E CACHE
+      let freshOrderRows: HistVenda[] = [];
+      try {
+        if (params.pedidoId) {
+          const { data: refreshed, error: fetchErr } = await supabase
+            .from('hist_vendas')
+            .select('*')
+            .eq('pedido_id', params.pedidoId);
+
+          if (!fetchErr && refreshed && refreshed.length > 0) {
+            freshOrderRows = refreshed as HistVenda[];
+          }
+        }
+      } catch {
+        // Ignora erro de consulta por pedido_id e utiliza síntese local
+      }
+
+      if (freshOrderRows.length === 0) {
+        // Síntese local para manter reatividade imediata mesmo se houver latência de rede
+        const updatedMap = new Map(params.itensAtualizados.map(i => [String(i.id), i]));
+        const removedSet = new Set(params.itensRemovidosIds.map(String));
+
+        const retained = histVendas
+          .filter(h => !removedSet.has(String(h.id)))
+          .map(h => {
+            const upd = updatedMap.get(String(h.id));
+            if (upd) {
+              return {
+                ...h,
+                pedido_id: params.pedidoId,
+                cliente_id: params.novoClienteId,
+                cliente: params.novoClienteNome,
+                faturamento: params.novaData,
+                produto_id: upd.produto_id,
+                produtos: upd.produtos,
+                qtd: Number(upd.qtd),
+                "r$_total": Number(upd["r$_total"]),
+                ...(upd.vendas ? { vendas: upd.vendas } : {}),
+                ...(upd.tabela ? { tabela: upd.tabela } : {}),
+                ...(upd.xdt !== undefined ? { xdt: Number(upd.xdt) } : {}),
+                ...(upd["acresc."] !== undefined ? { "acresc.": Number(upd["acresc."]) } : {})
+              };
+            }
+            if (h.pedido_id && h.pedido_id === params.pedidoId) {
+              return {
+                ...h,
+                cliente_id: params.novoClienteId,
+                cliente: params.novoClienteNome,
+                faturamento: params.novaData
+              };
+            }
+            return h;
+          });
+
+        const syntheticNew: HistVenda[] = params.itensNovos.map((n, idx) => ({
+          id: `new-${Date.now()}-${idx}`,
+          pedido_id: params.pedidoId,
+          cliente_id: params.novoClienteId,
+          cliente: params.novoClienteNome,
+          faturamento: params.novaData,
+          produto_id: n.produto_id,
+          produtos: n.produtos,
+          qtd: Number(n.qtd),
+          "r$_total": Number(n["r$_total"]),
+          vendas: n.vendas || 'VENDA',
+          tabela: n.tabela || 'TABELA PADRAO',
+          xdt: Number(n.xdt || 0),
+          "acresc.": Number(n["acresc."] || 0),
+          numero_pedido_erp: n.numero_pedido_erp,
+          importado_em: new Date().toISOString()
+        }));
+
+        freshOrderRows = [
+          ...retained.filter(h => 
+            (h.pedido_id && h.pedido_id === params.pedidoId) ||
+            params.itensAtualizados.some(i => String(i.id) === String(h.id))
+          ), 
+          ...syntheticNew
+        ];
+      }
+
+      // Atualizar o array de histVendas no estado da aplicação
+      setHistVendas(prev => {
+        const removedSet = new Set(params.itensRemovidosIds.map(String));
+        const updatedIdsSet = new Set(params.itensAtualizados.map(i => String(i.id)));
+        const freshIdsSet = new Set(freshOrderRows.map(f => String(f.id)));
+        
+        // Remove as linhas antigas deste pedido, os removidos, os modificados e os recém inseridos
+        const cleanList = prev.filter(h => 
+          (!params.pedidoId || h.pedido_id !== params.pedidoId) && 
+          !removedSet.has(String(h.id)) &&
+          !updatedIdsSet.has(String(h.id)) &&
+          !freshIdsSet.has(String(h.id))
+        );
+
+        const nextHist = [...cleanList, ...freshOrderRows];
+        savePersisted('offline_db_hist_vendas', nextHist);
+        return nextHist;
+      });
+
+      return { success: true };
+    } catch (err: any) {
+      console.error('[DataManager] Erro ao editar pedido de venda:', err);
+      return { success: false, error: err.message || 'Falha ao atualizar pedido' };
+    }
+  }, [histVendas]);
+
   // Client Details compatibility lookup
   const clientCache = useMemo(() => {
     const historicoByClient: Record<string, HistVenda[]> = {};
@@ -1046,6 +1383,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       syncAllData,
       
       saveStockCount,
+      updateOrderSales,
       updateVisitaStatus,
       updateVisitaObservacoes,
       addLoan,

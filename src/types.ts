@@ -47,6 +47,9 @@ export type HistVenda = {
   data?: string;
   cliente_id: string;
   produto_id: string;
+  numero_pedido_erp?: string;
+  pedido_id?: string;
+  importado_em?: string;
 };
 
 export type EstoqueCliente = {
