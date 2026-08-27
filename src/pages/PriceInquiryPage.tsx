@@ -345,6 +345,16 @@ export function PriceInquiryPage() {
 
     setExporting(true);
     try {
+      if (document.fonts) {
+        try {
+          await document.fonts.ready;
+        } catch (e) {
+          // continue
+        }
+      }
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await new Promise(resolve => setTimeout(resolve, 350));
+
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -367,7 +377,7 @@ export function PriceInquiryPage() {
           scrollY: 0
         });
         
-        const imgData = canvas.toDataURL('image/jpeg', 0.85);
+        const imgData = canvas.toDataURL('image/jpeg', 0.90);
         
         if (i > 0) pdf.addPage();
         
@@ -375,7 +385,7 @@ export function PriceInquiryPage() {
         const imgWidth = 210;
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
         
-        pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+        pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, Math.min(imgHeight, 297));
       }
 
       const pdfBlob = pdf.output('blob');
@@ -755,12 +765,13 @@ export function PriceInquiryPage() {
 <div 
   ref={exportRef}
   style={{ 
-    position: 'absolute', 
+    position: 'fixed', 
     left: '-9999px', 
     top: '0px', 
     width: '800px', 
     color: '#171717', 
     backgroundColor: '#ffffff',
+    zIndex: -999,
     pointerEvents: 'none' 
   }}
 >
@@ -771,11 +782,25 @@ export function PriceInquiryPage() {
       chunks.push(selectedProductsList.slice(i, i + itemsPerPage));
     }
 
+    if (chunks.length === 0) {
+      chunks.push([]);
+    }
+
     return chunks.map((chunk, pageIdx) => (
       <div 
         key={pageIdx}
-        className="pdf-page w-[800px] h-[1130px] bg-white p-[40px] flex flex-col font-sans mb-10"
-        style={{ fontFamily: 'Arial, sans-serif', backgroundColor: '#ffffff', color: '#171717' }}
+        className="pdf-page bg-white flex flex-col font-sans"
+        style={{ 
+          width: '800px', 
+          minHeight: '1130px', 
+          height: '1130px', 
+          boxSizing: 'border-box', 
+          overflow: 'hidden',
+          padding: '36px 40px',
+          fontFamily: 'Arial, sans-serif', 
+          backgroundColor: '#ffffff', 
+          color: '#171717' 
+        }}
       >
         {/* Header */}
         <div className="flex justify-between items-start border-b-2 pb-6 mb-8" style={{ borderColor: '#262626' }}>

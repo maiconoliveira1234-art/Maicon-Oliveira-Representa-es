@@ -13,7 +13,7 @@ import {
 
 export interface OfflineQueueItem {
   id: string;
-  action: 'save_stock_count' | 'update_visita_status' | 'update_visita_observacoes' | 'add_loan' | 'update_loan_status' | 'delete_loan';
+  action: 'save_stock_count' | 'update_visita_status' | 'update_visita_observacoes' | 'add_loan' | 'update_loan_status' | 'delete_loan' | 'save_open_order' | 'delete_open_order';
   payload: any;
   timestamp: number;
 }
@@ -92,6 +92,17 @@ interface DataManagerContextType {
   addLoan: (loanData: any) => Promise<boolean>;
   updateLoanStatus: (loanId: string, status: string, devDate: string | null) => Promise<boolean>;
   deleteLoan: (loanId: string) => Promise<boolean>;
+  saveOpenOrder: (payload: {
+    cliente_id: string;
+    items: any[];
+    prazo?: string | null;
+    obs?: string | null;
+    manual_faixa?: string | null;
+    desconto_extra?: number;
+    started_at?: string | null;
+    updated_at?: string | null;
+  }) => Promise<{ status: 'synced' | 'queued'; error?: string }>;
+  deleteOpenOrder: (clienteId: string) => Promise<{ status: 'synced' | 'queued'; error?: string }>;
   
   // Compatibility methods
   loadClientDetails: (clientId: string, forceRefresh?: boolean) => Promise<ClientCache | undefined>;
@@ -339,6 +350,28 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
         } else if (item.action === 'delete_loan') {
           const { id } = item.payload;
           await supabase.from('emprestimos').delete().eq('id', id);
+        } else if (item.action === 'save_open_order') {
+          const payload = item.payload;
+          const { error } = await supabase
+            .from('pedidos_em_aberto')
+            .upsert({
+              cliente_id: payload.cliente_id,
+              items: payload.items,
+              prazo: payload.prazo || null,
+              obs: payload.obs || null,
+              manual_faixa: payload.manual_faixa || null,
+              desconto_extra: payload.desconto_extra || 0,
+              started_at: payload.started_at || new Date().toISOString(),
+              updated_at: payload.updated_at || new Date().toISOString()
+            }, { onConflict: 'cliente_id' });
+          if (error) throw error;
+        } else if (item.action === 'delete_open_order') {
+          const { cliente_id } = item.payload;
+          const { error } = await supabase
+            .from('pedidos_em_aberto')
+            .delete()
+            .eq('cliente_id', cliente_id);
+          if (error) throw error;
         }
       }
       
@@ -952,6 +985,123 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     return true;
   }, [queueAction]);
 
+  const queueOpenOrderForRetry = useCallback(async (action: 'save_open_order' | 'delete_open_order', payload: any) => {
+    const currentQueue = await loadPersisted<OfflineQueueItem[]>('offline_db_pending_queue', []);
+    const targetClienteId = payload.cliente_id || payload.clienteId;
+    const filteredQueue = currentQueue.filter(item =>
+      !( (item.action === 'save_open_order' || item.action === 'delete_open_order') &&
+         (item.payload?.cliente_id === targetClienteId || item.payload?.clienteId === targetClienteId) )
+    );
+    const queuedItem: OfflineQueueItem = {
+      id: `${action}_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+      action,
+      payload,
+      timestamp: Date.now()
+    };
+    const updatedQueue = [...filteredQueue, queuedItem];
+    setPendingQueue(updatedQueue);
+    savePersisted('offline_db_pending_queue', updatedQueue);
+  }, []);
+
+  // Offline-Safe Write Wrapper: saveOpenOrder
+  const saveOpenOrder = useCallback(async (payload: {
+    cliente_id: string;
+    items: any[];
+    prazo?: string | null;
+    obs?: string | null;
+    manual_faixa?: string | null;
+    desconto_extra?: number;
+    started_at?: string | null;
+    updated_at?: string | null;
+  }) => {
+    const rawData = {
+      items: payload.items,
+      prazo: payload.prazo,
+      obs: payload.obs,
+      manualFaixa: payload.manual_faixa,
+      startedAt: payload.started_at || new Date().toISOString(),
+      updatedAt: payload.updated_at || new Date().toISOString()
+    };
+    localStorage.setItem(`pedido_${payload.cliente_id}`, JSON.stringify(rawData));
+
+    if (navigator.onLine === false) {
+      await queueOpenOrderForRetry('save_open_order', payload);
+      return { status: 'queued' as const };
+    }
+
+    try {
+      const { error } = await supabase
+        .from('pedidos_em_aberto')
+        .upsert({
+          cliente_id: payload.cliente_id,
+          items: payload.items,
+          prazo: payload.prazo || null,
+          obs: payload.obs || null,
+          manual_faixa: payload.manual_faixa || null,
+          desconto_extra: payload.desconto_extra || 0,
+          started_at: payload.started_at || new Date().toISOString(),
+          updated_at: payload.updated_at || new Date().toISOString()
+        }, { onConflict: 'cliente_id' });
+
+      if (error) {
+        console.warn('[DataManager] saveOpenOrder error, queuing for retry:', error);
+        await queueOpenOrderForRetry('save_open_order', payload);
+        return { status: 'queued' as const, error: error.message };
+      }
+
+      const currentQueue = await loadPersisted<OfflineQueueItem[]>('offline_db_pending_queue', []);
+      const updatedQueue = currentQueue.filter(item =>
+        !( (item.action === 'save_open_order' || item.action === 'delete_open_order') &&
+           (item.payload?.cliente_id === payload.cliente_id || item.payload?.clienteId === payload.cliente_id) )
+      );
+      setPendingQueue(updatedQueue);
+      savePersisted('offline_db_pending_queue', updatedQueue);
+
+      return { status: 'synced' as const };
+    } catch (e: any) {
+      console.warn('[DataManager] saveOpenOrder exception, queuing for retry:', e);
+      await queueOpenOrderForRetry('save_open_order', payload);
+      return { status: 'queued' as const, error: e?.message };
+    }
+  }, [queueOpenOrderForRetry]);
+
+  // Offline-Safe Write Wrapper: deleteOpenOrder
+  const deleteOpenOrder = useCallback(async (clienteId: string) => {
+    localStorage.removeItem(`pedido_${clienteId}`);
+
+    if (navigator.onLine === false) {
+      await queueOpenOrderForRetry('delete_open_order', { cliente_id: clienteId });
+      return { status: 'queued' as const };
+    }
+
+    try {
+      const { error } = await supabase
+        .from('pedidos_em_aberto')
+        .delete()
+        .eq('cliente_id', clienteId);
+
+      if (error) {
+        console.warn('[DataManager] deleteOpenOrder error, queuing for retry:', error);
+        await queueOpenOrderForRetry('delete_open_order', { cliente_id: clienteId });
+        return { status: 'queued' as const, error: error.message };
+      }
+
+      const currentQueue = await loadPersisted<OfflineQueueItem[]>('offline_db_pending_queue', []);
+      const updatedQueue = currentQueue.filter(item =>
+        !( (item.action === 'save_open_order' || item.action === 'delete_open_order') &&
+           (item.payload?.cliente_id === clienteId || item.payload?.clienteId === clienteId) )
+      );
+      setPendingQueue(updatedQueue);
+      savePersisted('offline_db_pending_queue', updatedQueue);
+
+      return { status: 'synced' as const };
+    } catch (e: any) {
+      console.warn('[DataManager] deleteOpenOrder exception, queuing for retry:', e);
+      await queueOpenOrderForRetry('delete_open_order', { cliente_id: clienteId });
+      return { status: 'queued' as const, error: e?.message };
+    }
+  }, [queueOpenOrderForRetry]);
+
   // Transactional Order Editor (ATOMIC)
   const updateOrderSales = useCallback(async (params: UpdateOrderSalesParams): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -1389,6 +1539,8 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       addLoan,
       updateLoanStatus,
       deleteLoan,
+      saveOpenOrder,
+      deleteOpenOrder,
       
       loadClientDetails,
       prefetchClientData,

@@ -52,7 +52,7 @@ export function OrderPage() {
   const { clienteId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { produtos: allProducts, clientCache, loadClientDetails, clientes } = useDataManager();
+  const { produtos: allProducts, clientCache, loadClientDetails, clientes, saveOpenOrder, deleteOpenOrder } = useDataManager();
   
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [produtos, setProdutos] = useState<Produto[]>([]);
@@ -377,41 +377,50 @@ export function OrderPage() {
     const loadSavedOrder = async () => {
       if (!loading && produtos.length > 0 && clienteId && !initialLoadDone.current) {
         let savedData: any = null;
-        let serverStateLoaded = false;
+        let dbData: any = null;
         
-        // 1. Try Supabase first
-        try {
-          const { data, error } = await supabase
-            .from('pedidos_em_aberto')
-            .select('*')
-            .eq('cliente_id', clienteId)
-            .maybeSingle();
-          if (!error && data) {
-            serverStateLoaded = true;
-            savedData = {
-              items: data.items,
-              prazo: data.prazo,
-              obs: data.obs,
-              startedAt: data.started_at
-            };
-          } else if (!error) {
-            serverStateLoaded = true;
-            localStorage.removeItem(`pedido_${clienteId}`);
+        // 1. Try Supabase first if online
+        if (navigator.onLine !== false) {
+          try {
+            const { data, error } = await supabase
+              .from('pedidos_em_aberto')
+              .select('*')
+              .eq('cliente_id', clienteId)
+              .maybeSingle();
+            if (!error && data) {
+              dbData = {
+                items: data.items,
+                prazo: data.prazo,
+                obs: data.obs,
+                startedAt: data.started_at,
+                updatedAt: data.updated_at
+              };
+            }
+          } catch (dbErr) {
+            console.error('Error fetching open order from DB:', dbErr);
           }
-        } catch (dbErr) {
-          console.error('Error fetching open order from DB:', dbErr);
         }
 
-        // 2. Fallback to localStorage if not found/error
-        if (!serverStateLoaded && !savedData) {
-          const saved = localStorage.getItem(`pedido_${clienteId}`);
-          if (saved) {
-            try {
-              savedData = JSON.parse(saved);
-            } catch (e) {
-              console.error('Error parsing localStorage:', e);
-            }
+        // 2. Load from localStorage
+        let localData: any = null;
+        const saved = localStorage.getItem(`pedido_${clienteId}`);
+        if (saved) {
+          try {
+            localData = JSON.parse(saved);
+          } catch (e) {
+            console.error('Error parsing localStorage:', e);
           }
+        }
+
+        // 3. Resolve best data without destroying local work
+        if (dbData && !localData) {
+          savedData = dbData;
+        } else if (!dbData && localData) {
+          savedData = localData;
+        } else if (dbData && localData) {
+          const localTime = localData.updatedAt ? new Date(localData.updatedAt).getTime() : (localData.startedAt ? new Date(localData.startedAt).getTime() : 0);
+          const serverTime = dbData.updatedAt ? new Date(dbData.updatedAt).getTime() : (dbData.startedAt ? new Date(dbData.startedAt).getTime() : 0);
+          savedData = localTime > serverTime ? localData : dbData;
         }
 
         if (!active) return;
@@ -511,11 +520,7 @@ export function OrderPage() {
   useEffect(() => {
     if (isReady && clienteId && !suppressDraftPersistence.current) {
       if (itens.length === 0) {
-        localStorage.removeItem(`pedido_${clienteId}`);
-        // Also clean up from Supabase DB asynchronously
-        supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId).then(({ error }) => {
-          if (error) console.error('Erro ao deletar do DB:', error);
-        });
+        deleteOpenOrder(clienteId);
         return;
       }
 
@@ -525,44 +530,37 @@ export function OrderPage() {
         tipo_operacao: item.tipo_operacao || 'VENDA'
       }));
       
-      const dataToSave = {
+      const nowIso = new Date().toISOString();
+      const payload = {
+        cliente_id: clienteId,
+        items: rawItemList,
+        prazo: selectedPrazo || null,
+        obs: observacoes || null,
+        manual_faixa: null,
+        desconto_extra: 0,
+        started_at: startedAt || nowIso,
+        updated_at: nowIso
+      };
+      
+      // Update localStorage instantly for snappiness & data safety
+      localStorage.setItem(`pedido_${clienteId}`, JSON.stringify({
         items: rawItemList,
         prazo: selectedPrazo,
         obs: observacoes,
         manualFaixa: null,
-        startedAt: startedAt || new Date().toISOString()
-      };
-      
-      // Update localStorage instantly for snappiness
-      localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(dataToSave));
+        startedAt: startedAt || nowIso,
+        updatedAt: nowIso
+      }));
 
-      // Debounce saving to Supabase (e.g. 1 second delay) to prevent database spam on fast interactions
-      const saveTimer = setTimeout(async () => {
+      // Debounce sync to cloud/queue
+      const saveTimer = setTimeout(() => {
         if (suppressDraftPersistence.current) return;
-        try {
-          const { error } = await supabase
-            .from('pedidos_em_aberto')
-            .upsert({
-              cliente_id: clienteId,
-              items: rawItemList,
-              prazo: selectedPrazo || null,
-              obs: observacoes || null,
-              manual_faixa: null,
-              desconto_extra: 0,
-              started_at: startedAt || new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }, { onConflict: 'cliente_id' });
-          if (error) {
-            console.error('Error upserting to DB:', error);
-          }
-        } catch (dbErr) {
-          console.error('Error saving open order to DB:', dbErr);
-        }
-      }, 1000);
+        saveOpenOrder(payload);
+      }, 800);
 
       return () => clearTimeout(saveTimer);
     }
-  }, [itens, clienteId, isReady, selectedPrazo, observacoes, startedAt]);
+  }, [itens, clienteId, isReady, selectedPrazo, observacoes, startedAt, saveOpenOrder, deleteOpenOrder]);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -571,13 +569,8 @@ export function OrderPage() {
 
   const handleClearOrder = async () => {
     suppressDraftPersistence.current = true;
-    if (clienteId && navigator.onLine !== false) {
-      const { error } = await supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId);
-      if (error) {
-        suppressDraftPersistence.current = false;
-        alert('Não foi possível limpar o pedido no servidor. Tente novamente.');
-        return;
-      }
+    if (clienteId) {
+      await deleteOpenOrder(clienteId);
     }
     setItens([]);
     setConsultaFaixa('livre');
@@ -585,9 +578,6 @@ export function OrderPage() {
     setSelectedPrazo('');
     setObservacoes('');
     setShowClearConfirm(false);
-    if (clienteId) {
-      localStorage.removeItem(`pedido_${clienteId}`);
-    }
     suppressDraftPersistence.current = false;
   };
 
@@ -796,8 +786,16 @@ export function OrderPage() {
       
       // 1. Generate PDF
       if (receiptRef.current) {
-        // Wait a bit for the DOM to be ready and styles to apply
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Wait for fonts and styles to be fully rendered in the DOM
+        if (document.fonts) {
+          try {
+            await document.fonts.ready;
+          } catch (e) {
+            // continue
+          }
+        }
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await new Promise(resolve => setTimeout(resolve, 350));
         
         const pdf = new jsPDF({
           orientation: 'portrait',
@@ -821,7 +819,7 @@ export function OrderPage() {
             scrollY: 0
           });
           
-          const imgData = canvas.toDataURL('image/jpeg', 0.85);
+          const imgData = canvas.toDataURL('image/jpeg', 0.90);
           
           if (i > 0) pdf.addPage();
           
@@ -829,7 +827,7 @@ export function OrderPage() {
           const imgWidth = 210;
           const imgHeight = (canvas.height * imgWidth) / canvas.width;
           
-          pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+          pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, Math.min(imgHeight, 297));
         }
 
         const pdfBlob = pdf.output('blob');
@@ -866,12 +864,7 @@ export function OrderPage() {
       if (shouldClear) {
         if (clienteId) {
           suppressDraftPersistence.current = true;
-          const { error } = await supabase.from('pedidos_em_aberto').delete().eq('cliente_id', clienteId);
-          if (error) {
-            suppressDraftPersistence.current = false;
-            throw new Error(`Não foi possível finalizar o pedido no servidor: ${error.message}`);
-          }
-          localStorage.removeItem(`pedido_${clienteId}`);
+          await deleteOpenOrder(clienteId);
         }
         alert('Orçamento gerado com sucesso!');
         navigate(`/cliente/${clienteId}`);
@@ -944,12 +937,13 @@ export function OrderPage() {
 <div 
   ref={receiptRef}
   style={{ 
-    position: 'absolute', 
+    position: 'fixed', 
     left: '-9999px', 
     top: '0px', 
     width: '800px', 
     color: '#171717', 
     backgroundColor: '#ffffff',
+    zIndex: -999,
     pointerEvents: 'none' 
   }}
 >
@@ -979,97 +973,143 @@ export function OrderPage() {
       }
     })();
 
-    // Smart pagination: First page fits less items due to header/client info
-    const chunks = [];
-    let i = 0;
-    let isFirstPage = true;
-    
-    while (i < sortedItens.length) {
-      const itemsLimit = isFirstPage ? 10 : 15;
-      chunks.push(sortedItens.slice(i, i + itemsLimit));
-      i += itemsLimit;
-      isFirstPage = false;
+    // Content-aware dynamic pagination
+    // Guarantees that payment terms, parcelas, and observations never get truncated
+    const obsLength = (observacoes || '').trim().length;
+    const isLongObs = obsLength > 70;
+    const maxSinglePageItems = isLongObs ? 6 : (obsLength > 0 ? 7 : 8);
+    const maxLastPageItems = isLongObs ? 7 : (obsLength > 0 ? 8 : 10);
+    const maxIntermediatePageItems = 16;
+    const maxFirstPageItemsWithoutSummary = 14;
+
+    const chunks: (typeof sortedItens)[] = [];
+    const total = sortedItens.length;
+
+    if (total <= maxSinglePageItems) {
+      chunks.push([...sortedItens]);
+    } else {
+      let remaining = [...sortedItens];
+      
+      // If total items is small enough to split across 2 balanced pages:
+      let firstPageLimit = maxFirstPageItemsWithoutSummary;
+      if (total <= maxFirstPageItemsWithoutSummary) {
+        firstPageLimit = Math.ceil(total / 2);
+      }
+      
+      const takeFirst = Math.min(remaining.length, firstPageLimit);
+      chunks.push(remaining.slice(0, takeFirst));
+      remaining = remaining.slice(takeFirst);
+
+      while (remaining.length > 0) {
+        if (remaining.length <= maxLastPageItems) {
+          chunks.push(remaining);
+          remaining = [];
+        } else {
+          let take = Math.min(remaining.length, maxIntermediatePageItems);
+          if (remaining.length - take === 0) {
+            take = Math.ceil(remaining.length / 2);
+          }
+          chunks.push(remaining.slice(0, take));
+          remaining = remaining.slice(take);
+        }
+      }
+    }
+
+    if (chunks.length === 0) {
+      chunks.push([]);
     }
 
     return chunks.map((chunk, pageIdx) => (
       <div 
         key={pageIdx}
-        className="pdf-page w-[800px] h-[1130px] bg-white p-[40px] flex flex-col font-sans mb-10"
-        style={{ fontFamily: 'Arial, sans-serif', backgroundColor: '#ffffff', color: '#171717' }}
+        className="pdf-page bg-white flex flex-col font-sans"
+        style={{ 
+          width: '800px', 
+          minHeight: '1130px', 
+          height: '1130px', 
+          boxSizing: 'border-box', 
+          overflow: 'hidden',
+          padding: '36px 40px',
+          fontFamily: 'Arial, sans-serif', 
+          backgroundColor: '#ffffff', 
+          color: '#171717' 
+        }}
       >
         {/* Header */}
-        <div className="flex justify-between items-start border-b-2 border-neutral-800 pb-6 mb-8" style={{ borderColor: '#262626' }}>
+        <div className="flex justify-between items-start border-b-2 border-neutral-800 pb-5 mb-6" style={{ borderColor: '#262626' }}>
           <div className="flex flex-col">
-            <h1 className="text-3xl font-black uppercase tracking-tighter" style={{ color: '#171717' }}>Resumo do Orçamento</h1>
-            <div className="mt-2 space-y-1">
-              <p className="text-sm font-bold" style={{ color: '#737373' }}>Data: {orderDateStr}</p>
-              <p className="text-sm font-bold" style={{ color: '#737373' }}>Hora: {orderTimeStr}</p>
+            <h1 className="text-2xl font-black uppercase tracking-tighter" style={{ color: '#171717' }}>Resumo do Orçamento</h1>
+            <div className="mt-1.5 flex gap-4">
+              <p className="text-xs font-bold" style={{ color: '#737373' }}>Data: {orderDateStr}</p>
+              <p className="text-xs font-bold" style={{ color: '#737373' }}>Hora: {orderTimeStr}</p>
             </div>
           </div>
           <div className="flex flex-col items-end">
-            <img 
-              src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png" 
-              alt="ADIMAX" 
-              className="h-12 w-auto mb-1 object-contain"
-              crossOrigin="anonymous"
-              referrerPolicy="no-referrer"
-              onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
-            />
+            <div className="h-10 flex items-center justify-end">
+              <img 
+                src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png" 
+                alt="ADIMAX" 
+                className="h-8 w-auto mb-1 object-contain"
+                crossOrigin="anonymous"
+                referrerPolicy="no-referrer"
+                onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+              />
+            </div>
             <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Parceiro Oficial</span>
           </div>
         </div>
 
         {/* Client Info (Only on first page) */}
         {pageIdx === 0 && (
-          <div className="grid grid-cols-2 gap-8 mb-8">
-            <div className="p-4 rounded-lg border" style={{ backgroundColor: '#fafafa', borderColor: '#f5f5f5' }}>
-              <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: '#a3a3a3' }}>Cliente</p>
-              <p className="text-lg font-black leading-tight" style={{ color: '#171717' }}>{cliente?.cliente}</p>
-              <p className="text-sm font-bold mt-1" style={{ color: '#737373' }}>{cliente?.cidade}</p>
+          <div className="grid grid-cols-2 gap-6 mb-6">
+            <div className="p-3.5 rounded-lg border" style={{ backgroundColor: '#fafafa', borderColor: '#f0f0f0' }}>
+              <p className="text-[9px] font-black uppercase tracking-widest mb-0.5" style={{ color: '#a3a3a3' }}>Cliente</p>
+              <p className="text-base font-black leading-tight truncate" style={{ color: '#171717' }}>{cliente?.cliente}</p>
+              <p className="text-xs font-bold mt-0.5" style={{ color: '#737373' }}>{cliente?.cidade}</p>
             </div>
-            <div className="p-4 rounded-lg border" style={{ backgroundColor: '#fafafa', borderColor: '#f5f5f5' }}>
-              <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: '#a3a3a3' }}>Vendedor</p>
-              <p className="text-lg font-black leading-tight" style={{ color: '#171717' }}>MAICON OLIVEIRA</p>
-              <p className="text-sm font-bold mt-1" style={{ color: '#737373' }}>Representante Comercial</p>
+            <div className="p-3.5 rounded-lg border" style={{ backgroundColor: '#fafafa', borderColor: '#f0f0f0' }}>
+              <p className="text-[9px] font-black uppercase tracking-widest mb-0.5" style={{ color: '#a3a3a3' }}>Vendedor</p>
+              <p className="text-base font-black leading-tight" style={{ color: '#171717' }}>MAICON OLIVEIRA</p>
+              <p className="text-xs font-bold mt-0.5" style={{ color: '#737373' }}>Representante Comercial</p>
             </div>
           </div>
         )}
 
         {/* Items Table */}
-        <div className="flex-1">
+        <div className="flex-1 min-h-0">
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ backgroundColor: '#171717', color: '#ffffff' }}>
-                <th className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
-                <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Qtd</th>
-                <th className="py-3 px-4 text-center text-[10px] font-black uppercase tracking-widest">Peso</th>
-                <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest">Unitário</th>
-                <th className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest rounded-tr-lg">Subtotal</th>
+                <th className="py-2.5 px-3 text-left text-[9px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
+                <th className="py-2.5 px-3 text-center text-[9px] font-black uppercase tracking-widest">Qtd</th>
+                <th className="py-2.5 px-3 text-center text-[9px] font-black uppercase tracking-widest">Peso</th>
+                <th className="py-2.5 px-3 text-right text-[9px] font-black uppercase tracking-widest">Unitário</th>
+                <th className="py-2.5 px-3 text-right text-[9px] font-black uppercase tracking-widest rounded-tr-lg">Subtotal</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#f5f5f5]" style={{ borderColor: '#f5f5f5' }}>
               {chunk.map((item, idx) => {
                 const produto = produtos.find(p => p.id === item.produto_id)!;
                 return (
-                  <tr key={idx} className="text-sm" style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
-                    <td className="py-4 px-4 font-bold leading-tight max-w-[300px] break-words" style={{ color: '#262626' }}>
+                  <tr key={idx} className="text-xs" style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
+                    <td className="py-2 px-3 font-bold leading-tight max-w-[300px] break-words" style={{ color: '#262626' }}>
                       <div>{produto?.produto}</div>
                       {item.tipo_operacao && item.tipo_operacao !== 'VENDA' && (
-                        <div className="text-[9px] font-black tracking-widest text-orange-600 uppercase mt-0.5" style={{ color: '#ea580c' }}>
+                        <div className="text-[8px] font-black tracking-widest text-orange-600 uppercase mt-0.5" style={{ color: '#ea580c' }}>
                           {item.tipo_operacao === 'BONIFICACAO_COMERCIAL' ? '• Bonificação' : '• Merchandising / Brinde'}
                         </div>
                       )}
                     </td>
-                    <td className="py-4 px-4 text-center font-black" style={{ color: '#525252' }}>
-                      {item.quantidade} {produto.quant_embalagem > 1 ? 'CX' : 'UN'}
+                    <td className="py-2 px-3 text-center font-black" style={{ color: '#525252' }}>
+                      {item.quantidade} {produto?.quant_embalagem > 1 ? 'CX' : 'UN'}
                     </td>
-                    <td className="py-4 px-4 text-center font-bold" style={{ color: '#737373' }}>
+                    <td className="py-2 px-3 text-center font-bold" style={{ color: '#737373' }}>
                       {formatWeight(item.peso_total || 0)}
                     </td>
-                    <td className="py-4 px-4 text-right font-bold" style={{ color: '#737373' }}>
+                    <td className="py-2 px-3 text-right font-bold" style={{ color: '#737373' }}>
                       {formatCurrency(item.valor_unitario || 0)}
                     </td>
-                    <td className="py-4 px-4 text-right font-black" style={{ color: '#171717' }}>
+                    <td className="py-2 px-3 text-right font-black" style={{ color: '#171717' }}>
                       {formatCurrency(item.valor_total || 0)}
                     </td>
                   </tr>
@@ -1081,25 +1121,25 @@ export function OrderPage() {
 
         {/* Summary Section (Only on last page) */}
         {pageIdx === chunks.length - 1 && (
-          <div className="mt-8 pt-8 border-t-2" style={{ borderColor: '#f5f5f5' }}>
-            <div className="grid grid-cols-2 gap-12 items-stretch">
-              <div className="flex flex-col gap-4">
-                <div className="p-4 border rounded-lg" style={{ borderColor: '#e5e5e5' }}>
-                  <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: '#a3a3a3' }}>Condições de Pagamento</p>
-                  <div className="space-y-2">
+          <div className="mt-4 pt-4 border-t-2" style={{ borderColor: '#f5f5f5' }}>
+            <div className="grid grid-cols-2 gap-6 items-stretch">
+              <div className="flex flex-col gap-3">
+                <div className="p-3 border rounded-lg" style={{ borderColor: '#e5e5e5' }}>
+                  <p className="text-[9px] font-black uppercase tracking-widest mb-1.5" style={{ color: '#a3a3a3' }}>Condições de Pagamento</p>
+                  <div className="space-y-1">
                     <div className="flex justify-between">
-                      <span className="text-sm font-bold" style={{ color: '#525252' }}>Condição:</span>
-                      <span className="text-sm font-black" style={{ color: '#171717' }}>{selectedPrazo}</span>
+                      <span className="text-xs font-bold" style={{ color: '#525252' }}>Condição:</span>
+                      <span className="text-xs font-black" style={{ color: '#171717' }}>{selectedPrazo || 'À Vista'}</span>
                     </div>
                     {selectedPrazo && selectedPrazo !== 'À Vista' && (
                       <>
                         <div className="flex justify-between">
-                          <span className="text-sm font-bold" style={{ color: '#525252' }}>Valor por Boleto:</span>
-                          <span className="text-sm font-black" style={{ color: '#171717' }}>{formatCurrency(installmentDetails.valorBoleto)}</span>
+                          <span className="text-xs font-bold" style={{ color: '#525252' }}>Valor por Boleto:</span>
+                          <span className="text-xs font-black" style={{ color: '#171717' }}>{formatCurrency(installmentDetails.valorBoleto)}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-sm font-bold" style={{ color: '#525252' }}>1º Vencimento (Estimado):</span>
-                          <span className="text-sm font-black" style={{ color: '#171717' }}>
+                          <span className="text-xs font-bold" style={{ color: '#525252' }}>1º Vencimento (Estimado):</span>
+                          <span className="text-xs font-black" style={{ color: '#171717' }}>
                             {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
                           </span>
                         </div>
@@ -1109,30 +1149,30 @@ export function OrderPage() {
                 </div>
                 
                 {observacoes && (
-                  <div className="p-5 border-2 rounded-lg" style={{ borderColor: '#ffedd5', backgroundColor: '#fff7ed' }}>
-                    <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: '#ea580c' }}>Observações Importantes</p>
-                    <p className="text-sm font-black leading-relaxed whitespace-pre-wrap uppercase" style={{ color: '#171717' }}>{observacoes}</p>
+                  <div className="p-3 border-2 rounded-lg" style={{ borderColor: '#ffedd5', backgroundColor: '#fff7ed' }}>
+                    <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: '#ea580c' }}>Observações Importantes</p>
+                    <p className="text-[11px] font-bold leading-relaxed whitespace-pre-wrap uppercase break-words" style={{ color: '#171717', maxHeight: '110px', overflow: 'hidden' }}>{observacoes}</p>
                   </div>
                 )}
               </div>
 
-              <div className="flex flex-col justify-between">
-                <div className="space-y-4">
+              <div className="flex flex-col justify-between gap-3">
+                <div className="space-y-2">
                   {pesoConquistado > 0 && (
-                    <div className="flex justify-between items-center px-4 py-2 rounded-lg border opacity-60" style={{ backgroundColor: '#fafafa', borderColor: '#f5f5f5' }}>
+                    <div className="flex justify-between items-center px-3 py-1.5 rounded-lg border opacity-60" style={{ backgroundColor: '#fafafa', borderColor: '#f5f5f5' }}>
                       <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Peso Acumulado (28 dias)</span>
-                      <span className="text-sm font-bold" style={{ color: '#171717' }}>{formatWeight(pesoConquistado)}</span>
+                      <span className="text-xs font-bold" style={{ color: '#171717' }}>{formatWeight(pesoConquistado)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between items-center p-4 rounded-lg border" style={{ backgroundColor: '#fafafa', borderColor: '#f5f5f5' }}>
-                    <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Peso do Pedido</span>
-                    <span className="text-xl font-black" style={{ color: '#171717' }}>{formatWeight(pesoTotal)}</span>
+                  <div className="flex justify-between items-center p-3 rounded-lg border" style={{ backgroundColor: '#fafafa', borderColor: '#f5f5f5' }}>
+                    <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Peso do Pedido</span>
+                    <span className="text-lg font-black" style={{ color: '#171717' }}>{formatWeight(pesoTotal)}</span>
                   </div>
                 </div>
                 
-                <div className="flex justify-between items-center p-6 rounded-lg shadow-xl" style={{ backgroundColor: '#171717' }}>
-                  <span className="text-xs font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Valor Total do Orçamento</span>
-                  <span className="text-3xl font-black" style={{ color: '#ffffff' }}>{formatCurrency(valorTotal)}</span>
+                <div className="flex justify-between items-center p-4 rounded-lg shadow-sm" style={{ backgroundColor: '#171717' }}>
+                  <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Valor Total do Orçamento</span>
+                  <span className="text-2xl font-black" style={{ color: '#ffffff' }}>{formatCurrency(valorTotal)}</span>
                 </div>
               </div>
             </div>
@@ -1140,10 +1180,10 @@ export function OrderPage() {
         )}
 
         {/* Footer */}
-        <div className="mt-12 text-center">
-          <p className="text-[10px] font-black uppercase tracking-[0.3em]" style={{ color: '#d4d4d4' }}>MAICON OLIVEIRA REPRESENTAÇÕES</p>
-          <p className="text-[10px] font-bold mt-2 italic uppercase tracking-wider" style={{ color: '#a3a3a3' }}>Este documento é um orçamento e não possui validade fiscal.</p>
-          <p className="text-[10px] font-bold mt-4" style={{ color: '#a3a3a3' }}>Página {pageIdx + 1} de {chunks.length}</p>
+        <div className="mt-auto pt-4 text-center">
+          <p className="text-[9px] font-black uppercase tracking-[0.3em]" style={{ color: '#d4d4d4' }}>MAICON OLIVEIRA REPRESENTAÇÕES</p>
+          <p className="text-[9px] font-bold mt-1 italic uppercase tracking-wider" style={{ color: '#a3a3a3' }}>Este documento é um orçamento e não possui validade fiscal.</p>
+          <p className="text-[9px] font-bold mt-1.5" style={{ color: '#a3a3a3' }}>Página {pageIdx + 1} de {chunks.length}</p>
         </div>
       </div>
     ));

@@ -118,12 +118,9 @@ export function ClientsPage() {
         }
       });
 
-      // Local drafts are only a fallback while offline or when the server cannot
-      // be reached. When online, the shared database is the source of truth.
+      // Merge with localStorage drafts (protecting offline and pending orders)
       enrichedClientes.forEach(c => {
-        if (serverOpenOrdersLoaded) {
-          if (!openOrdersMap[c.id]) localStorage.removeItem(`pedido_${c.id}`);
-        } else if (!openOrdersMap[c.id]) {
+        if (!openOrdersMap[c.id]) {
           const saved = localStorage.getItem(`pedido_${c.id}`);
           if (saved) {
             try {
