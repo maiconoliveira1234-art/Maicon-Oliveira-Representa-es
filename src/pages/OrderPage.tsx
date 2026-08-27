@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 import { 
   ArrowLeft, 
   ShoppingCart, 
@@ -973,44 +973,56 @@ export function OrderPage() {
       }
     })();
 
-    // Content-aware dynamic pagination
-    // Guarantees that payment terms, parcelas, and observations never get truncated
-    const obsLength = (observacoes || '').trim().length;
-    const isLongObs = obsLength > 70;
-    const maxSinglePageItems = isLongObs ? 6 : (obsLength > 0 ? 7 : 8);
-    const maxLastPageItems = isLongObs ? 7 : (obsLength > 0 ? 8 : 10);
-    const maxIntermediatePageItems = 16;
-    const maxFirstPageItemsWithoutSummary = 14;
+    // Content-aware balanced pagination
+    // Guarantees that client info, rows, payment terms, and observations are never truncated or cramped
+    const hasObs = !!(observacoes && observacoes.trim().length > 0);
+    const isLongObs = hasObs && observacoes.trim().length > 80;
+
+    const singlePageLimit = isLongObs ? 13 : (hasObs ? 15 : 17);
+    const p1Limit = 22;
+    const pInterLimit = 26;
+    const pLastLimit = isLongObs ? 14 : (hasObs ? 16 : 19);
 
     const chunks: (typeof sortedItens)[] = [];
     const total = sortedItens.length;
 
-    if (total <= maxSinglePageItems) {
-      chunks.push([...sortedItens]);
-    } else {
-      let remaining = [...sortedItens];
-      
-      // If total items is small enough to split across 2 balanced pages:
-      let firstPageLimit = maxFirstPageItemsWithoutSummary;
-      if (total <= maxFirstPageItemsWithoutSummary) {
-        firstPageLimit = Math.ceil(total / 2);
+    if (total <= singlePageLimit) {
+      chunks.push(sortedItens);
+    } else if (total <= p1Limit + pLastLimit) {
+      // Balanced 2-page distribution
+      let p1Count = Math.ceil(total * 0.54);
+      if (p1Count > p1Limit) p1Count = p1Limit;
+      let p2Count = total - p1Count;
+      if (p2Count > pLastLimit) {
+        p1Count = total - pLastLimit;
       }
-      
-      const takeFirst = Math.min(remaining.length, firstPageLimit);
-      chunks.push(remaining.slice(0, takeFirst));
-      remaining = remaining.slice(takeFirst);
+      chunks.push(sortedItens.slice(0, p1Count));
+      chunks.push(sortedItens.slice(p1Count));
+    } else {
+      // 3 or more pages
+      let remaining = [...sortedItens];
+      const firstChunk = remaining.slice(0, p1Limit);
+      chunks.push(firstChunk);
+      remaining = remaining.slice(p1Limit);
 
       while (remaining.length > 0) {
-        if (remaining.length <= maxLastPageItems) {
+        if (remaining.length <= pLastLimit) {
           chunks.push(remaining);
           remaining = [];
-        } else {
-          let take = Math.min(remaining.length, maxIntermediatePageItems);
-          if (remaining.length - take === 0) {
-            take = Math.ceil(remaining.length / 2);
+        } else if (remaining.length <= pInterLimit + pLastLimit) {
+          // Balance the final 2 pages so the last page isn't left with an awkward small number of items
+          let midCount = Math.ceil(remaining.length * 0.55);
+          if (midCount > pInterLimit) midCount = pInterLimit;
+          let lastCount = remaining.length - midCount;
+          if (lastCount > pLastLimit) {
+            midCount = remaining.length - pLastLimit;
           }
-          chunks.push(remaining.slice(0, take));
-          remaining = remaining.slice(take);
+          chunks.push(remaining.slice(0, midCount));
+          chunks.push(remaining.slice(midCount));
+          remaining = [];
+        } else {
+          chunks.push(remaining.slice(0, pInterLimit));
+          remaining = remaining.slice(pInterLimit);
         }
       }
     }
@@ -1036,12 +1048,13 @@ export function OrderPage() {
         }}
       >
         {/* Header */}
-        <div className="flex justify-between items-start border-b-2 border-neutral-800 pb-5 mb-6" style={{ borderColor: '#262626' }}>
+        <div className="flex justify-between items-start border-b-2 border-neutral-800 pb-4 mb-5" style={{ borderColor: '#262626' }}>
           <div className="flex flex-col">
-            <h1 className="text-2xl font-black uppercase tracking-tighter" style={{ color: '#171717' }}>Resumo do Orçamento</h1>
-            <div className="mt-1.5 flex gap-4">
-              <p className="text-xs font-bold" style={{ color: '#737373' }}>Data: {orderDateStr}</p>
-              <p className="text-xs font-bold" style={{ color: '#737373' }}>Hora: {orderTimeStr}</p>
+            <h1 className="text-2xl font-black uppercase tracking-tight" style={{ color: '#171717' }}>Resumo do Orçamento</h1>
+            <div className="mt-1 flex items-center gap-3">
+              <span className="text-xs font-semibold" style={{ color: '#525252' }}>Data: {orderDateStr}</span>
+              <span className="text-xs text-neutral-300">•</span>
+              <span className="text-xs font-semibold" style={{ color: '#525252' }}>Hora: {orderTimeStr}</span>
             </div>
           </div>
           <div className="flex flex-col items-end">
@@ -1049,28 +1062,34 @@ export function OrderPage() {
               <img 
                 src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png" 
                 alt="ADIMAX" 
-                className="h-8 w-auto mb-1 object-contain"
+                className="h-8 w-auto mb-0.5 object-contain"
                 crossOrigin="anonymous"
                 referrerPolicy="no-referrer"
                 onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
               />
             </div>
-            <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Parceiro Oficial</span>
+            <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#8c8c8c' }}>Parceiro Oficial</span>
           </div>
         </div>
 
         {/* Client Info (Only on first page) */}
         {pageIdx === 0 && (
-          <div className="grid grid-cols-2 gap-6 mb-6">
-            <div className="p-3.5 rounded-lg border" style={{ backgroundColor: '#fafafa', borderColor: '#f0f0f0' }}>
-              <p className="text-[9px] font-black uppercase tracking-widest mb-0.5" style={{ color: '#a3a3a3' }}>Cliente</p>
-              <p className="text-base font-black leading-tight truncate" style={{ color: '#171717' }}>{cliente?.cliente}</p>
-              <p className="text-xs font-bold mt-0.5" style={{ color: '#737373' }}>{cliente?.cidade}</p>
+          <div className="grid grid-cols-2 gap-5 mb-5">
+            <div className="p-3.5 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: '#fcfcfc', borderColor: '#e5e5e5' }}>
+              <div>
+                <span className="text-[9px] font-black uppercase tracking-widest block mb-1" style={{ color: '#8c8c8c' }}>Cliente</span>
+                <p className="text-sm font-black leading-snug break-words" style={{ color: '#171717' }}>{cliente?.cliente || '-'}</p>
+              </div>
+              {cliente?.cidade && (
+                <p className="text-xs font-semibold mt-1" style={{ color: '#525252' }}>{cliente.cidade}</p>
+              )}
             </div>
-            <div className="p-3.5 rounded-lg border" style={{ backgroundColor: '#fafafa', borderColor: '#f0f0f0' }}>
-              <p className="text-[9px] font-black uppercase tracking-widest mb-0.5" style={{ color: '#a3a3a3' }}>Vendedor</p>
-              <p className="text-base font-black leading-tight" style={{ color: '#171717' }}>MAICON OLIVEIRA</p>
-              <p className="text-xs font-bold mt-0.5" style={{ color: '#737373' }}>Representante Comercial</p>
+            <div className="p-3.5 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: '#fcfcfc', borderColor: '#e5e5e5' }}>
+              <div>
+                <span className="text-[9px] font-black uppercase tracking-widest block mb-1" style={{ color: '#8c8c8c' }}>Vendedor</span>
+                <p className="text-sm font-black leading-snug" style={{ color: '#171717' }}>MAICON OLIVEIRA</p>
+              </div>
+              <p className="text-xs font-semibold mt-1" style={{ color: '#525252' }}>Representante Comercial</p>
             </div>
           </div>
         )}
@@ -1080,36 +1099,36 @@ export function OrderPage() {
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ backgroundColor: '#171717', color: '#ffffff' }}>
-                <th className="py-2.5 px-3 text-left text-[9px] font-black uppercase tracking-widest rounded-tl-lg">Produto</th>
-                <th className="py-2.5 px-3 text-center text-[9px] font-black uppercase tracking-widest">Qtd</th>
-                <th className="py-2.5 px-3 text-center text-[9px] font-black uppercase tracking-widest">Peso</th>
-                <th className="py-2.5 px-3 text-right text-[9px] font-black uppercase tracking-widest">Unitário</th>
-                <th className="py-2.5 px-3 text-right text-[9px] font-black uppercase tracking-widest rounded-tr-lg">Subtotal</th>
+                <th className="py-2.5 px-3 text-left text-[9px] font-black uppercase tracking-widest rounded-tl-lg" style={{ width: '46%' }}>Produto</th>
+                <th className="py-2.5 px-2 text-center text-[9px] font-black uppercase tracking-widest" style={{ width: '12%' }}>Qtd</th>
+                <th className="py-2.5 px-2 text-right text-[9px] font-black uppercase tracking-widest" style={{ width: '13%' }}>Peso</th>
+                <th className="py-2.5 px-2 text-right text-[9px] font-black uppercase tracking-widest" style={{ width: '14%' }}>Unitário</th>
+                <th className="py-2.5 px-3 text-right text-[9px] font-black uppercase tracking-widest rounded-tr-lg" style={{ width: '15%' }}>Subtotal</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#f5f5f5]" style={{ borderColor: '#f5f5f5' }}>
+            <tbody className="divide-y" style={{ borderColor: '#f0f0f0' }}>
               {chunk.map((item, idx) => {
                 const produto = produtos.find(p => p.id === item.produto_id)!;
                 return (
-                  <tr key={idx} className="text-xs" style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
-                    <td className="py-2 px-3 font-bold leading-tight max-w-[300px] break-words" style={{ color: '#262626' }}>
-                      <div>{produto?.produto}</div>
+                  <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
+                    <td className="py-2 px-3 font-bold text-xs leading-snug" style={{ color: '#171717' }}>
+                      <div className="break-words">{produto?.produto}</div>
                       {item.tipo_operacao && item.tipo_operacao !== 'VENDA' && (
-                        <div className="text-[8px] font-black tracking-widest text-orange-600 uppercase mt-0.5" style={{ color: '#ea580c' }}>
-                          {item.tipo_operacao === 'BONIFICACAO_COMERCIAL' ? '• Bonificação' : '• Merchandising / Brinde'}
-                        </div>
+                        <span className="inline-block text-[8px] font-black tracking-wider uppercase mt-0.5 px-1.5 py-0.2 rounded" style={{ color: '#c2410c', backgroundColor: '#ffedd5' }}>
+                          {item.tipo_operacao === 'BONIFICACAO_COMERCIAL' ? 'Bonificação' : 'Merchandising'}
+                        </span>
                       )}
                     </td>
-                    <td className="py-2 px-3 text-center font-black" style={{ color: '#525252' }}>
+                    <td className="py-2 px-2 text-center font-black text-xs" style={{ color: '#333333' }}>
                       {item.quantidade} {produto?.quant_embalagem > 1 ? 'CX' : 'UN'}
                     </td>
-                    <td className="py-2 px-3 text-center font-bold" style={{ color: '#737373' }}>
+                    <td className="py-2 px-2 text-right font-medium text-xs" style={{ color: '#525252' }}>
                       {formatWeight(item.peso_total || 0)}
                     </td>
-                    <td className="py-2 px-3 text-right font-bold" style={{ color: '#737373' }}>
+                    <td className="py-2 px-2 text-right font-medium text-xs" style={{ color: '#525252' }}>
                       {formatCurrency(item.valor_unitario || 0)}
                     </td>
-                    <td className="py-2 px-3 text-right font-black" style={{ color: '#171717' }}>
+                    <td className="py-2 px-3 text-right font-black text-xs" style={{ color: '#171717' }}>
                       {formatCurrency(item.valor_total || 0)}
                     </td>
                   </tr>
@@ -1121,25 +1140,25 @@ export function OrderPage() {
 
         {/* Summary Section (Only on last page) */}
         {pageIdx === chunks.length - 1 && (
-          <div className="mt-4 pt-4 border-t-2" style={{ borderColor: '#f5f5f5' }}>
-            <div className="grid grid-cols-2 gap-6 items-stretch">
-              <div className="flex flex-col gap-3">
-                <div className="p-3 border rounded-lg" style={{ borderColor: '#e5e5e5' }}>
-                  <p className="text-[9px] font-black uppercase tracking-widest mb-1.5" style={{ color: '#a3a3a3' }}>Condições de Pagamento</p>
+          <div className="mt-3 pt-3 border-t-2" style={{ borderColor: '#e5e5e5' }}>
+            <div className="grid grid-cols-2 gap-5 items-stretch">
+              <div className="flex flex-col gap-2.5">
+                <div className="p-3 border rounded-xl" style={{ borderColor: '#e5e5e5', backgroundColor: '#fcfcfc' }}>
+                  <p className="text-[9px] font-black uppercase tracking-widest mb-1.5" style={{ color: '#8c8c8c' }}>Condições de Pagamento</p>
                   <div className="space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-xs font-bold" style={{ color: '#525252' }}>Condição:</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-semibold" style={{ color: '#525252' }}>Condição:</span>
                       <span className="text-xs font-black" style={{ color: '#171717' }}>{selectedPrazo || 'À Vista'}</span>
                     </div>
                     {selectedPrazo && selectedPrazo !== 'À Vista' && (
                       <>
-                        <div className="flex justify-between">
-                          <span className="text-xs font-bold" style={{ color: '#525252' }}>Valor por Boleto:</span>
-                          <span className="text-xs font-black" style={{ color: '#171717' }}>{formatCurrency(installmentDetails.valorBoleto)}</span>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-semibold" style={{ color: '#525252' }}>Valor por Boleto:</span>
+                          <span className="text-xs font-bold" style={{ color: '#171717' }}>{formatCurrency(installmentDetails.valorBoleto)}</span>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-xs font-bold" style={{ color: '#525252' }}>1º Vencimento (Estimado):</span>
-                          <span className="text-xs font-black" style={{ color: '#171717' }}>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-semibold" style={{ color: '#525252' }}>1º Vencimento (Estimado):</span>
+                          <span className="text-xs font-bold" style={{ color: '#171717' }}>
                             {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
                           </span>
                         </div>
@@ -1149,29 +1168,29 @@ export function OrderPage() {
                 </div>
                 
                 {observacoes && (
-                  <div className="p-3 border-2 rounded-lg" style={{ borderColor: '#ffedd5', backgroundColor: '#fff7ed' }}>
-                    <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: '#ea580c' }}>Observações Importantes</p>
-                    <p className="text-[11px] font-bold leading-relaxed whitespace-pre-wrap uppercase break-words" style={{ color: '#171717', maxHeight: '110px', overflow: 'hidden' }}>{observacoes}</p>
+                  <div className="p-3 border rounded-xl" style={{ borderColor: '#fed7aa', backgroundColor: '#fffbeb' }}>
+                    <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: '#b45309' }}>Observações Importantes</p>
+                    <p className="text-xs font-bold leading-relaxed whitespace-pre-wrap uppercase break-words" style={{ color: '#171717' }}>{observacoes}</p>
                   </div>
                 )}
               </div>
 
-              <div className="flex flex-col justify-between gap-3">
+              <div className="flex flex-col justify-between gap-2.5">
                 <div className="space-y-2">
                   {pesoConquistado > 0 && (
-                    <div className="flex justify-between items-center px-3 py-1.5 rounded-lg border opacity-60" style={{ backgroundColor: '#fafafa', borderColor: '#f5f5f5' }}>
-                      <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Peso Acumulado (28 dias)</span>
+                    <div className="flex justify-between items-center px-3 py-1.5 rounded-lg border opacity-75" style={{ backgroundColor: '#fafafa', borderColor: '#e5e5e5' }}>
+                      <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#8c8c8c' }}>Peso Acumulado (28 dias)</span>
                       <span className="text-xs font-bold" style={{ color: '#171717' }}>{formatWeight(pesoConquistado)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between items-center p-3 rounded-lg border" style={{ backgroundColor: '#fafafa', borderColor: '#f5f5f5' }}>
-                    <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Peso do Pedido</span>
-                    <span className="text-lg font-black" style={{ color: '#171717' }}>{formatWeight(pesoTotal)}</span>
+                  <div className="flex justify-between items-center p-3 rounded-xl border" style={{ backgroundColor: '#fafafa', borderColor: '#e5e5e5' }}>
+                    <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#8c8c8c' }}>Peso do Pedido</span>
+                    <span className="text-base font-black" style={{ color: '#171717' }}>{formatWeight(pesoTotal)}</span>
                   </div>
                 </div>
                 
-                <div className="flex justify-between items-center p-4 rounded-lg shadow-sm" style={{ backgroundColor: '#171717' }}>
-                  <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Valor Total do Orçamento</span>
+                <div className="flex justify-between items-center p-3.5 rounded-xl shadow-sm" style={{ backgroundColor: '#171717' }}>
+                  <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Valor Total do Orçamento</span>
                   <span className="text-2xl font-black" style={{ color: '#ffffff' }}>{formatCurrency(valorTotal)}</span>
                 </div>
               </div>
@@ -1180,10 +1199,10 @@ export function OrderPage() {
         )}
 
         {/* Footer */}
-        <div className="mt-auto pt-4 text-center">
-          <p className="text-[9px] font-black uppercase tracking-[0.3em]" style={{ color: '#d4d4d4' }}>MAICON OLIVEIRA REPRESENTAÇÕES</p>
-          <p className="text-[9px] font-bold mt-1 italic uppercase tracking-wider" style={{ color: '#a3a3a3' }}>Este documento é um orçamento e não possui validade fiscal.</p>
-          <p className="text-[9px] font-bold mt-1.5" style={{ color: '#a3a3a3' }}>Página {pageIdx + 1} de {chunks.length}</p>
+        <div className="mt-auto pt-3 border-t flex justify-between items-center text-[9px] font-bold" style={{ borderColor: '#f0f0f0', color: '#737373' }}>
+          <p className="tracking-widest uppercase">MAICON OLIVEIRA REPRESENTAÇÕES</p>
+          <p className="italic">Documento sem validade fiscal</p>
+          <p>Página {pageIdx + 1} de {chunks.length}</p>
         </div>
       </div>
     ));

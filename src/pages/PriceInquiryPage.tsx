@@ -4,7 +4,7 @@ import { Produto, PrecoFaixa, HistVenda } from '../types';
 import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle, Users, X, ChevronDown, History, TrendingUp, Pencil } from 'lucide-react';
 import { cn, deduplicateSales } from '../lib/utils';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 import { FilterDropdown } from '../components/FilterDropdown';
 import { format, parseISO } from 'date-fns';
 import { logDiagnostic } from '../lib/diagnostics';
@@ -776,10 +776,20 @@ export function PriceInquiryPage() {
   }}
 >
   {(() => {
-    const itemsPerPage = 18;
-    const chunks = [];
-    for (let i = 0; i < selectedProductsList.length; i += itemsPerPage) {
-      chunks.push(selectedProductsList.slice(i, i + itemsPerPage));
+    const itemsPerPage = 20;
+    const chunks: (typeof selectedProductsList)[] = [];
+    const total = selectedProductsList.length;
+
+    if (total <= itemsPerPage) {
+      chunks.push(selectedProductsList);
+    } else if (total <= itemsPerPage * 2) {
+      const mid = Math.ceil(total / 2);
+      chunks.push(selectedProductsList.slice(0, mid));
+      chunks.push(selectedProductsList.slice(mid));
+    } else {
+      for (let i = 0; i < selectedProductsList.length; i += itemsPerPage) {
+        chunks.push(selectedProductsList.slice(i, i + itemsPerPage));
+      }
     }
 
     if (chunks.length === 0) {
@@ -803,55 +813,59 @@ export function PriceInquiryPage() {
         }}
       >
         {/* Header */}
-        <div className="flex justify-between items-start border-b-2 pb-6 mb-8" style={{ borderColor: '#262626' }}>
+        <div className="flex justify-between items-start border-b-2 border-neutral-800 pb-4 mb-5" style={{ borderColor: '#262626' }}>
           <div className="flex flex-col">
-            <h1 className="text-3xl font-black uppercase tracking-tighter" style={{ color: '#171717' }}>Lista de Preços</h1>
-            <div className="mt-2 space-y-1">
-              <p className="text-sm font-bold" style={{ color: '#737373' }}>Tabela: {selectedTable.toUpperCase()}</p>
-              <p className="text-sm font-bold" style={{ color: '#737373' }}>Data: {new Date().toLocaleDateString('pt-BR')}</p>
+            <h1 className="text-2xl font-black uppercase tracking-tight" style={{ color: '#171717' }}>Lista de Preços</h1>
+            <div className="mt-1 flex items-center gap-3">
+              <span className="text-xs font-semibold" style={{ color: '#525252' }}>Tabela: {selectedTable.toUpperCase()}</span>
+              <span className="text-xs text-neutral-300">•</span>
+              <span className="text-xs font-semibold" style={{ color: '#525252' }}>Data: {new Date().toLocaleDateString('pt-BR')}</span>
             </div>
           </div>
           <div className="flex flex-col items-end">
-            <img 
-              src="https://www.adimax.com.br/wp-content/themes/adimax/assets/img/logo-adimax.png" 
-              alt="ADIMAX" 
-              className="h-12 w-auto mb-2"
-              crossOrigin="anonymous"
-              referrerPolicy="no-referrer"
-            />
-            <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Parceiro Oficial</span>
+            <div className="h-10 flex items-center justify-end">
+              <img 
+                src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png" 
+                alt="ADIMAX" 
+                className="h-8 w-auto mb-0.5 object-contain"
+                crossOrigin="anonymous"
+                referrerPolicy="no-referrer"
+                onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+              />
+            </div>
+            <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#8c8c8c' }}>Parceiro Oficial</span>
           </div>
         </div>
 
         {/* Table */}
-        <div className="flex-1">
+        <div className="flex-1 min-h-0">
           <table className="w-full border-collapse">
             <thead>
               <tr style={{ backgroundColor: '#171717', color: '#ffffff' }}>
                 <th 
-                  className="py-3 px-4 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-lg"
-                  style={{ width: showMargin ? '45%' : '60%' }}
+                  className="py-2.5 px-3 text-left text-[9px] font-black uppercase tracking-widest rounded-tl-lg"
+                  style={{ width: showMargin ? '45%' : '55%' }}
                 >
                   Produto
                 </th>
                 <th 
-                  className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest"
-                  style={{ width: showMargin ? '18%' : '20%' }}
+                  className="py-2.5 px-3 text-right text-[9px] font-black uppercase tracking-widest"
+                  style={{ width: showMargin ? '18%' : '22%' }}
                 >
                   Sugestão
                 </th>
                 <th 
                   className={cn(
-                    "py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest",
+                    "py-2.5 px-3 text-right text-[9px] font-black uppercase tracking-widest",
                     !showMargin && "rounded-tr-lg"
                   )}
-                  style={{ width: showMargin ? '22%' : '20%' }}
+                  style={{ width: showMargin ? '22%' : '23%' }}
                 >
                   Preço Unitário
                 </th>
                 {showMargin && (
                   <th 
-                    className="py-3 px-4 text-right text-[10px] font-black uppercase tracking-widest rounded-tr-lg"
+                    className="py-2.5 px-3 text-right text-[9px] font-black uppercase tracking-widest rounded-tr-lg"
                     style={{ width: '15%' }}
                   >
                     Markup
@@ -859,25 +873,25 @@ export function PriceInquiryPage() {
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y" style={{ borderColor: '#f5f5f5' }}>
+            <tbody className="divide-y" style={{ borderColor: '#f0f0f0' }}>
               {chunk.map((p, idx) => {
                 const price = selectedClient !== 'all'
                   ? (clientLastPrices[p.id] || clientLastPricesByName[p.produto?.toLowerCase() || ''] || 0)
                   : calcularPrecoComDesconto(p.custo_und, p[selectedTable]);
                 
                 return (
-                  <tr key={p.id} className="text-sm" style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
-                    <td className="py-4 px-4 font-bold leading-tight break-words" style={{ color: '#262626', width: showMargin ? '45%' : '60%' }}>
+                  <tr key={p.id} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
+                    <td className="py-2.5 px-3 font-bold text-xs leading-snug break-words" style={{ color: '#171717', width: showMargin ? '45%' : '55%' }}>
                       {p.produto}
                     </td>
-                    <td className="py-4 px-4 text-right font-bold" style={{ color: '#a3a3a3', width: showMargin ? '18%' : '20%' }}>
+                    <td className="py-2.5 px-3 text-right font-medium text-xs" style={{ color: '#737373', width: showMargin ? '18%' : '22%' }}>
                       R$ {(p.sugestao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
-                    <td className="py-4 px-4 text-right font-black text-lg" style={{ color: '#171717', width: showMargin ? '22%' : '20%' }}>
+                    <td className="py-2.5 px-3 text-right font-black text-xs" style={{ color: '#171717', width: showMargin ? '22%' : '23%' }}>
                       R$ {price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     {showMargin && (
-                      <td className="py-4 px-4 text-right font-black text-lg" style={{ color: '#ea580c', width: '15%' }}>
+                      <td className="py-2.5 px-3 text-right font-black text-xs" style={{ color: '#ea580c', width: '15%' }}>
                         {getMarginString(p.sugestao, price)}
                       </td>
                     )}
@@ -889,10 +903,10 @@ export function PriceInquiryPage() {
         </div>
 
         {/* Footer */}
-        <div className="mt-12 pt-8 border-t text-center" style={{ borderColor: '#f5f5f5' }}>
-          <p className="text-[10px] font-bold mt-2 italic uppercase tracking-wider" style={{ color: '#a3a3a3' }}>Preços sujeitos a alteração sem aviso prévio. Este documento não possui validade fiscal.</p>
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] mt-4" style={{ color: '#d4d4d4' }}>MAICON OLIVEIRA REPRESENTAÇÕES</p>
-          <p className="text-[10px] font-bold mt-4" style={{ color: '#a3a3a3' }}>Página {pageIdx + 1} de {chunks.length}</p>
+        <div className="mt-auto pt-3 border-t flex justify-between items-center text-[9px] font-bold" style={{ borderColor: '#f0f0f0', color: '#737373' }}>
+          <p className="tracking-widest uppercase">MAICON OLIVEIRA REPRESENTAÇÕES</p>
+          <p className="italic">Preços sujeitos a alteração sem aviso prévio</p>
+          <p>Página {pageIdx + 1} de {chunks.length}</p>
         </div>
       </div>
     ));

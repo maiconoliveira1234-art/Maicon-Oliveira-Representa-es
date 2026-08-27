@@ -21,7 +21,7 @@ import {
   BarChart3
 } from 'lucide-react';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 import { Cliente, Produto, EstoqueCliente, HistVenda, PrecoFaixa } from '../types';
 import { supabase } from '../lib/supabase';
 import { cn, formatWeight, formatCurrency } from '../lib/utils';
@@ -1710,16 +1710,41 @@ export function StockCountPage() {
   }}
 >
   {(() => {
-    // Smart pagination: First page fits less items due to header/client info
-    const chunks = [];
-    let i = 0;
-    let isFirstPage = true;
-    
-    while (i < processedItems.length) {
-      const itemsLimit = isFirstPage ? 12 : 18;
-      chunks.push(processedItems.slice(i, i + itemsLimit));
-      i += itemsLimit;
-      isFirstPage = false;
+    // Balanced pagination
+    const p1Limit = 22;
+    const pInterLimit = 26;
+
+    const chunks: (typeof processedItems)[] = [];
+    const total = processedItems.length;
+
+    if (total <= p1Limit) {
+      chunks.push(processedItems);
+    } else if (total <= p1Limit + pInterLimit) {
+      // Balanced 2-page distribution
+      let p1Count = Math.ceil(total * 0.52);
+      if (p1Count > p1Limit) p1Count = p1Limit;
+      chunks.push(processedItems.slice(0, p1Count));
+      chunks.push(processedItems.slice(p1Count));
+    } else {
+      let remaining = [...processedItems];
+      const firstChunk = remaining.slice(0, p1Limit);
+      chunks.push(firstChunk);
+      remaining = remaining.slice(p1Limit);
+
+      while (remaining.length > 0) {
+        if (remaining.length <= pInterLimit) {
+          chunks.push(remaining);
+          remaining = [];
+        } else if (remaining.length <= pInterLimit * 2) {
+          const midCount = Math.ceil(remaining.length / 2);
+          chunks.push(remaining.slice(0, midCount));
+          chunks.push(remaining.slice(midCount));
+          remaining = [];
+        } else {
+          chunks.push(remaining.slice(0, pInterLimit));
+          remaining = remaining.slice(pInterLimit);
+        }
+      }
     }
 
     if (chunks.length === 0) {
@@ -1743,31 +1768,54 @@ export function StockCountPage() {
         }}
       >
         {/* Header */}
-        <div className="flex justify-between items-start border-b-2 pb-6 mb-8" style={{ borderColor: '#262626' }}>
+        <div className="flex justify-between items-start border-b-2 border-neutral-800 pb-4 mb-5" style={{ borderColor: '#262626' }}>
           <div className="flex flex-col">
-            <h1 className="text-3xl font-black uppercase tracking-tighter" style={{ color: '#171717' }}>Contagem de Estoque</h1>
-            <div className="mt-2 space-y-1">
-              <p className="text-sm font-bold" style={{ color: '#171717' }}>{cliente?.cliente}</p>
-              <div className="flex gap-4">
-                <p className="text-sm font-bold" style={{ color: '#737373' }}>Data: {new Date().toLocaleDateString('pt-BR')}</p>
-                <p className="text-sm font-bold" style={{ color: '#737373' }}>Últ. Pedido: {diasDesdeUltimoPedidoGlobal} dias</p>
-              </div>
+            <h1 className="text-2xl font-black uppercase tracking-tight" style={{ color: '#171717' }}>Contagem de Estoque</h1>
+            <div className="mt-1 flex items-center gap-3">
+              <span className="text-xs font-semibold" style={{ color: '#525252' }}>Data: {new Date().toLocaleDateString('pt-BR')}</span>
+              <span className="text-xs text-neutral-300">•</span>
+              <span className="text-xs font-semibold" style={{ color: '#525252' }}>Últ. Pedido: {diasDesdeUltimoPedidoGlobal} dias</span>
             </div>
           </div>
           <div className="flex flex-col items-end">
-            <img 
-              src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png" 
-              alt="ADIMAX" 
-              className="h-12 w-auto mb-2"
-              crossOrigin="anonymous"
-              referrerPolicy="no-referrer"
-            />
-            <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Parceiro Oficial</span>
+            <div className="h-10 flex items-center justify-end">
+              <img 
+                src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png" 
+                alt="ADIMAX" 
+                className="h-8 w-auto mb-0.5 object-contain"
+                crossOrigin="anonymous"
+                referrerPolicy="no-referrer"
+                onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+              />
+            </div>
+            <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#8c8c8c' }}>Parceiro Oficial</span>
           </div>
         </div>
 
+        {/* Client Info (Only on first page) */}
+        {pageIdx === 0 && (
+          <div className="grid grid-cols-2 gap-5 mb-5">
+            <div className="p-3.5 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: '#fcfcfc', borderColor: '#e5e5e5' }}>
+              <div>
+                <span className="text-[9px] font-black uppercase tracking-widest block mb-1" style={{ color: '#8c8c8c' }}>Cliente</span>
+                <p className="text-sm font-black leading-snug break-words" style={{ color: '#171717' }}>{cliente?.cliente || '-'}</p>
+              </div>
+              {cliente?.cidade && (
+                <p className="text-xs font-semibold mt-1" style={{ color: '#525252' }}>{cliente.cidade}</p>
+              )}
+            </div>
+            <div className="p-3.5 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: '#fcfcfc', borderColor: '#e5e5e5' }}>
+              <div>
+                <span className="text-[9px] font-black uppercase tracking-widest block mb-1" style={{ color: '#8c8c8c' }}>Vendedor</span>
+                <p className="text-sm font-black leading-snug" style={{ color: '#171717' }}>MAICON OLIVEIRA</p>
+              </div>
+              <p className="text-xs font-semibold mt-1" style={{ color: '#525252' }}>Representante Comercial</p>
+            </div>
+          </div>
+        )}
+
         {/* Table */}
-        <div className="flex-1">
+        <div className="flex-1 min-h-0">
           {(() => {
             const activeReportColumns = STOCK_REPORT_COLUMNS
               .map(col => col.id)
@@ -1791,37 +1839,37 @@ export function StockCountPage() {
                       switch (colId) {
                         case 'produto':
                           return (
-                            <th key="col-produto" className={`py-3 px-2 text-left text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
+                            <th key="col-produto" className={`py-2.5 px-3 text-left text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
                               Produto
                             </th>
                           );
                         case 'ult_contagem':
                           return (
-                            <th key="col-ult_contagem" className={`py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
+                            <th key="col-ult_contagem" className={`py-2.5 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
                               Ult. Contagem
                             </th>
                           );
                         case 'ult_pedido':
                           return (
-                            <th key="col-ult_pedido" className={`py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
+                            <th key="col-ult_pedido" className={`py-2.5 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
                               Ult. Pedido ({diasDesdeUltimoPedidoGlobal}d)
                             </th>
                           );
                         case 'ult_estoque':
                           return (
-                            <th key="col-ult_estoque" className={`py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`} style={{ borderRight: '2px solid #e5e5e5' }}>
+                            <th key="col-ult_estoque" className={`py-2.5 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`} style={{ borderRight: '1px solid #404040' }}>
                               Ult. Estoque
                             </th>
                           );
                         case 'contagem_atual':
                           return (
-                            <th key="col-contagem_atual" className={`py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
+                            <th key="col-contagem_atual" className={`py-2.5 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
                               Contagem Atual
                             </th>
                           );
                         case 'venda':
                           return (
-                            <th key="col-venda" className={`py-3 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
+                            <th key="col-venda" className={`py-2.5 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
                               Venda
                             </th>
                           );
@@ -1831,7 +1879,7 @@ export function StockCountPage() {
                     })}
                   </tr>
                 </thead>
-                <tbody className="divide-y" style={{ borderColor: '#f5f5f5' }}>
+                <tbody className="divide-y" style={{ borderColor: '#f0f0f0' }}>
                   {chunk.map((item, idx) => {
                     const currentStock = estoqueMap[item.produto_id] ?? 0;
                     const isZeroStock = currentStock === 0;
@@ -1839,34 +1887,34 @@ export function StockCountPage() {
                     const venda = ultEstoque - currentStock;
 
                     return (
-                      <tr key={item.produto_id} className="text-[11px]" style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#fafafa' }}>
+                      <tr key={item.produto_id} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
                         {activeReportColumns.map((colId) => {
                           switch (colId) {
                             case 'produto':
                               return (
                                 <td 
                                   key="cell-produto"
-                                  className="py-3 px-2 font-bold leading-tight break-words max-w-[200px]" 
-                                  style={{ color: isZeroStock ? '#dc2626' : '#262626', fontWeight: isZeroStock ? 900 : 700 }}
+                                  className="py-2 px-3 text-xs font-bold leading-snug break-words" 
+                                  style={{ color: isZeroStock ? '#dc2626' : '#171717', fontWeight: isZeroStock ? 900 : 700 }}
                                 >
                                   {item.produto_nome}
                                 </td>
                               );
                             case 'ult_contagem':
                               return (
-                                <td key="cell-ult_contagem" className="py-3 px-2 text-center font-bold" style={{ color: '#737373' }}>
+                                <td key="cell-ult_contagem" className="py-2 px-2 text-xs text-center font-medium" style={{ color: '#525252' }}>
                                   {item.ultima_contagem_valor}
                                 </td>
                               );
                             case 'ult_pedido':
                               return (
-                                <td key="cell-ult_pedido" className="py-3 px-2 text-center font-bold" style={{ color: '#737373' }}>
+                                <td key="cell-ult_pedido" className="py-2 px-2 text-xs text-center font-medium" style={{ color: '#525252' }}>
                                   {item.qtd_ultimo_pedido}
                                 </td>
                               );
                             case 'ult_estoque':
                               return (
-                                <td key="cell-ult_estoque" className="py-3 px-2 text-center font-black" style={{ borderRight: '2px solid #f5f5f5', color: '#171717' }}>
+                                <td key="cell-ult_estoque" className="py-2 px-2 text-xs text-center font-bold" style={{ borderRight: '1px solid #e5e5e5', color: '#171717' }}>
                                   {ultEstoque}
                                 </td>
                               );
@@ -1874,9 +1922,9 @@ export function StockCountPage() {
                               return (
                                 <td 
                                   key="cell-contagem_atual"
-                                  className="py-3 px-2 text-center font-black" 
+                                  className="py-2 px-2 text-xs text-center font-black" 
                                   style={{ 
-                                    backgroundColor: isZeroStock ? 'rgba(254, 226, 226, 0.45)' : 'rgba(255, 247, 237, 0.3)', 
+                                    backgroundColor: isZeroStock ? 'rgba(254, 226, 226, 0.5)' : 'rgba(255, 247, 237, 0.4)', 
                                     color: isZeroStock ? '#dc2626' : '#171717', 
                                     fontWeight: 900 
                                   }}
@@ -1888,7 +1936,7 @@ export function StockCountPage() {
                               return (
                                 <td 
                                   key="cell-venda"
-                                  className="py-3 px-2 text-center font-black" 
+                                  className="py-2 px-2 text-xs text-center font-black" 
                                   style={{ color: venda > 0 ? '#dc2626' : (venda < 0 ? '#dc2626' : '#a3a3a3') }}
                                 >
                                   {venda}
@@ -1908,10 +1956,10 @@ export function StockCountPage() {
         </div>
 
         {/* Footer */}
-        <div className="mt-12 pt-8 border-t text-center" style={{ borderColor: '#f5f5f5' }}>
-          <p className="text-[10px] font-black uppercase tracking-[0.3em]" style={{ color: '#d4d4d4' }}>MAICON OLIVEIRA REPRESENTAÇÕES</p>
-          <p className="text-[10px] font-bold mt-2 italic uppercase tracking-wider" style={{ color: '#a3a3a3' }}>Este documento é uma contagem de estoque e não possui validade fiscal.</p>
-          <p className="text-[10px] font-bold mt-4" style={{ color: '#a3a3a3' }}>Página {pageIdx + 1} de {chunks.length}</p>
+        <div className="mt-auto pt-3 border-t flex justify-between items-center text-[9px] font-bold" style={{ borderColor: '#f0f0f0', color: '#737373' }}>
+          <p className="tracking-widest uppercase">MAICON OLIVEIRA REPRESENTAÇÕES</p>
+          <p className="italic">Documento sem validade fiscal</p>
+          <p>Página {pageIdx + 1} de {chunks.length}</p>
         </div>
       </div>
     ));

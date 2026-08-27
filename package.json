@@ -1,7 +1,7 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "1.20.97",
+  "version": "1.20.99",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
@@ -24,6 +24,7 @@
     "express": "^4.21.2",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
+    "html2canvas-pro": "^2.4.0",
     "idb": "^8.0.3",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
