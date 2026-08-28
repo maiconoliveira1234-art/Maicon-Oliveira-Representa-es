@@ -815,8 +815,13 @@ export function OrderPage() {
             logging: false,
             backgroundColor: '#ffffff',
             windowWidth: 800,
+            windowHeight: 1130,
             scrollX: 0,
-            scrollY: 0
+            scrollY: 0,
+            x: 0,
+            y: 0,
+            width: 800,
+            height: 1130
           });
           
           const imgData = canvas.toDataURL('image/jpeg', 0.90);
@@ -1034,7 +1039,7 @@ export function OrderPage() {
     return chunks.map((chunk, pageIdx) => (
       <div 
         key={pageIdx}
-        className="pdf-page bg-white flex flex-col font-sans"
+        className="pdf-page"
         style={{ 
           width: '800px', 
           minHeight: '1130px', 
@@ -1044,91 +1049,94 @@ export function OrderPage() {
           padding: '36px 40px',
           fontFamily: 'Arial, sans-serif', 
           backgroundColor: '#ffffff', 
-          color: '#171717' 
+          color: '#171717',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative'
         }}
       >
         {/* Header */}
-        <div className="flex justify-between items-start border-b-2 border-neutral-800 pb-4 mb-5" style={{ borderColor: '#262626' }}>
-          <div className="flex flex-col">
-            <h1 className="text-2xl font-black uppercase tracking-tight" style={{ color: '#171717' }}>Resumo do Orçamento</h1>
-            <div className="mt-1 flex items-center gap-3">
-              <span className="text-xs font-semibold" style={{ color: '#525252' }}>Data: {orderDateStr}</span>
-              <span className="text-xs text-neutral-300">•</span>
-              <span className="text-xs font-semibold" style={{ color: '#525252' }}>Hora: {orderTimeStr}</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #262626', paddingBottom: '14px', marginBottom: '18px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-0.02em', color: '#171717' }}>Resumo do Orçamento</h1>
+            <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#525252' }}>Data: {orderDateStr}</span>
+              <span style={{ fontSize: '11px', color: '#d4d4d4' }}>•</span>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#525252' }}>Hora: {orderTimeStr}</span>
             </div>
           </div>
-          <div className="flex flex-col items-end">
-            <div className="h-10 flex items-center justify-end">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+            <div style={{ height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
               <img 
                 src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png" 
                 alt="ADIMAX" 
-                className="h-8 w-auto mb-0.5 object-contain"
+                style={{ height: '32px', width: 'auto', maxHeight: '32px', maxWidth: '140px', objectFit: 'contain', display: 'block' }}
                 crossOrigin="anonymous"
                 referrerPolicy="no-referrer"
                 onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
               />
             </div>
-            <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#8c8c8c' }}>Parceiro Oficial</span>
+            <span style={{ fontSize: '8px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#8c8c8c', marginTop: '2px' }}>Parceiro Oficial</span>
           </div>
         </div>
 
         {/* Client Info (Only on first page) */}
         {pageIdx === 0 && (
-          <div className="grid grid-cols-2 gap-5 mb-5">
-            <div className="p-3.5 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: '#fcfcfc', borderColor: '#e5e5e5' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '18px' }}>
+            <div style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid #e5e5e5', backgroundColor: '#fcfcfc', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
-                <span className="text-[9px] font-black uppercase tracking-widest block mb-1" style={{ color: '#8c8c8c' }}>Cliente</span>
-                <p className="text-sm font-black leading-snug break-words" style={{ color: '#171717' }}>{cliente?.cliente || '-'}</p>
+                <span style={{ display: 'block', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8c8c8c', marginBottom: '3px' }}>Cliente</span>
+                <p style={{ margin: 0, fontSize: '13px', fontWeight: 900, lineHeight: '1.3', wordBreak: 'break-word', color: '#171717' }}>{cliente?.cliente || '-'}</p>
               </div>
               {cliente?.cidade && (
-                <p className="text-xs font-semibold mt-1" style={{ color: '#525252' }}>{cliente.cidade}</p>
+                <p style={{ margin: '4px 0 0 0', fontSize: '11px', fontWeight: 600, color: '#525252' }}>{cliente.cidade}</p>
               )}
             </div>
-            <div className="p-3.5 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: '#fcfcfc', borderColor: '#e5e5e5' }}>
+            <div style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid #e5e5e5', backgroundColor: '#fcfcfc', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
-                <span className="text-[9px] font-black uppercase tracking-widest block mb-1" style={{ color: '#8c8c8c' }}>Vendedor</span>
-                <p className="text-sm font-black leading-snug" style={{ color: '#171717' }}>MAICON OLIVEIRA</p>
+                <span style={{ display: 'block', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8c8c8c', marginBottom: '3px' }}>Vendedor</span>
+                <p style={{ margin: 0, fontSize: '13px', fontWeight: 900, lineHeight: '1.3', color: '#171717' }}>MAICON OLIVEIRA</p>
               </div>
-              <p className="text-xs font-semibold mt-1" style={{ color: '#525252' }}>Representante Comercial</p>
+              <p style={{ margin: '4px 0 0 0', fontSize: '11px', fontWeight: 600, color: '#525252' }}>Representante Comercial</p>
             </div>
           </div>
         )}
 
         {/* Items Table */}
-        <div className="flex-1 min-h-0">
-          <table className="w-full border-collapse">
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <thead>
               <tr style={{ backgroundColor: '#171717', color: '#ffffff' }}>
-                <th className="py-2.5 px-3 text-left text-[9px] font-black uppercase tracking-widest rounded-tl-lg" style={{ width: '46%' }}>Produto</th>
-                <th className="py-2.5 px-2 text-center text-[9px] font-black uppercase tracking-widest" style={{ width: '12%' }}>Qtd</th>
-                <th className="py-2.5 px-2 text-right text-[9px] font-black uppercase tracking-widest" style={{ width: '13%' }}>Peso</th>
-                <th className="py-2.5 px-2 text-right text-[9px] font-black uppercase tracking-widest" style={{ width: '14%' }}>Unitário</th>
-                <th className="py-2.5 px-3 text-right text-[9px] font-black uppercase tracking-widest rounded-tr-lg" style={{ width: '15%' }}>Subtotal</th>
+                <th style={{ width: '46%', padding: '9px 12px', textAlign: 'left', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', borderTopLeftRadius: '6px', color: '#ffffff' }}>Produto</th>
+                <th style={{ width: '12%', padding: '9px 8px', textAlign: 'center', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#ffffff' }}>Qtd</th>
+                <th style={{ width: '13%', padding: '9px 8px', textAlign: 'right', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#ffffff' }}>Peso</th>
+                <th style={{ width: '14%', padding: '9px 8px', textAlign: 'right', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#ffffff' }}>Unitário</th>
+                <th style={{ width: '15%', padding: '9px 12px', textAlign: 'right', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', borderTopRightRadius: '6px', color: '#ffffff' }}>Subtotal</th>
               </tr>
             </thead>
-            <tbody className="divide-y" style={{ borderColor: '#f0f0f0' }}>
+            <tbody>
               {chunk.map((item, idx) => {
                 const produto = produtos.find(p => p.id === item.produto_id)!;
                 return (
-                  <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
-                    <td className="py-2 px-3 font-bold text-xs leading-snug" style={{ color: '#171717' }}>
-                      <div className="break-words">{produto?.produto}</div>
+                  <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb', borderBottom: '1px solid #f0f0f0' }}>
+                    <td style={{ padding: '7px 12px', fontSize: '11px', fontWeight: 700, lineHeight: '14px', color: '#171717', wordBreak: 'break-word' }}>
+                      <div>{produto?.produto}</div>
                       {item.tipo_operacao && item.tipo_operacao !== 'VENDA' && (
-                        <span className="inline-block text-[8px] font-black tracking-wider uppercase mt-0.5 px-1.5 py-0.2 rounded" style={{ color: '#c2410c', backgroundColor: '#ffedd5' }}>
+                        <span style={{ display: 'inline-block', fontSize: '8px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px', padding: '1px 5px', borderRadius: '3px', color: '#c2410c', backgroundColor: '#ffedd5' }}>
                           {item.tipo_operacao === 'BONIFICACAO_COMERCIAL' ? 'Bonificação' : 'Merchandising'}
                         </span>
                       )}
                     </td>
-                    <td className="py-2 px-2 text-center font-black text-xs" style={{ color: '#333333' }}>
+                    <td style={{ padding: '7px 8px', textAlign: 'center', fontSize: '11px', fontWeight: 900, color: '#333333' }}>
                       {item.quantidade} {produto?.quant_embalagem > 1 ? 'CX' : 'UN'}
                     </td>
-                    <td className="py-2 px-2 text-right font-medium text-xs" style={{ color: '#525252' }}>
+                    <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: '11px', fontWeight: 500, color: '#525252' }}>
                       {formatWeight(item.peso_total || 0)}
                     </td>
-                    <td className="py-2 px-2 text-right font-medium text-xs" style={{ color: '#525252' }}>
+                    <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: '11px', fontWeight: 500, color: '#525252' }}>
                       {formatCurrency(item.valor_unitario || 0)}
                     </td>
-                    <td className="py-2 px-3 text-right font-black text-xs" style={{ color: '#171717' }}>
+                    <td style={{ padding: '7px 12px', textAlign: 'right', fontSize: '11px', fontWeight: 900, color: '#171717' }}>
                       {formatCurrency(item.valor_total || 0)}
                     </td>
                   </tr>
@@ -1140,25 +1148,25 @@ export function OrderPage() {
 
         {/* Summary Section (Only on last page) */}
         {pageIdx === chunks.length - 1 && (
-          <div className="mt-3 pt-3 border-t-2" style={{ borderColor: '#e5e5e5' }}>
-            <div className="grid grid-cols-2 gap-5 items-stretch">
-              <div className="flex flex-col gap-2.5">
-                <div className="p-3 border rounded-xl" style={{ borderColor: '#e5e5e5', backgroundColor: '#fcfcfc' }}>
-                  <p className="text-[9px] font-black uppercase tracking-widest mb-1.5" style={{ color: '#8c8c8c' }}>Condições de Pagamento</p>
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-semibold" style={{ color: '#525252' }}>Condição:</span>
-                      <span className="text-xs font-black" style={{ color: '#171717' }}>{selectedPrazo || 'À Vista'}</span>
+          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '2px solid #e5e5e5' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'stretch' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ padding: '10px 12px', border: '1px solid #e5e5e5', borderRadius: '10px', backgroundColor: '#fcfcfc' }}>
+                  <p style={{ margin: '0 0 6px 0', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8c8c8c' }}>Condições de Pagamento</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: '#525252' }}>Condição:</span>
+                      <span style={{ fontSize: '11px', fontWeight: 900, color: '#171717' }}>{selectedPrazo || 'À Vista'}</span>
                     </div>
                     {selectedPrazo && selectedPrazo !== 'À Vista' && (
                       <>
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-semibold" style={{ color: '#525252' }}>Valor por Boleto:</span>
-                          <span className="text-xs font-bold" style={{ color: '#171717' }}>{formatCurrency(installmentDetails.valorBoleto)}</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 600, color: '#525252' }}>Valor por Boleto:</span>
+                          <span style={{ fontSize: '11px', fontWeight: 700, color: '#171717' }}>{formatCurrency(installmentDetails.valorBoleto)}</span>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-semibold" style={{ color: '#525252' }}>1º Vencimento (Estimado):</span>
-                          <span className="text-xs font-bold" style={{ color: '#171717' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 600, color: '#525252' }}>1º Vencimento (Estimado):</span>
+                          <span style={{ fontSize: '11px', fontWeight: 700, color: '#171717' }}>
                             {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
                           </span>
                         </div>
@@ -1168,30 +1176,30 @@ export function OrderPage() {
                 </div>
                 
                 {observacoes && (
-                  <div className="p-3 border rounded-xl" style={{ borderColor: '#fed7aa', backgroundColor: '#fffbeb' }}>
-                    <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: '#b45309' }}>Observações Importantes</p>
-                    <p className="text-xs font-bold leading-relaxed whitespace-pre-wrap uppercase break-words" style={{ color: '#171717' }}>{observacoes}</p>
+                  <div style={{ padding: '10px 12px', border: '1px solid #fed7aa', borderRadius: '10px', backgroundColor: '#fffbeb' }}>
+                    <p style={{ margin: '0 0 4px 0', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#b45309' }}>Observações Importantes</p>
+                    <p style={{ margin: 0, fontSize: '11px', fontWeight: 700, lineHeight: '1.4', whiteSpace: 'pre-wrap', textTransform: 'uppercase', wordBreak: 'break-word', color: '#171717' }}>{observacoes}</p>
                   </div>
                 )}
               </div>
 
-              <div className="flex flex-col justify-between gap-2.5">
-                <div className="space-y-2">
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {pesoConquistado > 0 && (
-                    <div className="flex justify-between items-center px-3 py-1.5 rounded-lg border opacity-75" style={{ backgroundColor: '#fafafa', borderColor: '#e5e5e5' }}>
-                      <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#8c8c8c' }}>Peso Acumulado (28 dias)</span>
-                      <span className="text-xs font-bold" style={{ color: '#171717' }}>{formatWeight(pesoConquistado)}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e5e5e5', backgroundColor: '#fafafa', opacity: 0.75 }}>
+                      <span style={{ fontSize: '8px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8c8c8c' }}>Peso Acumulado (28 dias)</span>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: '#171717' }}>{formatWeight(pesoConquistado)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between items-center p-3 rounded-xl border" style={{ backgroundColor: '#fafafa', borderColor: '#e5e5e5' }}>
-                    <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#8c8c8c' }}>Peso do Pedido</span>
-                    <span className="text-base font-black" style={{ color: '#171717' }}>{formatWeight(pesoTotal)}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: '10px', border: '1px solid #e5e5e5', backgroundColor: '#fafafa' }}>
+                    <span style={{ fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8c8c8c' }}>Peso do Pedido</span>
+                    <span style={{ fontSize: '15px', fontWeight: 900, color: '#171717' }}>{formatWeight(pesoTotal)}</span>
                   </div>
                 </div>
                 
-                <div className="flex justify-between items-center p-3.5 rounded-xl shadow-sm" style={{ backgroundColor: '#171717' }}>
-                  <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: '#a3a3a3' }}>Valor Total do Orçamento</span>
-                  <span className="text-2xl font-black" style={{ color: '#ffffff' }}>{formatCurrency(valorTotal)}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: '10px', backgroundColor: '#171717', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                  <span style={{ fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a3a3a3' }}>Valor Total do Orçamento</span>
+                  <span style={{ fontSize: '20px', fontWeight: 900, color: '#ffffff' }}>{formatCurrency(valorTotal)}</span>
                 </div>
               </div>
             </div>
@@ -1199,10 +1207,10 @@ export function OrderPage() {
         )}
 
         {/* Footer */}
-        <div className="mt-auto pt-3 border-t flex justify-between items-center text-[9px] font-bold" style={{ borderColor: '#f0f0f0', color: '#737373' }}>
-          <p className="tracking-widest uppercase">MAICON OLIVEIRA REPRESENTAÇÕES</p>
-          <p className="italic">Documento sem validade fiscal</p>
-          <p>Página {pageIdx + 1} de {chunks.length}</p>
+        <div style={{ marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '9px', fontWeight: 700, color: '#737373' }}>
+          <p style={{ margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>MAICON OLIVEIRA REPRESENTAÇÕES</p>
+          <p style={{ margin: 0, fontStyle: 'italic' }}>Documento sem validade fiscal</p>
+          <p style={{ margin: 0 }}>Página {pageIdx + 1} de {chunks.length}</p>
         </div>
       </div>
     ));

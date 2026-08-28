@@ -373,8 +373,13 @@ export function PriceInquiryPage() {
           logging: false,
           backgroundColor: '#ffffff',
           windowWidth: 800,
+          windowHeight: 1130,
           scrollX: 0,
-          scrollY: 0
+          scrollY: 0,
+          x: 0,
+          y: 0,
+          width: 800,
+          height: 1130
         });
         
         const imgData = canvas.toDataURL('image/jpeg', 0.90);
@@ -799,7 +804,7 @@ export function PriceInquiryPage() {
     return chunks.map((chunk, pageIdx) => (
       <div 
         key={pageIdx}
-        className="pdf-page bg-white flex flex-col font-sans"
+        className="pdf-page"
         style={{ 
           width: '800px', 
           minHeight: '1130px', 
@@ -809,89 +814,85 @@ export function PriceInquiryPage() {
           padding: '36px 40px',
           fontFamily: 'Arial, sans-serif', 
           backgroundColor: '#ffffff', 
-          color: '#171717' 
+          color: '#171717',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative'
         }}
       >
         {/* Header */}
-        <div className="flex justify-between items-start border-b-2 border-neutral-800 pb-4 mb-5" style={{ borderColor: '#262626' }}>
-          <div className="flex flex-col">
-            <h1 className="text-2xl font-black uppercase tracking-tight" style={{ color: '#171717' }}>Lista de Preços</h1>
-            <div className="mt-1 flex items-center gap-3">
-              <span className="text-xs font-semibold" style={{ color: '#525252' }}>Tabela: {selectedTable.toUpperCase()}</span>
-              <span className="text-xs text-neutral-300">•</span>
-              <span className="text-xs font-semibold" style={{ color: '#525252' }}>Data: {new Date().toLocaleDateString('pt-BR')}</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #262626', paddingBottom: '14px', marginBottom: '18px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-0.02em', color: '#171717' }}>Lista de Preços</h1>
+            <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#525252' }}>Tabela: {selectedTable.toUpperCase()}</span>
+              <span style={{ fontSize: '11px', color: '#d4d4d4' }}>•</span>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#525252' }}>Data: {new Date().toLocaleDateString('pt-BR')}</span>
             </div>
           </div>
-          <div className="flex flex-col items-end">
-            <div className="h-10 flex items-center justify-end">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+            <div style={{ height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
               <img 
                 src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png" 
                 alt="ADIMAX" 
-                className="h-8 w-auto mb-0.5 object-contain"
+                style={{ height: '32px', width: 'auto', maxHeight: '32px', maxWidth: '140px', objectFit: 'contain', display: 'block' }}
                 crossOrigin="anonymous"
                 referrerPolicy="no-referrer"
                 onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
               />
             </div>
-            <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#8c8c8c' }}>Parceiro Oficial</span>
+            <span style={{ fontSize: '8px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#8c8c8c', marginTop: '2px' }}>Parceiro Oficial</span>
           </div>
         </div>
 
         {/* Table */}
-        <div className="flex-1 min-h-0">
-          <table className="w-full border-collapse">
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <thead>
               <tr style={{ backgroundColor: '#171717', color: '#ffffff' }}>
                 <th 
-                  className="py-2.5 px-3 text-left text-[9px] font-black uppercase tracking-widest rounded-tl-lg"
-                  style={{ width: showMargin ? '45%' : '55%' }}
+                  style={{ width: showMargin ? '45%' : '55%', padding: '9px 12px', textAlign: 'left', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', borderTopLeftRadius: '6px', color: '#ffffff' }}
                 >
                   Produto
                 </th>
                 <th 
-                  className="py-2.5 px-3 text-right text-[9px] font-black uppercase tracking-widest"
-                  style={{ width: showMargin ? '18%' : '22%' }}
+                  style={{ width: showMargin ? '18%' : '22%', padding: '9px 12px', textAlign: 'right', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#ffffff' }}
                 >
                   Sugestão
                 </th>
                 <th 
-                  className={cn(
-                    "py-2.5 px-3 text-right text-[9px] font-black uppercase tracking-widest",
-                    !showMargin && "rounded-tr-lg"
-                  )}
-                  style={{ width: showMargin ? '22%' : '23%' }}
+                  style={{ width: showMargin ? '22%' : '23%', padding: '9px 12px', textAlign: 'right', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', borderTopRightRadius: !showMargin ? '6px' : undefined, color: '#ffffff' }}
                 >
                   Preço Unitário
                 </th>
                 {showMargin && (
                   <th 
-                    className="py-2.5 px-3 text-right text-[9px] font-black uppercase tracking-widest rounded-tr-lg"
-                    style={{ width: '15%' }}
+                    style={{ width: '15%', padding: '9px 12px', textAlign: 'right', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', borderTopRightRadius: '6px', color: '#ffffff' }}
                   >
                     Markup
                   </th>
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y" style={{ borderColor: '#f0f0f0' }}>
+            <tbody>
               {chunk.map((p, idx) => {
                 const price = selectedClient !== 'all'
                   ? (clientLastPrices[p.id] || clientLastPricesByName[p.produto?.toLowerCase() || ''] || 0)
                   : calcularPrecoComDesconto(p.custo_und, p[selectedTable]);
                 
                 return (
-                  <tr key={p.id} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
-                    <td className="py-2.5 px-3 font-bold text-xs leading-snug break-words" style={{ color: '#171717', width: showMargin ? '45%' : '55%' }}>
+                  <tr key={p.id} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb', borderBottom: '1px solid #f0f0f0' }}>
+                    <td style={{ padding: '7px 12px', fontSize: '11px', fontWeight: 700, lineHeight: '14px', color: '#171717', wordBreak: 'break-word', width: showMargin ? '45%' : '55%' }}>
                       {p.produto}
                     </td>
-                    <td className="py-2.5 px-3 text-right font-medium text-xs" style={{ color: '#737373', width: showMargin ? '18%' : '22%' }}>
+                    <td style={{ padding: '7px 12px', textAlign: 'right', fontSize: '11px', fontWeight: 500, color: '#525252', width: showMargin ? '18%' : '22%' }}>
                       R$ {(p.sugestao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
-                    <td className="py-2.5 px-3 text-right font-black text-xs" style={{ color: '#171717', width: showMargin ? '22%' : '23%' }}>
+                    <td style={{ padding: '7px 12px', textAlign: 'right', fontSize: '11px', fontWeight: 900, color: '#171717', width: showMargin ? '22%' : '23%' }}>
                       R$ {price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     {showMargin && (
-                      <td className="py-2.5 px-3 text-right font-black text-xs" style={{ color: '#ea580c', width: '15%' }}>
+                      <td style={{ padding: '7px 12px', textAlign: 'right', fontSize: '11px', fontWeight: 900, color: '#ea580c', width: '15%' }}>
                         {getMarginString(p.sugestao, price)}
                       </td>
                     )}
@@ -903,10 +904,10 @@ export function PriceInquiryPage() {
         </div>
 
         {/* Footer */}
-        <div className="mt-auto pt-3 border-t flex justify-between items-center text-[9px] font-bold" style={{ borderColor: '#f0f0f0', color: '#737373' }}>
-          <p className="tracking-widest uppercase">MAICON OLIVEIRA REPRESENTAÇÕES</p>
-          <p className="italic">Preços sujeitos a alteração sem aviso prévio</p>
-          <p>Página {pageIdx + 1} de {chunks.length}</p>
+        <div style={{ marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '9px', fontWeight: 700, color: '#737373' }}>
+          <p style={{ margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>MAICON OLIVEIRA REPRESENTAÇÕES</p>
+          <p style={{ margin: 0, fontStyle: 'italic' }}>Preços sujeitos a alteração sem aviso prévio</p>
+          <p style={{ margin: 0 }}>Página {pageIdx + 1} de {chunks.length}</p>
         </div>
       </div>
     ));

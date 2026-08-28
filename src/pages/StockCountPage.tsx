@@ -824,8 +824,13 @@ export function StockCountPage() {
           logging: false,
           backgroundColor: '#ffffff',
           windowWidth: 800,
+          windowHeight: 1130,
           scrollX: 0,
-          scrollY: 0
+          scrollY: 0,
+          x: 0,
+          y: 0,
+          width: 800,
+          height: 1130
         });
         
         const imgData = canvas.toDataURL('image/jpeg', 0.90);
@@ -1754,7 +1759,7 @@ export function StockCountPage() {
     return chunks.map((chunk, pageIdx) => (
       <div 
         key={pageIdx}
-        className="pdf-page bg-white flex flex-col font-sans"
+        className="pdf-page"
         style={{ 
           width: '800px', 
           minHeight: '1130px', 
@@ -1764,112 +1769,108 @@ export function StockCountPage() {
           padding: '36px 40px',
           fontFamily: 'Arial, sans-serif', 
           backgroundColor: '#ffffff', 
-          color: '#171717' 
+          color: '#171717',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative'
         }}
       >
         {/* Header */}
-        <div className="flex justify-between items-start border-b-2 border-neutral-800 pb-4 mb-5" style={{ borderColor: '#262626' }}>
-          <div className="flex flex-col">
-            <h1 className="text-2xl font-black uppercase tracking-tight" style={{ color: '#171717' }}>Contagem de Estoque</h1>
-            <div className="mt-1 flex items-center gap-3">
-              <span className="text-xs font-semibold" style={{ color: '#525252' }}>Data: {new Date().toLocaleDateString('pt-BR')}</span>
-              <span className="text-xs text-neutral-300">•</span>
-              <span className="text-xs font-semibold" style={{ color: '#525252' }}>Últ. Pedido: {diasDesdeUltimoPedidoGlobal} dias</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #262626', paddingBottom: '14px', marginBottom: '18px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-0.02em', color: '#171717' }}>Contagem de Estoque</h1>
+            <div style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#525252' }}>Data: {new Date().toLocaleDateString('pt-BR')}</span>
+              <span style={{ fontSize: '11px', color: '#d4d4d4' }}>•</span>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: '#525252' }}>Últ. Pedido: {diasDesdeUltimoPedidoGlobal} dias</span>
             </div>
           </div>
-          <div className="flex flex-col items-end">
-            <div className="h-10 flex items-center justify-end">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+            <div style={{ height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
               <img 
                 src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png" 
                 alt="ADIMAX" 
-                className="h-8 w-auto mb-0.5 object-contain"
+                style={{ height: '32px', width: 'auto', maxHeight: '32px', maxWidth: '140px', objectFit: 'contain', display: 'block' }}
                 crossOrigin="anonymous"
                 referrerPolicy="no-referrer"
                 onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
               />
             </div>
-            <span className="text-[8px] font-black uppercase tracking-widest" style={{ color: '#8c8c8c' }}>Parceiro Oficial</span>
+            <span style={{ fontSize: '8px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#8c8c8c', marginTop: '2px' }}>Parceiro Oficial</span>
           </div>
         </div>
 
         {/* Client Info (Only on first page) */}
         {pageIdx === 0 && (
-          <div className="grid grid-cols-2 gap-5 mb-5">
-            <div className="p-3.5 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: '#fcfcfc', borderColor: '#e5e5e5' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '18px' }}>
+            <div style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid #e5e5e5', backgroundColor: '#fcfcfc', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
-                <span className="text-[9px] font-black uppercase tracking-widest block mb-1" style={{ color: '#8c8c8c' }}>Cliente</span>
-                <p className="text-sm font-black leading-snug break-words" style={{ color: '#171717' }}>{cliente?.cliente || '-'}</p>
+                <span style={{ display: 'block', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8c8c8c', marginBottom: '3px' }}>Cliente</span>
+                <p style={{ margin: 0, fontSize: '13px', fontWeight: 900, lineHeight: '1.3', wordBreak: 'break-word', color: '#171717' }}>{cliente?.cliente || '-'}</p>
               </div>
               {cliente?.cidade && (
-                <p className="text-xs font-semibold mt-1" style={{ color: '#525252' }}>{cliente.cidade}</p>
+                <p style={{ margin: '4px 0 0 0', fontSize: '11px', fontWeight: 600, color: '#525252' }}>{cliente.cidade}</p>
               )}
             </div>
-            <div className="p-3.5 rounded-xl border flex flex-col justify-between" style={{ backgroundColor: '#fcfcfc', borderColor: '#e5e5e5' }}>
+            <div style={{ padding: '12px 14px', borderRadius: '10px', border: '1px solid #e5e5e5', backgroundColor: '#fcfcfc', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
-                <span className="text-[9px] font-black uppercase tracking-widest block mb-1" style={{ color: '#8c8c8c' }}>Vendedor</span>
-                <p className="text-sm font-black leading-snug" style={{ color: '#171717' }}>MAICON OLIVEIRA</p>
+                <span style={{ display: 'block', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8c8c8c', marginBottom: '3px' }}>Vendedor</span>
+                <p style={{ margin: 0, fontSize: '13px', fontWeight: 900, lineHeight: '1.3', color: '#171717' }}>MAICON OLIVEIRA</p>
               </div>
-              <p className="text-xs font-semibold mt-1" style={{ color: '#525252' }}>Representante Comercial</p>
+              <p style={{ margin: '4px 0 0 0', fontSize: '11px', fontWeight: 600, color: '#525252' }}>Representante Comercial</p>
             </div>
           </div>
         )}
 
         {/* Table */}
-        <div className="flex-1 min-h-0">
+        <div style={{ flex: 1, minHeight: 0 }}>
           {(() => {
             const activeReportColumns = STOCK_REPORT_COLUMNS
               .map(col => col.id)
               .filter(colId => selectedReportColumns.includes(colId));
 
             return (
-              <table className="w-full border-collapse">
+              <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#171717', color: '#ffffff' }}>
                     {activeReportColumns.map((colId, cIdx) => {
                       const isFirst = cIdx === 0;
                       const isLast = cIdx === activeReportColumns.length - 1;
-                      const roundedClass = isFirst && isLast 
-                        ? 'rounded-lg' 
-                        : isFirst 
-                          ? 'rounded-tl-lg' 
-                          : isLast 
-                            ? 'rounded-tr-lg' 
-                            : '';
 
                       switch (colId) {
                         case 'produto':
                           return (
-                            <th key="col-produto" className={`py-2.5 px-3 text-left text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
+                            <th key="col-produto" style={{ padding: '9px 12px', textAlign: 'left', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', borderTopLeftRadius: isFirst ? '6px' : undefined, color: '#ffffff' }}>
                               Produto
                             </th>
                           );
                         case 'ult_contagem':
                           return (
-                            <th key="col-ult_contagem" className={`py-2.5 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
+                            <th key="col-ult_contagem" style={{ padding: '9px 8px', textAlign: 'center', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#ffffff' }}>
                               Ult. Contagem
                             </th>
                           );
                         case 'ult_pedido':
                           return (
-                            <th key="col-ult_pedido" className={`py-2.5 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
+                            <th key="col-ult_pedido" style={{ padding: '9px 8px', textAlign: 'center', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#ffffff' }}>
                               Ult. Pedido ({diasDesdeUltimoPedidoGlobal}d)
                             </th>
                           );
                         case 'ult_estoque':
                           return (
-                            <th key="col-ult_estoque" className={`py-2.5 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`} style={{ borderRight: '1px solid #404040' }}>
+                            <th key="col-ult_estoque" style={{ padding: '9px 8px', textAlign: 'center', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', borderRight: '1px solid #404040', color: '#ffffff' }}>
                               Ult. Estoque
                             </th>
                           );
                         case 'contagem_atual':
                           return (
-                            <th key="col-contagem_atual" className={`py-2.5 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
+                            <th key="col-contagem_atual" style={{ padding: '9px 8px', textAlign: 'center', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#ffffff' }}>
                               Contagem Atual
                             </th>
                           );
                         case 'venda':
                           return (
-                            <th key="col-venda" className={`py-2.5 px-2 text-center text-[9px] font-black uppercase tracking-widest ${roundedClass}`}>
+                            <th key="col-venda" style={{ padding: '9px 8px', textAlign: 'center', fontSize: '9px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', borderTopRightRadius: isLast ? '6px' : undefined, color: '#ffffff' }}>
                               Venda
                             </th>
                           );
@@ -1879,7 +1880,7 @@ export function StockCountPage() {
                     })}
                   </tr>
                 </thead>
-                <tbody className="divide-y" style={{ borderColor: '#f0f0f0' }}>
+                <tbody>
                   {chunk.map((item, idx) => {
                     const currentStock = estoqueMap[item.produto_id] ?? 0;
                     const isZeroStock = currentStock === 0;
@@ -1887,34 +1888,33 @@ export function StockCountPage() {
                     const venda = ultEstoque - currentStock;
 
                     return (
-                      <tr key={item.produto_id} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
+                      <tr key={item.produto_id} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb', borderBottom: '1px solid #f0f0f0' }}>
                         {activeReportColumns.map((colId) => {
                           switch (colId) {
                             case 'produto':
                               return (
                                 <td 
                                   key="cell-produto"
-                                  className="py-2 px-3 text-xs font-bold leading-snug break-words" 
-                                  style={{ color: isZeroStock ? '#dc2626' : '#171717', fontWeight: isZeroStock ? 900 : 700 }}
+                                  style={{ padding: '7px 12px', fontSize: '11px', fontWeight: isZeroStock ? 900 : 700, lineHeight: '14px', color: isZeroStock ? '#dc2626' : '#171717', wordBreak: 'break-word' }}
                                 >
                                   {item.produto_nome}
                                 </td>
                               );
                             case 'ult_contagem':
                               return (
-                                <td key="cell-ult_contagem" className="py-2 px-2 text-xs text-center font-medium" style={{ color: '#525252' }}>
+                                <td key="cell-ult_contagem" style={{ padding: '7px 8px', fontSize: '11px', textAlign: 'center', fontWeight: 500, color: '#525252' }}>
                                   {item.ultima_contagem_valor}
                                 </td>
                               );
                             case 'ult_pedido':
                               return (
-                                <td key="cell-ult_pedido" className="py-2 px-2 text-xs text-center font-medium" style={{ color: '#525252' }}>
+                                <td key="cell-ult_pedido" style={{ padding: '7px 8px', fontSize: '11px', textAlign: 'center', fontWeight: 500, color: '#525252' }}>
                                   {item.qtd_ultimo_pedido}
                                 </td>
                               );
                             case 'ult_estoque':
                               return (
-                                <td key="cell-ult_estoque" className="py-2 px-2 text-xs text-center font-bold" style={{ borderRight: '1px solid #e5e5e5', color: '#171717' }}>
+                                <td key="cell-ult_estoque" style={{ padding: '7px 8px', fontSize: '11px', textAlign: 'center', fontWeight: 700, borderRight: '1px solid #e5e5e5', color: '#171717' }}>
                                   {ultEstoque}
                                 </td>
                               );
@@ -1922,11 +1922,13 @@ export function StockCountPage() {
                               return (
                                 <td 
                                   key="cell-contagem_atual"
-                                  className="py-2 px-2 text-xs text-center font-black" 
                                   style={{ 
+                                    padding: '7px 8px', 
+                                    fontSize: '11px', 
+                                    textAlign: 'center', 
+                                    fontWeight: 900,
                                     backgroundColor: isZeroStock ? 'rgba(254, 226, 226, 0.5)' : 'rgba(255, 247, 237, 0.4)', 
-                                    color: isZeroStock ? '#dc2626' : '#171717', 
-                                    fontWeight: 900 
+                                    color: isZeroStock ? '#dc2626' : '#171717'
                                   }}
                                 >
                                   {currentStock}
@@ -1936,8 +1938,7 @@ export function StockCountPage() {
                               return (
                                 <td 
                                   key="cell-venda"
-                                  className="py-2 px-2 text-xs text-center font-black" 
-                                  style={{ color: venda > 0 ? '#dc2626' : (venda < 0 ? '#dc2626' : '#a3a3a3') }}
+                                  style={{ padding: '7px 8px', fontSize: '11px', textAlign: 'center', fontWeight: 900, color: venda > 0 ? '#dc2626' : (venda < 0 ? '#dc2626' : '#a3a3a3') }}
                                 >
                                   {venda}
                                 </td>
@@ -1956,10 +1957,10 @@ export function StockCountPage() {
         </div>
 
         {/* Footer */}
-        <div className="mt-auto pt-3 border-t flex justify-between items-center text-[9px] font-bold" style={{ borderColor: '#f0f0f0', color: '#737373' }}>
-          <p className="tracking-widest uppercase">MAICON OLIVEIRA REPRESENTAÇÕES</p>
-          <p className="italic">Documento sem validade fiscal</p>
-          <p>Página {pageIdx + 1} de {chunks.length}</p>
+        <div style={{ marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '9px', fontWeight: 700, color: '#737373' }}>
+          <p style={{ margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>MAICON OLIVEIRA REPRESENTAÇÕES</p>
+          <p style={{ margin: 0, fontStyle: 'italic' }}>Documento sem validade fiscal</p>
+          <p style={{ margin: 0 }}>Página {pageIdx + 1} de {chunks.length}</p>
         </div>
       </div>
     ));
