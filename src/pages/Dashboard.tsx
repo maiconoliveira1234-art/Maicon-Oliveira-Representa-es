@@ -1,187 +1,114 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
-  LayoutDashboard, 
   TrendingUp, 
   Package, 
-  DollarSign, 
   Users, 
-  ShoppingCart, 
+  Search, 
+  X, 
+  ChevronRight, 
+  ArrowUpRight, 
+  ArrowDownRight, 
+  Minus,
   Calendar,
-  Filter,
-  ChevronDown,
-  ArrowUpRight,
-  ArrowDownRight,
-  Target,
+  Layers,
+  RotateCcw,
+  DollarSign,
+  PieChart,
+  BarChart3,
+  CheckCircle2,
   AlertCircle,
-  Search,
-  X,
-  Check
+  Clock,
+  Percent,
+  Activity,
+  ArrowRight,
+  Filter,
+  Eye,
+  MessageCircle,
+  ExternalLink
 } from 'lucide-react';
 import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
   ResponsiveContainer, 
   LineChart, 
   Line, 
-  PieChart, 
-  Pie, 
-  Cell,
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip,
   AreaChart,
   Area,
+  BarChart,
+  Bar,
+  Cell,
   Legend
 } from 'recharts';
 import { supabase } from '../lib/supabase';
 import { Cliente, Produto, HistVenda } from '../types';
-import { cn, formatCurrency, formatWeight, deduplicateSales } from '../lib/utils';
+import { cn, formatWeight, formatCurrency, deduplicateSales } from '../lib/utils';
+import { PageHeader } from '../components/ui/AppChrome';
+import { useDataManager } from '../lib/dataManager';
 import { classifySaleRecord } from '../lib/salesClassifier';
+import { shouldExcludeSale } from '../constants';
+import { calcularCicloPonderado } from '../lib/calculations';
 import { 
+  subMonths, 
   startOfMonth, 
   endOfMonth, 
-  subMonths, 
-  format, 
   parseISO, 
+  format, 
   isWithinInterval, 
-  subDays, 
-  subYears,
   differenceInDays,
-  startOfYear,
-  eachMonthOfInterval,
-  isSameMonth,
-  isSameYear
+  differenceInMonths
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { motion, AnimatePresence } from 'motion/react';
-import { shouldExcludeSale } from '../constants';
-import { ActionButton, PageHeader } from '../components/ui/AppChrome';
-import { useDataManager } from '../lib/dataManager';
-import { getSalesOrderIdentity } from '../lib/orderIdentity';
+import { 
+  TrendMode, 
+  TrendCategory, 
+  TREND_CATEGORIES, 
+  PeriodDataPoint, 
+  computePortfolioAndClientsEvolution 
+} from '../lib/salesTrendAnalysis';
 
-// --- Types for Dashboard ---
-type DashboardFilters = {
-  clientIds: string[];
-  families: string[];
-  productIds: string[];
-  year: number | 'all';
-  month: number | 'all';
-  startDate: string;
-  endDate: string;
-  useCustomRange: boolean;
-};
-
-type KpiData = {
-  value: number;
-  previousValue: number;
-  label: string;
-  format: (v: number) => string;
-  icon: React.ElementType;
-  color: string;
-};
-
-const COLORS = ['#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#f43f5e', '#eab308', '#06b6d4', '#ec4899'];
-
-// --- Helper Components ---
-const KpiCard: React.FC<{ kpi: KpiData, onClick?: () => void }> = ({ kpi, onClick }) => {
-  const variation = kpi.previousValue > 0 ? ((kpi.value - kpi.previousValue) / kpi.previousValue) * 100 : 0;
-  const isPositive = variation >= 0;
-
-  return (
-    <div 
-      onClick={onClick}
-      className={cn(
-        "bg-white p-3 rounded-lg border border-neutral-200 shadow-sm hover:shadow-md transition-all",
-        onClick && "cursor-pointer hover:border-orange-300 active:scale-95"
-      )}
-    >
-      <div className="flex justify-between items-start mb-2">
-        <div className={cn("p-2 rounded-lg", {
-          'bg-blue-50 text-blue-600': kpi.color === 'blue',
-          'bg-orange-50 text-orange-600': kpi.color === 'orange',
-          'bg-green-50 text-green-600': kpi.color === 'green',
-          'bg-purple-50 text-purple-600': kpi.color === 'purple',
-          'bg-indigo-50 text-indigo-600': kpi.color === 'indigo',
-          'bg-cyan-50 text-cyan-600': kpi.color === 'cyan',
-          'bg-rose-50 text-rose-600': kpi.color === 'rose',
-        })}>
-          <kpi.icon size={18} />
-        </div>
-        <div className="flex flex-col items-end">
-          <div className={cn("flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full", 
-            isPositive ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"
-          )}>
-            {isPositive ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />}
-            {Math.abs(variation).toFixed(1)}%
-          </div>
-          <span className="text-[8px] font-bold text-neutral-400 mt-1 uppercase tracking-tighter">
-            {kpi.format(kpi.previousValue)}
-          </span>
-        </div>
-      </div>
-      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-0.5">{kpi.label}</p>
-      <h3 className="text-lg font-black text-neutral-900 truncate">{kpi.format(kpi.value)}</h3>
-    </div>
-  );
-};
-
-const ChartCard: React.FC<{ title: string, children: React.ReactNode, className?: string }> = ({ title, children, className }) => (
-  <div className={cn("bg-white p-3 rounded-lg border border-neutral-200 shadow-sm flex flex-col h-full", className)}>
-    <h3 className="text-[11px] font-bold text-neutral-800 mb-2 uppercase tracking-tight flex items-center gap-2 shrink-0">
-      <div className="w-1 h-3 bg-orange-500 rounded-full" />
-      {title}
-    </h3>
-    <div className="flex-1 w-full min-h-0">
-      {children}
-    </div>
-  </div>
-);
+export type DashboardTab = 'evolucao' | 'visao_geral' | 'curva_abc' | 'mix_produtos' | 'positivacao';
 
 export function Dashboard() {
+  const navigate = useNavigate();
   const {
     clientes: cachedClientes,
     produtos: cachedProdutos,
-    metas: cachedMetas,
-    hist_vendas: cachedHistorico
+    hist_vendas: cachedHistorico,
+    loadingGlobal
   } = useDataManager();
+
+  const [activeTab, setActiveTab] = useState<DashboardTab>('evolucao');
   const [loading, setLoading] = useState(true);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
-  const [metas, setMetas] = useState<Record<string, number>>({});
   const [allSalesData, setAllSalesData] = useState<HistVenda[]>([]);
 
-  // --- Filter State ---
-  const now = new Date();
-  const [filters, setFilters] = useState<DashboardFilters>({
-    clientIds: [],
-    families: [],
-    productIds: [],
-    year: now.getFullYear(),
-    month: now.getMonth() + 1,
-    startDate: format(startOfMonth(now), 'yyyy-MM-dd'),
-    endDate: format(endOfMonth(now), 'yyyy-MM-dd'),
-    useCustomRange: false
-  });
+  // --- Date range for General / ABC / Mix / Positivation ---
+  const [selectedMonthOffset, setSelectedMonthOffset] = useState<number>(0); // 0 = current month, -1 = last month, etc.
+  const [generalPeriodMode, setGeneralPeriodMode] = useState<'current_month' | 'last_3_months' | 'last_12_months' | 'all'>('current_month');
 
-  const [showFilters, setShowFilters] = useState(false);
-  const [isFilterAnimationFinished, setIsFilterAnimationFinished] = useState(false);
-  const [clientSearch, setClientSearch] = useState('');
-  const [showClientDropdown, setShowClientDropdown] = useState(false);
-  const [showFamilyDropdown, setShowFamilyDropdown] = useState(false);
-  const [evolutionMetric, setEvolutionMetric] = useState<'value' | 'weight'>('weight');
-  
-  // --- Chart Visibility State ---
-  const [visibleCharts, setVisibleCharts] = useState<string[]>(['monthly']);
+  // --- State for Sales Trend Evolution (Tab 1) ---
+  const [trendMode, setTrendMode] = useState<TrendMode>('quarterly');
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [situationFilter, setSituationFilter] = useState<TrendCategory | 'all'>('all');
+  const [clientSearchQuery, setClientSearchQuery] = useState('');
+  const [startPeriodKey, setStartPeriodKey] = useState<string>('');
+  const [endPeriodKey, setEndPeriodKey] = useState<string>('');
 
-  const chartOptions = [
-    { id: 'monthly', label: 'Comparativo Mensal' },
-    { id: 'clients', label: 'Top 10 Clientes' },
-    { id: 'family', label: 'Faturamento por Família' },
-    { id: 'products', label: 'Top 10 Produtos' }
-  ];
+  // --- State for ABC Curve (Tab 3) ---
+  const [abcType, setAbcType] = useState<'clientes' | 'produtos'>('clientes');
+  const [abcMetric, setAbcMetric] = useState<'faturamento' | 'volume'>('volume');
+  const [abcClassFilter, setAbcClassFilter] = useState<'all' | 'A' | 'B' | 'C'>('all');
+  const [abcSearchQuery, setAbcSearchQuery] = useState('');
 
-  // --- Load Initial Data ---
+  // --- State for Positivation (Tab 5) ---
+  const [positivacaoStatusFilter, setPositivacaoStatusFilter] = useState<'all' | 'positivado' | 'pendente'>('all');
+  const [positivacaoSearchQuery, setPositivacaoSearchQuery] = useState('');
+
+  // --- Load Initial Base Data ---
   useEffect(() => {
     async function loadBaseData() {
       try {
@@ -189,34 +116,27 @@ export function Dashboard() {
         if (cachedProdutos.length > 0) {
           setProdutos(cachedProdutos.filter(p => p.familia?.toLowerCase() !== 'amostras e brindes'));
         }
-        if (Object.keys(cachedMetas).length > 0) setMetas(cachedMetas);
+
         if (navigator.onLine === false) return;
 
         const [
           { data: cData },
-          { data: pData },
-          { data: mData }
+          { data: pData }
         ] = await Promise.all([
           supabase.from('clientes').select('*').order('cliente'),
-          supabase.from('produtos').select('*').order('produto'),
-          supabase.from('metas').select('*')
+          supabase.from('produtos').select('*').order('produto')
         ]);
 
         if (cData) setClientes(cData);
         if (pData) setProdutos(pData.filter(p => p.familia?.toLowerCase() !== 'amostras e brindes'));
-        if (mData) {
-          const map: Record<string, number> = {};
-          mData.forEach(m => map[m.cliente_id] = m.meta);
-          setMetas(map);
-        }
       } catch (err) {
         console.error('Error loading base data:', err);
       }
     }
     loadBaseData();
-  }, [cachedClientes, cachedProdutos, cachedMetas]);
+  }, [cachedClientes, cachedProdutos]);
 
-  // --- Load Sales Data (All History) ---
+  // --- Load Full Historical Sales Data ---
   useEffect(() => {
     async function loadSalesData() {
       setLoading(true);
@@ -226,6 +146,7 @@ export function Dashboard() {
           setLoading(false);
           return;
         }
+
         if (navigator.onLine === false) {
           setLoading(false);
           return;
@@ -233,13 +154,13 @@ export function Dashboard() {
 
         const { data, error } = await supabase
           .from('hist_vendas')
-          .select('*')
-          .gte('faturamento', '2024-01-01');
+          .select('*');
+
         if (!error && data) {
           setAllSalesData(deduplicateSales(data));
         }
       } catch (err) {
-        console.error('Error loading sales data:', err);
+        console.error('Error loading full sales history:', err);
       } finally {
         setLoading(false);
       }
@@ -247,726 +168,1825 @@ export function Dashboard() {
     loadSalesData();
   }, [cachedHistorico]);
 
-  // --- Derived Data & Filtering ---
+  // STRICT FILTER: Only ACTIVE clients are analyzed
+  const activeClientes = useMemo(() => {
+    return clientes.filter(c => c.ativo !== false);
+  }, [clientes]);
+
+  const activeClientIds = useMemo(() => {
+    return new Set(activeClientes.map(c => c.id));
+  }, [activeClientes]);
+
+  // Strict filter: sales must belong to active clients only & qualify as commercial sales
+  const validActiveSales = useMemo(() => {
+    return allSalesData.filter(h => {
+      if (!h.cliente_id || !activeClientIds.has(h.cliente_id)) return false;
+      if (shouldExcludeSale(h.cliente, h.faturamento)) return false;
+      const classification = classifySaleRecord(h);
+      return classification.entraFaturamento;
+    });
+  }, [allSalesData, activeClientIds]);
+
+  // Map of products for fast O(1) lookup
   const produtosMap = useMemo(() => {
     const map: Record<string, Produto> = {};
     produtos.forEach(p => {
       map[p.id] = p;
-      // Also map by name (lowercase) as fallback for old/imported data without IDs
-      map[p.produto.toLowerCase()] = p;
+      if (p.produto) {
+        map[p.produto.toLowerCase()] = p;
+      }
     });
     return map;
   }, [produtos]);
 
-  const filteredHistorico = useMemo(() => {
-    let start: Date | null = null;
-    let end: Date | null = null;
+  // --- TAB 1: EVOLUÇÃO DE VENDAS COMPUTATION ---
+  const {
+    portfolioSeries,
+    portfolioTrend,
+    clientsEvolution,
+    periodOptions,
+    trendCounts
+  } = useMemo(() => {
+    return computePortfolioAndClientsEvolution(
+      allSalesData,
+      activeClientes,
+      produtosMap,
+      trendMode,
+      {
+        startKey: startPeriodKey || undefined,
+        endKey: endPeriodKey || undefined
+      }
+    );
+  }, [allSalesData, activeClientes, produtosMap, trendMode, startPeriodKey, endPeriodKey]);
 
-    if (filters.useCustomRange) {
-      start = parseISO(filters.startDate);
-      end = parseISO(filters.endDate);
-    } else if (filters.year === 'all') {
-      // No start/end filtering
-    } else if (filters.month === 'all') {
-      start = startOfYear(new Date(filters.year, 0, 1));
-      end = endOfMonth(new Date(filters.year, 11, 31));
-    } else {
-      start = startOfMonth(new Date(filters.year, filters.month - 1, 1));
-      end = endOfMonth(new Date(filters.year, filters.month - 1, 1));
+  useEffect(() => {
+    if (periodOptions.length > 0) {
+      if (!startPeriodKey || !periodOptions.some(p => p.periodKey === startPeriodKey)) {
+        setStartPeriodKey(periodOptions[0].periodKey);
+      }
+      if (!endPeriodKey || !periodOptions.some(p => p.periodKey === endPeriodKey)) {
+        setEndPeriodKey(periodOptions[periodOptions.length - 1].periodKey);
+      }
+    }
+  }, [periodOptions, trendMode]);
+
+  const selectedClientEvolution = useMemo(() => {
+    if (!selectedClientId) return null;
+    return clientsEvolution.find(c => c.clienteId === selectedClientId) || null;
+  }, [selectedClientId, clientsEvolution]);
+
+  const activeSeries = useMemo(() => {
+    if (selectedClientEvolution) return selectedClientEvolution.series;
+    return portfolioSeries;
+  }, [selectedClientEvolution, portfolioSeries]);
+
+  const activeTrend = useMemo(() => {
+    if (selectedClientEvolution) return selectedClientEvolution.trend;
+    return portfolioTrend;
+  }, [selectedClientEvolution, portfolioTrend]);
+
+  const filteredTrendClients = useMemo(() => {
+    const searchTerms = clientSearchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
+
+    return clientsEvolution.filter(item => {
+      if (situationFilter !== 'all' && item.trend.category !== situationFilter) return false;
+      if (searchTerms.length > 0) {
+        const targetStr = `${item.clienteNome} ${item.cidade}`.toLowerCase();
+        const matchesAll = searchTerms.every(term => targetStr.includes(term));
+        if (!matchesAll) return false;
+      }
+      return true;
+    });
+  }, [clientsEvolution, situationFilter, clientSearchQuery]);
+
+  const currentPeriodVolume = useMemo(() => {
+    if (activeSeries.length === 0) return 0;
+    const latest = activeSeries[activeSeries.length - 1];
+    return latest ? latest.chartKg : 0;
+  }, [activeSeries]);
+
+  const latestPeriodLabel = useMemo(() => {
+    if (activeSeries.length === 0) return '-';
+    const latest = activeSeries[activeSeries.length - 1];
+    return latest ? latest.label : '-';
+  }, [activeSeries]);
+
+  // --- TAB 2: VISÃO GERAL & FATURAMENTO COMPUTATIONS ---
+  const currentMonthDate = useMemo(() => {
+    const now = new Date();
+    return subMonths(now, -selectedMonthOffset); // when offset is 0, now; when -1, subMonths 1
+  }, [selectedMonthOffset]);
+
+  const currentMonthInterval = useMemo(() => {
+    return {
+      start: startOfMonth(currentMonthDate),
+      end: endOfMonth(currentMonthDate)
+    };
+  }, [currentMonthDate]);
+
+  const previousMonthInterval = useMemo(() => {
+    const prev = subMonths(currentMonthDate, 1);
+    return {
+      start: startOfMonth(prev),
+      end: endOfMonth(prev)
+    };
+  }, [currentMonthDate]);
+
+  // Monthly stats for current selected month
+  const monthlyMetrics = useMemo(() => {
+    let currentFaturamento = 0;
+    let currentKg = 0;
+    const currentOrders = new Set<string>();
+    const currentPositivados = new Set<string>();
+
+    let prevFaturamento = 0;
+    let prevKg = 0;
+    const prevOrders = new Set<string>();
+    const prevPositivados = new Set<string>();
+
+    validActiveSales.forEach(h => {
+      if (!h.faturamento) return;
+      const d = parseISO(h.faturamento);
+      if (isNaN(d.getTime())) return;
+
+      const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
+      const weightUnit = prod?.peso_embalagem || 0;
+      const kg = (h.qtd || 0) * weightUnit;
+      const val = Number(h.r$_total) || 0;
+      const orderId = h.pedido_id || h.numero_pedido_erp || `${h.cliente}_${h.faturamento}`;
+
+      if (isWithinInterval(d, currentMonthInterval)) {
+        currentFaturamento += val;
+        currentKg += kg;
+        currentOrders.add(orderId);
+        if (h.cliente_id) currentPositivados.add(h.cliente_id);
+      } else if (isWithinInterval(d, previousMonthInterval)) {
+        prevFaturamento += val;
+        prevKg += kg;
+        prevOrders.add(orderId);
+        if (h.cliente_id) prevPositivados.add(h.cliente_id);
+      }
+    });
+
+    const currentTicketMedio = currentOrders.size > 0 ? currentFaturamento / currentOrders.size : 0;
+    const currentPrecoMedioKg = currentKg > 0 ? currentFaturamento / currentKg : 0;
+    const positivacaoRate = activeClientes.length > 0 ? (currentPositivados.size / activeClientes.length) * 100 : 0;
+
+    const faturamentoGrowth = prevFaturamento > 0 ? ((currentFaturamento - prevFaturamento) / prevFaturamento) * 100 : 0;
+    const kgGrowth = prevKg > 0 ? ((currentKg - prevKg) / prevKg) * 100 : 0;
+
+    return {
+      currentFaturamento,
+      currentKg,
+      currentOrdersCount: currentOrders.size,
+      currentPositivadosCount: currentPositivados.size,
+      currentTicketMedio,
+      currentPrecoMedioKg,
+      positivacaoRate,
+      prevFaturamento,
+      prevKg,
+      faturamentoGrowth,
+      kgGrowth,
+      currentPositivadosSet: currentPositivados
+    };
+  }, [validActiveSales, currentMonthInterval, previousMonthInterval, produtosMap, activeClientes.length]);
+
+  // Historical Monthly Chart Data (Last 12 Months)
+  const monthlyHistoryData = useMemo(() => {
+    const months: { label: string; date: Date; start: Date; end: Date; faturamento: number; volumeKg: number }[] = [];
+    const base = new Date();
+
+    for (let i = 11; i >= 0; i--) {
+      const mDate = subMonths(base, i);
+      months.push({
+        label: format(mDate, 'MMM/yy', { locale: ptBR }),
+        date: mDate,
+        start: startOfMonth(mDate),
+        end: endOfMonth(mDate),
+        faturamento: 0,
+        volumeKg: 0
+      });
     }
 
-    return allSalesData.filter(h => {
+    validActiveSales.forEach(h => {
+      if (!h.faturamento) return;
+      const d = parseISO(h.faturamento);
+      if (isNaN(d.getTime())) return;
+
       const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
-      if (!prod) return false;
+      const weightUnit = prod?.peso_embalagem || 0;
+      const kg = (h.qtd || 0) * weightUnit;
+      const val = Number(h.r$_total) || 0;
 
-      // Selective cutoff filter
-      if (shouldExcludeSale(h.cliente, h.faturamento)) return false;
+      for (const m of months) {
+        if (isWithinInterval(d, { start: m.start, end: m.end })) {
+          m.faturamento += val;
+          m.volumeKg += kg;
+          break;
+        }
+      }
+    });
 
-      const matchesClient = filters.clientIds.length === 0 || filters.clientIds.includes(h.cliente_id);
-      const matchesFamily = filters.families.length === 0 || filters.families.includes(prod.familia);
-      const matchesProduct = filters.productIds.length === 0 || (h.produto_id && filters.productIds.includes(h.produto_id));
-      
-      let matchesDate = true;
-      if (start || end) {
+    return months;
+  }, [validActiveSales, produtosMap]);
+
+  // --- TAB 3: CURVA ABC COMPUTATIONS ---
+  const abcData = useMemo(() => {
+    // Filter sales based on periodMode
+    let filteredSales = validActiveSales;
+    if (generalPeriodMode === 'current_month') {
+      filteredSales = validActiveSales.filter(h => {
+        if (!h.faturamento) return false;
         const d = parseISO(h.faturamento);
-        if (start && d < start) matchesDate = false;
-        if (end && d > end) matchesDate = false;
+        return !isNaN(d.getTime()) && isWithinInterval(d, currentMonthInterval);
+      });
+    } else if (generalPeriodMode === 'last_3_months') {
+      const threeMonthsAgo = subMonths(new Date(), 3);
+      filteredSales = validActiveSales.filter(h => {
+        if (!h.faturamento) return false;
+        const d = parseISO(h.faturamento);
+        return !isNaN(d.getTime()) && d >= threeMonthsAgo;
+      });
+    } else if (generalPeriodMode === 'last_12_months') {
+      const twelveMonthsAgo = subMonths(new Date(), 12);
+      filteredSales = validActiveSales.filter(h => {
+        if (!h.faturamento) return false;
+        const d = parseISO(h.faturamento);
+        return !isNaN(d.getTime()) && d >= twelveMonthsAgo;
+      });
+    }
+
+    if (abcType === 'clientes') {
+      // Group by active client
+      const clientMap: Record<string, { id: string; name: string; cidade: string; totalVal: number; totalKg: number }> = {};
+      activeClientes.forEach(c => {
+        clientMap[c.id] = { id: c.id, name: c.cliente, cidade: c.cidade || '-', totalVal: 0, totalKg: 0 };
+      });
+
+      filteredSales.forEach(h => {
+        if (!h.cliente_id || !clientMap[h.cliente_id]) return;
+        const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
+        const weightUnit = prod?.peso_embalagem || 0;
+        const kg = (h.qtd || 0) * weightUnit;
+        const val = Number(h.r$_total) || 0;
+
+        clientMap[h.cliente_id].totalVal += val;
+        clientMap[h.cliente_id].totalKg += kg;
+      });
+
+      const list = Object.values(clientMap);
+      const totalSum = list.reduce((acc, c) => acc + (abcMetric === 'faturamento' ? c.totalVal : c.totalKg), 0);
+
+      // Sort descending
+      list.sort((a, b) => {
+        const valA = abcMetric === 'faturamento' ? a.totalVal : a.totalKg;
+        const valB = abcMetric === 'faturamento' ? b.totalVal : b.totalKg;
+        return valB - valA;
+      });
+
+      let accumulated = 0;
+      const enrichedList = list.map(item => {
+        const value = abcMetric === 'faturamento' ? item.totalVal : item.totalKg;
+        const sharePct = totalSum > 0 ? (value / totalSum) * 100 : 0;
+        accumulated += sharePct;
+        const accumulatedPct = Math.min(100, accumulated);
+
+        let classe: 'A' | 'B' | 'C' = 'C';
+        if (accumulatedPct <= 80 || (accumulated - sharePct < 80)) {
+          classe = 'A';
+        } else if (accumulatedPct <= 95 || (accumulated - sharePct < 95)) {
+          classe = 'B';
+        }
+
+        return {
+          id: item.id,
+          name: item.name,
+          subText: item.cidade,
+          totalVal: item.totalVal,
+          totalKg: item.totalKg,
+          value,
+          sharePct,
+          accumulatedPct,
+          classe
+        };
+      });
+
+      return {
+        items: enrichedList,
+        totalSum,
+        countA: enrichedList.filter(i => i.classe === 'A').length,
+        countB: enrichedList.filter(i => i.classe === 'B').length,
+        countC: enrichedList.filter(i => i.classe === 'C').length
+      };
+    } else {
+      // Group by Product
+      const productMap: Record<string, { id: string; name: string; familia: string; totalVal: number; totalKg: number }> = {};
+      produtos.forEach(p => {
+        productMap[p.id] = { id: p.id, name: p.produto, familia: p.familia || '-', totalVal: 0, totalKg: 0 };
+      });
+
+      filteredSales.forEach(h => {
+        const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
+        if (!prod || !productMap[prod.id]) return;
+        const weightUnit = prod?.peso_embalagem || 0;
+        const kg = (h.qtd || 0) * weightUnit;
+        const val = Number(h.r$_total) || 0;
+
+        productMap[prod.id].totalVal += val;
+        productMap[prod.id].totalKg += kg;
+      });
+
+      const list = Object.values(productMap).filter(p => p.totalVal > 0 || p.totalKg > 0);
+      const totalSum = list.reduce((acc, p) => acc + (abcMetric === 'faturamento' ? p.totalVal : p.totalKg), 0);
+
+      list.sort((a, b) => {
+        const valA = abcMetric === 'faturamento' ? a.totalVal : a.totalKg;
+        const valB = abcMetric === 'faturamento' ? b.totalVal : b.totalKg;
+        return valB - valA;
+      });
+
+      let accumulated = 0;
+      const enrichedList = list.map(item => {
+        const value = abcMetric === 'faturamento' ? item.totalVal : item.totalKg;
+        const sharePct = totalSum > 0 ? (value / totalSum) * 100 : 0;
+        accumulated += sharePct;
+        const accumulatedPct = Math.min(100, accumulated);
+
+        let classe: 'A' | 'B' | 'C' = 'C';
+        if (accumulatedPct <= 80 || (accumulated - sharePct < 80)) {
+          classe = 'A';
+        } else if (accumulatedPct <= 95 || (accumulated - sharePct < 95)) {
+          classe = 'B';
+        }
+
+        return {
+          id: item.id,
+          name: item.name,
+          subText: item.familia,
+          totalVal: item.totalVal,
+          totalKg: item.totalKg,
+          value,
+          sharePct,
+          accumulatedPct,
+          classe
+        };
+      });
+
+      return {
+        items: enrichedList,
+        totalSum,
+        countA: enrichedList.filter(i => i.classe === 'A').length,
+        countB: enrichedList.filter(i => i.classe === 'B').length,
+        countC: enrichedList.filter(i => i.classe === 'C').length
+      };
+    }
+  }, [validActiveSales, activeClientes, produtos, produtosMap, abcType, abcMetric, generalPeriodMode, currentMonthInterval]);
+
+  const filteredAbcItems = useMemo(() => {
+    const searchTerms = abcSearchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
+
+    return abcData.items.filter(item => {
+      if (abcClassFilter !== 'all' && item.classe !== abcClassFilter) return false;
+      if (searchTerms.length > 0) {
+        const targetStr = `${item.name} ${item.subText}`.toLowerCase();
+        const matchesAll = searchTerms.every(term => targetStr.includes(term));
+        if (!matchesAll) return false;
+      }
+      return true;
+    });
+  }, [abcData.items, abcClassFilter, abcSearchQuery]);
+
+  // --- TAB 4: MIX DE PRODUTOS & FAMÍLIAS COMPUTATION ---
+  const productMixData = useMemo(() => {
+    let filteredSales = validActiveSales;
+    if (generalPeriodMode === 'current_month') {
+      filteredSales = validActiveSales.filter(h => {
+        if (!h.faturamento) return false;
+        const d = parseISO(h.faturamento);
+        return !isNaN(d.getTime()) && isWithinInterval(d, currentMonthInterval);
+      });
+    } else if (generalPeriodMode === 'last_3_months') {
+      const threeMonthsAgo = subMonths(new Date(), 3);
+      filteredSales = validActiveSales.filter(h => {
+        if (!h.faturamento) return false;
+        const d = parseISO(h.faturamento);
+        return !isNaN(d.getTime()) && d >= threeMonthsAgo;
+      });
+    } else if (generalPeriodMode === 'last_12_months') {
+      const twelveMonthsAgo = subMonths(new Date(), 12);
+      filteredSales = validActiveSales.filter(h => {
+        if (!h.faturamento) return false;
+        const d = parseISO(h.faturamento);
+        return !isNaN(d.getTime()) && d >= twelveMonthsAgo;
+      });
+    }
+
+    const familyMap: Record<string, { name: string; totalKg: number; totalVal: number; itemsCount: number }> = {};
+
+    filteredSales.forEach(h => {
+      const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
+      const familyName = prod?.familia?.trim() || 'Outros';
+      if (familyName.toLowerCase() === 'amostras e brindes') return;
+
+      if (!familyMap[familyName]) {
+        familyMap[familyName] = { name: familyName, totalKg: 0, totalVal: 0, itemsCount: 0 };
       }
 
-      return matchesClient && matchesFamily && matchesProduct && matchesDate;
+      const weightUnit = prod?.peso_embalagem || 0;
+      const kg = (h.qtd || 0) * weightUnit;
+      const val = Number(h.r$_total) || 0;
+
+      familyMap[familyName].totalKg += kg;
+      familyMap[familyName].totalVal += val;
+      familyMap[familyName].itemsCount += (h.qtd || 0);
     });
-  }, [allSalesData, filters, produtosMap]);
 
-  const filteredPrevHistorico = useMemo(() => {
-    let start: Date | null = null;
-    let end: Date | null = null;
+    const list = Object.values(familyMap);
+    const totalVolume = list.reduce((acc, f) => acc + f.totalKg, 0);
+    const totalFaturamento = list.reduce((acc, f) => acc + f.totalVal, 0);
 
-    if (filters.useCustomRange) {
-      start = parseISO(filters.startDate);
-      end = parseISO(filters.endDate);
-    } else if (filters.year === 'all') {
-      return [];
-    } else if (filters.month === 'all') {
-      start = startOfYear(new Date(filters.year, 0, 1));
-      end = endOfMonth(new Date(filters.year, 11, 31));
-    } else {
-      start = startOfMonth(new Date(filters.year, filters.month - 1, 1));
-      end = endOfMonth(new Date(filters.year, filters.month - 1, 1));
-    }
+    list.sort((a, b) => b.totalKg - a.totalKg);
 
-    const prevStart = start ? subYears(start, 1) : null;
-    const prevEnd = end ? subYears(end, 1) : null;
-
-    if (!prevStart || !prevEnd) return [];
-
-    return allSalesData.filter(h => {
-      const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
-      if (!prod) return false;
-
-      // Selective cutoff filter
-      if (shouldExcludeSale(h.cliente, h.faturamento)) return false;
-
-      const matchesClient = filters.clientIds.length === 0 || filters.clientIds.includes(h.cliente_id);
-      const matchesFamily = filters.families.length === 0 || filters.families.includes(prod.familia);
-      const matchesProduct = filters.productIds.length === 0 || (h.produto_id && filters.productIds.includes(h.produto_id));
-      
-      const d = parseISO(h.faturamento);
-      const matchesDate = d >= prevStart && d <= prevEnd;
-
-      return matchesClient && matchesFamily && matchesProduct && matchesDate;
+    const enriched = list.map(f => {
+      const shareKg = totalVolume > 0 ? (f.totalKg / totalVolume) * 100 : 0;
+      const shareVal = totalFaturamento > 0 ? (f.totalVal / totalFaturamento) * 100 : 0;
+      const precoMedioKg = f.totalKg > 0 ? f.totalVal / f.totalKg : 0;
+      return {
+        ...f,
+        shareKg,
+        shareVal,
+        precoMedioKg
+      };
     });
-  }, [allSalesData, filters, produtosMap]);
 
-  // Full history filtered only by client/family/product (for Monthly Comparison)
-  const fullFilteredHistory = useMemo(() => {
-    return allSalesData.filter(h => {
-      const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
-      if (!prod) return false;
-
-      // Selective cutoff filter
-      if (shouldExcludeSale(h.cliente, h.faturamento)) return false;
-
-      const matchesClient = filters.clientIds.length === 0 || filters.clientIds.includes(h.cliente_id);
-      const matchesFamily = filters.families.length === 0 || filters.families.includes(prod.familia);
-      const matchesProduct = filters.productIds.length === 0 || (h.produto_id && filters.productIds.includes(h.produto_id));
-
-      return matchesClient && matchesFamily && matchesProduct;
-    });
-  }, [allSalesData, filters.clientIds, filters.families, filters.productIds, produtosMap]);
-
-  // --- KPI Calculations ---
-  const kpis = useMemo(() => {
-    const calculateStats = (data: HistVenda[]) => {
-      let revenue = 0;
-      let weight = 0;
-      let commission = 0;
-      const clients = new Set<string>();
-      const orders = new Set<string>();
-
-      data.forEach(h => {
-        const classification = classifySaleRecord(h);
-        if (!classification.entraFaturamento) return;
-
-        const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
-        const val = h["r$_total"] || 0;
-        const q = h.qtd || 0;
-        
-        revenue += val;
-        weight += q * (prod?.peso_embalagem || 0);
-        commission += val * ((prod?.comissao || 0) / 100);
-        clients.add(h.cliente_id);
-        orders.add(getSalesOrderIdentity(h));
-      });
-
-      return { revenue, weight, commission, clientsCount: clients.size, ordersCount: orders.size };
+    return {
+      families: enriched,
+      totalVolume,
+      totalFaturamento
     };
+  }, [validActiveSales, produtosMap, generalPeriodMode, currentMonthInterval]);
 
-    const current = calculateStats(filteredHistorico);
-    const prev = calculateStats(filteredPrevHistorico);
-
-    const ticketMedio = current.clientsCount > 0 ? current.revenue / current.clientsCount : 0;
-    const prevTicketMedio = prev.clientsCount > 0 ? prev.revenue / prev.clientsCount : 0;
-
-    const metaTotal = clientes
-      .filter(c => filters.clientIds.length === 0 || filters.clientIds.includes(c.id))
-      .reduce((acc, c) => acc + (metas[c.id] || 0), 0);
-
-    const data: KpiData[] = [
-      { label: 'Faturamento', value: current.revenue, previousValue: prev.revenue, format: formatCurrency, icon: DollarSign, color: 'blue' },
-      { label: 'Peso Total', value: current.weight, previousValue: prev.weight, format: formatWeight, icon: Package, color: 'orange' },
-      { label: 'Ticket Médio', value: ticketMedio, previousValue: prevTicketMedio, format: formatCurrency, icon: Users, color: 'purple' },
-      { label: 'Positivação', value: current.clientsCount, previousValue: prev.clientsCount, format: (v) => `${v} Clientes`, icon: Check, color: 'indigo' },
-      { label: 'Pedidos', value: current.ordersCount, previousValue: prev.ordersCount, format: (v) => `${v} Pedidos`, icon: ShoppingCart, color: 'cyan' },
-    ];
-
-    return data;
-  }, [filteredHistorico, filteredPrevHistorico, produtosMap]);
-
-  // --- Chart Data ---
-  const monthlyRevenueData = useMemo(() => {
-    const months = Array.from({ length: 12 }).map((_, i) => i);
-    const years = [2024, 2025, 2026];
-
-    return months.map(monthIndex => {
-      const monthName = format(new Date(2024, monthIndex, 1), 'MMM', { locale: ptBR });
-      const entry: any = { name: monthName };
-      
-      years.forEach(year => {
-        const yearMonthData = fullFilteredHistory.filter(h => {
-          const d = parseISO(h.faturamento);
-          return d.getFullYear() === year && d.getMonth() === monthIndex && classifySaleRecord(h).entraFaturamento;
-        });
-        
-        const value = yearMonthData.reduce((acc, h) => acc + (h["r$_total"] || 0), 0);
-        const weight = yearMonthData.reduce((acc, h) => {
-          const prod = produtosMap[h.produto_id];
-          return acc + (h.qtd * (prod?.peso_embalagem || 0));
-        }, 0);
-        
-        entry[`faturamento_${year}`] = value;
-        entry[`peso_${year}`] = weight;
-      });
-
-      return entry;
+  // --- TAB 5: POSITIVAÇÃO & RECORRÊNCIA COMPUTATION ---
+  const positivacaoData = useMemo(() => {
+    // Sales dates per active client for repurchase cycle calculation
+    const salesDatesByClient: Record<string, string[]> = {};
+    validActiveSales.forEach(h => {
+      if (!h.cliente_id || !h.faturamento) return;
+      if (!salesDatesByClient[h.cliente_id]) {
+        salesDatesByClient[h.cliente_id] = [];
+      }
+      salesDatesByClient[h.cliente_id].push(h.faturamento);
     });
-  }, [filteredHistorico, produtosMap]);
 
-  const revenueByClientData = useMemo(() => {
-    const map: Record<string, { value: number, weight: number }> = {};
-    filteredHistorico.forEach(h => {
-      if (!classifySaleRecord(h).entraFaturamento) return;
-      if (!map[h.cliente]) map[h.cliente] = { value: 0, weight: 0 };
-      const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
-      map[h.cliente].value += h["r$_total"];
-      map[h.cliente].weight += (h.qtd || 0) * (prod?.peso_embalagem || 0);
+    // Month positivados set
+    const positivadosSet = monthlyMetrics.currentPositivadosSet;
+
+    const list = activeClientes.map(cliente => {
+      const isPositivado = positivadosSet.has(cliente.id);
+      const clientSalesDates = salesDatesByClient[cliente.id] || [];
+      const cicloPonderado = calcularCicloPonderado(clientSalesDates);
+
+      let daysSinceLastPurchase = 999;
+      if (cliente.ultima_compra) {
+        const d = parseISO(cliente.ultima_compra);
+        if (!isNaN(d.getTime())) {
+          daysSinceLastPurchase = differenceInDays(new Date(), d);
+        }
+      }
+
+      return {
+        clienteId: cliente.id,
+        clienteNome: cliente.cliente,
+        cidade: cliente.cidade || '-',
+        telefone: cliente.telefone,
+        isPositivado,
+        ultimaCompra: cliente.ultima_compra,
+        daysSinceLastPurchase,
+        cicloPonderado
+      };
     });
-    return Object.entries(map)
-      .map(([name, data]) => ({ name, value: data.value, weight: data.weight }))
-      .sort((a, b) => evolutionMetric === 'value' ? b.value - a.value : b.weight - a.weight)
-      .slice(0, 10);
-  }, [filteredHistorico, evolutionMetric, produtosMap]);
 
-  const revenueByFamilyData = useMemo(() => {
-    const map: Record<string, { value: number, weight: number }> = {};
-    filteredHistorico.forEach(h => {
-      if (!classifySaleRecord(h).entraFaturamento) return;
-      const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
-      const family = prod?.familia || 'Outros';
-      if (!map[family]) map[family] = { value: 0, weight: 0 };
-      map[family].value += h["r$_total"];
-      map[family].weight += (h.qtd || 0) * (prod?.peso_embalagem || 0);
+    // Sort: non-positivados first by days since purchase descending
+    list.sort((a, b) => {
+      if (a.isPositivado !== b.isPositivado) {
+        return a.isPositivado ? 1 : -1;
+      }
+      return b.daysSinceLastPurchase - a.daysSinceLastPurchase;
     });
-    
-    const sorted = Object.entries(map)
-      .map(([name, data]) => ({ name, value: data.value, weight: data.weight }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-      
-    if (sorted.length <= 9) return sorted;
-    
-    const top9 = sorted.slice(0, 9);
-    const othersValue = sorted.slice(9).reduce((acc, curr) => acc + curr.value, 0);
-    const othersWeight = sorted.slice(9).reduce((acc, curr) => acc + curr.weight, 0);
-    
-    return [...top9, { name: 'Outros', value: othersValue, weight: othersWeight }];
-  }, [filteredHistorico, produtosMap, evolutionMetric]);
 
-  const topProductsData = useMemo(() => {
-    const map: Record<string, { revenue: number, weight: number }> = {};
-    filteredHistorico.forEach(h => {
-      if (!classifySaleRecord(h).entraFaturamento) return;
-      const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
-      const name = prod?.produto || h.produtos || 'Desconhecido';
-      if (!map[name]) map[name] = { revenue: 0, weight: 0 };
-      map[name].revenue += h["r$_total"] || 0;
-      map[name].weight += (h.qtd || 0) * (prod?.peso_embalagem || 0);
+    return list;
+  }, [activeClientes, validActiveSales, monthlyMetrics.currentPositivadosSet]);
+
+  const filteredPositivacaoList = useMemo(() => {
+    const searchTerms = positivacaoSearchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
+
+    return positivacaoData.filter(item => {
+      if (positivacaoStatusFilter === 'positivado' && !item.isPositivado) return false;
+      if (positivacaoStatusFilter === 'pendente' && item.isPositivado) return false;
+
+      if (searchTerms.length > 0) {
+        const targetStr = `${item.clienteNome} ${item.cidade}`.toLowerCase();
+        const matchesAll = searchTerms.every(term => targetStr.includes(term));
+        if (!matchesAll) return false;
+      }
+
+      return true;
     });
-    return Object.entries(map)
-      .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => evolutionMetric === 'value' ? b.revenue - a.revenue : b.weight - a.weight)
-      .slice(0, 10);
-  }, [filteredHistorico, produtosMap, evolutionMetric]);
+  }, [positivacaoData, positivacaoStatusFilter, positivacaoSearchQuery]);
 
-  const periodLabel = useMemo(() => {
-    if (filters.useCustomRange) {
-      return `${format(parseISO(filters.startDate), 'dd/MM/yy')} - ${format(parseISO(filters.endDate), 'dd/MM/yy')}`;
+  const sendWhatsAppMessage = (item: { clienteNome: string; telefone?: string }) => {
+    if (!item.telefone) {
+      alert('Cliente sem telefone cadastrado.');
+      return;
     }
-    if (filters.year === 'all') return 'Todo o Período';
-    if (filters.month === 'all') return `Ano ${filters.year}`;
-    return `${format(new Date(filters.year as number, (filters.month as number) - 1, 1), 'MMMM/yyyy', { locale: ptBR })}`;
-  }, [filters]);
+    const cleanPhone = String(item.telefone).replace(/\D/g, '');
+    const message = `Olá! Tudo bem? Passando para conversarmos sobre reposição de estoque e pedidos.`;
+    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
+  const tabsConfig = [
+    { id: 'evolucao' as const, label: 'Evolução de Vendas', icon: TrendingUp, badge: 'Novo' },
+    { id: 'visao_geral' as const, label: 'Visão Geral & Faturamento', icon: DollarSign },
+    { id: 'curva_abc' as const, label: 'Curva ABC (Pareto)', icon: BarChart3 },
+    { id: 'mix_produtos' as const, label: 'Mix de Produtos', icon: Package },
+    { id: 'positivacao' as const, label: 'Positivação da Carteira', icon: Users },
+  ];
+
+  const situationList: TrendCategory[] = [
+    'strong_growth',
+    'growth',
+    'stable',
+    'decline',
+    'strong_decline'
+  ];
+
+  const COLORS_FAMILIES = ['#ea580c', '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4', '#64748b'];
 
   return (
-    <div className="h-[calc(100vh-100px)] flex flex-col gap-3 overflow-hidden pb-4">
+    <div className="flex flex-col gap-4 pb-12 w-full max-w-full">
+      {/* Header */}
       <PageHeader
         title="Análise Comercial"
-        subtitle="Performance e metas"
-        icon={<LayoutDashboard />}
+        subtitle={`Inteligência de vendas e performance da carteira (${activeClientes.length} clientes ativos)`}
+        icon={<TrendingUp className="text-orange-600" />}
         className="shrink-0"
         actions={
-          <>
-            <ActionButton
-              onClick={() => {
-                setShowFilters(!showFilters);
-                if (showFilters) setIsFilterAnimationFinished(false);
-              }}
-              variant={showFilters ? 'dark' : 'secondary'}
-              size="sm"
-              icon={<Filter />}
-            >
-              <span>Filtros</span>
-              <ChevronDown size={14} className={cn("transition-transform", showFilters && "rotate-180")} />
-            </ActionButton>
-
-            <select
-              value={visibleCharts[0]}
-              onChange={(e) => setVisibleCharts([e.target.value])}
-              className="h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs font-bold text-neutral-700 shadow-sm outline-none focus:ring-2 focus:ring-orange-500"
-            >
-              {chartOptions.map(opt => (
-                <option key={opt.id} value={opt.id}>{opt.label}</option>
-              ))}
-            </select>
-
-            <div className="flex rounded-lg border border-neutral-200 bg-neutral-100 p-1">
+          activeTab === 'evolucao' ? (
+            <div className="inline-flex rounded-lg border border-neutral-200 bg-neutral-100 p-1 shadow-sm">
               <button
-                onClick={() => setEvolutionMetric('weight')}
+                type="button"
+                id="btn-trend-quarterly"
+                onClick={() => setTrendMode('quarterly')}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[10px] font-bold transition-all",
-                  evolutionMetric === 'weight' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-black transition-all",
+                  trendMode === 'quarterly'
+                    ? "bg-white text-orange-600 shadow-sm"
+                    : "text-neutral-600 hover:text-neutral-900"
                 )}
               >
-                <Package size={12} />
-                Peso
+                <Calendar size={14} />
+                Trimestral
               </button>
               <button
-                onClick={() => setEvolutionMetric('value')}
+                type="button"
+                id="btn-trend-annual"
+                onClick={() => setTrendMode('annual')}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[10px] font-bold transition-all",
-                  evolutionMetric === 'value' ? "bg-white text-blue-600 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-black transition-all",
+                  trendMode === 'annual'
+                    ? "bg-white text-orange-600 shadow-sm"
+                    : "text-neutral-600 hover:text-neutral-900"
                 )}
               >
-                <DollarSign size={12} />
-                Valor
+                <Layers size={14} />
+                Anual
               </button>
             </div>
-          </>
+          ) : activeTab === 'visao_geral' ? (
+            <div className="flex items-center gap-2">
+              <select
+                id="select-month-offset"
+                value={selectedMonthOffset}
+                onChange={(e) => setSelectedMonthOffset(Number(e.target.value))}
+                className="py-1.5 px-3 bg-white border border-neutral-200 rounded-lg text-xs font-bold text-neutral-800 shadow-sm outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                <option value={0}>Mês Atual ({format(new Date(), 'MMMM/yyyy', { locale: ptBR })})</option>
+                <option value={-1}>Mês Anterior ({format(subMonths(new Date(), 1), 'MMMM/yyyy', { locale: ptBR })})</option>
+                <option value={-2}>2 Meses Atrás ({format(subMonths(new Date(), 2), 'MMMM/yyyy', { locale: ptBR })})</option>
+                <option value={-3}>3 Meses Atrás ({format(subMonths(new Date(), 3), 'MMMM/yyyy', { locale: ptBR })})</option>
+              </select>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-neutral-500">Período:</span>
+              <select
+                id="select-general-period-mode"
+                value={generalPeriodMode}
+                onChange={(e) => setGeneralPeriodMode(e.target.value as any)}
+                className="py-1.5 px-3 bg-white border border-neutral-200 rounded-lg text-xs font-bold text-neutral-800 shadow-sm outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                <option value="current_month">Mês Atual</option>
+                <option value="last_3_months">Últimos 3 Meses</option>
+                <option value="last_12_months">Últimos 12 Meses</option>
+                <option value="all">Todo o Histórico</option>
+              </select>
+            </div>
+          )
         }
       />
 
-      {/* Filters Panel */}
-      <AnimatePresence>
-        {showFilters && (
-          <motion.div 
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            onAnimationComplete={() => setIsFilterAnimationFinished(true)}
-            className={cn(
-              "relative z-[150]",
-              isFilterAnimationFinished ? "overflow-visible" : "overflow-hidden"
-            )}
-          >
-            <div className="bg-white p-6 rounded-lg border border-neutral-200 shadow-xl space-y-6">
-              <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
-                <div className="flex flex-wrap gap-6 items-end flex-1">
-                  {/* Date Selection */}
-                  <div className="space-y-2 min-w-[240px]">
-                    <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Período</label>
-                    <div className="flex gap-2">
-                      <select 
-                        value={filters.year}
-                        onChange={(e) => setFilters(prev => ({ ...prev, year: e.target.value === 'all' ? 'all' : parseInt(e.target.value), useCustomRange: false }))}
-                        className="flex-1 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
-                      >
-                        <option value="all">Todos os Anos</option>
-                        {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
-                      </select>
-                      <select 
-                        value={filters.month}
-                        onChange={(e) => setFilters(prev => ({ ...prev, month: e.target.value === 'all' ? 'all' : parseInt(e.target.value), useCustomRange: false }))}
-                        className="flex-[2] bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
-                      >
-                        <option value="all">Ano Inteiro</option>
-                        {Array.from({ length: 12 }).map((_, i) => (
-                          <option key={i + 1} value={i + 1}>
-                            {format(new Date(2024, i, 1), 'MMMM', { locale: ptBR })}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+      {/* Main Navigation Tabs */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-neutral-200 scrollbar-none">
+        {tabsConfig.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
 
-                  {filters.useCustomRange && (
-                    <div className="flex flex-wrap gap-4 flex-1">
-                      <div className="space-y-2 min-w-[140px] flex-1">
-                        <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Início</label>
-                        <input 
-                          type="date" 
-                          value={filters.startDate}
-                          onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))}
-                          className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
-                        />
-                      </div>
-                      <div className="space-y-2 min-w-[140px] flex-1">
-                        <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Fim</label>
-                        <input 
-                          type="date" 
-                          value={filters.endDate}
-                          onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))}
-                          className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2.5 font-bold text-sm outline-none focus:ring-2 focus:ring-orange-500"
-                        />
-                      </div>
-                    </div>
+          return (
+            <button
+              key={tab.id}
+              id={`tab-btn-${tab.id}`}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-black whitespace-nowrap transition-all border",
+                isActive
+                  ? "bg-orange-600 text-white border-orange-600 shadow-sm"
+                  : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50 hover:text-neutral-900"
+              )}
+            >
+              <Icon size={15} />
+              <span>{tab.label}</span>
+              {tab.badge && (
+                <span className={cn(
+                  "px-1.5 py-0.2 rounded text-[10px] uppercase tracking-wider font-extrabold",
+                  isActive ? "bg-white/20 text-white" : "bg-orange-100 text-orange-700"
+                )}>
+                  {tab.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ================= TAB 1: EVOLUÇÃO DE VENDAS ================= */}
+      {activeTab === 'evolucao' && (
+        <div className="flex flex-col gap-4">
+          {/* Overview Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* Card 1: Volume Atual */}
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <span className="text-[11px] font-black text-neutral-400 uppercase tracking-wider">
+                  {selectedClientEvolution ? 'Volume do Cliente' : 'Volume da Carteira Ativa'}
+                </span>
+                <div className="p-2 rounded-lg bg-orange-50 text-orange-600">
+                  <Package size={18} />
+                </div>
+              </div>
+              <div className="mt-2">
+                <div className="text-2xl font-black text-neutral-900">
+                  {formatWeight(currentPeriodVolume)}
+                </div>
+                <p className="text-xs font-semibold text-neutral-500 mt-0.5">
+                  {trendMode === 'quarterly' 
+                    ? `Total vendido em ${latestPeriodLabel}` 
+                    : `Média mensal no ano ${latestPeriodLabel}`}
+                </p>
+              </div>
+            </div>
+
+            {/* Card 2: Tendência Geral */}
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <span className="text-[11px] font-black text-neutral-400 uppercase tracking-wider">
+                  Tendência da Série
+                </span>
+                <span className={cn(
+                  "px-2.5 py-1 rounded-full text-xs font-black flex items-center gap-1",
+                  activeTrend.categoryInfo.badgeClass
+                )}>
+                  <span>{activeTrend.categoryInfo.emoji}</span>
+                  <span>{activeTrend.categoryInfo.label}</span>
+                </span>
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-2xl font-black text-neutral-900">
+                  {activeTrend.totalTrendChangePct > 0 ? '+' : ''}
+                  {activeTrend.totalTrendChangePct.toFixed(1)}%
+                </span>
+                <span className="text-xs font-semibold text-neutral-500">
+                  ao longo do histórico
+                </span>
+              </div>
+              <p className="text-[11px] font-medium text-neutral-400 mt-1">
+                {activeTrend.dataPointsCount} períodos analisados ({activeSeries[0]?.label || '-'} → {activeSeries[activeSeries.length - 1]?.label || '-'})
+              </p>
+            </div>
+
+            {/* Card 3: Distribuição da Carteira Ativa */}
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm flex flex-col justify-between">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-[11px] font-black text-neutral-400 uppercase tracking-wider">
+                  Situação dos Clientes Ativos
+                </span>
+                <span className="text-xs font-bold text-neutral-500">
+                  {activeClientes.length} ativos
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-5 gap-1.5 mt-1">
+                {situationList.map(catKey => {
+                  const catInfo = TREND_CATEGORIES[catKey];
+                  const count = trendCounts[catKey] || 0;
+                  const isSelected = situationFilter === catKey;
+
+                  return (
+                    <button
+                      key={catKey}
+                      type="button"
+                      onClick={() => setSituationFilter(current => current === catKey ? 'all' : catKey)}
+                      className={cn(
+                        "flex flex-col items-center justify-center p-1.5 rounded-lg border transition-all text-center",
+                        isSelected 
+                          ? "ring-2 ring-orange-500 font-black " + catInfo.bgClass
+                          : "border-neutral-200 bg-neutral-50 hover:bg-white text-neutral-700"
+                      )}
+                      title={`Filtrar por ${catInfo.label}`}
+                    >
+                      <span className="text-sm">{catInfo.emoji}</span>
+                      <span className="text-xs font-black mt-0.5">{count}</span>
+                      <span className="text-[9px] font-bold text-neutral-400 truncate w-full">
+                        {catInfo.shortLabel}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Main Chart Card */}
+          <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-neutral-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-4 bg-orange-500 rounded-full" />
+                  <h2 className="text-base font-black text-neutral-900 tracking-tight">
+                    {selectedClientEvolution 
+                      ? `Evolução de Vendas — ${selectedClientEvolution.clienteNome}` 
+                      : 'Evolução Consolidada da Carteira Ativa (kg)'}
+                  </h2>
+                </div>
+                <p className="text-xs font-medium text-neutral-500 mt-0.5 ml-3.5">
+                  {selectedClientEvolution
+                    ? `Cidade: ${selectedClientEvolution.cidade} • ${trendMode === 'quarterly' ? 'Soma trimestral' : 'Média mensal anual'} em kg`
+                    : `${trendMode === 'quarterly' ? 'Soma trimestral dos clientes ativos' : 'Ritmo médio mensal vendido por ano'} em kg`}
+                </p>
+              </div>
+
+              {selectedClientEvolution && (
+                <button
+                  type="button"
+                  id="btn-clear-selected-client"
+                  onClick={() => setSelectedClientId(null)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-xs font-bold text-neutral-700 transition-colors self-start sm:self-auto"
+                >
+                  <X size={14} />
+                  Voltar para Toda a Carteira
+                </button>
+              )}
+            </div>
+
+            {/* Chart Rendering */}
+            <div className="h-72 sm:h-80 w-full">
+              {activeSeries.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-neutral-400">
+                  <Package size={32} className="mb-2 opacity-50" />
+                  <p className="text-xs font-bold">Nenhum dado disponível para o período selecionado.</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={activeSeries} margin={{ top: 12, right: 16, left: 0, bottom: 8 }}>
+                    <defs>
+                      <linearGradient id="colorSalesKg" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ea580c" stopOpacity={0.25}/>
+                        <stop offset="95%" stopColor="#ea580c" stopOpacity={0.0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis 
+                      dataKey="label" 
+                      axisLine={{ stroke: '#e5e5e5' }}
+                      tickLine={false} 
+                      tick={{ fontSize: 11, fontWeight: 700, fill: '#737373' }}
+                      dy={6}
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fontSize: 10, fontWeight: 700, fill: '#a3a3a3' }}
+                      tickFormatter={(val) => `${(val / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}k`}
+                      width={46}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        borderRadius: '12px', 
+                        border: '1px solid #e5e5e5', 
+                        boxShadow: '0 10px 25px rgba(0,0,0,0.08)', 
+                        fontSize: '11px',
+                        padding: '10px 14px'
+                      }}
+                      formatter={(value: any) => [
+                        `${formatWeight(Number(value))}${trendMode === 'annual' ? ' / mês' : ''}`, 
+                        trendMode === 'quarterly' ? 'Volume no Trimestre' : 'Média Mensal'
+                      ]}
+                      labelFormatter={(label) => `Período: ${label}`}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="chartKg" 
+                      stroke="#ea580c" 
+                      strokeWidth={3}
+                      fillOpacity={1} 
+                      fill="url(#colorSalesKg)"
+                      dot={{ r: 4, fill: '#ffffff', stroke: '#ea580c', strokeWidth: 2 }}
+                      activeDot={{ r: 6, fill: '#ea580c', stroke: '#ffffff', strokeWidth: 2 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+          {/* Clients Evolution Table Section */}
+          <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-5 shadow-sm">
+            <div className="flex flex-col gap-4 mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-black text-neutral-900 uppercase tracking-tight flex items-center gap-2">
+                    <div className="w-1.5 h-3.5 bg-orange-500 rounded-full" />
+                    Clientes Ativos e Tendências
+                  </h3>
+                  <p className="text-xs font-medium text-neutral-500 mt-0.5">
+                    Ordenado por maior volume vendido no período mais recente
+                  </p>
+                </div>
+
+                <span className="text-xs font-bold text-neutral-500 self-start sm:self-auto">
+                  Exibindo {filteredTrendClients.length} de {activeClientes.length} clientes ativos
+                </span>
+              </div>
+
+              {/* Filters Bar */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
+                {/* Search Input */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={15} />
+                  <input
+                    type="text"
+                    id="input-trend-search"
+                    placeholder="Buscar cliente ativo ou cidade..."
+                    value={clientSearchQuery}
+                    onChange={(e) => setClientSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-8 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-bold text-neutral-800 placeholder-neutral-400 outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  {clientSearchQuery && (
+                    <button 
+                      type="button"
+                      onClick={() => setClientSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                    >
+                      <X size={14} />
+                    </button>
                   )}
                 </div>
 
-                {/* Custom Range Toggle */}
-                <div className="space-y-2 min-w-[220px]">
-                  <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest lg:text-right block">Personalizado</label>
-                  <div className="flex items-center justify-between h-[42px] bg-neutral-50 px-4 rounded-lg border border-neutral-200">
-                    <span className="text-sm font-bold text-neutral-600">Usar datas específicas</span>
-                    <button 
-                      onClick={() => setFilters(prev => ({ ...prev, useCustomRange: !prev.useCustomRange }))}
-                      className={cn(
-                        "w-12 h-6 rounded-full transition-all relative",
-                        filters.useCustomRange ? "bg-orange-500" : "bg-neutral-200"
-                      )}
-                    >
-                      <div className={cn(
-                        "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
-                        filters.useCustomRange ? "left-7" : "left-1"
-                      )} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-neutral-100">
-                {/* Client Multi-select */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Clientes ({filters.clientIds.length})</label>
-                  <div className="relative">
-                    <button 
-                      onClick={() => setShowClientDropdown(!showClientDropdown)}
-                      className="w-full flex items-center justify-between px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
-                    >
-                      <span className="truncate">
-                        {filters.clientIds.length === 0 ? "Selecionar Clientes" : `${filters.clientIds.length} selecionados`}
-                      </span>
-                      <ChevronDown size={16} className={cn("transition-transform", showClientDropdown && "rotate-180")} />
-                    </button>
-                    
-                    <AnimatePresence>
-                      {showClientDropdown && (
-                        <>
-                          <div className="fixed inset-0 z-[60]" onClick={() => setShowClientDropdown(false)} />
-                          <motion.div 
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 10 }}
-                            className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-lg shadow-2xl z-[70] max-h-64 flex flex-col overflow-hidden"
-                          >
-                            <div className="p-2 border-b border-neutral-100">
-                              <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={14} />
-                                <input 
-                                  type="text"
-                                  placeholder="Buscar..."
-                                  value={clientSearch}
-                                  onChange={(e) => setClientSearch(e.target.value)}
-                                  className="w-full pl-9 pr-4 py-1.5 bg-neutral-50 border border-neutral-100 rounded-lg text-xs font-medium outline-none focus:ring-2 focus:ring-orange-500"
-                                />
-                              </div>
-                            </div>
-                            <div className="flex-1 overflow-y-auto p-1">
-                              {(() => {
-                                const searchWords = clientSearch.toLowerCase().split(/\s+/).filter(Boolean);
-                                return clientes
-                                  .filter(c => {
-                                    if (searchWords.length === 0) return true;
-                                    const targetString = (c.cliente || '').toLowerCase();
-                                    return searchWords.every(word => targetString.includes(word));
-                                  })
-                                  .map(c => (
-                                    <button
-                                      key={c.id}
-                                      onClick={() => {
-                                        setFilters(prev => ({
-                                          ...prev,
-                                          clientIds: prev.clientIds.includes(c.id) 
-                                            ? prev.clientIds.filter(id => id !== c.id)
-                                            : [...prev.clientIds, c.id]
-                                        }));
-                                      }}
-                                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-neutral-50 flex items-center gap-3 text-sm font-medium"
-                                    >
-                                      <div className={cn(
-                                        "w-4 h-4 rounded border flex items-center justify-center transition-colors",
-                                        filters.clientIds.includes(c.id) ? "bg-orange-500 border-orange-500" : "border-neutral-300"
-                                      )}>
-                                        {filters.clientIds.includes(c.id) && <Check size={10} className="text-white" strokeWidth={4} />}
-                                      </div>
-                                      <span className="truncate">{c.cliente}</span>
-                                    </button>
-                                  ));
-                              })()}
-                            </div>
-                          </motion.div>
-                        </>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-
-                {/* Family Filter */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">Família ({filters.families.length})</label>
-                  <div className="relative">
-                    <button 
-                      onClick={() => setShowFamilyDropdown(!showFamilyDropdown)}
-                      className="w-full flex items-center justify-between px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500"
-                    >
-                      <span className="truncate">
-                        {filters.families.length === 0 ? "Selecionar Famílias" : `${filters.families.length} selecionadas`}
-                      </span>
-                      <ChevronDown size={16} className={cn("transition-transform", showFamilyDropdown && "rotate-180")} />
-                    </button>
-                    
-                    <AnimatePresence>
-                      {showFamilyDropdown && (
-                        <>
-                          <div className="fixed inset-0 z-[60]" onClick={() => setShowFamilyDropdown(false)} />
-                          <motion.div 
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 10 }}
-                            className="absolute top-full left-0 right-0 mt-2 bg-white border border-neutral-200 rounded-lg shadow-2xl z-[70] max-h-64 overflow-y-auto p-1"
-                          >
-                            {(Array.from(new Set(produtos.map(p => p.familia).filter(Boolean))) as string[])
-                              .filter(f => f.toLowerCase() !== 'amostras e brindes')
-                              .sort((a, b) => a.localeCompare(b))
-                              .map(f => (
-                                <button
-                                  key={f}
-                                onClick={() => {
-                                  setFilters(prev => ({
-                                    ...prev,
-                                    families: prev.families.includes(f) 
-                                      ? prev.families.filter(id => id !== f)
-                                      : [...prev.families, f]
-                                  }));
-                                }}
-                                className="w-full text-left px-3 py-2 rounded-lg hover:bg-neutral-50 flex items-center gap-3 text-sm font-medium"
-                              >
-                                <div className={cn(
-                                  "w-4 h-4 rounded border flex items-center justify-center transition-colors",
-                                  filters.families.includes(f) ? "bg-orange-500 border-orange-500" : "border-neutral-300"
-                                )}>
-                                  {filters.families.includes(f) && <Check size={10} className="text-white" strokeWidth={4} />}
-                                </div>
-                                <span className="truncate">{f}</span>
-                              </button>
-                            ))}
-                          </motion.div>
-                        </>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-
-                {/* Reset Button */}
-                <div className="flex items-end">
-                  <button 
-                    onClick={() => {
-                      setFilters({
-                        clientIds: [],
-                        families: [],
-                        productIds: [],
-                        year: 'all',
-                        month: 'all',
-                        startDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
-                        endDate: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
-                        useCustomRange: false
-                      });
-                      setClientSearch('');
-                    }}
-                    className="w-full py-3 border border-neutral-200 rounded-lg font-bold text-neutral-500 hover:bg-neutral-50 transition-all"
+                {/* Situation Filter */}
+                <div>
+                  <select
+                    id="select-trend-situation"
+                    value={situationFilter}
+                    onChange={(e) => setSituationFilter(e.target.value as any)}
+                    className="w-full py-2 px-3 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-bold text-neutral-700 outline-none focus:ring-2 focus:ring-orange-500"
                   >
-                    Limpar Filtros
-                  </button>
+                    <option value="all">Todas as Situações</option>
+                    <option value="strong_growth">🚀 Crescimento forte</option>
+                    <option value="growth">📈 Crescimento</option>
+                    <option value="stable">➡️ Estável</option>
+                    <option value="decline">📉 Queda</option>
+                    <option value="strong_decline">🔴 Queda forte</option>
+                    <option value="insufficient_data">⚪ Dados insuficientes</option>
+                  </select>
+                </div>
+
+                {/* Start Period Filter */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-neutral-400 shrink-0">De:</span>
+                  <select
+                    id="select-trend-start-period"
+                    value={startPeriodKey}
+                    onChange={(e) => setStartPeriodKey(e.target.value)}
+                    className="w-full py-2 px-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-bold text-neutral-700 outline-none focus:ring-2 focus:ring-orange-500"
+                  >
+                    {periodOptions.map(p => (
+                      <option key={`start-${p.periodKey}`} value={p.periodKey}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* End Period Filter & Reset */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold text-neutral-400 shrink-0">Até:</span>
+                  <select
+                    id="select-trend-end-period"
+                    value={endPeriodKey}
+                    onChange={(e) => setEndPeriodKey(e.target.value)}
+                    className="w-full py-2 px-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-bold text-neutral-700 outline-none focus:ring-2 focus:ring-orange-500"
+                  >
+                    {periodOptions.map(p => (
+                      <option key={`end-${p.periodKey}`} value={p.periodKey}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  {(situationFilter !== 'all' || clientSearchQuery || (periodOptions.length > 0 && (startPeriodKey !== periodOptions[0].periodKey || endPeriodKey !== periodOptions[periodOptions.length - 1].periodKey))) && (
+                    <button
+                      type="button"
+                      id="btn-trend-reset"
+                      onClick={() => {
+                        setSelectedClientId(null);
+                        setSituationFilter('all');
+                        setClientSearchQuery('');
+                        if (periodOptions.length > 0) {
+                          setStartPeriodKey(periodOptions[0].periodKey);
+                          setEndPeriodKey(periodOptions[periodOptions.length - 1].periodKey);
+                        }
+                      }}
+                      title="Limpar Filtros"
+                      className="p-2 rounded-lg border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-600 transition-colors shrink-0"
+                    >
+                      <RotateCcw size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 shrink-0">
-        {kpis.map((kpi, i) => (
-          <KpiCard 
-            key={i} 
-            kpi={kpi} 
-          />
-        ))}
-      </div>
+            {/* Table Content */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-neutral-200 bg-neutral-50/80">
+                    <th className="py-2.5 px-3 text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Cliente Ativo
+                    </th>
+                    <th className="py-2.5 px-3 text-right text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Venda Atual
+                    </th>
+                    <th className="py-2.5 px-3 text-center text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Tendência
+                    </th>
+                    <th className="py-2.5 px-3 text-right text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Variação
+                    </th>
+                    <th className="py-2.5 px-3 text-center text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Período
+                    </th>
+                    <th className="py-2.5 px-3 text-center text-xs font-black text-neutral-500 uppercase tracking-wider w-16">
+                      Ação
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {filteredTrendClients.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-neutral-400 font-bold text-xs">
+                        Nenhum cliente ativo encontrado com os filtros selecionados.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredTrendClients.map((item) => {
+                      const isSelected = selectedClientId === item.clienteId;
+                      const catInfo = item.trend.categoryInfo;
 
-      {/* Main Charts Grid */}
-      <div className="flex-1 min-h-0">
-        <div className={cn(
-          "grid gap-4 h-full",
-          visibleCharts.length === 1 ? "grid-cols-1 grid-rows-1" : 
-          visibleCharts.length === 2 ? "grid-cols-1 lg:grid-cols-2 grid-rows-1" :
-          "grid-cols-1 lg:grid-cols-2 grid-rows-2"
-        )}>
-          {/* Monthly Revenue & Commission */}
-          {visibleCharts.includes('monthly') && (
-            <ChartCard 
-              title={`Comparativo Mensal: ${evolutionMetric === 'value' ? 'Faturamento (R$)' : 'Peso (Kg)'}`} 
-              className={cn(visibleCharts.length === 1 || visibleCharts.length === 3 ? "lg:col-span-2" : "")}
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyRevenueData} barCategoryGap="35%" barGap={3} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#a3a3a3' }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 700, fill: '#a3a3a3' }} />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', fontSize: '10px' }}
-                    formatter={(value: any) => evolutionMetric === 'value' ? formatCurrency(value) : formatWeight(value)}
-                  />
-                  <Legend verticalAlign="top" align="center" iconType="circle" wrapperStyle={{ paddingBottom: '10px', fontSize: '9px', fontWeight: 700 }} />
-                  <Bar 
-                    dataKey={`${evolutionMetric === 'value' ? 'faturamento' : 'peso'}_2024`} 
-                    name="2024" 
-                    fill="#3b82f6" 
-                    radius={[2, 2, 0, 0]} 
-                    barSize={12}
-                  />
-                  <Bar 
-                    dataKey={`${evolutionMetric === 'value' ? 'faturamento' : 'peso'}_2025`} 
-                    name="2025" 
-                    fill="#f97316" 
-                    radius={[2, 2, 0, 0]} 
-                    barSize={12}
-                  />
-                  <Bar 
-                    dataKey={`${evolutionMetric === 'value' ? 'faturamento' : 'peso'}_2026`} 
-                    name="2026" 
-                    fill="#10b981" 
-                    radius={[2, 2, 0, 0]} 
-                    barSize={12}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-          )}
+                      return (
+                        <tr 
+                          key={item.clienteId}
+                          onClick={() => setSelectedClientId(current => current === item.clienteId ? null : item.clienteId)}
+                          className={cn(
+                            "hover:bg-orange-50/40 cursor-pointer transition-colors",
+                            isSelected && "bg-orange-50/80 font-bold"
+                          )}
+                        >
+                          {/* Cliente */}
+                          <td className="py-3 px-3">
+                            <div className="flex flex-col">
+                              <span className={cn(
+                                "text-xs font-bold text-neutral-900 leading-snug",
+                                isSelected && "text-orange-600 font-black"
+                              )}>
+                                {item.clienteNome}
+                              </span>
+                              <span className="text-[11px] text-neutral-400 font-medium">
+                                {item.cidade}
+                              </span>
+                            </div>
+                          </td>
 
-          {/* Revenue by Client */}
-          {visibleCharts.includes('clients') && (
-            <ChartCard title={`Top 10 Clientes (${periodLabel})`}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={revenueByClientData} layout="vertical" margin={{ top: 0, right: 30, left: 10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={80} tick={{ fontSize: 8, fontWeight: 700, fill: '#737373' }} />
-                  <Tooltip 
-                    cursor={{ fill: '#f8fafc' }}
-                    contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 10px 20px rgba(0,0,0,0.05)', fontSize: '10px' }}
-                    formatter={(value: any) => evolutionMetric === 'value' ? formatCurrency(value) : formatWeight(value)}
-                  />
-                  <Bar dataKey={evolutionMetric} fill="#3b82f6" radius={[0, 2, 2, 0]} barSize={20} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-          )}
+                          {/* Venda Atual */}
+                          <td className="py-3 px-3 text-right whitespace-nowrap">
+                            <span className="text-xs font-black text-neutral-900">
+                              {formatWeight(item.currentKg)}
+                            </span>
+                            {trendMode === 'annual' && (
+                              <span className="text-[10px] text-neutral-400 font-medium block">
+                                /mês
+                              </span>
+                            )}
+                          </td>
 
-          {/* Revenue by Family */}
-          {visibleCharts.includes('family') && (
-            <ChartCard title={`${evolutionMetric === 'value' ? 'Faturamento' : 'Peso'} por Família`}>
-              <div className="flex h-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-4">
-                <div className="flex-1 h-full min-w-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={revenueByFamilyData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius="45%"
-                        outerRadius="85%"
-                        paddingAngle={5}
-                        dataKey={evolutionMetric}
-                      >
-                        {revenueByFamilyData.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 10px 20px rgba(0,0,0,0.05)', fontSize: '10px' }}
-                        formatter={(value: any) => evolutionMetric === 'value' ? formatCurrency(value) : formatWeight(value)}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                
-                <div className="w-full max-h-36 overflow-y-auto shrink-0 pr-1 sm:max-h-full sm:w-[240px] sm:pr-2">
-                  <table className="w-full text-[11px] font-bold text-neutral-600 border-collapse">
-                    <thead>
-                      <tr className="border-b border-neutral-100">
-                        <th className="text-left py-1 font-black text-neutral-400 uppercase tracking-tighter pr-4">Família</th>
-                        <th className="text-right py-1 font-black text-neutral-400 uppercase tracking-tighter">
-                          {evolutionMetric === 'value' ? 'Valor' : 'Peso'}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...revenueByFamilyData]
-                        .sort((a, b) => (b[evolutionMetric] || 0) - (a[evolutionMetric] || 0))
-                        .map((entry, index) => (
-                          <tr key={`item-${index}`} className="border-b border-neutral-50 last:border-0 hover:bg-neutral-50 transition-colors">
-                            <td className="py-1.5 flex items-center gap-2 pr-4">
-                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[revenueByFamilyData.indexOf(entry) % COLORS.length] }} />
-                              <span className="truncate max-w-[120px]">{entry.name}</span>
-                            </td>
-                            <td className="py-1.5 text-right text-neutral-900 whitespace-nowrap">
-                              {evolutionMetric === 'value' 
-                                ? formatCurrency(entry.value) 
-                                : formatWeight(entry.weight)}
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
+                          {/* Tendência */}
+                          <td className="py-3 px-3 text-center whitespace-nowrap">
+                            <span className={cn(
+                              "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border",
+                              catInfo.badgeClass
+                            )}>
+                              <span>{catInfo.emoji}</span>
+                              <span>{catInfo.label}</span>
+                            </span>
+                          </td>
+
+                          {/* Variação */}
+                          <td className="py-3 px-3 text-right whitespace-nowrap">
+                            {item.trend.category === 'insufficient_data' ? (
+                              <span className="text-[11px] font-medium text-neutral-400">
+                                -
+                              </span>
+                            ) : (
+                              <div className={cn(
+                                "inline-flex items-center gap-0.5 text-xs font-black",
+                                item.trend.totalTrendChangePct > 0 
+                                  ? "text-emerald-600" 
+                                  : item.trend.totalTrendChangePct < 0 
+                                  ? "text-rose-600" 
+                                  : "text-neutral-600"
+                              )}>
+                                {item.trend.totalTrendChangePct > 0 && <ArrowUpRight size={12} />}
+                                {item.trend.totalTrendChangePct < 0 && <ArrowDownRight size={12} />}
+                                {item.trend.totalTrendChangePct === 0 && <Minus size={12} />}
+                                <span>
+                                  {item.trend.totalTrendChangePct > 0 ? '+' : ''}
+                                  {item.trend.totalTrendChangePct.toFixed(1)}%
+                                </span>
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Período */}
+                          <td className="py-3 px-3 text-center whitespace-nowrap">
+                            <span className="text-xs font-semibold text-neutral-600">
+                              {item.latestPeriodLabel}
+                            </span>
+                          </td>
+
+                          {/* Ação */}
+                          <td className="py-3 px-3 text-center whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedClientId(current => current === item.clienteId ? null : item.clienteId);
+                              }}
+                              className={cn(
+                                "p-1.5 rounded-lg transition-colors",
+                                isSelected
+                                  ? "bg-orange-500 text-white shadow-sm"
+                                  : "bg-neutral-100 text-neutral-600 hover:bg-orange-100 hover:text-orange-700"
+                              )}
+                              title={isSelected ? "Desmarcar cliente" : "Ver evolução no gráfico"}
+                            >
+                              <ChevronRight size={14} className={cn("transition-transform", isSelected && "rotate-90")} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 2: VISÃO GERAL & FATURAMENTO ================= */}
+      {activeTab === 'visao_geral' && (
+        <div className="flex flex-col gap-4">
+          {/* Main KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Faturamento */}
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <span className="text-[11px] font-black text-neutral-400 uppercase tracking-wider">
+                  Faturamento (R$)
+                </span>
+                <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+                  <DollarSign size={18} />
                 </div>
               </div>
-            </ChartCard>
-          )}
+              <div className="mt-2">
+                <div className="text-2xl font-black text-neutral-900">
+                  {formatCurrency(monthlyMetrics.currentFaturamento)}
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <span className={cn(
+                    "text-xs font-bold flex items-center",
+                    monthlyMetrics.faturamentoGrowth >= 0 ? "text-emerald-600" : "text-rose-600"
+                  )}>
+                    {monthlyMetrics.faturamentoGrowth >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                    {Math.abs(monthlyMetrics.faturamentoGrowth).toFixed(1)}%
+                  </span>
+                  <span className="text-[11px] text-neutral-400 font-medium">vs mês anterior</span>
+                </div>
+              </div>
+            </div>
 
-          {/* Top Products */}
-          {visibleCharts.includes('products') && (
-            <ChartCard title={`Top 10 Produtos (${evolutionMetric === 'value' ? 'R$' : 'kg'})`} className={cn(visibleCharts.length === 1 || (visibleCharts.length === 3 && !visibleCharts.includes('monthly')) ? "lg:col-span-2" : "")}>
+            {/* Volume em kg */}
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <span className="text-[11px] font-black text-neutral-400 uppercase tracking-wider">
+                  Volume Faturado
+                </span>
+                <div className="p-2 rounded-lg bg-orange-50 text-orange-600">
+                  <Package size={18} />
+                </div>
+              </div>
+              <div className="mt-2">
+                <div className="text-2xl font-black text-neutral-900">
+                  {formatWeight(monthlyMetrics.currentKg)}
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <span className={cn(
+                    "text-xs font-bold flex items-center",
+                    monthlyMetrics.kgGrowth >= 0 ? "text-emerald-600" : "text-rose-600"
+                  )}>
+                    {monthlyMetrics.kgGrowth >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                    {Math.abs(monthlyMetrics.kgGrowth).toFixed(1)}%
+                  </span>
+                  <span className="text-[11px] text-neutral-400 font-medium">vs mês anterior</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Preço Médio / kg */}
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <span className="text-[11px] font-black text-neutral-400 uppercase tracking-wider">
+                  Preço Médio / kg
+                </span>
+                <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+                  <Activity size={18} />
+                </div>
+              </div>
+              <div className="mt-2">
+                <div className="text-2xl font-black text-neutral-900">
+                  {formatCurrency(monthlyMetrics.currentPrecoMedioKg)}
+                </div>
+                <p className="text-xs font-semibold text-neutral-500 mt-1">
+                  Ticket Médio: {formatCurrency(monthlyMetrics.currentTicketMedio)}
+                </p>
+              </div>
+            </div>
+
+            {/* Positivação */}
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm flex flex-col justify-between">
+              <div className="flex justify-between items-start">
+                <span className="text-[11px] font-black text-neutral-400 uppercase tracking-wider">
+                  Positivação da Carteira
+                </span>
+                <div className="p-2 rounded-lg bg-purple-50 text-purple-600">
+                  <Users size={18} />
+                </div>
+              </div>
+              <div className="mt-2">
+                <div className="text-2xl font-black text-neutral-900">
+                  {monthlyMetrics.positivacaoRate.toFixed(1)}%
+                </div>
+                <p className="text-xs font-semibold text-neutral-500 mt-1">
+                  {monthlyMetrics.currentPositivadosCount} de {activeClientes.length} clientes ativos
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Monthly Comparison History Chart */}
+          <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-5 shadow-sm">
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-neutral-100">
+              <div>
+                <h3 className="text-sm font-black text-neutral-900 uppercase tracking-tight flex items-center gap-2">
+                  <div className="w-1.5 h-3.5 bg-orange-500 rounded-full" />
+                  Evolução Mensal de Faturamento e Volume (Últimos 12 Meses)
+                </h3>
+                <p className="text-xs font-medium text-neutral-500 mt-0.5">
+                  Consolidado exclusivamente para a carteira de clientes ativos
+                </p>
+              </div>
+            </div>
+
+            <div className="h-72 sm:h-80 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={topProductsData} layout="vertical" margin={{ top: 0, right: 30, left: 10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={100} tick={{ fontSize: 8, fontWeight: 700, fill: '#737373' }} />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 10px 20px rgba(0,0,0,0.05)', fontSize: '10px' }}
-                    formatter={(value: any) => evolutionMetric === 'value' ? formatCurrency(value) : formatWeight(value)}
+                <BarChart data={monthlyHistoryData} margin={{ top: 12, right: 16, left: 0, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                  <XAxis 
+                    dataKey="label" 
+                    axisLine={{ stroke: '#e5e5e5' }}
+                    tickLine={false} 
+                    tick={{ fontSize: 11, fontWeight: 700, fill: '#737373' }}
+                    dy={6}
                   />
-                  <Bar dataKey={evolutionMetric === 'value' ? 'revenue' : 'weight'} fill="#f97316" radius={[0, 2, 2, 0]} barSize={20} />
+                  <YAxis 
+                    yAxisId="left"
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 10, fontWeight: 700, fill: '#a3a3a3' }}
+                    tickFormatter={(val) => `R$ ${(val / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}k`}
+                    width={55}
+                  />
+                  <YAxis 
+                    yAxisId="right"
+                    orientation="right"
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 10, fontWeight: 700, fill: '#a3a3a3' }}
+                    tickFormatter={(val) => `${(val / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}k kg`}
+                    width={48}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      borderRadius: '12px', 
+                      border: '1px solid #e5e5e5', 
+                      boxShadow: '0 10px 25px rgba(0,0,0,0.08)', 
+                      fontSize: '11px',
+                      padding: '10px 14px'
+                    }}
+                    formatter={(value: any, name: string) => [
+                      name === 'faturamento' ? formatCurrency(Number(value)) : formatWeight(Number(value)),
+                      name === 'faturamento' ? 'Faturamento (R$)' : 'Volume (kg)'
+                    ]}
+                  />
+                  <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                  <Bar yAxisId="left" dataKey="faturamento" name="Faturamento (R$)" fill="#059669" radius={[4, 4, 0, 0]} />
+                  <Bar yAxisId="right" dataKey="volumeKg" name="Volume (kg)" fill="#ea580c" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            </ChartCard>
-          )}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ================= TAB 3: CURVA ABC (PARETO) ================= */}
+      {activeTab === 'curva_abc' && (
+        <div className="flex flex-col gap-4">
+          {/* Controls Bar */}
+          <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Type Switcher: Clientes / Produtos */}
+              <div className="inline-flex rounded-lg border border-neutral-200 bg-neutral-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => setAbcType('clientes')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md text-xs font-black transition-all",
+                    abcType === 'clientes' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-600 hover:text-neutral-900"
+                  )}
+                >
+                  Clientes Ativos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAbcType('produtos')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md text-xs font-black transition-all",
+                    abcType === 'produtos' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-600 hover:text-neutral-900"
+                  )}
+                >
+                  Produtos
+                </button>
+              </div>
+
+              {/* Metric Switcher: Volume (kg) / Faturamento (R$) */}
+              <div className="inline-flex rounded-lg border border-neutral-200 bg-neutral-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => setAbcMetric('volume')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md text-xs font-black transition-all",
+                    abcMetric === 'volume' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-600 hover:text-neutral-900"
+                  )}
+                >
+                  Por Volume (kg)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAbcMetric('faturamento')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md text-xs font-black transition-all",
+                    abcMetric === 'faturamento' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-600 hover:text-neutral-900"
+                  )}
+                >
+                  Por Faturamento (R$)
+                </button>
+              </div>
+            </div>
+
+            {/* Classes Count Pills */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAbcClassFilter(current => current === 'A' ? 'all' : 'A')}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg border text-xs font-black transition-all flex items-center gap-1.5",
+                  abcClassFilter === 'A' ? "ring-2 ring-emerald-500 bg-emerald-50 text-emerald-700 border-emerald-300" : "bg-neutral-50 text-neutral-700 border-neutral-200 hover:bg-white"
+                )}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span>Classe A (80%):</span>
+                <span className="font-extrabold">{abcData.countA}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAbcClassFilter(current => current === 'B' ? 'all' : 'B')}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg border text-xs font-black transition-all flex items-center gap-1.5",
+                  abcClassFilter === 'B' ? "ring-2 ring-amber-500 bg-amber-50 text-amber-700 border-amber-300" : "bg-neutral-50 text-neutral-700 border-neutral-200 hover:bg-white"
+                )}
+              >
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                <span>Classe B (15%):</span>
+                <span className="font-extrabold">{abcData.countB}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAbcClassFilter(current => current === 'C' ? 'all' : 'C')}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg border text-xs font-black transition-all flex items-center gap-1.5",
+                  abcClassFilter === 'C' ? "ring-2 ring-rose-500 bg-rose-50 text-rose-700 border-rose-300" : "bg-neutral-50 text-neutral-700 border-neutral-200 hover:bg-white"
+                )}
+              >
+                <span className="w-2 h-2 rounded-full bg-rose-500" />
+                <span>Classe C (5%):</span>
+                <span className="font-extrabold">{abcData.countC}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* ABC Table */}
+          <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div className="relative w-full sm:w-80">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={15} />
+                <input
+                  type="text"
+                  placeholder={`Buscar ${abcType === 'clientes' ? 'cliente ou cidade...' : 'produto ou família...'}`}
+                  value={abcSearchQuery}
+                  onChange={(e) => setAbcSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-bold text-neutral-800 placeholder-neutral-400 outline-none focus:ring-2 focus:ring-orange-500"
+                />
+                {abcSearchQuery && (
+                  <button 
+                    type="button"
+                    onClick={() => setAbcSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              <span className="text-xs font-bold text-neutral-500">
+                Total acumulado: {abcMetric === 'faturamento' ? formatCurrency(abcData.totalSum) : formatWeight(abcData.totalSum)}
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-neutral-200 bg-neutral-50/80">
+                    <th className="py-2.5 px-3 text-xs font-black text-neutral-500 uppercase tracking-wider w-16 text-center">
+                      Pos.
+                    </th>
+                    <th className="py-2.5 px-3 text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      {abcType === 'clientes' ? 'Cliente Ativo' : 'Produto'}
+                    </th>
+                    <th className="py-2.5 px-3 text-right text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Volume (kg)
+                    </th>
+                    <th className="py-2.5 px-3 text-right text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Faturamento (R$)
+                    </th>
+                    <th className="py-2.5 px-3 text-right text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Part. %
+                    </th>
+                    <th className="py-2.5 px-3 text-right text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Acumulado %
+                    </th>
+                    <th className="py-2.5 px-3 text-center text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Classe
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {filteredAbcItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-neutral-400 font-bold text-xs">
+                        Nenhum registro encontrado para os filtros selecionados.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredAbcItems.map((item, idx) => (
+                      <tr key={item.id} className="hover:bg-neutral-50/80 transition-colors">
+                        <td className="py-3 px-3 text-center text-xs font-bold text-neutral-400">
+                          #{idx + 1}
+                        </td>
+                        <td className="py-3 px-3">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-neutral-900">{item.name}</span>
+                            <span className="text-[11px] text-neutral-400 font-medium">{item.subText}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 text-right whitespace-nowrap text-xs font-bold text-neutral-800">
+                          {formatWeight(item.totalKg)}
+                        </td>
+                        <td className="py-3 px-3 text-right whitespace-nowrap text-xs font-bold text-neutral-800">
+                          {formatCurrency(item.totalVal)}
+                        </td>
+                        <td className="py-3 px-3 text-right whitespace-nowrap text-xs font-black text-neutral-700">
+                          {item.sharePct.toFixed(1)}%
+                        </td>
+                        <td className="py-3 px-3 text-right whitespace-nowrap text-xs font-bold text-neutral-500">
+                          {item.accumulatedPct.toFixed(1)}%
+                        </td>
+                        <td className="py-3 px-3 text-center whitespace-nowrap">
+                          <span className={cn(
+                            "px-2.5 py-0.5 rounded-full text-xs font-black border",
+                            item.classe === 'A' ? "bg-emerald-100 text-emerald-800 border-emerald-300" :
+                            item.classe === 'B' ? "bg-amber-100 text-amber-800 border-amber-300" :
+                            "bg-rose-100 text-rose-800 border-rose-300"
+                          )}>
+                            Classe {item.classe}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 4: MIX DE PRODUTOS ================= */}
+      {activeTab === 'mix_produtos' && (
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Mix Summary Cards */}
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm">
+              <span className="text-[11px] font-black text-neutral-400 uppercase tracking-wider">
+                Volume Total do Mix
+              </span>
+              <div className="text-2xl font-black text-neutral-900 mt-2">
+                {formatWeight(productMixData.totalVolume)}
+              </div>
+              <p className="text-xs font-semibold text-neutral-500 mt-0.5">
+                Em {productMixData.families.length} famílias de produtos
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm">
+              <span className="text-[11px] font-black text-neutral-400 uppercase tracking-wider">
+                Faturamento Total do Mix
+              </span>
+              <div className="text-2xl font-black text-neutral-900 mt-2">
+                {formatCurrency(productMixData.totalFaturamento)}
+              </div>
+              <p className="text-xs font-semibold text-neutral-500 mt-0.5">
+                Vendas da carteira ativa no período
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm">
+              <span className="text-[11px] font-black text-neutral-400 uppercase tracking-wider">
+                Preço Médio Consolidado
+              </span>
+              <div className="text-2xl font-black text-neutral-900 mt-2">
+                {formatCurrency(productMixData.totalVolume > 0 ? productMixData.totalFaturamento / productMixData.totalVolume : 0)}
+                <span className="text-xs font-bold text-neutral-400 ml-1">/kg</span>
+              </div>
+              <p className="text-xs font-semibold text-neutral-500 mt-0.5">
+                Média ponderada por quilograma
+              </p>
+            </div>
+          </div>
+
+          {/* Families Breakdown Table */}
+          <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-5 shadow-sm">
+            <div className="flex items-center justify-between pb-4 mb-4 border-b border-neutral-100">
+              <h3 className="text-sm font-black text-neutral-900 uppercase tracking-tight flex items-center gap-2">
+                <div className="w-1.5 h-3.5 bg-orange-500 rounded-full" />
+                Participação por Família de Produtos
+              </h3>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-neutral-200 bg-neutral-50/80">
+                    <th className="py-2.5 px-3 text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Família
+                    </th>
+                    <th className="py-2.5 px-3 text-right text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Volume (kg)
+                    </th>
+                    <th className="py-2.5 px-3 text-right text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Share Volume
+                    </th>
+                    <th className="py-2.5 px-3 text-right text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Faturamento (R$)
+                    </th>
+                    <th className="py-2.5 px-3 text-right text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Share Receita
+                    </th>
+                    <th className="py-2.5 px-3 text-right text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Preço Médio / kg
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {productMixData.families.map((fam, idx) => (
+                    <tr key={fam.name} className="hover:bg-neutral-50/80 transition-colors">
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2">
+                          <span 
+                            className="w-3 h-3 rounded-full shrink-0" 
+                            style={{ backgroundColor: COLORS_FAMILIES[idx % COLORS_FAMILIES.length] }} 
+                          />
+                          <span className="text-xs font-black text-neutral-900">{fam.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-right whitespace-nowrap text-xs font-bold text-neutral-800">
+                        {formatWeight(fam.totalKg)}
+                      </td>
+                      <td className="py-3 px-3 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="w-16 bg-neutral-100 h-2 rounded-full overflow-hidden">
+                            <div 
+                              className="bg-orange-500 h-full rounded-full" 
+                              style={{ width: `${Math.min(100, fam.shareKg)}%` }} 
+                            />
+                          </div>
+                          <span className="text-xs font-black text-neutral-700 w-10 text-right">
+                            {fam.shareKg.toFixed(1)}%
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-right whitespace-nowrap text-xs font-bold text-neutral-800">
+                        {formatCurrency(fam.totalVal)}
+                      </td>
+                      <td className="py-3 px-3 text-right whitespace-nowrap">
+                        <span className="text-xs font-bold text-neutral-600">
+                          {fam.shareVal.toFixed(1)}%
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right whitespace-nowrap text-xs font-bold text-neutral-900">
+                        {formatCurrency(fam.precoMedioKg)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 5: POSITIVAÇÃO DA CARTEIRA ================= */}
+      {activeTab === 'positivacao' && (
+        <div className="flex flex-col gap-4">
+          {/* Header Summary */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm">
+              <span className="text-[11px] font-black text-neutral-400 uppercase tracking-wider">
+                Clientes Ativos
+              </span>
+              <div className="text-2xl font-black text-neutral-900 mt-2">
+                {activeClientes.length}
+              </div>
+              <p className="text-xs font-semibold text-neutral-500 mt-0.5">
+                Base total de clientes ativos
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm">
+              <span className="text-[11px] font-black text-neutral-400 uppercase tracking-wider">
+                Positivados no Mês
+              </span>
+              <div className="text-2xl font-black text-emerald-600 mt-2">
+                {monthlyMetrics.currentPositivadosCount}
+                <span className="text-xs font-bold text-neutral-400 ml-1.5">
+                  ({monthlyMetrics.positivacaoRate.toFixed(1)}%)
+                </span>
+              </div>
+              <p className="text-xs font-semibold text-neutral-500 mt-0.5">
+                Compraram em {format(currentMonthDate, 'MMMM/yyyy', { locale: ptBR })}
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm">
+              <span className="text-[11px] font-black text-neutral-400 uppercase tracking-wider">
+                Pendentes de Compra
+              </span>
+              <div className="text-2xl font-black text-rose-600 mt-2">
+                {activeClientes.length - monthlyMetrics.currentPositivadosCount}
+                <span className="text-xs font-bold text-neutral-400 ml-1.5">
+                  ({(100 - monthlyMetrics.positivacaoRate).toFixed(1)}%)
+                </span>
+              </div>
+              <p className="text-xs font-semibold text-neutral-500 mt-0.5">
+                Ainda não compraram neste mês
+              </p>
+            </div>
+          </div>
+
+          {/* Positivation Table */}
+          <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div className="relative w-full sm:w-80">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={15} />
+                <input
+                  type="text"
+                  placeholder="Buscar cliente ativo ou cidade..."
+                  value={positivacaoSearchQuery}
+                  onChange={(e) => setPositivacaoSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-bold text-neutral-800 placeholder-neutral-400 outline-none focus:ring-2 focus:ring-orange-500"
+                />
+                {positivacaoSearchQuery && (
+                  <button 
+                    type="button"
+                    onClick={() => setPositivacaoSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Status Filter */}
+              <div className="inline-flex rounded-lg border border-neutral-200 bg-neutral-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => setPositivacaoStatusFilter('all')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md text-xs font-black transition-all",
+                    positivacaoStatusFilter === 'all' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-600 hover:text-neutral-900"
+                  )}
+                >
+                  Todos ({positivacaoData.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPositivacaoStatusFilter('positivado')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md text-xs font-black transition-all",
+                    positivacaoStatusFilter === 'positivado' ? "bg-white text-emerald-600 shadow-sm" : "text-neutral-600 hover:text-neutral-900"
+                  )}
+                >
+                  Positivados ({monthlyMetrics.currentPositivadosCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPositivacaoStatusFilter('pendente')}
+                  className={cn(
+                    "px-3 py-1.5 rounded-md text-xs font-black transition-all",
+                    positivacaoStatusFilter === 'pendente' ? "bg-white text-rose-600 shadow-sm" : "text-neutral-600 hover:text-neutral-900"
+                  )}
+                >
+                  Pendentes ({activeClientes.length - monthlyMetrics.currentPositivadosCount})
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-neutral-200 bg-neutral-50/80">
+                    <th className="py-2.5 px-3 text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Cliente Ativo
+                    </th>
+                    <th className="py-2.5 px-3 text-center text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Status do Mês
+                    </th>
+                    <th className="py-2.5 px-3 text-center text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Última Compra
+                    </th>
+                    <th className="py-2.5 px-3 text-center text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Dias s/ Compra
+                    </th>
+                    <th className="py-2.5 px-3 text-center text-xs font-black text-neutral-500 uppercase tracking-wider">
+                      Ciclo Ponderado
+                    </th>
+                    <th className="py-2.5 px-3 text-center text-xs font-black text-neutral-500 uppercase tracking-wider w-24">
+                      Ações
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {filteredPositivacaoList.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-neutral-400 font-bold text-xs">
+                        Nenhum cliente ativo encontrado com os filtros selecionados.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredPositivacaoList.map((item) => (
+                      <tr key={item.clienteId} className="hover:bg-neutral-50/80 transition-colors">
+                        <td className="py-3 px-3">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-neutral-900">{item.clienteNome}</span>
+                            <span className="text-[11px] text-neutral-400 font-medium">{item.cidade}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 text-center whitespace-nowrap">
+                          {item.isPositivado ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              <CheckCircle2 size={12} />
+                              Positivado
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-800 border border-amber-300">
+                              <Clock size={12} />
+                              Pendente
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-center whitespace-nowrap text-xs font-semibold text-neutral-600">
+                          {item.ultimaCompra ? format(parseISO(item.ultimaCompra), 'dd/MM/yyyy') : '-'}
+                        </td>
+                        <td className="py-3 px-3 text-center whitespace-nowrap">
+                          <span className={cn(
+                            "text-xs font-black",
+                            item.daysSinceLastPurchase > 60 ? "text-rose-600 font-black" :
+                            item.daysSinceLastPurchase > 30 ? "text-amber-600 font-bold" :
+                            "text-neutral-700"
+                          )}>
+                            {item.daysSinceLastPurchase === 999 ? '-' : `${item.daysSinceLastPurchase} dias`}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-center whitespace-nowrap text-xs font-semibold text-neutral-600">
+                          {item.cicloPonderado > 0 ? `${item.cicloPonderado} dias` : '-'}
+                        </td>
+                        <td className="py-3 px-3 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {item.telefone && (
+                              <button
+                                type="button"
+                                onClick={() => sendWhatsAppMessage(item)}
+                                className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                                title="Enviar mensagem via WhatsApp"
+                              >
+                                <MessageCircle size={14} />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/clientes/${item.clienteId}`)}
+                              className="p-1.5 rounded-lg bg-neutral-100 text-neutral-700 hover:bg-neutral-200 transition-colors"
+                              title="Abrir ficha do cliente"
+                            >
+                              <ExternalLink size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Loading Overlay */}
       {loading && (
         <div className="fixed inset-0 z-[200] bg-white/40 backdrop-blur-[2px] flex items-center justify-center">
-          <div className="bg-white p-8 rounded-lg shadow-2xl flex flex-col items-center gap-4">
-            <div className="w-12 h-12 border-4 border-orange-100 border-t-orange-600 rounded-full animate-spin" />
-            <p className="text-sm font-bold text-neutral-600">Atualizando dados...</p>
+          <div className="bg-white p-6 rounded-xl shadow-2xl border border-neutral-200 flex flex-col items-center gap-3">
+            <div className="w-10 h-10 border-4 border-orange-100 border-t-orange-600 rounded-full animate-spin" />
+            <p className="text-xs font-bold text-neutral-600">Carregando histórico de vendas...</p>
           </div>
         </div>
       )}
