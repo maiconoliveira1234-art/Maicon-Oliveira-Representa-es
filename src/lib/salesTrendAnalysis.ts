@@ -1,7 +1,6 @@
 import { HistVenda, Produto, Cliente } from '../types';
 import { classifySaleRecord } from './salesClassifier';
-import { shouldExcludeSale } from '../constants';
-import { parseISO } from 'date-fns';
+import { parseSaleDate } from './utils';
 
 export type TrendMode = 'quarterly' | 'annual';
 
@@ -88,14 +87,15 @@ export const TREND_CATEGORIES: Record<TrendCategory, TrendCategoryInfo> = {
 };
 
 export interface PeriodDataPoint {
-  periodKey: string;     // e.g. "2024-Q1" or "2024"
-  label: string;         // e.g. "Q1/2024" or "2024"
+  periodKey: string;     // e.g. "2024-T1" or "2024"
+  label: string;         // e.g. "T1/2024" or "2024"
   year: number;
   quarter?: number;      // 1 to 4 if quarterly
-  totalKg: number;       // Sum of kg in this period
-  chartKg: number;       // Quarterly: totalKg; Annual: monthly average kg
+  totalKg: number;       // Sum of raw kg in this period
+  chartKg: number;       // Normalized monthly average kg in this period (kg/mês)
+  trendKg?: number;      // Linear regression trend line value for this period
   orderCount: number;
-  activeMonths: number;  // Number of valid months in this period (12 for full year, or elapsed months)
+  activeMonths: number;  // Number of effective months in this period (e.g. 3 for full quarter, pro-rata for partial)
 }
 
 export interface TrendAnalysis {
@@ -120,6 +120,106 @@ export interface ClientSalesEvolution {
   trend: TrendAnalysis;
   currentKg: number;
   latestPeriodLabel: string;
+  recentAlert: boolean;
+  recentDropPct: number;
+  recentDropKg: number;
+  recentAlertReason?: string;
+}
+
+/**
+ * Analyzes short-term micro-trend (last 2 to 4 periods) to detect recent drop risks.
+ */
+export function analyzeRecentTrendRisk(series: PeriodDataPoint[]): {
+  hasAlert: boolean;
+  dropPct: number;
+  dropKg: number;
+  reason?: string;
+} {
+  if (!series || series.length < 2) {
+    return { hasAlert: false, dropPct: 0, dropKg: 0 };
+  }
+
+  const n = series.length;
+  const latest = series[n - 1].chartKg;
+  const prev = series[n - 2].chartKg;
+  const prev2 = n >= 3 ? series[n - 3].chartKg : null;
+
+  // Check if client has ever had non-zero sales in the recent window
+  const recentWindow = series.slice(-Math.min(4, n));
+  const maxRecent = Math.max(...recentWindow.map(p => p.chartKg));
+  if (maxRecent <= 0) {
+    return { hasAlert: false, dropPct: 0, dropKg: 0 };
+  }
+
+  // 1. Sudden stop: Was purchasing in previous period(s), but 0 in latest
+  if (prev > 0 && latest === 0) {
+    return {
+      hasAlert: true,
+      dropPct: -100,
+      dropKg: prev,
+      reason: `Sem compras no período mais recente (era ${Math.round(prev).toLocaleString('pt-BR')} kg no anterior)`,
+    };
+  }
+
+  // 2. Significant direct drop in the latest period vs previous (>= 20% drop)
+  if (prev > 0 && latest < prev) {
+    const directDropPct = ((latest - prev) / prev) * 100;
+    if (directDropPct <= -20 && (prev - latest) >= 5) {
+      return {
+        hasAlert: true,
+        dropPct: directDropPct,
+        dropKg: prev - latest,
+        reason: `Queda recente de ${Math.abs(directDropPct).toFixed(0)}% (${Math.round(prev - latest).toLocaleString('pt-BR')} kg) vs período anterior`,
+      };
+    }
+  }
+
+  // 3. Consecutive drops over the last 3 periods
+  if (prev2 !== null && prev2 > 0 && prev2 > prev && prev > latest) {
+    const cumDropPct = ((latest - prev2) / prev2) * 100;
+    if (cumDropPct <= -18) {
+      return {
+        hasAlert: true,
+        dropPct: cumDropPct,
+        dropKg: prev2 - latest,
+        reason: `Quedas consecutivas nos últimos 3 períodos (${Math.abs(cumDropPct).toFixed(0)}% acumulado)`,
+      };
+    }
+  }
+
+  // 4. Short-term linear regression slope (micro-trend) across the last 3 or 4 points
+  if (recentWindow.length >= 3) {
+    const windowValues = recentWindow.map(p => p.chartKg);
+    const windowSum = windowValues.reduce((a, b) => a + b, 0);
+    const windowMean = windowSum / windowValues.length;
+
+    if (windowMean > 0) {
+      const wN = windowValues.length;
+      const wMeanX = (wN - 1) / 2;
+      let num = 0;
+      let denX = 0;
+
+      for (let i = 0; i < wN; i++) {
+        num += (i - wMeanX) * (windowValues[i] - windowMean);
+        denX += (i - wMeanX) * (i - wMeanX);
+      }
+
+      const wSlope = denX !== 0 ? num / denX : 0;
+      const wTotalChangePct = ((wSlope * (wN - 1)) / windowMean) * 100;
+
+      // If micro-trend change is <= -20% and latest is smaller than first in window
+      if (wTotalChangePct <= -20 && windowValues[wN - 1] < windowValues[0]) {
+        return {
+          hasAlert: true,
+          dropPct: wTotalChangePct,
+          dropKg: windowValues[0] - windowValues[wN - 1],
+          reason: `Micro-tendência recente em queda (${Math.abs(wTotalChangePct).toFixed(0)}% nos últimos ${wN} períodos)`,
+        };
+      }
+    }
+  }
+
+  return { hasAlert: false, dropPct: 0, dropKg: 0 };
 }
 
 /**
@@ -152,6 +252,9 @@ export function calculateSeriesTrend(dataPoints: PeriodDataPoint[]): TrendAnalys
   if (n < 2) {
     const singleVal = n === 1 ? dataPoints[0].chartKg : 0;
     const singleKey = n === 1 ? dataPoints[0].periodKey : '';
+    if (n === 1) {
+      dataPoints[0].trendKg = singleVal;
+    }
     return {
       category: 'insufficient_data',
       categoryInfo: TREND_CATEGORIES.insufficient_data,
@@ -178,6 +281,7 @@ export function calculateSeriesTrend(dataPoints: PeriodDataPoint[]): TrendAnalys
 
   // If entire series is zero
   if (meanY <= 0.0001) {
+    dataPoints.forEach(p => { p.trendKg = 0; });
     return {
       category: 'stable',
       categoryInfo: TREND_CATEGORIES.stable,
@@ -207,6 +311,12 @@ export function calculateSeriesTrend(dataPoints: PeriodDataPoint[]): TrendAnalys
   }
 
   const slope = denominatorX !== 0 ? numerator / denominatorX : 0;
+  const intercept = meanY - slope * meanX;
+
+  // Assign calculated linear regression trend line values (clamped to 0 minimum)
+  dataPoints.forEach((p, i) => {
+    p.trendKg = Math.max(0, Math.round(intercept + slope * i));
+  });
   const normalizedSlope = meanY > 0 ? (slope / meanY) * 100 : 0; // % per step
   const totalTrendChangePct = meanY > 0 ? ((slope * (n - 1)) / meanY) * 100 : 0;
 
@@ -270,8 +380,8 @@ export function buildHistoricalPeriodKeys(
 
   allSales.forEach(h => {
     if (!h.faturamento) return;
-    const d = parseISO(h.faturamento);
-    if (isNaN(d.getTime())) return;
+    const d = parseSaleDate(h.faturamento);
+    if (!d || isNaN(d.getTime())) return;
     
     if (!hasValidDate) {
       minDate = d;
@@ -300,8 +410,8 @@ export function buildHistoricalPeriodKeys(
 
       for (let q = firstQ; q <= lastQ; q++) {
         periods.push({
-          periodKey: `${y}-Q${q}`,
-          label: `Q${q}/${y}`,
+          periodKey: `${y}-T${q}`,
+          label: `T${q}/${y}`,
           year: y,
           quarter: q,
         });
@@ -322,45 +432,86 @@ export function buildHistoricalPeriodKeys(
 }
 
 /**
+ * Computes how many valid active months exist in a given quarter or year for pro-rata weighting.
+ * 
+ * Rules:
+ * - For a full quarter in the past: 3 months.
+ * - For the current or latest observed quarter: calculates elapsed months/fraction based on the latest sale date or current date.
+ * - For a full year in the past: 12 months.
+ * - For the current or latest observed year: calculates elapsed months.
+ */
+function getActiveMonthsForQuarter(
+  year: number,
+  quarter: number,
+  maxObservedDate?: Date | null
+): number {
+  const refDate = maxObservedDate && !isNaN(maxObservedDate.getTime()) ? maxObservedDate : new Date();
+  const refYear = refDate.getFullYear();
+  const refMonth = refDate.getMonth() + 1; // 1 to 12
+  const refDay = refDate.getDate();
+
+  const qStartMonth = (quarter - 1) * 3 + 1; // e.g. Q1 -> 1, Q2 -> 4, Q3 -> 7, Q4 -> 10
+  const qEndMonth = quarter * 3;             // e.g. Q1 -> 3, Q2 -> 6, Q3 -> 9, Q4 -> 12
+
+  // Past years or past quarters of current year
+  if (year < refYear || (year === refYear && qEndMonth < refMonth)) {
+    return 3.0;
+  }
+
+  // Future quarters
+  if (year > refYear || (year === refYear && qStartMonth > refMonth)) {
+    return 1.0;
+  }
+
+  // Current quarter in progress:
+  // How many full months have passed in this quarter + pro-rata fraction of current month
+  const monthsBeforeThis = Math.max(0, refMonth - qStartMonth);
+  // Fraction of the current month (day / 30 capped at 1.0, minimum 0.2 to avoid division by zero)
+  const currentMonthFraction = Math.min(1.0, Math.max(0.2, refDay / 30));
+  const elapsed = monthsBeforeThis + currentMonthFraction;
+
+  // Bound between 0.33 and 3.0
+  return Math.max(0.33, Math.min(3.0, Number(elapsed.toFixed(2))));
+}
+
+/**
  * Computes how many valid active months exist in a given year.
  * For past years, it is 12 months.
  * For the latest/current year with data, it calculates the number of elapsed months with valid sales activity.
  */
-function getActiveMonthsForYear(year: number, allSalesOfYear: HistVenda[]): number {
-  const currentRealYear = new Date().getFullYear();
-  const currentRealMonth = new Date().getMonth() + 1; // 1 to 12
+function getActiveMonthsForYear(
+  year: number,
+  maxObservedDate?: Date | null
+): number {
+  const refDate = maxObservedDate && !isNaN(maxObservedDate.getTime()) ? maxObservedDate : new Date();
+  const refYear = refDate.getFullYear();
+  const refMonth = refDate.getMonth() + 1; // 1 to 12
+  const refDay = refDate.getDate();
 
-  if (year < currentRealYear) {
-    return 12;
+  if (year < refYear) {
+    return 12.0;
   }
 
-  // If current year, check max month observed or current real month
-  const observedMonths = new Set<number>();
-  allSalesOfYear.forEach(h => {
-    if (!h.faturamento) return;
-    const d = parseISO(h.faturamento);
-    if (!isNaN(d.getTime()) && d.getFullYear() === year) {
-      observedMonths.add(d.getMonth() + 1);
-    }
-  });
-
-  const maxObservedMonth = observedMonths.size > 0 ? Math.max(...Array.from(observedMonths)) : 1;
-  const elapsedMonths = Math.max(1, Math.min(12, Math.max(maxObservedMonth, currentRealMonth)));
-  return elapsedMonths;
+  // Current year in progress
+  const elapsedMonths = (refMonth - 1) + Math.min(1.0, Math.max(0.2, refDay / 30));
+  return Math.max(0.5, Math.min(12.0, Number(elapsedMonths.toFixed(2))));
 }
 
 /**
  * Aggregates sales by period (Quarterly or Annual) for a given set of sales records.
  * 
  * Rules:
- * - Quarterly: sum of kg in the quarter.
- * - Annual: monthly average kg in that year = total kg in year / active months in year.
+ * - Both Quarterly and Annual calculate the monthly average rate (kg/mês) by dividing
+ *   the total kg by the active/elapsed months in that period.
+ * - This weighted average ensures fair comparison between full closed quarters and
+ *   quarters in progress (eliminating false drop alerts on ongoing periods).
  */
 export function aggregateSalesByPeriods(
   sales: HistVenda[],
   periods: { periodKey: string; label: string; year: number; quarter?: number }[],
   mode: TrendMode,
-  produtosMap: Record<string, Produto>
+  produtosMap: Record<string, Produto>,
+  maxOverallDate?: Date | null
 ): PeriodDataPoint[] {
   // Group sales by periodKey
   const periodMap: Record<string, { totalKg: number; orderCount: number; salesList: HistVenda[] }> = {};
@@ -376,15 +527,14 @@ export function aggregateSalesByPeriods(
 
   sales.forEach(h => {
     if (!classifySaleRecord(h).entraFaturamento) return;
-    if (shouldExcludeSale(h.cliente, h.faturamento)) return;
     if (!h.faturamento) return;
 
-    const d = parseISO(h.faturamento);
-    if (isNaN(d.getTime())) return;
+    const d = parseSaleDate(h.faturamento);
+    if (!d || isNaN(d.getTime())) return;
 
     const year = d.getFullYear();
     const q = Math.floor(d.getMonth() / 3) + 1;
-    const periodKey = mode === 'quarterly' ? `${year}-Q${q}` : `${year}`;
+    const periodKey = mode === 'quarterly' ? `${year}-T${q}` : `${year}`;
 
     if (!periodMap[periodKey]) return;
 
@@ -404,13 +554,14 @@ export function aggregateSalesByPeriods(
     const orderCount = orderKeysByPeriod[p.periodKey]?.size || 0;
 
     let activeMonths = 1;
-    let chartKg = data.totalKg;
-
-    if (mode === 'annual') {
-      activeMonths = getActiveMonthsForYear(p.year, data.salesList);
-      // Monthly average for the year
-      chartKg = activeMonths > 0 ? data.totalKg / activeMonths : data.totalKg;
+    if (mode === 'quarterly') {
+      activeMonths = getActiveMonthsForQuarter(p.year, p.quarter || 1, maxOverallDate);
+    } else {
+      activeMonths = getActiveMonthsForYear(p.year, maxOverallDate);
     }
+
+    // Monthly average (kg/mês) for fair comparison
+    const chartKg = activeMonths > 0 ? data.totalKg / activeMonths : data.totalKg;
 
     return {
       periodKey: p.periodKey,
@@ -449,6 +600,18 @@ export function computePortfolioAndClientsEvolution(
   // 1. Build all available periods across history of active sales
   const allPeriods = buildHistoricalPeriodKeys(activeSales, mode);
 
+  // Find max overall date in sales data for accurate pro-rata calculation
+  let maxOverallDate: Date | null = null;
+  activeSales.forEach(h => {
+    if (!h.faturamento) return;
+    const d = parseSaleDate(h.faturamento);
+    if (d && !isNaN(d.getTime())) {
+      if (!maxOverallDate || d > maxOverallDate) {
+        maxOverallDate = d;
+      }
+    }
+  });
+
   // 2. Filter periods by range if specified
   let activePeriods = allPeriods;
   if (periodRange?.startKey || periodRange?.endKey) {
@@ -468,7 +631,7 @@ export function computePortfolioAndClientsEvolution(
   }
 
   // 3. Aggregate Portfolio-wide (for active sales only)
-  const portfolioSeries = aggregateSalesByPeriods(activeSales, activePeriods, mode, produtosMap);
+  const portfolioSeries = aggregateSalesByPeriods(activeSales, activePeriods, mode, produtosMap, maxOverallDate);
   const portfolioTrend = calculateSeriesTrend(portfolioSeries);
 
   // 4. Group sales by client
@@ -490,17 +653,23 @@ export function computePortfolioAndClientsEvolution(
     insufficient_data: 0,
   };
 
+  let recentAlertCount = 0;
+
   // 5. Aggregate for each active client
   const clientsEvolution: ClientSalesEvolution[] = activeClientes.map(cliente => {
     const clientSales = salesByClient[cliente.id] || [];
-    const series = aggregateSalesByPeriods(clientSales, activePeriods, mode, produtosMap);
+    const series = aggregateSalesByPeriods(clientSales, activePeriods, mode, produtosMap, maxOverallDate);
     const trend = calculateSeriesTrend(series);
+    const alertInfo = analyzeRecentTrendRisk(series);
 
     const latestPoint = series.length > 0 ? series[series.length - 1] : null;
     const currentKg = latestPoint ? latestPoint.chartKg : 0;
     const latestPeriodLabel = latestPoint ? latestPoint.label : '-';
 
     trendCounts[trend.category] += 1;
+    if (alertInfo.hasAlert) {
+      recentAlertCount += 1;
+    }
 
     return {
       clienteId: cliente.id,
@@ -510,6 +679,10 @@ export function computePortfolioAndClientsEvolution(
       trend,
       currentKg,
       latestPeriodLabel,
+      recentAlert: alertInfo.hasAlert,
+      recentDropPct: alertInfo.dropPct,
+      recentDropKg: alertInfo.dropKg,
+      recentAlertReason: alertInfo.reason,
     };
   });
 
@@ -522,5 +695,6 @@ export function computePortfolioAndClientsEvolution(
     clientsEvolution,
     periodOptions: allPeriods.map(p => ({ periodKey: p.periodKey, label: p.label })),
     trendCounts,
+    recentAlertCount,
   };
 }

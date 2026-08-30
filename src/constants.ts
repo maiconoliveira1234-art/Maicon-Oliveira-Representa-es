@@ -1,4 +1,6 @@
-export const APP_VERSION = '1.20.102';
+import { parseSaleDate } from './lib/utils';
+
+export const APP_VERSION = '1.20.111';
 export const SALES_CUTOFF_DATE = '2026-04-11';
 export const SALES_CUTOFF_CLIENTS = [
   'LUCIA IRIA SCHNEIDER FLORES',
@@ -24,7 +26,7 @@ export const SALES_CUTOFF_CLIENTS = [
 ];
 
 export function shouldExcludeSale(clientNameRaw: string, faturamentoDateStr: string): boolean {
-  if (!clientNameRaw) return false;
+  if (!clientNameRaw || !faturamentoDateStr) return false;
   
   // Normalize to uppercase, trim and remove accents
   const normalizeText = (text: string) => 
@@ -38,13 +40,12 @@ export function shouldExcludeSale(clientNameRaw: string, faturamentoDateStr: str
   // Standard cutoff clients checking
   const standardCutoffNormalized = SALES_CUTOFF_CLIENTS.map(normalizeText);
   if (standardCutoffNormalized.includes(nameNormalized)) {
+    const saleDate = parseSaleDate(faturamentoDateStr);
+    const cutoffDate = parseSaleDate(SALES_CUTOFF_DATE);
+    if (saleDate && cutoffDate) {
+      return saleDate < cutoffDate;
+    }
     return faturamentoDateStr < SALES_CUTOFF_DATE;
-  }
-
-  // Racao Facil / Ração Fácil checking
-  // Rule applies from 2024 to today (June 11, 2026) -> faturamentoDateStr < '2026-06-11'
-  if (nameNormalized === 'RACAO FACIL' || nameNormalized.includes('RACAO FACIL')) {
-    return faturamentoDateStr < '2026-06-11';
   }
 
   return false;

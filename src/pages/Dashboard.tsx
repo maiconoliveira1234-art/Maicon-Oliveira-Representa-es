@@ -25,7 +25,10 @@ import {
   Filter,
   Eye,
   MessageCircle,
-  ExternalLink
+  ExternalLink,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -40,11 +43,12 @@ import {
   BarChart,
   Bar,
   Cell,
-  Legend
+  Legend,
+  ComposedChart
 } from 'recharts';
 import { supabase } from '../lib/supabase';
 import { Cliente, Produto, HistVenda } from '../types';
-import { cn, formatWeight, formatCurrency, deduplicateSales } from '../lib/utils';
+import { cn, formatWeight, formatCurrency, deduplicateSales, parseSaleDate } from '../lib/utils';
 import { PageHeader } from '../components/ui/AppChrome';
 import { useDataManager } from '../lib/dataManager';
 import { classifySaleRecord } from '../lib/salesClassifier';
@@ -93,10 +97,12 @@ export function Dashboard() {
   // --- State for Sales Trend Evolution (Tab 1) ---
   const [trendMode, setTrendMode] = useState<TrendMode>('quarterly');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [situationFilter, setSituationFilter] = useState<TrendCategory | 'all'>('all');
+  const [situationFilter, setSituationFilter] = useState<TrendCategory | 'all' | 'alert'>('all');
   const [clientSearchQuery, setClientSearchQuery] = useState('');
   const [startPeriodKey, setStartPeriodKey] = useState<string>('');
   const [endPeriodKey, setEndPeriodKey] = useState<string>('');
+  const [trendSortField, setTrendSortField] = useState<'clienteNome' | 'currentKg' | 'trend' | 'variacao' | 'period'>('currentKg');
+  const [trendSortDirection, setTrendSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // --- State for ABC Curve (Tab 3) ---
   const [abcType, setAbcType] = useState<'clientes' | 'produtos'>('clientes');
@@ -107,6 +113,11 @@ export function Dashboard() {
   // --- State for Positivation (Tab 5) ---
   const [positivacaoStatusFilter, setPositivacaoStatusFilter] = useState<'all' | 'positivado' | 'pendente'>('all');
   const [positivacaoSearchQuery, setPositivacaoSearchQuery] = useState('');
+
+  // --- State for Monthly Comparison Chart (Tab 2) ---
+  const [monthlyMetricMode, setMonthlyMetricMode] = useState<'volume' | 'faturamento'>('volume');
+  const [selectedComparativeYears, setSelectedComparativeYears] = useState<number[]>([]);
+  const [selectedComparativeMonths, setSelectedComparativeMonths] = useState<number[]>([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
 
   // --- Load Initial Base Data ---
   useEffect(() => {
@@ -181,7 +192,6 @@ export function Dashboard() {
   const validActiveSales = useMemo(() => {
     return allSalesData.filter(h => {
       if (!h.cliente_id || !activeClientIds.has(h.cliente_id)) return false;
-      if (shouldExcludeSale(h.cliente, h.faturamento)) return false;
       const classification = classifySaleRecord(h);
       return classification.entraFaturamento;
     });
@@ -205,7 +215,8 @@ export function Dashboard() {
     portfolioTrend,
     clientsEvolution,
     periodOptions,
-    trendCounts
+    trendCounts,
+    recentAlertCount
   } = useMemo(() => {
     return computePortfolioAndClientsEvolution(
       allSalesData,
@@ -248,8 +259,13 @@ export function Dashboard() {
   const filteredTrendClients = useMemo(() => {
     const searchTerms = clientSearchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
 
-    return clientsEvolution.filter(item => {
-      if (situationFilter !== 'all' && item.trend.category !== situationFilter) return false;
+    const filtered = clientsEvolution.filter(item => {
+      if (situationFilter === 'alert') {
+        if (!item.recentAlert) return false;
+      } else if (situationFilter !== 'all' && item.trend.category !== situationFilter) {
+        return false;
+      }
+
       if (searchTerms.length > 0) {
         const targetStr = `${item.clienteNome} ${item.cidade}`.toLowerCase();
         const matchesAll = searchTerms.every(term => targetStr.includes(term));
@@ -257,7 +273,44 @@ export function Dashboard() {
       }
       return true;
     });
-  }, [clientsEvolution, situationFilter, clientSearchQuery]);
+
+    const categoryPriority: Record<TrendCategory, number> = {
+      strong_growth: 5,
+      growth: 4,
+      stable: 3,
+      decline: 2,
+      strong_decline: 1,
+      insufficient_data: 0
+    };
+
+    return [...filtered].sort((a, b) => {
+      let comparison = 0;
+      switch (trendSortField) {
+        case 'clienteNome':
+          comparison = a.clienteNome.localeCompare(b.clienteNome, 'pt-BR');
+          break;
+        case 'currentKg':
+          comparison = a.currentKg - b.currentKg;
+          break;
+        case 'trend': {
+          const aPriority = categoryPriority[a.trend.category] ?? -1;
+          const bPriority = categoryPriority[b.trend.category] ?? -1;
+          comparison = aPriority - bPriority;
+          break;
+        }
+        case 'variacao':
+          comparison = a.trend.totalTrendChangePct - b.trend.totalTrendChangePct;
+          break;
+        case 'period':
+          comparison = a.latestPeriodLabel.localeCompare(b.latestPeriodLabel);
+          break;
+        default:
+          comparison = 0;
+      }
+
+      return trendSortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [clientsEvolution, situationFilter, clientSearchQuery, trendSortField, trendSortDirection]);
 
   const currentPeriodVolume = useMemo(() => {
     if (activeSeries.length === 0) return 0;
@@ -351,44 +404,92 @@ export function Dashboard() {
     };
   }, [validActiveSales, currentMonthInterval, previousMonthInterval, produtosMap, activeClientes.length]);
 
-  // Historical Monthly Chart Data (Last 12 Months)
-  const monthlyHistoryData = useMemo(() => {
-    const months: { label: string; date: Date; start: Date; end: Date; faturamento: number; volumeKg: number }[] = [];
-    const base = new Date();
+  // Available years from sales data
+  const availableYears = useMemo(() => {
+    const yearsSet = new Set<number>();
+    validActiveSales.forEach(h => {
+      if (!h.faturamento) return;
+      const d = parseSaleDate(h.faturamento);
+      if (d && !isNaN(d.getTime())) {
+        yearsSet.add(d.getFullYear());
+      }
+    });
+    const sorted = Array.from(yearsSet).sort((a, b) => a - b);
+    return sorted.length > 0 ? sorted : [new Date().getFullYear()];
+  }, [validActiveSales]);
 
-    for (let i = 11; i >= 0; i--) {
-      const mDate = subMonths(base, i);
-      months.push({
-        label: format(mDate, 'MMM/yy', { locale: ptBR }),
-        date: mDate,
-        start: startOfMonth(mDate),
-        end: endOfMonth(mDate),
-        faturamento: 0,
-        volumeKg: 0
-      });
+  // Sync selected years if empty
+  useEffect(() => {
+    if (availableYears.length > 0 && selectedComparativeYears.length === 0) {
+      setSelectedComparativeYears(availableYears);
     }
+  }, [availableYears, selectedComparativeYears.length]);
+
+  // Colors for each year
+  const YEAR_COLORS: Record<number, string> = {
+    2023: '#8b5cf6',
+    2024: '#3b82f6',
+    2025: '#10b981',
+    2026: '#ea580c',
+    2027: '#f59e0b',
+    2028: '#ec4899'
+  };
+
+  const MONTH_NAMES = [
+    { num: 1, label: 'Jan' },
+    { num: 2, label: 'Fev' },
+    { num: 3, label: 'Mar' },
+    { num: 4, label: 'Abr' },
+    { num: 5, label: 'Mai' },
+    { num: 6, label: 'Jun' },
+    { num: 7, label: 'Jul' },
+    { num: 8, label: 'Ago' },
+    { num: 9, label: 'Set' },
+    { num: 10, label: 'Out' },
+    { num: 11, label: 'Nov' },
+    { num: 12, label: 'Dez' }
+  ];
+
+  // Comparative Monthly Chart Data (Jan - Dec, grouped by Year)
+  const comparativeMonthlyData = useMemo(() => {
+    // 12 months structure
+    const dataByMonth = MONTH_NAMES.map(m => {
+      const row: Record<string, any> = {
+        mesNum: m.num,
+        mesLabel: m.label
+      };
+      availableYears.forEach(yr => {
+        row[String(yr)] = 0;
+      });
+      return row;
+    });
 
     validActiveSales.forEach(h => {
       if (!h.faturamento) return;
-      const d = parseISO(h.faturamento);
-      if (isNaN(d.getTime())) return;
+      const d = parseSaleDate(h.faturamento);
+      if (!d || isNaN(d.getTime())) return;
+
+      const yr = d.getFullYear();
+      const monthNum = d.getMonth() + 1; // 1-12
 
       const prod = produtosMap[h.produto_id] || (h.produtos ? produtosMap[h.produtos.toLowerCase()] : null);
       const weightUnit = prod?.peso_embalagem || 0;
       const kg = (h.qtd || 0) * weightUnit;
       const val = Number(h.r$_total) || 0;
 
-      for (const m of months) {
-        if (isWithinInterval(d, { start: m.start, end: m.end })) {
-          m.faturamento += val;
-          m.volumeKg += kg;
-          break;
+      const targetMonth = dataByMonth.find(m => m.mesNum === monthNum);
+      if (targetMonth && targetMonth[String(yr)] !== undefined) {
+        if (monthlyMetricMode === 'volume') {
+          targetMonth[String(yr)] += kg;
+        } else {
+          targetMonth[String(yr)] += val;
         }
       }
     });
 
-    return months;
-  }, [validActiveSales, produtosMap]);
+    // Filter by selected months
+    return dataByMonth.filter(m => selectedComparativeMonths.includes(m.mesNum));
+  }, [validActiveSales, produtosMap, availableYears, monthlyMetricMode, selectedComparativeMonths]);
 
   // --- TAB 3: CURVA ABC COMPUTATIONS ---
   const abcData = useMemo(() => {
@@ -895,7 +996,7 @@ export function Dashboard() {
                 </span>
               </div>
               
-              <div className="grid grid-cols-5 gap-1.5 mt-1">
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 mt-1">
                 {situationList.map(catKey => {
                   const catInfo = TREND_CATEGORIES[catKey];
                   const count = trendCounts[catKey] || 0;
@@ -922,6 +1023,26 @@ export function Dashboard() {
                     </button>
                   );
                 })}
+
+                {/* Button ⚠️ Alerta */}
+                <button
+                  type="button"
+                  id="btn-filter-trend-alert"
+                  onClick={() => setSituationFilter(current => current === 'alert' ? 'all' : 'alert')}
+                  className={cn(
+                    "flex flex-col items-center justify-center p-1.5 rounded-lg border transition-all text-center",
+                    situationFilter === 'alert'
+                      ? "ring-2 ring-amber-500 font-black bg-amber-100 text-amber-900 border-amber-300"
+                      : "border-amber-200/80 bg-amber-50/60 hover:bg-amber-50 text-amber-800"
+                  )}
+                  title="Filtrar clientes com alerta de queda recente (micro-tendência)"
+                >
+                  <span className="text-sm">⚠️</span>
+                  <span className="text-xs font-black mt-0.5 text-amber-900">{recentAlertCount}</span>
+                  <span className="text-[9px] font-bold text-amber-700 truncate w-full">
+                    Alerta
+                  </span>
+                </button>
               </div>
             </div>
           </div>
@@ -940,22 +1061,33 @@ export function Dashboard() {
                 </div>
                 <p className="text-xs font-medium text-neutral-500 mt-0.5 ml-3.5">
                   {selectedClientEvolution
-                    ? `Cidade: ${selectedClientEvolution.cidade} • ${trendMode === 'quarterly' ? 'Soma trimestral' : 'Média mensal anual'} em kg`
-                    : `${trendMode === 'quarterly' ? 'Soma trimestral dos clientes ativos' : 'Ritmo médio mensal vendido por ano'} em kg`}
+                    ? `Cidade: ${selectedClientEvolution.cidade} • ${trendMode === 'quarterly' ? 'Média mensal por trimestre' : 'Média mensal anual'} (kg/mês ponderada)`
+                    : `${trendMode === 'quarterly' ? 'Média mensal dos clientes ativos por trimestre' : 'Ritmo médio mensal vendido por ano'} (kg/mês ponderada)`}
                 </p>
               </div>
 
-              {selectedClientEvolution && (
-                <button
-                  type="button"
-                  id="btn-clear-selected-client"
-                  onClick={() => setSelectedClientId(null)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-xs font-bold text-neutral-700 transition-colors self-start sm:self-auto"
-                >
-                  <X size={14} />
-                  Voltar para Toda a Carteira
-                </button>
-              )}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="flex items-center gap-1.5 text-neutral-700 font-bold bg-neutral-100 px-2.5 py-1 rounded-md">
+                    <span className="w-2.5 h-2.5 bg-orange-500 rounded-sm inline-block"></span> Média Real (kg/mês)
+                  </span>
+                  <span className="flex items-center gap-1.5 text-blue-700 font-bold bg-blue-50 px-2.5 py-1 rounded-md">
+                    <span className="w-3 h-0.5 border-t-2 border-dashed border-blue-600 inline-block"></span> Linha de Tendência
+                  </span>
+                </div>
+
+                {selectedClientEvolution && (
+                  <button
+                    type="button"
+                    id="btn-clear-selected-client"
+                    onClick={() => setSelectedClientId(null)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-xs font-bold text-neutral-700 transition-colors self-start sm:self-auto"
+                  >
+                    <X size={14} />
+                    Voltar para Toda a Carteira
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Chart Rendering */}
@@ -967,7 +1099,7 @@ export function Dashboard() {
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={activeSeries} margin={{ top: 12, right: 16, left: 0, bottom: 8 }}>
+                  <ComposedChart data={activeSeries} margin={{ top: 12, right: 16, left: 0, bottom: 8 }}>
                     <defs>
                       <linearGradient id="colorSalesKg" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#ea580c" stopOpacity={0.25}/>
@@ -997,15 +1129,22 @@ export function Dashboard() {
                         fontSize: '11px',
                         padding: '10px 14px'
                       }}
-                      formatter={(value: any) => [
-                        `${formatWeight(Number(value))}${trendMode === 'annual' ? ' / mês' : ''}`, 
-                        trendMode === 'quarterly' ? 'Volume no Trimestre' : 'Média Mensal'
-                      ]}
+                      formatter={(value: any, name: string) => {
+                        const formatted = `${formatWeight(Number(value))} / mês`;
+                        if (name === 'trendKg') {
+                          return [formatted, 'Linha de Tendência'];
+                        }
+                        return [
+                          formatted, 
+                          trendMode === 'quarterly' ? 'Média Mensal no Trimestre' : 'Média Mensal no Ano'
+                        ];
+                      }}
                       labelFormatter={(label) => `Período: ${label}`}
                     />
                     <Area 
                       type="monotone" 
                       dataKey="chartKg" 
+                      name="chartKg"
                       stroke="#ea580c" 
                       strokeWidth={3}
                       fillOpacity={1} 
@@ -1013,7 +1152,17 @@ export function Dashboard() {
                       dot={{ r: 4, fill: '#ffffff', stroke: '#ea580c', strokeWidth: 2 }}
                       activeDot={{ r: 6, fill: '#ea580c', stroke: '#ffffff', strokeWidth: 2 }}
                     />
-                  </AreaChart>
+                    <Line 
+                      type="linear" 
+                      dataKey="trendKg" 
+                      name="trendKg"
+                      stroke="#2563eb" 
+                      strokeWidth={2.5} 
+                      strokeDasharray="6 6" 
+                      dot={false}
+                      activeDot={{ r: 5, fill: '#2563eb', stroke: '#ffffff', strokeWidth: 2 }}
+                    />
+                  </ComposedChart>
                 </ResponsiveContainer>
               )}
             </div>
@@ -1071,6 +1220,7 @@ export function Dashboard() {
                     className="w-full py-2 px-3 bg-neutral-50 border border-neutral-200 rounded-lg text-xs font-bold text-neutral-700 outline-none focus:ring-2 focus:ring-orange-500"
                   >
                     <option value="all">Todas as Situações</option>
+                    <option value="alert">⚠️ Alerta ({recentAlertCount})</option>
                     <option value="strong_growth">🚀 Crescimento forte</option>
                     <option value="growth">📈 Crescimento</option>
                     <option value="stable">➡️ Estável</option>
@@ -1140,22 +1290,148 @@ export function Dashboard() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-neutral-200 bg-neutral-50/80">
-                    <th className="py-2.5 px-3 text-xs font-black text-neutral-500 uppercase tracking-wider">
-                      Cliente Ativo
+                  <tr className="border-b border-neutral-200 bg-neutral-50/80 select-none">
+                    {/* Cliente Ativo */}
+                    <th 
+                      id="th-trend-cliente"
+                      onClick={() => {
+                        if (trendSortField === 'clienteNome') {
+                          setTrendSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setTrendSortField('clienteNome');
+                          setTrendSortDirection('asc');
+                        }
+                      }}
+                      className="py-2.5 px-3 text-xs font-black text-neutral-600 uppercase tracking-wider cursor-pointer hover:bg-neutral-100/80 transition-colors"
+                      title="Clique para ordenar por Cliente"
+                    >
+                      <div className="inline-flex items-center gap-1.5">
+                        <span>Cliente Ativo</span>
+                        {trendSortField === 'clienteNome' ? (
+                          trendSortDirection === 'asc' ? (
+                            <ArrowUp size={13} className="text-orange-600 stroke-[2.5]" />
+                          ) : (
+                            <ArrowDown size={13} className="text-orange-600 stroke-[2.5]" />
+                          )
+                        ) : (
+                          <ArrowUpDown size={12} className="text-neutral-400 opacity-60" />
+                        )}
+                      </div>
                     </th>
-                    <th className="py-2.5 px-3 text-right text-xs font-black text-neutral-500 uppercase tracking-wider">
-                      Venda Atual
+
+                    {/* Venda Atual */}
+                    <th 
+                      id="th-trend-venda-atual"
+                      onClick={() => {
+                        if (trendSortField === 'currentKg') {
+                          setTrendSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setTrendSortField('currentKg');
+                          setTrendSortDirection('desc');
+                        }
+                      }}
+                      className="py-2.5 px-3 text-right text-xs font-black text-neutral-600 uppercase tracking-wider cursor-pointer hover:bg-neutral-100/80 transition-colors"
+                      title="Clique para ordenar por Volume Atual"
+                    >
+                      <div className="inline-flex items-center justify-end gap-1.5 w-full">
+                        <span>Venda Atual</span>
+                        {trendSortField === 'currentKg' ? (
+                          trendSortDirection === 'asc' ? (
+                            <ArrowUp size={13} className="text-orange-600 stroke-[2.5]" />
+                          ) : (
+                            <ArrowDown size={13} className="text-orange-600 stroke-[2.5]" />
+                          )
+                        ) : (
+                          <ArrowUpDown size={12} className="text-neutral-400 opacity-60" />
+                        )}
+                      </div>
                     </th>
-                    <th className="py-2.5 px-3 text-center text-xs font-black text-neutral-500 uppercase tracking-wider">
-                      Tendência
+
+                    {/* Tendência */}
+                    <th 
+                      id="th-trend-situacao"
+                      onClick={() => {
+                        if (trendSortField === 'trend') {
+                          setTrendSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setTrendSortField('trend');
+                          setTrendSortDirection('desc');
+                        }
+                      }}
+                      className="py-2.5 px-3 text-center text-xs font-black text-neutral-600 uppercase tracking-wider cursor-pointer hover:bg-neutral-100/80 transition-colors"
+                      title="Clique para ordenar por Classificação de Tendência"
+                    >
+                      <div className="inline-flex items-center justify-center gap-1.5 w-full">
+                        <span>Tendência</span>
+                        {trendSortField === 'trend' ? (
+                          trendSortDirection === 'asc' ? (
+                            <ArrowUp size={13} className="text-orange-600 stroke-[2.5]" />
+                          ) : (
+                            <ArrowDown size={13} className="text-orange-600 stroke-[2.5]" />
+                          )
+                        ) : (
+                          <ArrowUpDown size={12} className="text-neutral-400 opacity-60" />
+                        )}
+                      </div>
                     </th>
-                    <th className="py-2.5 px-3 text-right text-xs font-black text-neutral-500 uppercase tracking-wider">
-                      Variação
+
+                    {/* Variação */}
+                    <th 
+                      id="th-trend-variacao"
+                      onClick={() => {
+                        if (trendSortField === 'variacao') {
+                          setTrendSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setTrendSortField('variacao');
+                          setTrendSortDirection('desc');
+                        }
+                      }}
+                      className="py-2.5 px-3 text-right text-xs font-black text-neutral-600 uppercase tracking-wider cursor-pointer hover:bg-neutral-100/80 transition-colors"
+                      title="Clique para ordenar por Percentual de Variação"
+                    >
+                      <div className="inline-flex items-center justify-end gap-1.5 w-full">
+                        <span>Variação</span>
+                        {trendSortField === 'variacao' ? (
+                          trendSortDirection === 'asc' ? (
+                            <ArrowUp size={13} className="text-orange-600 stroke-[2.5]" />
+                          ) : (
+                            <ArrowDown size={13} className="text-orange-600 stroke-[2.5]" />
+                          )
+                        ) : (
+                          <ArrowUpDown size={12} className="text-neutral-400 opacity-60" />
+                        )}
+                      </div>
                     </th>
-                    <th className="py-2.5 px-3 text-center text-xs font-black text-neutral-500 uppercase tracking-wider">
-                      Período
+
+                    {/* Período */}
+                    <th 
+                      id="th-trend-periodo"
+                      onClick={() => {
+                        if (trendSortField === 'period') {
+                          setTrendSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setTrendSortField('period');
+                          setTrendSortDirection('desc');
+                        }
+                      }}
+                      className="py-2.5 px-3 text-center text-xs font-black text-neutral-600 uppercase tracking-wider cursor-pointer hover:bg-neutral-100/80 transition-colors"
+                      title="Clique para ordenar por Período"
+                    >
+                      <div className="inline-flex items-center justify-center gap-1.5 w-full">
+                        <span>Período</span>
+                        {trendSortField === 'period' ? (
+                          trendSortDirection === 'asc' ? (
+                            <ArrowUp size={13} className="text-orange-600 stroke-[2.5]" />
+                          ) : (
+                            <ArrowDown size={13} className="text-orange-600 stroke-[2.5]" />
+                          )
+                        ) : (
+                          <ArrowUpDown size={12} className="text-neutral-400 opacity-60" />
+                        )}
+                      </div>
                     </th>
+
+                    {/* Ação */}
                     <th className="py-2.5 px-3 text-center text-xs font-black text-neutral-500 uppercase tracking-wider w-16">
                       Ação
                     </th>
@@ -1185,12 +1461,23 @@ export function Dashboard() {
                           {/* Cliente */}
                           <td className="py-3 px-3">
                             <div className="flex flex-col">
-                              <span className={cn(
-                                "text-xs font-bold text-neutral-900 leading-snug",
-                                isSelected && "text-orange-600 font-black"
-                              )}>
-                                {item.clienteNome}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={cn(
+                                  "text-xs font-bold text-neutral-900 leading-snug",
+                                  isSelected && "text-orange-600 font-black"
+                                )}>
+                                  {item.clienteNome}
+                                </span>
+                                {item.recentAlert && (
+                                  <span 
+                                    className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300 shrink-0"
+                                    title={item.recentAlertReason || 'Alerta de queda recente'}
+                                  >
+                                    <span>⚠️</span>
+                                    <span>Alerta</span>
+                                  </span>
+                                )}
+                              </div>
                               <span className="text-[11px] text-neutral-400 font-medium">
                                 {item.cidade}
                               </span>
@@ -1202,11 +1489,9 @@ export function Dashboard() {
                             <span className="text-xs font-black text-neutral-900">
                               {formatWeight(item.currentKg)}
                             </span>
-                            {trendMode === 'annual' && (
-                              <span className="text-[10px] text-neutral-400 font-medium block">
-                                /mês
-                              </span>
-                            )}
+                            <span className="text-[10px] text-neutral-400 font-medium block">
+                              /mês
+                            </span>
                           </td>
 
                           {/* Tendência */}
@@ -1385,45 +1670,172 @@ export function Dashboard() {
 
           {/* Monthly Comparison History Chart */}
           <div className="bg-white rounded-xl border border-neutral-200 p-4 sm:p-5 shadow-sm">
-            <div className="flex items-center justify-between pb-4 mb-4 border-b border-neutral-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-neutral-100">
               <div>
                 <h3 className="text-sm font-black text-neutral-900 uppercase tracking-tight flex items-center gap-2">
                   <div className="w-1.5 h-3.5 bg-orange-500 rounded-full" />
-                  Evolução Mensal de Faturamento e Volume (Últimos 12 Meses)
+                  Evolução Mensal ({monthlyMetricMode === 'volume' ? 'Volume em kg' : 'Faturamento em R$'}) por Ano
                 </h3>
                 <p className="text-xs font-medium text-neutral-500 mt-0.5">
-                  Consolidado exclusivamente para a carteira de clientes ativos
+                  Comparativo de desempenho mês a mês entre os anos da base
                 </p>
+              </div>
+
+              {/* Selector for Metric: Volume (kg) vs Faturamento (R$) */}
+              <div className="inline-flex rounded-lg border border-neutral-200 bg-neutral-100 p-1 shadow-sm shrink-0">
+                <button
+                  type="button"
+                  id="btn-metric-volume"
+                  onClick={() => setMonthlyMetricMode('volume')}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-black transition-all",
+                    monthlyMetricMode === 'volume'
+                      ? "bg-white text-orange-600 shadow-sm"
+                      : "text-neutral-600 hover:text-neutral-900"
+                  )}
+                >
+                  <Package size={14} />
+                  Volume (kg)
+                </button>
+                <button
+                  type="button"
+                  id="btn-metric-faturamento"
+                  onClick={() => setMonthlyMetricMode('faturamento')}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-black transition-all",
+                    monthlyMetricMode === 'faturamento'
+                      ? "bg-white text-emerald-600 shadow-sm"
+                      : "text-neutral-600 hover:text-neutral-900"
+                  )}
+                >
+                  <DollarSign size={14} />
+                  Faturamento (R$)
+                </button>
               </div>
             </div>
 
-            <div className="h-72 sm:h-80 w-full">
+            {/* Interactive Filters: Years & Months */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 mb-4 p-2.5 bg-neutral-50 rounded-xl border border-neutral-200/70">
+              {/* Year toggles (Interactive Legend) */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-black text-neutral-500 uppercase tracking-wider mr-1">
+                  Anos:
+                </span>
+                {availableYears.map(yr => {
+                  const isYearSelected = selectedComparativeYears.includes(yr);
+                  const yrColor = YEAR_COLORS[yr] || '#64748b';
+
+                  return (
+                    <button
+                      key={yr}
+                      type="button"
+                      onClick={() => {
+                        setSelectedComparativeYears(prev => {
+                          if (prev.includes(yr)) {
+                            // Don't deselect all
+                            if (prev.length === 1) return prev;
+                            return prev.filter(y => y !== yr);
+                          } else {
+                            return [...prev, yr].sort((a, b) => a - b);
+                          }
+                        });
+                      }}
+                      className={cn(
+                        "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all border",
+                        isYearSelected
+                          ? "bg-white text-neutral-900 shadow-sm border-neutral-300"
+                          : "bg-neutral-100 text-neutral-400 border-transparent opacity-50 hover:opacity-80"
+                      )}
+                      title={isYearSelected ? `Ocultar ano ${yr}` : `Exibir ano ${yr}`}
+                    >
+                      <span 
+                        className="w-2.5 h-2.5 rounded-full" 
+                        style={{ backgroundColor: isYearSelected ? yrColor : '#cbd5e1' }}
+                      />
+                      <span>{yr}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Month quick filters / toggle */}
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-[11px] font-black text-neutral-500 uppercase tracking-wider mr-1">
+                  Meses:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedComparativeMonths.length === 12) {
+                      // If all are selected, clear all or keep just current month
+                      setSelectedComparativeMonths([new Date().getMonth() + 1]);
+                    } else {
+                      // Select all 12 months
+                      setSelectedComparativeMonths([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+                    }
+                  }}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[11px] font-bold transition-all border",
+                    selectedComparativeMonths.length === 12
+                      ? "bg-neutral-800 text-white border-neutral-900 shadow-xs"
+                      : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-100"
+                  )}
+                  title={selectedComparativeMonths.length === 12 ? "Alternar seleção de meses" : "Selecionar todos os meses"}
+                >
+                  Todos
+                </button>
+                {MONTH_NAMES.map(m => {
+                  const isMonthSelected = selectedComparativeMonths.includes(m.num);
+                  return (
+                    <button
+                      key={m.num}
+                      type="button"
+                      onClick={() => {
+                        setSelectedComparativeMonths(prev => {
+                          if (prev.includes(m.num)) {
+                            if (prev.length === 1) return prev; // keep at least 1
+                            return prev.filter(n => n !== m.num);
+                          } else {
+                            return [...prev, m.num].sort((a, b) => a - b);
+                          }
+                        });
+                      }}
+                      className={cn(
+                        "px-2 py-0.5 rounded text-[11px] font-bold transition-colors",
+                        isMonthSelected
+                          ? "bg-orange-500 text-white shadow-xs"
+                          : "bg-neutral-200/70 text-neutral-400 hover:bg-neutral-300 hover:text-neutral-700"
+                      )}
+                      title={isMonthSelected ? `Ocultar ${m.label}` : `Exibir ${m.label}`}
+                    >
+                      {m.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="h-80 sm:h-96 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyHistoryData} margin={{ top: 12, right: 16, left: 0, bottom: 8 }}>
+                <BarChart data={comparativeMonthlyData} margin={{ top: 12, right: 16, left: 10, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                   <XAxis 
-                    dataKey="label" 
+                    dataKey="mesLabel" 
                     axisLine={{ stroke: '#e5e5e5' }}
                     tickLine={false} 
                     tick={{ fontSize: 11, fontWeight: 700, fill: '#737373' }}
                     dy={6}
                   />
                   <YAxis 
-                    yAxisId="left"
                     axisLine={false} 
                     tickLine={false} 
                     tick={{ fontSize: 10, fontWeight: 700, fill: '#a3a3a3' }}
-                    tickFormatter={(val) => `R$ ${(val / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}k`}
-                    width={55}
-                  />
-                  <YAxis 
-                    yAxisId="right"
-                    orientation="right"
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 10, fontWeight: 700, fill: '#a3a3a3' }}
-                    tickFormatter={(val) => `${(val / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}k kg`}
-                    width={48}
+                    tickFormatter={(val) => 
+                      monthlyMetricMode === 'faturamento' 
+                        ? `R$ ${(val / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}k` 
+                        : `${(val / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}k kg`
+                    }
+                    width={60}
                   />
                   <Tooltip 
                     contentStyle={{ 
@@ -1434,13 +1846,22 @@ export function Dashboard() {
                       padding: '10px 14px'
                     }}
                     formatter={(value: any, name: string) => [
-                      name === 'faturamento' ? formatCurrency(Number(value)) : formatWeight(Number(value)),
-                      name === 'faturamento' ? 'Faturamento (R$)' : 'Volume (kg)'
+                      monthlyMetricMode === 'faturamento' ? formatCurrency(Number(value)) : formatWeight(Number(value)),
+                      `Ano ${name}`
                     ]}
+                    labelFormatter={(label) => `Mês de ${label}`}
                   />
-                  <Legend wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
-                  <Bar yAxisId="left" dataKey="faturamento" name="Faturamento (R$)" fill="#059669" radius={[4, 4, 0, 0]} />
-                  <Bar yAxisId="right" dataKey="volumeKg" name="Volume (kg)" fill="#ea580c" radius={[4, 4, 0, 0]} />
+                  {[...selectedComparativeYears]
+                    .sort((a, b) => a - b)
+                    .map(yr => (
+                      <Bar 
+                        key={yr} 
+                        dataKey={String(yr)} 
+                        name={String(yr)} 
+                        fill={YEAR_COLORS[yr] || '#64748b'} 
+                        radius={[4, 4, 0, 0]} 
+                      />
+                    ))}
                 </BarChart>
               </ResponsiveContainer>
             </div>
