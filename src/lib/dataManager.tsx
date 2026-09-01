@@ -546,7 +546,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     } catch (error: any) {
       const isNetworkError = error?.message?.includes('Failed to fetch') ||
         error?.name === 'TypeError' ||
-        (typeof navigator !== 'undefined' && navigator.onLine === false);
+        (typeof navigator !== 'undefined' && !navigator.onLine);
       if (isNetworkError) {
         console.warn('[OfflineSync] Sincronização completa adiada (dispositivo offline ou instabilidade de rede).');
       } else {
@@ -702,7 +702,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     } catch (error: any) {
       const isNetworkError = error?.message?.includes('Failed to fetch') ||
         error?.name === 'TypeError' ||
-        (typeof navigator !== 'undefined' && navigator.onLine === false);
+        (typeof navigator !== 'undefined' && !navigator.onLine);
       if (isNetworkError) {
         console.warn('[OfflineSync] Sincronização incremental adiada (dispositivo offline ou instabilidade de rede).');
       } else {
@@ -1461,56 +1461,74 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
   }, []);
 
   const loadLatestSalesMap = useCallback(async (forceRefresh = false) => {
-    if (forceRefresh && navigator.onLine !== false) {
-      const cutoff = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 10);
-      const today = new Date().toISOString().slice(0, 10);
-      const { data, error } = await supabase
-        .from('hist_vendas')
-        .select('cliente_id, faturamento, qtd, produto_id')
-        .gte('faturamento', cutoff)
-        .lte('faturamento', today)
-        .order('faturamento', { ascending: false });
+    if (forceRefresh && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
+      try {
+        const cutoff = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10);
+        const today = new Date().toISOString().slice(0, 10);
+        const { data, error } = await supabase
+          .from('hist_vendas')
+          .select('cliente_id, faturamento, qtd, produto_id')
+          .gte('faturamento', cutoff)
+          .lte('faturamento', today)
+          .order('faturamento', { ascending: false });
 
-      if (!error && data) {
-        const productWeights = new Map(produtos.map(product => [
-          product.id,
-          product.peso_embalagem || 0
-        ]));
-        const recentMap: Record<string, { date: string; weight: number }> = {};
+        if (!error && data) {
+          const productWeights = new Map(produtos.map(product => [
+            product.id,
+            product.peso_embalagem || 0
+          ]));
+          const recentMap: Record<string, { date: string; weight: number }> = {};
 
-        data.forEach(sale => {
-          if (!sale.cliente_id) return;
-          const weight = (sale.qtd || 0) * (productWeights.get(sale.produto_id) || 0);
-          if (!recentMap[sale.cliente_id] || recentMap[sale.cliente_id].date < sale.faturamento) {
-            recentMap[sale.cliente_id] = { date: sale.faturamento, weight };
-          } else if (recentMap[sale.cliente_id].date === sale.faturamento) {
-            recentMap[sale.cliente_id].weight += weight;
-          }
-        });
-
-        const olderSalesMap = Object.fromEntries(
-          Object.entries(latestSalesMap).filter(([, sale]) => sale.date < cutoff)
-        );
-        const refreshedMap = { ...olderSalesMap, ...recentMap };
-        const currentKeys = Object.keys(latestSalesMap);
-        const refreshedKeys = Object.keys(refreshedMap);
-        const mapChanged = currentKeys.length !== refreshedKeys.length
-          || refreshedKeys.some(clientId => {
-            const current = latestSalesMap[clientId];
-            const refreshed = refreshedMap[clientId];
-            return !current
-              || current.date !== refreshed.date
-              || current.weight !== refreshed.weight;
+          data.forEach(sale => {
+            if (!sale.cliente_id) return;
+            const weight = (sale.qtd || 0) * (productWeights.get(sale.produto_id) || 0);
+            if (!recentMap[sale.cliente_id] || recentMap[sale.cliente_id].date < sale.faturamento) {
+              recentMap[sale.cliente_id] = { date: sale.faturamento, weight };
+            } else if (recentMap[sale.cliente_id].date === sale.faturamento) {
+              recentMap[sale.cliente_id].weight += weight;
+            }
           });
 
-        if (mapChanged) setLatestSalesMap(refreshedMap);
-        return mapChanged ? refreshedMap : latestSalesMap;
-      }
+          const olderSalesMap = Object.fromEntries(
+            Object.entries(latestSalesMap).filter(([, sale]) => sale.date < cutoff)
+          );
+          const refreshedMap = { ...olderSalesMap, ...recentMap };
+          const currentKeys = Object.keys(latestSalesMap);
+          const refreshedKeys = Object.keys(refreshedMap);
+          const mapChanged = currentKeys.length !== refreshedKeys.length
+            || refreshedKeys.some(clientId => {
+              const current = latestSalesMap[clientId];
+              const refreshed = refreshedMap[clientId];
+              return !current
+                || current.date !== refreshed.date
+                || current.weight !== refreshed.weight;
+            });
 
-      if (error) {
-        console.error('[OfflineManager] Erro ao atualizar últimas compras:', error);
+          if (mapChanged) setLatestSalesMap(refreshedMap);
+          return mapChanged ? refreshedMap : latestSalesMap;
+        }
+
+        if (error) {
+          const isNetworkError = error?.message?.includes('Failed to fetch') ||
+            error?.name === 'TypeError' ||
+            (typeof navigator !== 'undefined' && !navigator.onLine);
+          if (isNetworkError) {
+            console.warn('[OfflineManager] Atualização de últimas compras adiada (offline/instabilidade de rede).');
+          } else {
+            console.error('[OfflineManager] Erro ao atualizar últimas compras:', error);
+          }
+        }
+      } catch (error: any) {
+        const isNetworkError = error?.message?.includes('Failed to fetch') ||
+          error?.name === 'TypeError' ||
+          (typeof navigator !== 'undefined' && !navigator.onLine);
+        if (isNetworkError) {
+          console.warn('[OfflineManager] Atualização de últimas compras adiada (offline/instabilidade de rede).');
+        } else {
+          console.error('[OfflineManager] Erro ao atualizar últimas compras:', error);
+        }
       }
     }
 

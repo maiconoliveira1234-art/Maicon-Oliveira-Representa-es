@@ -591,6 +591,7 @@ export function computePortfolioAndClientsEvolution(
   clientsEvolution: ClientSalesEvolution[];
   periodOptions: { periodKey: string; label: string }[];
   trendCounts: Record<TrendCategory, number>;
+  recentAlertCount: number;
 } {
   // Filter strictly for ACTIVE clients
   const activeClientes = clientes.filter(c => c.ativo !== false);
@@ -696,5 +697,107 @@ export function computePortfolioAndClientsEvolution(
     periodOptions: allPeriods.map(p => ({ periodKey: p.periodKey, label: p.label })),
     trendCounts,
     recentAlertCount,
+  };
+}
+
+/**
+ * Computes the historical evolution series specifically for a single client,
+ * starting strictly from their first registered sale until the present period.
+ */
+export function computeSingleClientEvolutionFromFirstSale(
+  clientSales: HistVenda[],
+  produtosMap: Record<string, Produto>,
+  mode: TrendMode = 'quarterly',
+  clienteInfo?: { id?: string; cliente?: string; cidade?: string; primeira_compra?: string }
+): ClientSalesEvolution | null {
+  // Filter valid commercial sales
+  const validSales = clientSales.filter(h => {
+    if (!h.faturamento) return false;
+    const classification = classifySaleRecord(h);
+    return classification.entraFaturamento;
+  });
+
+  // Find min sale date (or use primeira_compra if available and earlier)
+  let minDate: Date | null = null;
+  let maxDate: Date | null = null;
+
+  validSales.forEach(h => {
+    const d = parseSaleDate(h.faturamento);
+    if (!d || isNaN(d.getTime())) return;
+    if (!minDate || d < minDate) minDate = d;
+    if (!maxDate || d > maxDate) maxDate = d;
+  });
+
+  if (clienteInfo?.primeira_compra) {
+    const pcDate = parseSaleDate(clienteInfo.primeira_compra);
+    if (pcDate && !isNaN(pcDate.getTime())) {
+      if (!minDate || pcDate < minDate) minDate = pcDate;
+    }
+  }
+
+  // If no sales exist at all, return null or empty evolution
+  if (!minDate) {
+    return null;
+  }
+
+  // Ensure end period reaches current date so the timeline is complete to today
+  const today = new Date();
+  if (!maxDate || today > maxDate) {
+    maxDate = today;
+  }
+
+  const startYear = minDate.getFullYear();
+  const endYear = maxDate.getFullYear();
+
+  const periods: { periodKey: string; label: string; year: number; quarter?: number }[] = [];
+
+  if (mode === 'quarterly') {
+    const startQ = Math.floor(minDate.getMonth() / 3) + 1;
+    const endQ = Math.floor(maxDate.getMonth() / 3) + 1;
+
+    for (let y = startYear; y <= endYear; y++) {
+      const firstQ = y === startYear ? startQ : 1;
+      const lastQ = y === endYear ? endQ : 4;
+
+      for (let q = firstQ; q <= lastQ; q++) {
+        periods.push({
+          periodKey: `${y}-T${q}`,
+          label: `T${q}/${y}`,
+          year: y,
+          quarter: q,
+        });
+      }
+    }
+  } else {
+    // Annual mode
+    for (let y = startYear; y <= endYear; y++) {
+      periods.push({
+        periodKey: `${y}`,
+        label: `${y}`,
+        year: y,
+      });
+    }
+  }
+
+  const series = aggregateSalesByPeriods(validSales, periods, mode, produtosMap, maxDate);
+  const trend = calculateSeriesTrend(series);
+  const alertInfo = analyzeRecentTrendRisk(series);
+
+  const latestPoint = series.length > 0 ? series[series.length - 1] : null;
+  const currentKg = latestPoint ? latestPoint.chartKg : 0;
+  const latestPeriodLabel = latestPoint ? latestPoint.label : '-';
+
+  return {
+    clienteId: clienteInfo?.id || '',
+    clienteNome: clienteInfo?.cliente || 'Cliente',
+    cidade: clienteInfo?.cidade || '-',
+    series,
+    trend,
+    currentKg,
+    latestPeriodLabel,
+    recentAlert: alertInfo.hasAlert,
+    recentDropPct: alertInfo.dropPct,
+    recentDropKg: alertInfo.dropKg,
+    recentAlertReason: alertInfo.reason,
   };
 }

@@ -72,6 +72,7 @@ import {
   PeriodDataPoint, 
   computePortfolioAndClientsEvolution 
 } from '../lib/salesTrendAnalysis';
+import { fetchOpenOrderSales } from '../lib/openOrderSales';
 
 export type DashboardTab = 'evolucao' | 'visao_geral' | 'curva_abc' | 'mix_produtos' | 'positivacao';
 
@@ -89,6 +90,7 @@ export function Dashboard() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [allSalesData, setAllSalesData] = useState<HistVenda[]>([]);
+  const [openOrderSales, setOpenOrderSales] = useState<HistVenda[]>([]);
 
   // --- Date range for General / ABC / Mix / Positivation ---
   const [selectedMonthOffset, setSelectedMonthOffset] = useState<number>(0); // 0 = current month, -1 = last month, etc.
@@ -179,6 +181,45 @@ export function Dashboard() {
     loadSalesData();
   }, [cachedHistorico]);
 
+  // --- Load Open Orders as Sales with Realtime Sync ---
+  useEffect(() => {
+    let active = true;
+
+    async function loadOpenOrders() {
+      if (clientes.length === 0 || produtos.length === 0) return;
+      try {
+        const sales = await fetchOpenOrderSales(clientes, produtos);
+        if (active) {
+          setOpenOrderSales(sales);
+        }
+      } catch (err) {
+        console.error('Error fetching open orders for dashboard:', err);
+      }
+    }
+
+    void loadOpenOrders();
+
+    if (navigator.onLine === false) return;
+
+    const channel = supabase
+      .channel('dashboard-pedidos-em-aberto')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos_em_aberto' }, () => {
+        void loadOpenOrders();
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [clientes, produtos]);
+
+  // Combined sales dataset: historical imported sales + open orders treated as sales
+  const allSalesWithOpenOrders = useMemo(() => {
+    if (openOrderSales.length === 0) return allSalesData;
+    return [...allSalesData, ...openOrderSales];
+  }, [allSalesData, openOrderSales]);
+
   // STRICT FILTER: Only ACTIVE clients are analyzed
   const activeClientes = useMemo(() => {
     return clientes.filter(c => c.ativo !== false);
@@ -190,12 +231,12 @@ export function Dashboard() {
 
   // Strict filter: sales must belong to active clients only & qualify as commercial sales
   const validActiveSales = useMemo(() => {
-    return allSalesData.filter(h => {
+    return allSalesWithOpenOrders.filter(h => {
       if (!h.cliente_id || !activeClientIds.has(h.cliente_id)) return false;
       const classification = classifySaleRecord(h);
       return classification.entraFaturamento;
     });
-  }, [allSalesData, activeClientIds]);
+  }, [allSalesWithOpenOrders, activeClientIds]);
 
   // Map of products for fast O(1) lookup
   const produtosMap = useMemo(() => {
@@ -219,7 +260,7 @@ export function Dashboard() {
     recentAlertCount
   } = useMemo(() => {
     return computePortfolioAndClientsEvolution(
-      allSalesData,
+      allSalesWithOpenOrders,
       activeClientes,
       produtosMap,
       trendMode,
@@ -228,7 +269,7 @@ export function Dashboard() {
         endKey: endPeriodKey || undefined
       }
     );
-  }, [allSalesData, activeClientes, produtosMap, trendMode, startPeriodKey, endPeriodKey]);
+  }, [allSalesWithOpenOrders, activeClientes, produtosMap, trendMode, startPeriodKey, endPeriodKey]);
 
   useEffect(() => {
     if (periodOptions.length > 0) {
@@ -747,11 +788,19 @@ export function Dashboard() {
       const clientSalesDates = salesDatesByClient[cliente.id] || [];
       const cicloPonderado = calcularCicloPonderado(clientSalesDates);
 
+      let latestPurchaseDateStr = cliente.ultima_compra;
+      if (clientSalesDates.length > 0) {
+        const sortedDates = [...clientSalesDates].sort().reverse();
+        if (!latestPurchaseDateStr || sortedDates[0] > latestPurchaseDateStr) {
+          latestPurchaseDateStr = sortedDates[0];
+        }
+      }
+
       let daysSinceLastPurchase = 999;
-      if (cliente.ultima_compra) {
-        const d = parseISO(cliente.ultima_compra);
+      if (latestPurchaseDateStr) {
+        const d = parseISO(latestPurchaseDateStr);
         if (!isNaN(d.getTime())) {
-          daysSinceLastPurchase = differenceInDays(new Date(), d);
+          daysSinceLastPurchase = Math.max(0, differenceInDays(new Date(), d));
         }
       }
 
@@ -761,7 +810,7 @@ export function Dashboard() {
         cidade: cliente.cidade || '-',
         telefone: cliente.telefone,
         isPositivado,
-        ultimaCompra: cliente.ultima_compra,
+        ultimaCompra: latestPurchaseDateStr,
         daysSinceLastPurchase,
         cicloPonderado
       };

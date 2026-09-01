@@ -17,7 +17,8 @@ import {
   Coins,
   Eye,
   EyeOff,
-  Pencil
+  Pencil,
+  Layers
 } from 'lucide-react';
 import { Cliente, HistVenda, EstoqueCliente, Produto, Emprestimo } from '../types';
 import { supabase } from '../lib/supabase';
@@ -26,15 +27,20 @@ import { classifySaleRecord } from '../lib/salesClassifier';
 import { getSalesOrderIdentity } from '../lib/orderIdentity';
 import { OrderEditModal, EditableOrderGroup } from '../components/orders/OrderEditModal';
 import { 
-  BarChart, 
-  Bar, 
+  ComposedChart,
+  Area,
+  Line,
   XAxis, 
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer,
-  Cell
+  ResponsiveContainer
 } from 'recharts';
+import { 
+  computeSingleClientEvolutionFromFirstSale,
+  TrendMode,
+  TREND_CATEGORIES
+} from '../lib/salesTrendAnalysis';
 import { 
   subMonths, 
   startOfMonth, 
@@ -141,6 +147,7 @@ export function ClienteDetail() {
   const [editingOrderGroup, setEditingOrderGroup] = useState<EditableOrderGroup | null>(null);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [showFlex, setShowFlex] = useState(false);
+  const [evolutionTrendMode, setEvolutionTrendMode] = useState<TrendMode>('quarterly');
 
   useEffect(() => {
     let cancelled = false;
@@ -467,6 +474,17 @@ export function ClienteDetail() {
     return ordersGrouped.find(o => o.key === selectedOrderKey) || null;
   }, [ordersGrouped, selectedOrderKey]);
 
+  // Evolução de Vendas a partir da primeira compra
+  const clientEvolution = React.useMemo(() => {
+    if (!cliente) return null;
+    return computeSingleClientEvolutionFromFirstSale(
+      activeHistorico,
+      produtosMap,
+      evolutionTrendMode,
+      cliente
+    );
+  }, [activeHistorico, produtosMap, evolutionTrendMode, cliente]);
+
   if (loading) return <StockCountSkeleton />;
   if (!cliente) return <div className="p-8 text-center">Cliente não encontrado.</div>;
 
@@ -489,36 +507,6 @@ export function ClienteDetail() {
       return acc + (h.qtd * (prod?.peso_embalagem || 0));
     }, 0);
 
-  // Média 6m (excluding current month)
-  const sixMonthsAgo = startOfMonth(subMonths(now, 6));
-  const media6mData = activeHistorico
-    .filter(h => {
-      // Selective cutoff filter
-      if (shouldExcludeSale(cliente.cliente, h.faturamento)) return false;
-
-      const date = parseISO(h.faturamento);
-      return date >= sixMonthsAgo && date < startOfCurrentMonth && classifySaleRecord(h).entraMetas;
-    });
-  const media6m = media6mData.reduce((acc, h) => {
-    const prod = produtosMap[h.produto_id];
-    return acc + (h.qtd * (prod?.peso_embalagem || 0));
-  }, 0) / 6;
-
-  // Média 12m (excluding current month)
-  const twelveMonthsAgo = startOfMonth(subMonths(now, 12));
-  const media12mData = activeHistorico
-    .filter(h => {
-      // Selective cutoff filter
-      if (shouldExcludeSale(cliente.cliente, h.faturamento)) return false;
-
-      const date = parseISO(h.faturamento);
-      return date >= twelveMonthsAgo && date < startOfCurrentMonth && classifySaleRecord(h).entraMetas;
-    });
-  const media12m = media12mData.reduce((acc, h) => {
-    const prod = produtosMap[h.produto_id];
-    return acc + (h.qtd * (prod?.peso_embalagem || 0));
-  }, 0) / 12;
-
   // Ciclo de Compra
   let mediaCiclo = 0;
   let diasUltima = 0;
@@ -539,13 +527,6 @@ export function ClienteDetail() {
 
   const progresso = cliente.meta > 0 ? Math.round((realizado / cliente.meta) * 100) : 0;
   const statusCiclo = diasUltima <= 28 ? "Válido" : "Inválido";
-
-  const chartData = [
-    { name: 'Média 12m', valor: media12m },
-    { name: 'Média 6m', valor: media6m },
-    { name: 'Meta', valor: cliente.meta },
-    { name: 'Realizado', valor: realizado },
-  ];
 
   return (
     <div className="space-y-6 pb-24">
@@ -711,42 +692,165 @@ export function ClienteDetail() {
         </button>
       </div>
 
-      {/* Goal Progress */}
-      <section className="bg-white p-6 rounded-lg border border-neutral-200 shadow-sm">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="font-bold text-neutral-800 flex items-center gap-2">
-            <Target className="text-orange-600" size={20} />
-            Desempenho (kg)
-          </h3>
-          <span className="text-xs font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded-lg">Mês Atual</span>
-        </div>
-        
-        <div className="h-64 w-full min-h-[256px]">
-          <ResponsiveContainer width="100%" height="100%" minHeight={256} minWidth={0}>
-            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 600 }} />
-              <YAxis hide />
-              <Tooltip 
-                cursor={{ fill: '#f9fafb' }}
-                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-              />
-              <Bar dataKey="valor" radius={[6, 6, 0, 0]} barSize={40}>
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.name === 'Meta' ? '#ea580c' : entry.name === 'Realizado' ? '#16a34a' : '#94a3b8'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+      {/* Evolução de Vendas (a partir da primeira compra) */}
+      <section className="bg-white p-5 sm:p-6 rounded-xl border border-neutral-200 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="text-orange-600" size={20} />
+              <h3 className="font-bold text-neutral-900 text-base">Evolução de Vendas</h3>
+              {clientEvolution && clientEvolution.trend && (
+                <span className={cn(
+                  "px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 border",
+                  clientEvolution.trend.categoryInfo.badgeClass
+                )}>
+                  <span>{clientEvolution.trend.categoryInfo.emoji}</span>
+                  <span>{clientEvolution.trend.categoryInfo.shortLabel}</span>
+                  {clientEvolution.trend.totalTrendChangePct !== 0 && (
+                    <span className="font-bold ml-0.5">
+                      ({clientEvolution.trend.totalTrendChangePct > 0 ? '+' : ''}
+                      {clientEvolution.trend.totalTrendChangePct.toFixed(0)}%)
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-neutral-400 mt-0.5">
+              Média mensal (kg/mês) desde a 1ª compra do cliente
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <div className="flex bg-neutral-100 p-1 rounded-lg border border-neutral-200">
+              <button
+                type="button"
+                onClick={() => setEvolutionTrendMode('quarterly')}
+                className={cn(
+                  "px-2.5 py-1 text-xs font-bold rounded-md transition-all",
+                  evolutionTrendMode === 'quarterly'
+                    ? "bg-white text-neutral-900 shadow-xs"
+                    : "text-neutral-500 hover:text-neutral-700"
+                )}
+              >
+                Trimestral
+              </button>
+              <button
+                type="button"
+                onClick={() => setEvolutionTrendMode('annual')}
+                className={cn(
+                  "px-2.5 py-1 text-xs font-bold rounded-md transition-all",
+                  evolutionTrendMode === 'annual'
+                    ? "bg-white text-neutral-900 shadow-xs"
+                    : "text-neutral-500 hover:text-neutral-700"
+                )}
+              >
+                Anual
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="mt-4 p-4 bg-neutral-50 rounded-lg flex justify-between items-center">
+        {/* Legend */}
+        <div className="flex items-center gap-4 text-xs font-bold text-neutral-500 pb-3 border-b border-neutral-100">
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-full bg-orange-500 inline-block"></span>
+            <span>Média Mensal Realizada</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-4 h-0.5 bg-blue-600 border-b border-dashed border-blue-600 inline-block"></span>
+            <span className="text-blue-600 font-bold">Linha de Tendência</span>
+          </div>
+        </div>
+
+        {/* Chart */}
+        <div className="h-64 sm:h-72 w-full min-h-[256px] pt-4">
+          {!clientEvolution || clientEvolution.series.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-neutral-400 py-10">
+              <Package size={32} className="mb-2 opacity-50 text-orange-500" />
+              <p className="text-xs font-bold">Nenhum dado de compra registrado para este cliente.</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%" minHeight={256} minWidth={0}>
+              <ComposedChart data={clientEvolution.series} margin={{ top: 12, right: 16, left: -10, bottom: 8 }}>
+                <defs>
+                  <linearGradient id="colorClientSalesKg" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ea580c" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#ea580c" stopOpacity={0.0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <XAxis 
+                  dataKey="label" 
+                  axisLine={{ stroke: '#e5e5e5' }}
+                  tickLine={false} 
+                  tick={{ fontSize: 10, fontWeight: 700, fill: '#737373' }}
+                  dy={6}
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fontSize: 10, fontWeight: 700, fill: '#a3a3a3' }}
+                  tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}k` : `${val}`}
+                  width={42}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    borderRadius: '12px', 
+                    border: '1px solid #e5e5e5', 
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.08)', 
+                    fontSize: '11px',
+                    padding: '10px 14px'
+                  }}
+                  formatter={(value: any, name: string) => {
+                    const formatted = `${formatWeight(Number(value))} / mês`;
+                    if (name === 'trendKg') {
+                      return [formatted, 'Linha de Tendência'];
+                    }
+                    return [
+                      formatted, 
+                      evolutionTrendMode === 'quarterly' ? 'Média Mensal no Trimestre' : 'Média Mensal no Ano'
+                    ];
+                  }}
+                  labelFormatter={(label) => `Período: ${label}`}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="chartKg" 
+                  name="chartKg"
+                  stroke="#ea580c" 
+                  strokeWidth={3}
+                  fillOpacity={1} 
+                  fill="url(#colorClientSalesKg)"
+                  dot={{ r: 4, fill: '#ffffff', stroke: '#ea580c', strokeWidth: 2 }}
+                  activeDot={{ r: 6, fill: '#ea580c', stroke: '#ffffff', strokeWidth: 2 }}
+                />
+                <Line 
+                  type="linear" 
+                  dataKey="trendKg" 
+                  name="trendKg"
+                  stroke="#2563eb" 
+                  strokeWidth={2.5} 
+                  strokeDasharray="6 6" 
+                  dot={false}
+                  activeDot={{ r: 5, fill: '#2563eb', stroke: '#ffffff', strokeWidth: 2 }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Goal / Realizado summary cards */}
+        <div className="mt-4 p-4 bg-neutral-50 rounded-xl flex justify-between items-center border border-neutral-100">
           <div>
-            <p className="text-[10px] font-bold text-neutral-400 uppercase">Falta para Meta</p>
-            <p className="text-lg font-black text-neutral-800">{formatWeight(Math.max(0, cliente.meta - realizado))}</p>
+            <p className="text-[10px] font-bold text-neutral-400 uppercase">Mês Atual (Realizado)</p>
+            <p className="text-lg font-black text-neutral-800">{formatWeight(realizado)}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] font-bold text-neutral-400 uppercase">Meta Mensal</p>
+            <p className="text-lg font-black text-neutral-800">{formatWeight(cliente.meta)}</p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] font-bold text-neutral-400 uppercase">Progresso</p>
+            <p className="text-[10px] font-bold text-neutral-400 uppercase">Progresso Mês</p>
             <p className={cn(
               "text-lg font-black",
               progresso >= 100 ? "text-green-600" : "text-orange-600"

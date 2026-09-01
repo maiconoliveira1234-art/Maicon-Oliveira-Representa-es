@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Cliente, Produto, HistVenda } from '../types';
-import { Loader2, FileUp, Save, AlertCircle, CheckCircle2, Trash2, Plus, X, Package, Search, ChevronDown, ShieldAlert, Sparkles, TrendingDown, TrendingUp, Coins, EyeOff, Layers } from 'lucide-react';
+import { Loader2, FileUp, Save, AlertCircle, CheckCircle2, Trash2, Plus, X, Package, Search, ChevronDown, ShieldAlert, Sparkles, TrendingDown, TrendingUp, Coins, EyeOff, Layers, ShoppingCart, Calendar, ArrowRight, Check } from 'lucide-react';
 import { cn, deduplicateSales, formatCurrency, formatWeight } from '../lib/utils';
 import { format, differenceInDays, parseISO } from 'date-fns';
 import { auditRowCost, CostAuditResult } from '../lib/costAuditer';
 import { useDataManager } from '../lib/dataManager';
 import { getFaixaPreco, getValorUnitario } from '../lib/calculations';
-import { getOpenOrderCleanupCutoff } from '../lib/openOrderCleanup';
 import { getFlexRateForDate } from '../lib/flexRules';
 import { ensureQuarterlyFlexReset } from '../services/flexService';
+import { getClientOpenOrderSummary, deleteClientOpenOrder, ClientOpenOrderSummary } from '../lib/openOrderSales';
 
 interface RawRow {
   id: string;
@@ -58,7 +58,7 @@ export function ImportPage() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [openOrderCleanupStatus, setOpenOrderCleanupStatus] = useState<'cleared' | 'failed' | null>(null);
+  const [openOrderCleanupStatus, setOpenOrderCleanupStatus] = useState<'cleared' | 'failed' | 'preserved' | null>(null);
   const [showConfirmSave, setShowConfirmSave] = useState(false);
   const [statusImportacao, setStatusImportacao] = useState<'IDLE' | 'PROCESSANDO'>('IDLE');
   const [showNewProductModal, setShowNewProductModal] = useState(false);
@@ -93,6 +93,11 @@ export function ImportPage() {
 
   // Processed data
   const [processedRows, setProcessedRows] = useState<RawRow[]>([]);
+
+  // Open Order Detection and User Confirmation states
+  const [detectedOpenOrder, setDetectedOpenOrder] = useState<ClientOpenOrderSummary | null>(null);
+  const [shouldClearOpenOrder, setShouldClearOpenOrder] = useState<boolean>(true);
+  const [checkingOpenOrder, setCheckingOpenOrder] = useState<boolean>(false);
 
   // Intelligent Cost Auditing states
   const [activeTab, setActiveTab] = useState<'pedido' | 'auditoria'>('pedido');
@@ -281,6 +286,20 @@ export function ImportPage() {
         setError('Este faturamento já foi importado anteriormente. (Proteção Idempotente ativa)');
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
+      }
+
+      // Check if there is an active open order for this client to ask the user
+      setCheckingOpenOrder(true);
+      try {
+        const openOrderSummary = await getClientOpenOrderSummary(selectedClienteId, clientes, produtos);
+        setDetectedOpenOrder(openOrderSummary);
+        setShouldClearOpenOrder(!!openOrderSummary); // Default to checked if an open order exists
+      } catch (checkOpenErr) {
+        console.warn('Erro ao verificar pedido em aberto do cliente:', checkOpenErr);
+        setDetectedOpenOrder(null);
+        setShouldClearOpenOrder(false);
+      } finally {
+        setCheckingOpenOrder(false);
       }
 
       setShowConfirmSave(true);
@@ -581,29 +600,23 @@ export function ImportPage() {
         }
       }
 
-      // The invoiced order is already safely stored at this point. Clear only a
-      // recent draft for the same client, without turning cleanup failure into
-      // a second import attempt.
-      try {
-        const cleanupNow = new Date();
-        const { data: deletedDrafts, error: cleanupError } = await supabase
-          .from('pedidos_em_aberto')
-          .delete()
-          .eq('cliente_id', selectedClienteId)
-          .gte('started_at', getOpenOrderCleanupCutoff(cleanupNow))
-          .lte('started_at', cleanupNow.toISOString())
-          .select('cliente_id');
-
-        if (cleanupError) {
-          console.error('Pedido importado, mas o rascunho em aberto não pôde ser limpo:', cleanupError);
+      // Respect user decision on open order cleanup:
+      // If user checked to clear the open order, delete it securely from Supabase and localStorage.
+      // If user unchecked or no open order existed, leave it untouched.
+      if (shouldClearOpenOrder && detectedOpenOrder) {
+        try {
+          const successCleanup = await deleteClientOpenOrder(selectedClienteId);
+          if (successCleanup) {
+            setOpenOrderCleanupStatus('cleared');
+          } else {
+            setOpenOrderCleanupStatus('failed');
+          }
+        } catch (cleanupError) {
+          console.error('Pedido importado, mas ocorreu uma falha ao limpar o pedido em aberto:', cleanupError);
           setOpenOrderCleanupStatus('failed');
-        } else if (deletedDrafts && deletedDrafts.length > 0) {
-          localStorage.removeItem(`pedido_${selectedClienteId}`);
-          setOpenOrderCleanupStatus('cleared');
         }
-      } catch (cleanupError) {
-        console.error('Pedido importado, mas ocorreu uma falha ao limpar o rascunho:', cleanupError);
-        setOpenOrderCleanupStatus('failed');
+      } else if (detectedOpenOrder && !shouldClearOpenOrder) {
+        setOpenOrderCleanupStatus('preserved');
       }
 
       setShowConfirmSave(false);
@@ -611,6 +624,7 @@ export function ImportPage() {
       setProcessedRows([]);
       setRawData('');
       setSelectedClienteId(''); // Reset client selection after success
+      setDetectedOpenOrder(null);
     } catch (err: any) {
       console.error('Erro ao salvar no banco (Executando Rollback se necessário):', err);
       if (salesInserted) {
@@ -1116,7 +1130,10 @@ export function ImportPage() {
               <div className="space-y-1">
                 <p className="text-sm font-medium">Dados importados com sucesso!</p>
                 {openOrderCleanupStatus === 'cleared' && (
-                  <p className="text-xs font-bold">O pedido em aberto recente deste cliente também foi encerrado.</p>
+                  <p className="text-xs font-bold">O pedido em aberto deste cliente foi encerrado conforme sua confirmação.</p>
+                )}
+                {openOrderCleanupStatus === 'preserved' && (
+                  <p className="text-xs font-medium text-neutral-600">O pedido em aberto deste cliente foi mantido sem alterações.</p>
                 )}
               </div>
             </div>
@@ -1126,7 +1143,7 @@ export function ImportPage() {
             <div className="bg-amber-50 border border-amber-200 text-amber-700 p-4 rounded-lg flex items-start gap-3">
               <AlertCircle className="shrink-0 mt-0.5" size={18} />
               <p className="text-sm font-medium">
-                O pedido foi importado, mas o rascunho em aberto não pôde ser encerrado automaticamente.
+                O pedido foi importado, mas ocorreu uma falha ao tentar encerrar o pedido em aberto. Você pode limpá-lo manualmente na tela de pedidos.
               </p>
             </div>
           )}
@@ -1516,21 +1533,93 @@ export function ImportPage() {
 
       {/* Confirmation Modal */}
       {showConfirmSave && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-sm w-full shadow-2xl space-y-4">
-            <div className="flex items-center gap-3 text-orange-600">
-              <AlertCircle size={24} />
-              <h3 className="font-bold text-lg">Confirmar Importação</h3>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+              <div className="flex items-center gap-2.5 text-orange-600">
+                <AlertCircle size={22} className="shrink-0" />
+                <h3 className="font-extrabold text-lg text-neutral-900">Confirmar Importação</h3>
+              </div>
+              <span className="text-xs font-bold px-2 py-0.5 bg-neutral-100 text-neutral-600 rounded">
+                Pedido {numeroPedidoErp}
+              </span>
             </div>
-            <p className="text-neutral-600 text-sm">
-              Deseja salvar <strong>{validRowsToSave.length}</strong> registros no histórico de vendas?
-            </p>
-            <div className="flex gap-3 pt-2">
+
+            <div className="space-y-3 text-sm">
+              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200/80 space-y-1">
+                <div className="flex justify-between items-center text-xs text-neutral-500 font-semibold uppercase">
+                  <span>Cliente</span>
+                  <span className="text-neutral-700 font-bold">{selectedCliente?.cliente}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs text-neutral-500 font-semibold uppercase">
+                  <span>Itens para Importar</span>
+                  <span className="text-neutral-900 font-extrabold">{validRowsToSave.length} itens ({formatWeight(totalPesoPreview)})</span>
+                </div>
+              </div>
+
+              {/* Detected Open Order Section */}
+              {detectedOpenOrder ? (
+                <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/70 space-y-3">
+                  <div className="flex items-start gap-2.5">
+                    <ShoppingCart className="text-amber-600 shrink-0 mt-0.5" size={18} />
+                    <div className="space-y-0.5">
+                      <h4 className="text-xs font-black uppercase text-amber-900 tracking-wider">
+                        Pedido em Aberto Detectado
+                      </h4>
+                      <p className="text-xs text-amber-800">
+                        Consta um pedido em aberto ativo para este cliente ({detectedOpenOrder.item_count} itens · {formatWeight(detectedOpenOrder.total_weight_kg)} · {formatCurrency(detectedOpenOrder.total_value_rs)}).
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Open order sample items preview */}
+                  {detectedOpenOrder.items_summary.length > 0 && (
+                    <div className="max-h-24 overflow-y-auto bg-white/90 rounded-lg p-2 border border-amber-200/60 space-y-1">
+                      {detectedOpenOrder.items_summary.slice(0, 4).map((it, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-[11px] text-neutral-700">
+                          <span className="truncate max-w-[200px] font-medium">{it.produto}</span>
+                          <span className="text-neutral-500 font-bold shrink-0">{it.quantidade} un ({formatWeight(it.peso_kg)})</span>
+                        </div>
+                      ))}
+                      {detectedOpenOrder.items_summary.length > 4 && (
+                        <p className="text-[10px] text-amber-700 italic text-center pt-0.5">
+                          + {detectedOpenOrder.items_summary.length - 4} outros itens
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Checkbox prompt for user confirmation */}
+                  <label className="flex items-start gap-2.5 pt-1 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={shouldClearOpenOrder}
+                      onChange={(e) => setShouldClearOpenOrder(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-amber-300 text-orange-600 focus:ring-orange-500 accent-orange-600 cursor-pointer"
+                    />
+                    <span className="text-xs font-bold text-neutral-800 leading-tight">
+                      Encerrar e limpar o pedido em aberto deste cliente após a importação?
+                    </span>
+                  </label>
+                  <p className="text-[10px] text-neutral-500 pl-6 leading-tight">
+                    {shouldClearOpenOrder 
+                      ? "Recomendado: Evita duplicidade no faturamento e remove o rascunho do Supabase e do cache local." 
+                      : "Atenção: O pedido em aberto continuará ativo na tela de pedidos e somando nas análises até ser encerrado manualmente."}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-neutral-500 text-xs italic">
+                  Nenhum pedido em aberto pendente encontrado para este cliente.
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-3 border-t border-neutral-100">
               <button
                 type="button"
                 onClick={() => setShowConfirmSave(false)}
                 disabled={saving || statusImportacao === 'PROCESSANDO'}
-                className="flex-1 py-2.5 bg-neutral-100 text-neutral-700 rounded-lg font-bold hover:bg-neutral-200 transition-all disabled:opacity-50"
+                className="flex-1 py-2.5 bg-neutral-100 text-neutral-700 rounded-lg font-bold hover:bg-neutral-200 transition-all text-sm disabled:opacity-50"
               >
                 Cancelar
               </button>
@@ -1538,15 +1627,15 @@ export function ImportPage() {
                 type="button"
                 onClick={confirmSave}
                 disabled={saving || statusImportacao === 'PROCESSANDO'}
-                className="flex-1 py-2.5 bg-orange-600 text-white rounded-lg font-bold hover:bg-orange-700 transition-all shadow-lg shadow-orange-200 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                className="flex-1 py-2.5 bg-orange-600 text-white rounded-lg font-bold hover:bg-orange-700 transition-all shadow-lg shadow-orange-200 disabled:opacity-50 flex items-center justify-center gap-1.5 text-sm"
               >
                 {statusImportacao === 'PROCESSANDO' ? (
                   <>
                     <Loader2 className="animate-spin" size={16} />
-                    <span>Importando faturamento...</span>
+                    <span>Importando...</span>
                   </>
                 ) : (
-                  <span>Confirmar</span>
+                  <span>Confirmar e Salvar</span>
                 )}
               </button>
             </div>

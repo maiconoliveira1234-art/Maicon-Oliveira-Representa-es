@@ -86,17 +86,31 @@ export function ClientsPage() {
       // Fetch open orders from Supabase first
       let dbOpenOrders: any[] = [];
       let serverOpenOrdersLoaded = false;
-      if (navigator.onLine !== false) {
+      if (typeof navigator === 'undefined' || navigator.onLine !== false) {
         try {
           const { data, error } = await supabase.from('pedidos_em_aberto').select('*');
           if (!error && data) {
             dbOpenOrders = data;
             serverOpenOrdersLoaded = true;
           } else if (error) {
-            console.error('Error fetching pedidos_em_aberto:', error);
+            const isNetworkError = error?.message?.includes('Failed to fetch') ||
+              error?.name === 'TypeError' ||
+              (typeof navigator !== 'undefined' && !navigator.onLine);
+            if (isNetworkError) {
+              console.warn('Busca de pedidos em aberto adiada (offline/instabilidade de rede).');
+            } else {
+              console.error('Error fetching pedidos_em_aberto:', error);
+            }
           }
-        } catch (dbErr) {
-          console.error('Error fetching pedidos_em_aberto:', dbErr);
+        } catch (dbErr: any) {
+          const isNetworkError = dbErr?.message?.includes('Failed to fetch') ||
+            dbErr?.name === 'TypeError' ||
+            (typeof navigator !== 'undefined' && !navigator.onLine);
+          if (isNetworkError) {
+            console.warn('Busca de pedidos em aberto adiada (offline/instabilidade de rede).');
+          } else {
+            console.error('Error fetching pedidos_em_aberto:', dbErr);
+          }
         }
       }
 
