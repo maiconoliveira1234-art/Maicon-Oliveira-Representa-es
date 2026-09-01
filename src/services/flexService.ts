@@ -10,17 +10,30 @@ function isMissingResetFunction(error: any) {
 export async function ensureQuarterlyFlexReset(strict = false): Promise<number> {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return 0;
 
-  const { data, error } = await supabase.rpc('garantir_reset_flex_trimestral');
-  if (!error) return Number(data) || 0;
+  try {
+    const { data, error } = await supabase.rpc('garantir_reset_flex_trimestral');
+    if (!error) return Number(data) || 0;
 
-  if (isMissingResetFunction(error) && !strict) {
-    console.warn('Reset trimestral do Flex ainda nao esta disponivel no banco.');
-    return 0;
+    if (isMissingResetFunction(error) && !strict) {
+      console.warn('Reset trimestral do Flex ainda nao esta disponivel no banco.');
+      return 0;
+    }
+
+    if (isMissingResetFunction(error)) {
+      throw new Error('A migracao do reset trimestral do Flex precisa ser aplicada no Supabase antes de importar faturamentos.');
+    }
+
+    if (!strict) {
+      console.warn('[FlexService] Aviso ao verificar reset trimestral:', error);
+      return 0;
+    }
+
+    throw error;
+  } catch (err: any) {
+    if (!strict) {
+      console.warn('[FlexService] Supabase indisponível ou offline durante verificação de reset:', err?.message || err);
+      return 0;
+    }
+    throw err;
   }
-
-  if (isMissingResetFunction(error)) {
-    throw new Error('A migracao do reset trimestral do Flex precisa ser aplicada no Supabase antes de importar faturamentos.');
-  }
-
-  throw error;
 }

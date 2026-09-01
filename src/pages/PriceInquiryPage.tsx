@@ -761,7 +761,16 @@ export function PriceInquiryPage() {
             })
           ) : (
             <div className="p-12 text-center text-neutral-400">
-              <p>Nenhum produto encontrado</p>
+              <p className="font-medium text-neutral-600">Nenhum produto encontrado</p>
+              {selectedClient !== 'all' ? (
+                <p className="text-xs text-neutral-400 mt-1">
+                  O filtro por cliente exibe apenas os produtos que o cliente já comprou no histórico. Para ver toda a tabela ou produtos novos, selecione &quot;Todos os Clientes&quot;.
+                </p>
+              ) : (
+                <p className="text-xs text-neutral-400 mt-1">
+                  Tente ajustar a busca ou selecione &quot;Todas as Famílias&quot;.
+                </p>
+              )}
             </div>
           )}
         </div>

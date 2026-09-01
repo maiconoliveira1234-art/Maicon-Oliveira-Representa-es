@@ -543,8 +543,15 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       setLatestSalesMap(map);
       
       return true;
-    } catch (error) {
-      console.error('[OfflineSync] Erro crítico ao sincronizar com o servidor:', error);
+    } catch (error: any) {
+      const isNetworkError = error?.message?.includes('Failed to fetch') ||
+        error?.name === 'TypeError' ||
+        (typeof navigator !== 'undefined' && navigator.onLine === false);
+      if (isNetworkError) {
+        console.warn('[OfflineSync] Sincronização completa adiada (dispositivo offline ou instabilidade de rede).');
+      } else {
+        console.error('[OfflineSync] Erro crítico ao sincronizar com o servidor:', error);
+      }
       return false;
     } finally {
       isSyncingRef.current = false;
@@ -692,8 +699,15 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       });
       setLatestSalesMap(latestMap);
       return true;
-    } catch (error) {
-      console.error('[OfflineSync] Erro na sincronização incremental:', error);
+    } catch (error: any) {
+      const isNetworkError = error?.message?.includes('Failed to fetch') ||
+        error?.name === 'TypeError' ||
+        (typeof navigator !== 'undefined' && navigator.onLine === false);
+      if (isNetworkError) {
+        console.warn('[OfflineSync] Sincronização incremental adiada (dispositivo offline ou instabilidade de rede).');
+      } else {
+        console.error('[OfflineSync] Erro na sincronização incremental:', error);
+      }
       return false;
     } finally {
       isSyncingRef.current = false;
