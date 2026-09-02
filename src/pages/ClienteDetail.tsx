@@ -41,6 +41,7 @@ import {
   TrendMode,
   TREND_CATEGORIES
 } from '../lib/salesTrendAnalysis';
+import { fetchOpenOrderSales } from '../lib/openOrderSales';
 import { 
   subMonths, 
   startOfMonth, 
@@ -148,6 +149,61 @@ export function ClienteDetail() {
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [showFlex, setShowFlex] = useState(false);
   const [evolutionTrendMode, setEvolutionTrendMode] = useState<TrendMode>('quarterly');
+  const [openOrderSales, setOpenOrderSales] = useState<HistVenda[]>([]);
+
+  // Real-time synchronization of Open Orders converted to HistVenda for this client
+  useEffect(() => {
+    let active = true;
+
+    async function loadClientOpenOrders() {
+      if (!id) return;
+      const targetClients = cliente ? [cliente] : cachedClientes.filter(c => c.id === id);
+      const targetProducts = produtos.length > 0 ? produtos : (allProducts.length > 0 ? allProducts : MOCK_PRODUTOS);
+      if (targetClients.length === 0 || targetProducts.length === 0) return;
+
+      try {
+        const sales = await fetchOpenOrderSales(targetClients, targetProducts);
+        if (active) {
+          setOpenOrderSales(sales.filter(s => s.cliente_id === id));
+        }
+      } catch (err) {
+        console.error('Error fetching open order sales for client:', err);
+      }
+    }
+
+    void loadClientOpenOrders();
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (!e.key || e.key === `pedido_${id}`) {
+        void loadClientOpenOrders();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return () => {
+        active = false;
+        window.removeEventListener('storage', handleStorageChange);
+      };
+    }
+
+    const channel = supabase
+      .channel(`client-detail-pedidos-em-aberto-${id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pedidos_em_aberto', filter: `cliente_id=eq.${id}` },
+        () => {
+          void loadClientOpenOrders();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      active = false;
+      window.removeEventListener('storage', handleStorageChange);
+      void supabase.removeChannel(channel);
+    };
+  }, [id, cliente, cachedClientes, produtos, allProducts]);
 
   useEffect(() => {
     let cancelled = false;
@@ -431,6 +487,12 @@ export function ClienteDetail() {
     return historico;
   }, [cachedHistVendas, id, historico]);
 
+  // Combined sales dataset: historical sales + open orders dynamically unified as HistVenda
+  const combinedHistorico = React.useMemo(() => {
+    if (openOrderSales.length === 0) return activeHistorico;
+    return [...activeHistorico, ...openOrderSales];
+  }, [activeHistorico, openOrderSales]);
+
   const ordersGrouped = React.useMemo<EditableOrderGroup[]>(() => {
     const groups: Record<string, HistVenda[]> = {};
     activeHistorico.forEach(h => {
@@ -474,16 +536,16 @@ export function ClienteDetail() {
     return ordersGrouped.find(o => o.key === selectedOrderKey) || null;
   }, [ordersGrouped, selectedOrderKey]);
 
-  // Evolução de Vendas a partir da primeira compra
+  // Evolução de Vendas a partir da primeira compra (inclui pedidos em aberto)
   const clientEvolution = React.useMemo(() => {
     if (!cliente) return null;
     return computeSingleClientEvolutionFromFirstSale(
-      activeHistorico,
+      combinedHistorico,
       produtosMap,
       evolutionTrendMode,
       cliente
     );
-  }, [activeHistorico, produtosMap, evolutionTrendMode, cliente]);
+  }, [combinedHistorico, produtosMap, evolutionTrendMode, cliente]);
 
   if (loading) return <StockCountSkeleton />;
   if (!cliente) return <div className="p-8 text-center">Cliente não encontrado.</div>;
@@ -493,8 +555,8 @@ export function ClienteDetail() {
   const startOfCurrentMonth = startOfMonth(now);
   const endOfCurrentMonth = endOfMonth(now);
 
-  // Realizado (Current Month)
-  const realizado = activeHistorico
+  // Realizado (Current Month) - reflects both completed sales and open orders
+  const realizado = combinedHistorico
     .filter(h => {
       // Selective cutoff filter
       if (shouldExcludeSale(cliente.cliente, h.faturamento)) return false;
@@ -511,7 +573,7 @@ export function ClienteDetail() {
   let mediaCiclo = 0;
   let diasUltima = 0;
   
-  const recompraHistorico = activeHistorico.filter(h => classifySaleRecord(h).influenciaConsumo);
+  const recompraHistorico = combinedHistorico.filter(h => classifySaleRecord(h).influenciaConsumo);
   if (recompraHistorico.length > 0) {
     const sortedVendas = [...recompraHistorico].sort((a, b) => parseISO(b.faturamento).getTime() - parseISO(a.faturamento).getTime());
     const ultVenda = sortedVendas[0];
@@ -696,7 +758,7 @@ export function ClienteDetail() {
       <section className="bg-white p-5 sm:p-6 rounded-xl border border-neutral-200 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <TrendingUp className="text-orange-600" size={20} />
               <h3 className="font-bold text-neutral-900 text-base">Evolução de Vendas</h3>
               {clientEvolution && clientEvolution.trend && (
@@ -714,9 +776,18 @@ export function ClienteDetail() {
                   )}
                 </span>
               )}
+              {openOrderSales.length > 0 && (
+                <span 
+                  className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200"
+                  title="Pedidos em aberto integrados ao período em andamento"
+                >
+                  <ShoppingCart size={11} className="text-amber-600" />
+                  <span>Pedido em Aberto ({formatWeight(openOrderSales.reduce((acc, s) => acc + (s.qtd * (produtosMap[s.produto_id]?.peso_embalagem || 0)), 0))})</span>
+                </span>
+              )}
             </div>
             <p className="text-xs text-neutral-400 mt-0.5">
-              Média mensal (kg/mês) desde a 1ª compra do cliente
+              Média mensal (kg/mês) desde a 1ª compra do cliente • Atualizado com pedidos em aberto
             </p>
           </div>
 
