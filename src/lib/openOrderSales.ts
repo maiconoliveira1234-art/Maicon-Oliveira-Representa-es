@@ -2,6 +2,71 @@ import { supabase } from './supabase';
 import { HistVenda, Cliente, Produto } from '../types';
 import { getFaixaPreco, getValorUnitario, calcularPrecoComDesconto } from './calculations';
 
+/**
+ * Checks if the client has a pending offline open order creation/update waiting in queue
+ */
+export function hasPendingOpenOrderSync(clienteId: string): boolean {
+  if (!clienteId) return false;
+  try {
+    const raw = localStorage.getItem('offline_db_pending_queue');
+    if (!raw) return false;
+    const queue = JSON.parse(raw);
+    if (!Array.isArray(queue)) return false;
+    return queue.some(
+      item => item.action === 'save_open_order' &&
+      (item.payload?.cliente_id === clienteId || item.payload?.clienteId === clienteId)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Purges an orphan local draft if it does not exist on the server and is not queued for sync
+ */
+export function purgeOrphanLocalOpenOrder(clienteId: string): void {
+  if (!clienteId) return;
+  if (!hasPendingOpenOrderSync(clienteId)) {
+    try {
+      localStorage.removeItem(`pedido_${clienteId}`);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId } }));
+      }
+    } catch {
+      // ignore
+    }
+  }
+}
+
+/**
+ * Scans localStorage for any draft open orders and purges those that are no longer
+ * present on the server (unless they are waiting in the offline queue to be uploaded).
+ */
+export function reconcileAndCleanOrphanOpenOrders(serverClientIds: Set<string>): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const keysToPurge: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('pedido_')) {
+        const clienteId = key.replace('pedido_', '');
+        if (clienteId && !serverClientIds.has(clienteId) && !hasPendingOpenOrderSync(clienteId)) {
+          keysToPurge.push(key);
+        }
+      }
+    }
+    keysToPurge.forEach(k => {
+      localStorage.removeItem(k);
+      const cId = k.replace('pedido_', '');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId: cId } }));
+      }
+    });
+  } catch (err) {
+    console.warn('[OpenOrders] Error reconciling orphan local drafts:', err);
+  }
+}
+
 export interface RawOpenOrderItem {
   id?: string;
   produto_id?: string;
@@ -179,6 +244,7 @@ export async function getClientOpenOrderSummary(
   const clientName = client?.cliente || 'Cliente ' + clienteId;
 
   let rawOrder: RawOpenOrder | null = null;
+  let serverChecked = false;
 
   // 1. Fetch from Supabase
   if (typeof navigator !== 'undefined' && navigator.onLine !== false) {
@@ -189,6 +255,7 @@ export async function getClientOpenOrderSummary(
         .eq('cliente_id', clienteId)
         .maybeSingle();
 
+      serverChecked = !error;
       if (!error && data) {
         rawOrder = {
           cliente_id: data.cliente_id,
@@ -205,21 +272,42 @@ export async function getClientOpenOrderSummary(
     }
   }
 
-  // 2. Check localStorage
+  // 2. Check localStorage (only accept if pending in offline queue OR server was not reachable)
   try {
     const saved = localStorage.getItem(`pedido_${clienteId}`);
     if (saved) {
-      const parsed = JSON.parse(saved);
-      const localItems = parsed.items || (Array.isArray(parsed) ? parsed : null);
-      if (localItems && (!rawOrder || (parsed.updatedAt && new Date(parsed.updatedAt).getTime() > new Date(rawOrder.updated_at || rawOrder.started_at || 0).getTime()))) {
-        rawOrder = {
-          cliente_id: clienteId,
-          items: localItems,
-          started_at: parsed.startedAt,
-          updated_at: parsed.updatedAt || parsed.startedAt,
-          prazo: parsed.prazo,
-          obs: parsed.obs
-        };
+      if (serverChecked && !rawOrder) {
+        // The server was checked and has no open order. Check if there is an offline creation pending.
+        if (!hasPendingOpenOrderSync(clienteId)) {
+          // This is an orphan draft (already deleted/invoiced on another device). Purge it!
+          purgeOrphanLocalOpenOrder(clienteId);
+        } else {
+          const parsed = JSON.parse(saved);
+          const localItems = parsed.items || (Array.isArray(parsed) ? parsed : null);
+          if (localItems) {
+            rawOrder = {
+              cliente_id: clienteId,
+              items: localItems,
+              started_at: parsed.startedAt,
+              updated_at: parsed.updatedAt || parsed.startedAt,
+              prazo: parsed.prazo,
+              obs: parsed.obs
+            };
+          }
+        }
+      } else {
+        const parsed = JSON.parse(saved);
+        const localItems = parsed.items || (Array.isArray(parsed) ? parsed : null);
+        if (localItems && (!rawOrder || (parsed.updatedAt && new Date(parsed.updatedAt).getTime() > new Date(rawOrder.updated_at || rawOrder.started_at || 0).getTime()))) {
+          rawOrder = {
+            cliente_id: clienteId,
+            items: localItems,
+            started_at: parsed.startedAt,
+            updated_at: parsed.updatedAt || parsed.startedAt,
+            prazo: parsed.prazo,
+            obs: parsed.obs
+          };
+        }
       }
     }
   } catch (e) {
@@ -320,6 +408,24 @@ export async function deleteClientOpenOrder(clienteId: string): Promise<boolean>
   if (!clienteId) return false;
   try {
     localStorage.removeItem(`pedido_${clienteId}`);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId } }));
+    }
+    // Remove from offline queue if queued
+    try {
+      const raw = localStorage.getItem('offline_db_pending_queue');
+      if (raw) {
+        const queue = JSON.parse(raw);
+        if (Array.isArray(queue)) {
+          const updated = queue.filter(item => 
+            !( (item.action === 'save_open_order' || item.action === 'delete_open_order') &&
+               (item.payload?.cliente_id === clienteId || item.payload?.clienteId === clienteId) )
+          );
+          localStorage.setItem('offline_db_pending_queue', JSON.stringify(updated));
+        }
+      }
+    } catch {}
+
     if (typeof navigator !== 'undefined' && navigator.onLine !== false) {
       const { error } = await supabase
         .from('pedidos_em_aberto')
@@ -343,11 +449,13 @@ export async function fetchOpenOrderSales(
   produtosList: Produto[]
 ): Promise<HistVenda[]> {
   let dbOpenOrders: any[] = [];
+  let serverLoaded = false;
   if (typeof navigator !== 'undefined' && navigator.onLine !== false) {
     try {
       const { data, error } = await supabase.from('pedidos_em_aberto').select('*');
       if (!error && data) {
         dbOpenOrders = data;
+        serverLoaded = true;
       }
     } catch (dbErr) {
       console.error('Error fetching pedidos_em_aberto:', dbErr);
@@ -355,27 +463,45 @@ export async function fetchOpenOrderSales(
   }
 
   const openOrdersMap = new Map<string, RawOpenOrder>();
+  const serverClientIds = new Set<string>();
 
   // 1. Populate from Supabase DB
   dbOpenOrders.forEach(row => {
-    if (row.cliente_id && row.items) {
-      openOrdersMap.set(row.cliente_id, {
-        cliente_id: row.cliente_id,
-        items: row.items,
-        started_at: row.started_at,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-        prazo: row.prazo,
-        obs: row.obs
-      });
+    if (row.cliente_id) {
+      serverClientIds.add(row.cliente_id);
+      if (row.items) {
+        openOrdersMap.set(row.cliente_id, {
+          cliente_id: row.cliente_id,
+          items: row.items,
+          started_at: row.started_at,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          prazo: row.prazo,
+          obs: row.obs
+        });
+      }
     }
   });
+
+  // Reconcile and purge local drafts on devices that were closed when another device deleted/invoiced the order
+  if (serverLoaded) {
+    reconcileAndCleanOrphanOpenOrders(serverClientIds);
+  }
 
   // 2. Merge / Fallback with localStorage (compare timestamps if both exist)
   (clientesList || []).forEach(c => {
     try {
       const saved = localStorage.getItem(`pedido_${c.id}`);
       if (saved) {
+        // If server responded cleanly and client is NOT in server open orders:
+        // Only accept if it is an offline creation waiting in queue.
+        if (serverLoaded && !openOrdersMap.has(c.id)) {
+          if (!hasPendingOpenOrderSync(c.id)) {
+            purgeOrphanLocalOpenOrder(c.id);
+            return;
+          }
+        }
+
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed === 'object') {
           const localItems = parsed.items || (Array.isArray(parsed) ? parsed : null);

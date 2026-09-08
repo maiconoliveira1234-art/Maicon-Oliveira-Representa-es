@@ -42,6 +42,7 @@ import { parseISO, differenceInDays, startOfWeek, addWeeks, addDays, format } fr
 import { ptBR } from 'date-fns/locale';
 
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from '../lib/mockData';
+import { hasPendingOpenOrderSync } from '../lib/openOrderSales';
 
 import { useDataManager } from '../lib/dataManager';
 import { StockCountSkeleton } from '../components/ui/Skeleton';
@@ -380,6 +381,7 @@ export function OrderPage() {
         let dbData: any = null;
         
         // 1. Try Supabase first if online
+        let serverChecked = false;
         if (navigator.onLine !== false) {
           try {
             const { data, error } = await supabase
@@ -387,6 +389,7 @@ export function OrderPage() {
               .select('*')
               .eq('cliente_id', clienteId)
               .maybeSingle();
+            serverChecked = !error;
             if (!error && data) {
               dbData = {
                 items: data.items,
@@ -416,7 +419,14 @@ export function OrderPage() {
         if (dbData && !localData) {
           savedData = dbData;
         } else if (!dbData && localData) {
-          savedData = localData;
+          // If server confirmed no open order on the cloud, check if there is an offline queue item
+          if (serverChecked && !hasPendingOpenOrderSync(clienteId)) {
+            // Orphan draft from another device that already invoiced/deleted it. Purge!
+            localStorage.removeItem(`pedido_${clienteId}`);
+            savedData = null;
+          } else {
+            savedData = localData;
+          }
         } else if (dbData && localData) {
           const localTime = localData.updatedAt ? new Date(localData.updatedAt).getTime() : (localData.startedAt ? new Date(localData.startedAt).getTime() : 0);
           const serverTime = dbData.updatedAt ? new Date(dbData.updatedAt).getTime() : (dbData.startedAt ? new Date(dbData.startedAt).getTime() : 0);
@@ -506,6 +516,41 @@ export function OrderPage() {
       active = false;
     };
   }, [loading, produtos, clienteId, pesoConquistado]);
+
+  // Listen for realtime deletion or purge of open order for this client
+  useEffect(() => {
+    if (!clienteId) return;
+    const channel = supabase
+      .channel(`order-page-open-order-${clienteId}`)
+      .on('postgres_changes', { 
+        event: 'DELETE', 
+        schema: 'public', 
+        table: 'pedidos_em_aberto' 
+      }, (payload) => {
+        if (payload.old && (payload.old as any).cliente_id === clienteId) {
+          if (!hasPendingOpenOrderSync(clienteId)) {
+            localStorage.removeItem(`pedido_${clienteId}`);
+            setItens([]);
+            setStartedAt(null);
+          }
+        }
+      })
+      .subscribe();
+
+    const handlePurged = (e: any) => {
+      if (e.detail?.clienteId === clienteId && !hasPendingOpenOrderSync(clienteId)) {
+        localStorage.removeItem(`pedido_${clienteId}`);
+        setItens([]);
+        setStartedAt(null);
+      }
+    };
+    window.addEventListener('openOrderPurged', handlePurged);
+
+    return () => {
+      window.removeEventListener('openOrderPurged', handlePurged);
+      supabase.removeChannel(channel);
+    };
+  }, [clienteId]);
 
   // Manage start date of the draft order
   useEffect(() => {

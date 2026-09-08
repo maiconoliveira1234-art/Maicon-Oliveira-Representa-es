@@ -11,7 +11,7 @@ import { NewClientModal } from '../components/NewClientModal';
 import { runAutoAgendaSyncIfEligible } from '../lib/autoAgendaSync';
 
 import { useDataManager } from '../lib/dataManager';
-import { fetchOpenOrderSales } from '../lib/openOrderSales';
+import { fetchOpenOrderSales, hasPendingOpenOrderSync } from '../lib/openOrderSales';
 
 import { ClientPageSkeleton } from '../components/ui/Skeleton';
 
@@ -137,6 +137,16 @@ export function ClientsPage() {
         if (!openOrdersMap[c.id]) {
           const saved = localStorage.getItem(`pedido_${c.id}`);
           if (saved) {
+            // If the server was reachable and returned the authoritative list,
+            // and this client is not in it: check if it's an offline draft waiting in queue.
+            if (serverOpenOrdersLoaded) {
+              if (!hasPendingOpenOrderSync(c.id)) {
+                // Orphan draft from another device that already invoiced/deleted it. Purge!
+                localStorage.removeItem(`pedido_${c.id}`);
+                return;
+              }
+            }
+
             try {
               const parsed = JSON.parse(saved);
               let hasItems = false;
@@ -211,11 +221,21 @@ export function ClientsPage() {
     };
     const channel = supabase
       .channel('clientes-pedidos-em-aberto')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos_em_aberto' }, fetchClientes)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos_em_aberto' }, (payload) => {
+        if (payload.eventType === 'DELETE' && payload.old && (payload.old as any).cliente_id) {
+          try {
+            localStorage.removeItem(`pedido_${(payload.old as any).cliente_id}`);
+          } catch {}
+        }
+        fetchClientes();
+      })
       .subscribe();
 
+    const handlePurged = () => fetchClientes();
+    window.addEventListener('openOrderPurged', handlePurged);
     document.addEventListener('visibilitychange', refreshOpenOrders);
     return () => {
+      window.removeEventListener('openOrderPurged', handlePurged);
       document.removeEventListener('visibilitychange', refreshOpenOrders);
       supabase.removeChannel(channel);
     };

@@ -1082,6 +1082,9 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
   // Offline-Safe Write Wrapper: deleteOpenOrder
   const deleteOpenOrder = useCallback(async (clienteId: string) => {
     localStorage.removeItem(`pedido_${clienteId}`);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId } }));
+    }
 
     if (navigator.onLine === false) {
       await queueOpenOrderForRetry('delete_open_order', { cliente_id: clienteId });
@@ -1542,6 +1545,69 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
   const refreshProdutos = useCallback(async () => {
     await syncAllDataInternal(true);
   }, [syncAllDataInternal]);
+
+  // Global Realtime listener and startup reconciliation for open orders to keep all devices synchronized
+  useEffect(() => {
+    // 1. Startup reconciliation for local storage drafts
+    const reconcileOpenOrders = async () => {
+      if (typeof navigator === 'undefined' || navigator.onLine === false) return;
+      try {
+        const { data, error } = await supabase.from('pedidos_em_aberto').select('cliente_id');
+        if (!error && data) {
+          const serverClientIds = new Set(data.map(d => d.cliente_id));
+          const keysToPurge: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('pedido_')) {
+              const cId = key.replace('pedido_', '');
+              if (cId && !serverClientIds.has(cId)) {
+                // Check if there is an offline creation waiting in queue
+                const rawQueue = localStorage.getItem('offline_db_pending_queue');
+                const hasPending = rawQueue && JSON.parse(rawQueue)?.some(
+                  (item: any) => item.action === 'save_open_order' &&
+                  (item.payload?.cliente_id === cId || item.payload?.clienteId === cId)
+                );
+                if (!hasPending) {
+                  keysToPurge.push(key);
+                }
+              }
+            }
+          }
+          keysToPurge.forEach(k => {
+            localStorage.removeItem(k);
+            const cId = k.replace('pedido_', '');
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId: cId } }));
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('[DataManager] Erro ao reconciliar rascunhos de pedidos:', err);
+      }
+    };
+
+    reconcileOpenOrders();
+
+    // 2. Global Realtime subscription for DELETE events on pedidos_em_aberto
+    const channel = supabase
+      .channel('global-open-orders-sync')
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pedidos_em_aberto' }, (payload) => {
+        const cId = (payload.old as any)?.cliente_id;
+        if (cId) {
+          try {
+            localStorage.removeItem(`pedido_${cId}`);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId: cId } }));
+            }
+          } catch {}
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   return (
     <DataManagerContext.Provider value={{

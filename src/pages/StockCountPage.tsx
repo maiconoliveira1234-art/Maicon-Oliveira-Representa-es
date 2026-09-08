@@ -31,6 +31,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { FAMILY_PRIORITY_ORDER } from '../constants';
 import { DIAGNOSTICS } from '../lib/diagnostics';
 import { calcularPrecoComDesconto, getFaixaEfetiva, getValorUnitario } from '../lib/calculations';
+import { hasPendingOpenOrderSync } from '../lib/openOrderSales';
 import { 
   ExportReportModal, 
   StockReportColumnId, 
@@ -299,8 +300,8 @@ export function StockCountPage() {
       .then(({ data, error }) => {
         if (error) return;
         if (!data || !Array.isArray(data.items)) {
-          const saved = localStorage.getItem(`pedido_${clienteId}`);
-          if (!saved) {
+          if (!hasPendingOpenOrderSync(clienteId)) {
+            localStorage.removeItem(`pedido_${clienteId}`);
             setPedidoMap({});
             setNonVendaItems([]);
             setManualFaixa(null);
