@@ -75,6 +75,21 @@ import {
 import { fetchOpenOrderSales } from '../lib/openOrderSales';
 
 export type DashboardTab = 'evolucao' | 'visao_geral' | 'curva_abc' | 'mix_produtos' | 'positivacao';
+type AbcMetric = 'volume' | 'faturamento' | 'ponderado';
+
+function abcValue(item: { totalKg: number; totalVal: number }, totals: { totalKg: number; totalVal: number }, metric: AbcMetric): number {
+  if (metric === 'volume') return item.totalKg;
+  if (metric === 'faturamento') return item.totalVal;
+
+  // Each component is a share of its own total; kg and reais are never added directly.
+  // If one total is unavailable, use the available component at full weight.
+  const hasKg = totals.totalKg > 0;
+  const hasVal = totals.totalVal > 0;
+  if (hasKg && hasVal) return 0.5 * item.totalKg / totals.totalKg + 0.5 * item.totalVal / totals.totalVal;
+  if (hasKg) return item.totalKg / totals.totalKg;
+  if (hasVal) return item.totalVal / totals.totalVal;
+  return 0;
+}
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -108,7 +123,7 @@ export function Dashboard() {
 
   // --- State for ABC Curve (Tab 3) ---
   const [abcType, setAbcType] = useState<'clientes' | 'produtos'>('clientes');
-  const [abcMetric, setAbcMetric] = useState<'faturamento' | 'volume'>('volume');
+  const [abcMetric, setAbcMetric] = useState<AbcMetric>('volume');
   const [abcClassFilter, setAbcClassFilter] = useState<'all' | 'A' | 'B' | 'C'>('all');
   const [abcSearchQuery, setAbcSearchQuery] = useState('');
 
@@ -577,18 +592,19 @@ export function Dashboard() {
       });
 
       const list = Object.values(clientMap);
-      const totalSum = list.reduce((acc, c) => acc + (abcMetric === 'faturamento' ? c.totalVal : c.totalKg), 0);
+      const totals = list.reduce((acc, c) => ({ totalKg: acc.totalKg + c.totalKg, totalVal: acc.totalVal + c.totalVal }), { totalKg: 0, totalVal: 0 });
+      const totalSum = abcMetric === 'ponderado' ? Number(totals.totalKg > 0 || totals.totalVal > 0) : abcMetric === 'faturamento' ? totals.totalVal : totals.totalKg;
 
       // Sort descending
       list.sort((a, b) => {
-        const valA = abcMetric === 'faturamento' ? a.totalVal : a.totalKg;
-        const valB = abcMetric === 'faturamento' ? b.totalVal : b.totalKg;
+        const valA = abcValue(a, totals, abcMetric);
+        const valB = abcValue(b, totals, abcMetric);
         return valB - valA;
       });
 
       let accumulated = 0;
       const enrichedList = list.map(item => {
-        const value = abcMetric === 'faturamento' ? item.totalVal : item.totalKg;
+        const value = abcValue(item, totals, abcMetric);
         const sharePct = totalSum > 0 ? (value / totalSum) * 100 : 0;
         accumulated += sharePct;
         const accumulatedPct = Math.min(100, accumulated);
@@ -639,17 +655,18 @@ export function Dashboard() {
       });
 
       const list = Object.values(productMap).filter(p => p.totalVal > 0 || p.totalKg > 0);
-      const totalSum = list.reduce((acc, p) => acc + (abcMetric === 'faturamento' ? p.totalVal : p.totalKg), 0);
+      const totals = list.reduce((acc, p) => ({ totalKg: acc.totalKg + p.totalKg, totalVal: acc.totalVal + p.totalVal }), { totalKg: 0, totalVal: 0 });
+      const totalSum = abcMetric === 'ponderado' ? Number(totals.totalKg > 0 || totals.totalVal > 0) : abcMetric === 'faturamento' ? totals.totalVal : totals.totalKg;
 
       list.sort((a, b) => {
-        const valA = abcMetric === 'faturamento' ? a.totalVal : a.totalKg;
-        const valB = abcMetric === 'faturamento' ? b.totalVal : b.totalKg;
+        const valA = abcValue(a, totals, abcMetric);
+        const valB = abcValue(b, totals, abcMetric);
         return valB - valA;
       });
 
       let accumulated = 0;
       const enrichedList = list.map(item => {
-        const value = abcMetric === 'faturamento' ? item.totalVal : item.totalKg;
+        const value = abcValue(item, totals, abcMetric);
         const sharePct = totalSum > 0 ? (value / totalSum) * 100 : 0;
         accumulated += sharePct;
         const accumulatedPct = Math.min(100, accumulated);
@@ -1948,8 +1965,8 @@ export function Dashboard() {
                 </button>
               </div>
 
-              {/* Metric Switcher: Volume (kg) / Faturamento (R$) */}
-              <div className="inline-flex rounded-lg border border-neutral-200 bg-neutral-100 p-1">
+              {/* Metric Switcher: Volume (kg) / Faturamento (R$) / Ponderado */}
+              <div className="inline-flex flex-wrap rounded-lg border border-neutral-200 bg-neutral-100 p-1">
                 <button
                   type="button"
                   onClick={() => setAbcMetric('volume')}
@@ -1969,6 +1986,17 @@ export function Dashboard() {
                   )}
                 >
                   Por Faturamento (R$)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAbcMetric('ponderado')}
+                  title="Média das participações no volume e no faturamento (50% cada)"
+                  className={cn(
+                    "px-3 py-1.5 rounded-md text-xs font-black transition-all",
+                    abcMetric === 'ponderado' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-600 hover:text-neutral-900"
+                  )}
+                >
+                  Ponderado (50/50)
                 </button>
               </div>
             </div>
@@ -2038,7 +2066,9 @@ export function Dashboard() {
               </div>
 
               <span className="text-xs font-bold text-neutral-500">
-                Total acumulado: {abcMetric === 'faturamento' ? formatCurrency(abcData.totalSum) : formatWeight(abcData.totalSum)}
+                {abcMetric === 'ponderado'
+                  ? 'Participação combinada: 50% volume + 50% faturamento'
+                  : <>Total acumulado: {abcMetric === 'faturamento' ? formatCurrency(abcData.totalSum) : formatWeight(abcData.totalSum)}</>}
               </span>
             </div>
 
