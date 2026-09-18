@@ -851,7 +851,7 @@ export function PriceInquiryPage() {
                 referrerPolicy="no-referrer"
               />
             </div>
-            <span style={{ fontSize: '8px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#8c8c8c', marginTop: '2px' }}>Parceiro Oficial</span>
+            <span style={{ fontSize: '7px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#8c8c8c', marginTop: '2px' }}>Parceiro Oficial</span>
           </div>
         </div>
 

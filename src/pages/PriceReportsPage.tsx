@@ -114,7 +114,7 @@ const drawReportHeader = (
   const logoWidth = logoHeight * logo.aspectRatio;
   doc.addImage(logo.data, 'PNG', pageWidth - 14 - logoWidth, 5, logoWidth, logoHeight);
   doc.setTextColor(163, 163, 163);
-  doc.setFontSize(6);
+  doc.setFontSize(5);
   doc.text('PARCEIRO OFICIAL', pageWidth - 14, 21, { align: 'right' });
   doc.setDrawColor(38, 38, 38);
   doc.setLineWidth(0.6);
