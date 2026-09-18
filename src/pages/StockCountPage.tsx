@@ -20,6 +20,7 @@ import {
   EyeOff,
   BarChart3
 } from 'lucide-react';
+import { ADIMAX_LOGO_URL, waitForReportImages } from '../lib/pdfBranding';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas-pro';
 import { Cliente, Produto, EstoqueCliente, HistVenda, PrecoFaixa } from '../types';
@@ -814,6 +815,7 @@ export function StockCountPage() {
       });
 
       const pages = exportRef.current?.querySelectorAll('.pdf-page');
+      await waitForReportImages(exportRef.current);
       if (!pages || pages.length === 0) return;
 
       for (let i = 0; i < pages.length; i++) {
@@ -1789,12 +1791,11 @@ export function StockCountPage() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
             <div style={{ height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
               <img 
-                src="https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png" 
+                src={ADIMAX_LOGO_URL}
                 alt="ADIMAX" 
                 style={{ height: '32px', width: 'auto', maxHeight: '32px', maxWidth: '140px', objectFit: 'contain', display: 'block' }}
                 crossOrigin="anonymous"
                 referrerPolicy="no-referrer"
-                onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
               />
             </div>
             <span style={{ fontSize: '8px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#8c8c8c', marginTop: '2px' }}>Parceiro Oficial</span>

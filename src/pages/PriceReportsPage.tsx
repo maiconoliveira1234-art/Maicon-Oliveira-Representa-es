@@ -23,6 +23,7 @@ import { supabase } from '../lib/supabase';
 import { classifySaleRecord } from '../lib/salesClassifier';
 import { cn, deduplicateSales, formatCurrency, formatWeight } from '../lib/utils';
 import { calcularPrecoComDesconto } from '../lib/calculations';
+import { ADIMAX_LOGO_URL } from '../lib/pdfBranding';
 import { Cliente, HistVenda, PrecoFaixa, Produto } from '../types';
 
 type ReportMode = 'comparison' | 'history' | 'custom';
@@ -74,34 +75,26 @@ const saleOrderKey = (sale: HistVenda) => {
   return orderNumber ? `${sale.cliente_id}|${orderNumber}` : `${sale.cliente_id}|${sale.faturamento}`;
 };
 
-const loadReportLogo = () => new Promise<string | null>(resolve => {
+const loadReportLogo = () => new Promise<{ data: string; aspectRatio: number }>((resolve, reject) => {
   const image = new Image();
-  let settled = false;
-  const finish = (value: string | null) => {
-    if (settled) return;
-    settled = true;
-    resolve(value);
-  };
-  window.setTimeout(() => finish(null), 3500);
-  image.crossOrigin = 'anonymous';
   image.onload = () => {
     try {
       const canvas = document.createElement('canvas');
       canvas.width = image.naturalWidth;
       canvas.height = image.naturalHeight;
       canvas.getContext('2d')?.drawImage(image, 0, 0);
-      finish(canvas.toDataURL('image/png'));
-    } catch {
-      finish(null);
+      resolve({ data: canvas.toDataURL('image/png'), aspectRatio: image.naturalWidth / image.naturalHeight });
+    } catch (error) {
+      reject(error);
     }
   };
-  image.onerror = () => finish(null);
-  image.src = 'https://wsrv.nl/?url=https://adimax.com.br/wp-content/uploads/2021/06/logo_adimax-04968c974e8e5d15ddb822152395b3f6.png&w=400&output=png';
+  image.onerror = () => reject(new Error('Não foi possível carregar a logomarca do relatório.'));
+  image.src = ADIMAX_LOGO_URL;
 });
 
 const drawReportHeader = (
   doc: jsPDF,
-  logo: string | null,
+  logo: { data: string; aspectRatio: number },
   title: string,
   detail: string,
   clientName: string
@@ -117,14 +110,9 @@ const drawReportHeader = (
   doc.text(detail, 14, 20);
   doc.text(`Data: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, 24);
 
-  if (logo) {
-    doc.addImage(logo, 'PNG', pageWidth - 48, 7, 34, 10);
-  } else {
-    doc.setTextColor(234, 88, 12);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(15);
-    doc.text('ADIMAX', pageWidth - 14, 14, { align: 'right' });
-  }
+  const logoHeight = 13;
+  const logoWidth = logoHeight * logo.aspectRatio;
+  doc.addImage(logo.data, 'PNG', pageWidth - 14 - logoWidth, 5, logoWidth, logoHeight);
   doc.setTextColor(163, 163, 163);
   doc.setFontSize(6);
   doc.text('PARCEIRO OFICIAL', pageWidth - 14, 21, { align: 'right' });
