@@ -1,0 +1,4 @@
+[functions.google-calendar]
+# OAuth callback validates one-use state + PKCE + Google ID token and owner email.
+# Sync endpoint requires a server-only random credential; tables deny client access.
+verify_jwt = false

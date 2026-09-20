@@ -1,3 +1,4 @@
+import { GoogleCalendarSettings } from '../components/GoogleCalendarSettings';
 import React, { useState } from 'react';
 import { Settings, Info, Shield, Database, Smartphone, RefreshCw, UserX, Loader2, CheckCircle2, Route, AlertTriangle, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -238,6 +239,7 @@ export function SettingsPage() {
           </div>
         </Panel>
 
+        <GoogleCalendarSettings />
         {/* Informações do App */}
         <Panel className="overflow-hidden">
           <div className="p-6 border-b border-neutral-100 bg-neutral-50/50 flex items-center gap-2">

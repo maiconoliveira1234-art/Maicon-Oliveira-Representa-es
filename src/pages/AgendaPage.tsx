@@ -1,3 +1,4 @@
+import { GoogleCalendarResult } from '../components/GoogleCalendarSettings';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Search, Filter, ChevronLeft, ChevronRight, Calendar as CalendarIcon, AlertCircle, RefreshCw, Loader2, CalendarDays, Map as MapIcon, Plus, History, RotateCcw, ClipboardCheck, CheckCircle2 } from 'lucide-react';
@@ -534,6 +535,7 @@ export function AgendaPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50 pb-0 selection:bg-orange-500 selection:text-white">
+      <GoogleCalendarResult />
       {/* Top Header */}
       <header className="sticky top-0 z-40 px-4 py-4 md:px-6 md:py-6">
         <div className="max-w-4xl mx-auto">
