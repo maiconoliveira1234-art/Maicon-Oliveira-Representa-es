@@ -148,7 +148,7 @@ export function CommercialPriorities({ agenda, clienteId }: { agenda: AgendaStat
           <h2 className="text-lg font-black text-neutral-950">{clienteId ? 'Próxima ação' : 'Prioridades de hoje'}</h2>
         </div>
         {!clienteId && <button type="button" onClick={refreshPriorities} disabled={refreshing || busy || loading} className={buttonClass}>{refreshing ? 'Atualizando…' : 'Atualizar'}</button>}
-        {clienteId && <button type="button" disabled={busy || loading || !!agenda.error} onClick={() => startEdit(clienteId)} className={buttonClass}>{future ? 'Alterar retorno' : 'Registrar retorno'}</button>}
+        {clienteId && visible.length === 0 && <button type="button" disabled={busy || loading || !!agenda.error} onClick={() => startEdit(clienteId)} className={buttonClass}>{future ? 'Alterar retorno' : 'Registrar retorno'}</button>}
       </div>
       {(loading || refreshing) ? <p className="mt-3 text-sm text-neutral-500">Conferindo prioridades…</p> : agenda.error ? (
         <div role="alert" className="mt-3 text-sm text-amber-700">Não foi possível atualizar os retornos. <button type="button" onClick={() => agenda.refresh()} className="underline">Tentar novamente</button></div>
