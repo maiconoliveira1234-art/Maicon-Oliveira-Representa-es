@@ -274,6 +274,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Main Content */}
       <main className="min-w-0 flex-1 px-3 py-4 sm:px-4 md:p-8 max-w-7xl mx-auto w-full overflow-x-clip">
         {children}
+        <footer className="mt-8 text-center text-xs text-neutral-500">
+          <a href="/privacidade" className="underline underline-offset-4 hover:text-neutral-800">Política de Privacidade</a>
+        </footer>
       </main>
 
       {hasMobileList && (
