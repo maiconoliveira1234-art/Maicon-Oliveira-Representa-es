@@ -10,9 +10,11 @@ import { buildCommercialPriorities, COMMERCIAL_RETURN_TITLE, COMMERCIAL_REVIEW_T
 
 // Small, read-only query. Never turn an unavailable order list into "no orders".
 function useOpenOrderClients() {
+  const [revision, setRevision] = useState(0);
   const [state, setState] = useState<{ ids: Set<string> | null; loading: boolean }>({ ids: null, loading: true });
   useEffect(() => {
     let active = true;
+    setState(previous => ({ ...previous, loading: true }));
     let request = 0;
     const refresh = async () => {
       const current = ++request;
@@ -38,8 +40,8 @@ function useOpenOrderClients() {
       window.removeEventListener('online', refresh);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, []);
-  return state;
+  }, [revision]);
+  return { ...state, refresh: () => setRevision(value => value + 1) };
 }
 
 type AgendaState = ReturnType<typeof useAgendaPendencias>;
@@ -50,7 +52,7 @@ export function ClientCommercialPriorities({ clienteId }: { clienteId: string })
 }
 
 export function CommercialPriorities({ agenda, clienteId }: { agenda: AgendaState; clienteId?: string }) {
-  const { clientes, hist_vendas, loadingGlobal, pendingQueueCount } = useDataManager();
+  const { clientes, hist_vendas, loadingGlobal, pendingQueueCount, syncAllData } = useDataManager();
   const orders = useOpenOrderClients();
   const [todayKey, setTodayKey] = useState(() => format(startOfToday(), 'yyyy-MM-dd'));
   const [editing, setEditing] = useState<string | null>(null);
@@ -58,6 +60,7 @@ export function CommercialPriorities({ agenda, clienteId }: { agenda: AgendaStat
   const [note, setNote] = useState('');
   const [outcome, setOutcome] = useState('RETORNO');
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   useEffect(() => {
@@ -109,6 +112,18 @@ export function CommercialPriorities({ agenda, clienteId }: { agenda: AgendaStat
     } catch { setError('Não foi possível concluir o contato. Tente novamente.'); }
     finally { setBusy(false); }
   };
+  const refreshPriorities = async () => {
+    if (refreshing || busy) return;
+    setRefreshing(true); setError(null); setMessage(null);
+    try {
+      const synced = await syncAllData(true);
+      await agenda.refresh();
+      orders.refresh();
+      if (!synced) setError('Não foi possível atualizar todo o histórico. Os dados disponíveis podem estar desatualizados. Tente novamente.');
+    } catch {
+      setError('Não foi possível atualizar as prioridades. Tente novamente.');
+    } finally { setRefreshing(false); }
+  };
   const buttonClass = 'rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-700 disabled:opacity-50';
   return (
     <section className="min-w-0 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm" aria-label={clienteId ? 'Próxima ação comercial' : 'Prioridades de hoje'}>
@@ -117,9 +132,10 @@ export function CommercialPriorities({ agenda, clienteId }: { agenda: AgendaStat
           <h2 className="text-lg font-black text-neutral-950">{clienteId ? 'Próxima ação' : 'Prioridades de hoje'}</h2>
           <p className="text-xs text-neutral-500">{clienteId ? 'Acompanhe o contato sem alterar o roteiro de visitas.' : 'Até cinco clientes · retornos combinados e recompra atrasada'}</p>
         </div>
+        {!clienteId && <button type="button" onClick={refreshPriorities} disabled={refreshing || busy || loading} className={buttonClass}>{refreshing ? 'Atualizando…' : 'Atualizar'}</button>}
         {clienteId && <button type="button" disabled={busy || loading || !!agenda.error} onClick={() => startEdit(clienteId)} className={buttonClass}>{future ? 'Alterar retorno' : 'Registrar retorno'}</button>}
       </div>
-      {loading ? <p className="mt-3 text-sm text-neutral-500">Conferindo prioridades…</p> : agenda.error ? (
+      {(loading || refreshing) ? <p className="mt-3 text-sm text-neutral-500">Conferindo prioridades…</p> : agenda.error ? (
         <div role="alert" className="mt-3 text-sm text-amber-700">Não foi possível atualizar os retornos. <button type="button" onClick={() => agenda.refresh()} className="underline">Tentar novamente</button></div>
       ) : <>
         {!orders.ids && <p role="status" className="mt-3 text-xs text-amber-700">Pedidos em aberto indisponíveis. Exibindo apenas retornos combinados.</p>}
