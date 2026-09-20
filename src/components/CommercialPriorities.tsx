@@ -155,7 +155,7 @@ export function CommercialPriorities({ agenda, clienteId }: { agenda: AgendaStat
           </article>
         ))}
         {future && <p className="mt-3 break-words text-sm text-neutral-600">{future.titulo}: {format(new Date(future.data_prevista + 'T00:00:00'), 'dd/MM/yyyy')}{future.descricao ? ` · ${future.descricao}` : ''}</p>}
-        {visible.length === 0 && !future && <p className="mt-3 text-sm text-neutral-500">{orders.ids ? 'Nenhuma prioridade com os critérios atuais. Recompra exige pelo menos três dias de compra nos últimos 12 meses.' : 'Nenhum retorno vencido ou previsto para hoje.'}</p>}
+        {visible.length === 0 && !future && <p className="mt-3 text-sm text-neutral-500">{orders.ids ? 'Nenhuma prioridade com os critérios atuais. Recompra segue o Próx. ped. de Metas: atraso acima de zero e pelo menos dois dias de reposição nos últimos 12 meses.' : 'Nenhum retorno vencido ou previsto para hoje.'}</p>}
       </>}
       {editing && <form onSubmit={save} className="mt-4 space-y-3 rounded-lg border border-orange-200 p-3">
         <p className="text-sm font-bold">Registrar contato · {clientes.find(c => c.id === editing)?.cliente}</p>

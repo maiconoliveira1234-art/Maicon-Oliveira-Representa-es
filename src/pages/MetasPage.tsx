@@ -30,7 +30,7 @@ import { ptBR } from 'date-fns/locale';
 import { classifySaleRecord } from '../lib/salesClassifier';
 import { ActionButton, PageHeader } from '../components/ui/AppChrome';
 import { useDataManager } from '../lib/dataManager';
-import { calcularCicloPonderado } from '../lib/calculations';
+import { getPurchaseCycle } from '../lib/purchaseCycle';
 import { calculateOpenOrderGoalWeights, OpenOrderGoalRecord } from '../lib/openOrderGoals';
 
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from '../lib/mockData';
@@ -329,24 +329,14 @@ export function MetasPage() {
       }, 0);
       const med6 = weightTotal6Meses / 6;
       
-      // Use only commercial sales for purchase cycle (exclude merchandising / gifts)
-      const recompraVendas = clienteVendas.filter(v => classifySaleRecord(v).influenciaConsumo);
-      const sortedRecompraVendas = [...recompraVendas]
-        .sort((a, b) => parseISO(b.faturamento).getTime() - parseISO(a.faturamento).getTime());
-
-      // Ult Ped: Days since last order
-      const ultVenda = sortedRecompraVendas[0];
-      const diasUltPedido = ultVenda ? differenceInDays(now, parseISO(ultVenda.faturamento)) : 0;
-      
-      // 70% dos tres intervalos mais recentes (pesos 50/30/20) + 30% do historico.
-      const medDias = calcularCicloPonderado(
-        recompraVendas.map(v => format(parseISO(v.faturamento), 'yyyy-MM-dd'))
-      );
+      const purchaseCycle = getPurchaseCycle(clienteVendas, now);
+      const medDias = purchaseCycle.cycleDays;
+      const diasUltPedido = purchaseCycle.elapsedDays;
 
       const faturadoMes = faturadoPorCliente[c.id] || 0;
       const abertoMes = openOrderWeights.byClient[c.id] || 0;
       const vendMes = faturadoMes + abertoMes;
-      const gapCliente = medDias > 0 ? diasUltPedido - medDias : 0;
+      const gapCliente = purchaseCycle.gap;
 
       return {
         ...c,
@@ -651,7 +641,7 @@ export function MetasPage() {
                   "px-1 py-3 border-r border-b border-neutral-100 text-right text-[12px] font-bold",
                   row.gap <= 0 ? "text-green-600" : "text-red-500"
                 )}>
-                  {row.gap}
+                  {row.gap ?? '—'}
                 </td>
                 <td data-label="Meta (kg)" data-mobile-summary className="px-1 py-2 border-r border-b border-neutral-100">
                   <div className="relative flex items-center">

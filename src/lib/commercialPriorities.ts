@@ -1,4 +1,5 @@
-import { differenceInCalendarDays, format, isValid, parseISO, subMonths } from 'date-fns';
+import { differenceInCalendarDays, format, parseISO } from 'date-fns';
+import { getPurchaseCycle } from './purchaseCycle';
 import { Cliente, HistVenda } from '../types';
 import { AgendaPendencia } from '../types/agendaPendencia';
 import { isAgendaPendenciaAtiva } from './agendaPendencias';
@@ -29,17 +30,10 @@ export function buildCommercialPriorities({ clientes, historico, pendencias, ope
   today: Date;
 }): CommercialPriority[] {
   const todayKey = format(today, 'yyyy-MM-dd');
-  const cutoff = format(subMonths(today, 12), 'yyyy-MM-dd');
-  const daysByClient = new Map<string, Set<string>>();
+  const historyByClient = new Map<string, HistVenda[]>();
   for (const sale of historico) {
-    // Strict sale type: unknown operations, gifts, returns and draft orders
-    // cannot establish an actual buying cycle.
-    if (sale.vendas?.trim().toUpperCase() !== 'VENDAS' || !(Number(sale.qtd) > 0)
-      || !(Number(sale['r$_total']) > 0) || String(sale.id ?? '').startsWith('open_order_')) continue;
-    const key = sale.faturamento?.slice(0, 10);
-    if (!key || !isValid(parseISO(key)) || key < cutoff || key > todayKey) continue;
-    if (!daysByClient.has(sale.cliente_id)) daysByClient.set(sale.cliente_id, new Set());
-    daysByClient.get(sale.cliente_id)!.add(key);
+    if (!historyByClient.has(sale.cliente_id)) historyByClient.set(sale.cliente_id, []);
+    historyByClient.get(sale.cliente_id)!.push(sale);
   }
   const followUpsByClient = new Map<string, AgendaPendencia[]>();
   for (const item of pendencias) {
@@ -66,15 +60,11 @@ export function buildCommercialPriorities({ clientes, historico, pendencias, ope
       || followUps.some(p => p.status === 'CONCLUIDA' && p.concluida_em
         && format(parseISO(p.concluida_em), 'yyyy-MM-dd') === todayKey)) continue;
     if (!openClientIds || openClientIds.has(cliente.id)) continue;
-    const dates = [...(daysByClient.get(cliente.id) || [])].sort().slice(-7);
-    if (dates.length < 3) continue;
-    const cycle = Math.max(1, Math.round(differenceInCalendarDays(parseISO(dates.at(-1)!), parseISO(dates[0])) / (dates.length - 1)));
-    const elapsed = differenceInCalendarDays(today, parseISO(dates.at(-1)!));
-    const overdueDays = elapsed - cycle;
-    // A small tolerance avoids noisy alerts for normal day-to-day variation.
-    if (overdueDays < Math.max(3, Math.ceil(cycle * 0.2))) continue;
-    result.push({ cliente, kind: 'RECOMPRA', overdueDays, relativeDelay: overdueDays / cycle,
-      reason: `Intervalo médio de ${cycle} dias; há ${elapsed} dias sem compra. Base: ${dates.length} dias de compra nos últimos 12 meses.`,
+    const cycle = getPurchaseCycle(historyByClient.get(cliente.id) || [], today);
+    // Same positive Próx. ped. shown in Metas. No extra grace period.
+    if (cycle.gap === null || cycle.gap <= 0) continue;
+    result.push({ cliente, kind: 'RECOMPRA', overdueDays: cycle.gap, relativeDelay: cycle.gap / cycle.cycleDays,
+      reason: `Próx. ped.: +${cycle.gap} dias. Ciclo ponderado de ${cycle.cycleDays} dias; há ${cycle.elapsedDays} dias sem reposição. Base: ${cycle.purchaseDays} dias de reposição nos últimos 12 meses.`,
       action: 'Conferir estoque dos itens habituais e avaliar reposição.' });
   }
   return result.sort((a, b) => Number(b.kind === 'RETORNO') - Number(a.kind === 'RETORNO')
