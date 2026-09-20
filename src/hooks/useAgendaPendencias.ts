@@ -41,6 +41,12 @@ export function useAgendaPendencias() {
 
   useEffect(() => {
     refresh();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    window.addEventListener('focus', refresh);
+    window.addEventListener('online', refresh);
+    document.addEventListener('visibilitychange', onVisible);
     const channel = supabase
       .channel('agenda-pendencias-app')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agenda_pendencias' }, refresh)
@@ -48,6 +54,9 @@ export function useAgendaPendencias() {
 
     return () => {
       supabase.removeChannel(channel);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('online', refresh);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [refresh]);
 

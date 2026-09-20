@@ -1,7 +1,7 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "1.20.127",
+  "version": "1.20.128",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "test": "tsx src/tests/index.ts"
+    "test": "tsx src/tests/index.ts",
+    "test:priorities": "node --import tsx src/tests/commercialPriorities.test.ts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

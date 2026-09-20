@@ -6,7 +6,6 @@ import {
   ArrowRight,
   Calendar,
   CheckCircle2,
-  Clock,
   Loader2,
   Map as MapIcon,
   PackageCheck,
@@ -18,7 +17,6 @@ import {
   WalletCards
 } from 'lucide-react';
 import {
-  differenceInDays,
   differenceInWeeks,
   endOfMonth,
   format,
@@ -40,6 +38,7 @@ import { useAgendaPendencias } from '../hooks/useAgendaPendencias';
 import { isAgendaPendenciaAtiva, sortAgendaPendencias } from '../lib/agendaPendencias';
 
 import { useDataManager } from '../lib/dataManager';
+import { CommercialPriorities } from '../components/CommercialPriorities';
 
 type MetaRow = {
   cliente_id: string;
@@ -109,7 +108,8 @@ export function HomePage() {
     metas: {},
     unscheduledClients: 0
   });
-  const { pendencias, updateStatus: updatePendenciaStatus } = useAgendaPendencias();
+  const agendaPendencias = useAgendaPendencias();
+  const { pendencias, updateStatus: updatePendenciaStatus } = agendaPendencias;
 
   useEffect(() => {
     if (loadingGlobal) {
@@ -172,37 +172,6 @@ export function HomePage() {
     const pendingVisits = todayVisits.filter((visita) => visita.status === 'pendente').length;
     const nextVisit = todayVisits.find((visita) => visita.status !== 'concluida' && visita.status !== 'cancelada') || todayVisits[0] || null;
 
-    const histByClient = new Map<string, HistVenda[]>();
-    data.historico.forEach((sale) => {
-      if (!sale.cliente_id) return;
-      const list = histByClient.get(sale.cliente_id) || [];
-      list.push(sale);
-      histByClient.set(sale.cliente_id, list);
-    });
-
-    const overdueVisits = todayVisits
-      .map((visita) => {
-        const history = (visita.cliente_id ? histByClient.get(visita.cliente_id) : []) || [];
-        const sorted = history
-          .filter((sale) => sale.faturamento)
-          .sort((a, b) => parseISO(b.faturamento).getTime() - parseISO(a.faturamento).getTime());
-
-        if (sorted.length === 0) return { visita, gap: 0 };
-
-        const uniqueDays = new Set(sorted.map((sale) => format(parseISO(sale.faturamento), 'yyyy-MM-dd')));
-        const oldest = parseISO(sorted[sorted.length - 1].faturamento);
-        const averageCycle = uniqueDays.size > 0 ? Math.round(differenceInDays(today, oldest) / uniqueDays.size) : 0;
-        const daysSinceLastOrder = differenceInDays(today, parseISO(sorted[0].faturamento));
-
-        return {
-          visita,
-          gap: daysSinceLastOrder - averageCycle
-        };
-      })
-      .filter((item) => item.gap > 0)
-      .sort((a, b) => b.gap - a.gap)
-      .slice(0, 3);
-
     const noteRiskPriority = {
       pending: 0,
       attention: 1,
@@ -239,7 +208,6 @@ export function HomePage() {
       nextVisit,
       targetWeight,
       realizedWeight,
-      overdueVisits,
       noteRisks,
       noteRiskCounts,
       fixedVisits,
@@ -339,6 +307,8 @@ export function HomePage() {
         <MetricCard icon={PackageCheck} label="Realizado" value={formatWeight(summary.realizedWeight)} detail="Clientes do roteiro" tone="blue" />
         <MetricCard icon={Users} label="Novos fora da agenda" value={data.unscheduledClients.toString()} detail="Clientes ativos sem visita" tone="rose" />
       </section>
+
+      <CommercialPriorities agenda={agendaPendencias} />
 
       <section className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
         <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
@@ -441,22 +411,13 @@ export function HomePage() {
                 )} size={18} />
               </div>
             ))}
-            {summary.overdueVisits.map(({ visita, gap }) => (
-              <div key={visita.id} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-black text-neutral-900 truncate">{visita.cliente_nome}</p>
-                  <p className="text-xs font-bold text-amber-700">{gap}d acima do ciclo</p>
-                </div>
-                <Clock className="text-amber-600 shrink-0" size={18} />
-              </div>
-            ))}
             {summary.fixedVisits > 0 && (
               <InfoLine icon={WalletCards} text={summary.fixedVisits + ' visita(s) com dia fixado manualmente'} />
             )}
             {data.unscheduledClients > 0 && (
               <InfoLine icon={Users} text={data.unscheduledClients + ' cliente(s) ativos fora da agenda'} />
             )}
-            {pendingAgendaItems.length === 0 && summary.noteRisks.length === 0 && summary.overdueVisits.length === 0 && summary.fixedVisits === 0 && data.unscheduledClients === 0 && (
+            {pendingAgendaItems.length === 0 && summary.noteRisks.length === 0 && summary.fixedVisits === 0 && data.unscheduledClients === 0 && (
               <EmptyState icon={CheckCircle2} title="Tudo limpo" text="Nao encontrei alertas relevantes para hoje." compact />
             )}
           </div>

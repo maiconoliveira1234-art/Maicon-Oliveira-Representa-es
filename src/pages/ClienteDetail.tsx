@@ -1,3 +1,4 @@
+import { ClientCommercialPriorities } from '../components/CommercialPriorities';
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
@@ -669,6 +670,8 @@ export function ClienteDetail() {
           </div>
         </div>
       </header>
+
+      <ClientCommercialPriorities key={cliente.id} clienteId={cliente.id} />
 
       {error && (
         <div className="bg-red-50 border border-red-100 p-4 rounded-lg flex items-center gap-3 text-red-700 text-sm">
