@@ -35,7 +35,7 @@ export function buildCommercialPriorities({ clientes, historico, pendencias, ope
     // Strict sale type: unknown operations, gifts, returns and draft orders
     // cannot establish an actual buying cycle.
     if (sale.vendas?.trim().toUpperCase() !== 'VENDAS' || !(Number(sale.qtd) > 0)
-      || !(Number(sale['r$_total']) > 0) || sale.id?.startsWith('open_order_')) continue;
+      || !(Number(sale['r$_total']) > 0) || String(sale.id ?? '').startsWith('open_order_')) continue;
     const key = sale.faturamento?.slice(0, 10);
     if (!key || !isValid(parseISO(key)) || key < cutoff || key > todayKey) continue;
     if (!daysByClient.has(sale.cliente_id)) daysByClient.set(sale.cliente_id, new Set());

@@ -57,4 +57,11 @@ test('very old history, unknown operations, zero-value and draft rows are exclud
   }
   assert.equal(run({ historico: ['2024-01-01', '2024-02-01', '2024-03-01'].map(d => sale(d)) }).length, 0);
 });
+test('numeric database sale IDs do not crash the Home calculation', () => {
+  const numericHistory = overdueHistory.map((s, i) => ({ ...s, id: i + 1 })) as unknown as HistVenda[];
+  const result = run({ historico: numericHistory });
+  assert.equal(result.length, 1);
+  assert.equal(result[0].kind, 'RECOMPRA');
+  assert.equal(result[0].overdueDays, 18);
+});
 console.log(`${count} commercial priority tests passed.`);
