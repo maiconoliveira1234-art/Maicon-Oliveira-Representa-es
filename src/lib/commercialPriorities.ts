@@ -14,6 +14,8 @@ export const isCommercialFollowUp = (item: AgendaPendencia) =>
 export type CommercialPriority = {
   cliente: Cliente;
   kind: 'RETORNO' | 'RECOMPRA';
+  cycleDays: number;
+  purchaseGap: number | null;
   reason: string;
   action: string;
   overdueDays: number;
@@ -44,12 +46,13 @@ export function buildCommercialPriorities({ clientes, historico, pendencias, ope
   const result: CommercialPriority[] = [];
   for (const cliente of clientes) {
     if (cliente.ativo === false) continue;
+    const cycle = getPurchaseCycle(historyByClient.get(cliente.id) || [], today);
     const followUps = followUpsByClient.get(cliente.id) || [];
     const active = followUps.filter(isAgendaPendenciaAtiva);
     const due = active.filter(p => p.data_prevista && p.data_prevista <= todayKey)
       .sort((a, b) => a.data_prevista!.localeCompare(b.data_prevista!) || a.id.localeCompare(b.id))[0];
     if (due) {
-      result.push({ cliente, kind: 'RETORNO', followUp: due,
+      result.push({ cliente, kind: 'RETORNO', followUp: due, cycleDays: cycle.cycleDays, purchaseGap: cycle.gap,
         reason: `${due.titulo} previsto para ${format(parseISO(due.data_prevista!), 'dd/MM/yyyy')}.`,
         action: due.descricao || 'Retomar o contato combinado e registrar o resultado.',
         overdueDays: differenceInCalendarDays(today, parseISO(due.data_prevista!)), relativeDelay: 0 });
@@ -60,10 +63,9 @@ export function buildCommercialPriorities({ clientes, historico, pendencias, ope
       || followUps.some(p => p.status === 'CONCLUIDA' && p.concluida_em
         && format(parseISO(p.concluida_em), 'yyyy-MM-dd') === todayKey)) continue;
     if (!openClientIds || openClientIds.has(cliente.id)) continue;
-    const cycle = getPurchaseCycle(historyByClient.get(cliente.id) || [], today);
     // Same positive Próx. ped. shown in Metas. No extra grace period.
     if (cycle.gap === null || cycle.gap <= 0) continue;
-    result.push({ cliente, kind: 'RECOMPRA', overdueDays: cycle.gap, relativeDelay: cycle.gap / cycle.cycleDays,
+    result.push({ cliente, kind: 'RECOMPRA', cycleDays: cycle.cycleDays, purchaseGap: cycle.gap, overdueDays: cycle.gap, relativeDelay: cycle.gap / cycle.cycleDays,
       reason: `Próx. ped.: +${cycle.gap} dias. Ciclo ponderado de ${cycle.cycleDays} dias; há ${cycle.elapsedDays} dias sem reposição. Base: ${cycle.purchaseDays} dias de reposição nos últimos 12 meses.`,
       action: 'Conferir estoque dos itens habituais e avaliar reposição.' });
   }
