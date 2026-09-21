@@ -1,3 +1,4 @@
+import { scheduleVisits } from '../lib/visitSchedule';
 import { GoogleCalendarResult } from '../components/GoogleCalendarSettings';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -189,7 +190,7 @@ export function AgendaPage() {
   }
 
   const gapsMap = useMemo(() => {
-    const now = new Date();
+    const now = selectedDate;
     const map: Record<string, number> = {};
     
     // Group history by client
@@ -207,7 +208,7 @@ export function AgendaPage() {
     });
 
     return map;
-  }, [historico]);
+  }, [historico, selectedDate]);
 
   async function handleStatusUpdate(id: string, newStatus: VisitaStatus) {
     try {
@@ -322,7 +323,10 @@ export function AgendaPage() {
       }
     });
     
-    return visitas.map(v => {
+    return scheduleVisits(visitas.map(v => {
+      const client = clientes.find(c => c.id === v.cliente_id);
+      return {...v, latitude: client?.latitude ?? v.latitude, longitude: client?.longitude ?? v.longitude, cidade: client?.cidade || v.cidade};
+    }), historico, selectedDate).map(v => {
       // 1. Se possuir compra no período de metas, status é automaticamente 'concluida'
       if (v.cliente_id && clientsWithPurchases.has(v.cliente_id)) {
         return {
@@ -347,7 +351,7 @@ export function AgendaPage() {
       
       return v;
     });
-  }, [visitas, historico]);
+  }, [visitas, historico, clientes, selectedDate]);
 
   const clientSearchSuggestions = useMemo(() => {
     const term = normalizeSearchText(searchTerm);
@@ -430,21 +434,7 @@ export function AgendaPage() {
 
       return matchesDay && matchesSearch && matchesAddress;
     }).sort((a, b) => {
-      const isConcluidaA = a.status === 'concluida';
-      const isConcluidaB = b.status === 'concluida';
-
-      if (isConcluidaA !== isConcluidaB) {
-        return isConcluidaA ? 1 : -1;
-      }
-
-      // Prioritize by Gap (Overdue first - higher gap is more overdue)
-      const gapA = a.cliente_id ? (gapsMap[a.cliente_id] || -999) : -999;
-      const gapB = b.cliente_id ? (gapsMap[b.cliente_id] || -999) : -999;
-      
-      if (gapA !== gapB) return gapB - gapA;
-      
-      // Fallback to time (earlier first)
-      return (a.horario_inicio || '').localeCompare(b.horario_inicio || '');
+      return a.ordem_visita - b.ordem_visita;
     });
   }, [processedVisitas, selectedDate, searchTerm, filterAddress, gapsMap]);
 

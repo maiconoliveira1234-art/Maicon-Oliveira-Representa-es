@@ -1,3 +1,4 @@
+import { scheduleVisits } from '../lib/visitSchedule';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
 import {
@@ -128,9 +129,12 @@ export function HomePage() {
     const monthStart = startOfMonth(today);
     const monthEnd = endOfMonth(today);
 
-    const todayVisits = data.visitas
+    const todayVisits = scheduleVisits(data.visitas.map(v => {
+      const c = clientes.find(c => c.id === v.cliente_id);
+      return {...v, latitude:c?.latitude ?? v.latitude, longitude:c?.longitude ?? v.longitude, cidade:c?.cidade || v.cidade};
+    }), data.historico, today)
       .filter((visita) => visita.semana === currentWeek && visita.dia_semana === currentDay)
-      .sort((a, b) => (a.horario_inicio || '').localeCompare(b.horario_inicio || '') || a.ordem_visita - b.ordem_visita);
+      .sort((a, b) => a.ordem_visita - b.ordem_visita);
 
     const todayClientIds = todayVisits.map((visita) => visita.cliente_id).filter(Boolean) as string[];
     const produtosMap = new Map(data.produtos.map((produto) => [produto.id, produto]));
@@ -165,7 +169,7 @@ export function HomePage() {
       currentWeek,
       currentDay
     };
-  }, [data, today]);
+  }, [data, today, clientes]);
 
   const taskSummary = useMemo(() => {
     const todayKey = format(today, 'yyyy-MM-dd');

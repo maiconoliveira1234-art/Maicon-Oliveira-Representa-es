@@ -62,7 +62,7 @@ export const VisitaCardCompact: React.FC<VisitaCardCompactProps> = ({ visita, ga
       {/* Time & Indicator */}
       <div className="flex flex-col items-center gap-1 pr-3 border-r border-neutral-100 min-w-[65px]">
         <div className="text-base font-black text-neutral-900 tracking-tight">
-          {(visita.horario_inicio || '').substring(0, 5)}
+          {visita.horario_inicio ? visita.horario_inicio.substring(0, 5) : 'Sem horário disponível'}
         </div>
         <div className={cn("w-1 h-1 rounded-full shadow-[0_0_8px]", getStatusColor(visita.status))} />
       </div>

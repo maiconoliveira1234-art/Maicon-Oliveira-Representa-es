@@ -417,26 +417,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                          </div>
                        </div>
 
-                       <div className="grid grid-cols-2 gap-2">
-                         <div className="space-y-1">
-                           <label className="text-[8px] font-black text-neutral-400 uppercase">Início</label>
-                           <input 
-                             type="time" 
-                             value={tempSchedule.horario_inicio}
-                             onChange={(e) => setTempSchedule({...tempSchedule, horario_inicio: e.target.value})}
-                             className="w-full bg-neutral-50 border border-neutral-200 rounded-lg p-1.5 text-xs font-bold"
-                           />
-                         </div>
-                         <div className="space-y-1">
-                           <label className="text-[8px] font-black text-neutral-400 uppercase">Fim</label>
-                           <input 
-                             type="time" 
-                             value={tempSchedule.horario_fim}
-                             onChange={(e) => setTempSchedule({...tempSchedule, horario_fim: e.target.value})}
-                             className="w-full bg-neutral-50 border border-neutral-200 rounded-lg p-1.5 text-xs font-bold"
-                           />
-                         </div>
-                       </div>
+                       <p className="text-xs text-neutral-500">Horários automáticos de 40 minutos, por prioridade de compra e proximidade. Almoço das 12h às 13h30.</p>
 
                        <div className="flex gap-2">
                          <button 

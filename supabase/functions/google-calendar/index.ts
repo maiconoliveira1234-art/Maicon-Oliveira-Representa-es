@@ -1,3 +1,4 @@
+import { scheduleVisits } from './schedule.js';
 import { createClient } from 'npm:@supabase/supabase-js@2.101.1';
 import { createRemoteJWKSet, jwtVerify } from 'npm:jose@6.1.0';
 import { localDay, cycle, eventBody, eventId, TIME_ZONE, syncDays, staleEvents, pendingEvent, type CalendarPending, type ClientDetails } from './model.ts';
@@ -40,13 +41,21 @@ async function sync() {
   if(conn.last_sync_date===day) return {status:'already_sent',count:conn.last_count};
   const {access_token}=await token({grant_type:'refresh_token',refresh_token:await decrypt(conn.refresh_token)});
   const days=syncDays(day), last=days[days.length-1];
-  const visits=check(await db.from('agenda_visitas').select('id,cliente_id,cliente_nome,semana,dia_semana,horario_inicio,horario_fim,clientes!inner(ativo,cliente,contato,telefone,endereco,bairro,cidade)').eq('clientes.ativo',true).neq('status','cancelada')).data||[];
+  const visits=check(await db.from('agenda_visitas').select('id,cliente_id,cliente_nome,semana,dia_semana,horario_inicio,horario_fim,ordem_visita,clientes!inner(ativo,cliente,contato,telefone,endereco,bairro,cidade,latitude,longitude)').eq('clientes.ativo',true).neq('status','cancelada')).data||[];
+  // Paginate replenishment history: the API default row cap must not change priorities.
+  const history:any[]=[];
+  const cutoff=new Date(day+'T12:00:00Z');cutoff.setUTCMonth(cutoff.getUTCMonth()-13);
+  for(let offset=0;;offset+=1000) {
+   const rows=check(await db.from('hist_vendas').select('id,cliente_id,faturamento,vendas,tabela').gte('faturamento',cutoff.toISOString().slice(0,10)).lte('faturamento',day).order('id').range(offset,offset+999)).data||[];
+   history.push(...rows);if(rows.length<1000) break;
+  }
+  const enriched=visits.map(v=>{const c=v.clientes as any;return {...v,latitude:c.latitude,longitude:c.longitude,bairro:c.bairro,cidade:c.cidade};});
   const pending=check(await db.from('agenda_pendencias').select('id,tipo,titulo,data_prevista,status,clientes(ativo,cliente,contato,telefone,endereco,bairro,cidade)').gte('data_prevista',day).lte('data_prevista',last).in('status',['PENDENTE','EM_ANDAMENTO'])).data||[];
   const desired=new Map<string,ReturnType<typeof eventBody> & {colorId?:string}>();
   for(const date of days) {
    const {week,weekday}=cycle(date);
    const items=new Map<string,{name:string,start:string|null,end:string|null,allDay?:boolean,details:ClientDetails}>();
-   for(const v of visits.filter(v=>v.semana===week&&v.dia_semana===weekday)) {const c=v.clientes as unknown as {cliente:string}&ClientDetails;items.set(v.cliente_id||v.id,{name:c.cliente||v.cliente_nome,details:c,start:v.horario_inicio,end:v.horario_fim});}
+   for(const v of scheduleVisits(enriched.filter(v=>v.semana===week&&v.dia_semana===weekday),history,new Date(date+'T12:00:00'))) {const c=v.clientes as unknown as {cliente:string}&ClientDetails;items.set(v.cliente_id||v.id,{name:c.cliente||v.cliente_nome,details:c,start:v.horario_inicio,end:v.horario_fim});}
 
    for(const [key,item] of items) {
     if(!item.name?.trim()) throw new Error('missing_client_name');
