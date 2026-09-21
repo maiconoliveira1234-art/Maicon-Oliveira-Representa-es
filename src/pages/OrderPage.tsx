@@ -541,8 +541,11 @@ export function OrderPage() {
     const handlePurged = (e: any) => {
       if (e.detail?.clienteId === clienteId && !hasPendingOpenOrderSync(clienteId)) {
         localStorage.removeItem(`pedido_${clienteId}`);
-        setItens([]);
-        setStartedAt(null);
+        // Keep the handler idempotent. deleteOpenOrder dispatches this event;
+        // replacing an already-empty array would retrigger the persistence
+        // effect and start another delete, creating a render/request loop.
+        setItens(currentItems => currentItems.length === 0 ? currentItems : []);
+        setStartedAt(currentStartedAt => currentStartedAt === null ? currentStartedAt : null);
       }
     };
     window.addEventListener('openOrderPurged', handlePurged);
