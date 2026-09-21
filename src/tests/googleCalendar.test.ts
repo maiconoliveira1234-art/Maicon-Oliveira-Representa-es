@@ -15,7 +15,8 @@ for (const year of [2024, 2026, 2027]) {
 const event = eventBody('2026-09-21', ' Cliente Exemplo ', '08:00:00', '09:00:00');
 assert.equal(event.summary, 'Cliente Exemplo');
 assert.deepEqual(event.start, { dateTime: '2026-09-21T08:00:00', timeZone: 'America/Sao_Paulo' });
-assert.equal('description' in event, false);
+assert.equal(event.description, '');
+assert.equal(event.location, '');
 assert.deepEqual(eventBody('2026-09-21', 'Cliente', '09:00', '08:00').end, {date:'2026-09-22'});
 assert.deepEqual(eventBody('2026-09-21', 'Cliente', '24:00', '25:00').start, {date:'2026-09-21'});
 assert.deepEqual(eventBody('2026-09-21', 'Cliente', '08:00', '09:00', true).start, {date:'2026-09-21'});
@@ -38,3 +39,12 @@ assert.deepEqual(staleEvents([
  owned('past','2026-12-24'), owned('future','2027-01-10'), {id:'personal'}
 ], new Set(['keep']), windowDays[0], windowDays[15]).map(e=>e.id), ['cancelled']);
 console.log('15-day horizon and cancellation cleanup boundaries passed.');
+
+const detailed=eventBody('2026-09-21','Loja',null,null,false,{contato:' Ana ',telefone:47999998888,endereco:'Rua Exemplo, 123',bairro:'Centro',cidade:'Joinville'});
+assert.equal(detailed.summary,'Loja');
+assert.equal(detailed.location,'Rua Exemplo, 123, Centro, Joinville');
+assert.equal(detailed.description,'Contato: Ana\nTelefone: 47999998888');
+assert.equal('attendees' in detailed,false);
+assert.equal(eventBody('2026-09-21','Loja',null,null,false,{cidade:'Joinville'}).location,'Joinville');
+assert.equal(eventBody('2026-09-21','Loja',null,null,false,{contato:'<Ana>'}).description,'Contato: &lt;Ana&gt;');
+console.log('Contact fields, absent data and description escaping passed.');

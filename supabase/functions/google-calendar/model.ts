@@ -8,10 +8,10 @@ export function cycle(day: string) {
  return {week: Math.floor(days/7)%2+1, weekday: ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'][date.getUTCDay()]};
 }
 export function nextDay(day: string) { return new Date(Date.parse(day+'T12:00:00Z')+86400000).toISOString().slice(0,10); }
-export function eventBody(day: string, name: string, start?: string|null, end?: string|null, allDay = false) {
+export function eventBody(day: string, name: string, start?: string|null, end?: string|null, allDay = false, details: ClientDetails = {}) {
  const valid = (s?: string|null) => !!s && /^\d{2}:\d{2}(:\d{2})?$/.test(s) && Number(s.slice(0,2))<24 && Number(s.slice(3,5))<60;
  const timed = !allDay && valid(start) && valid(end) && end! > start!;
- return {summary:name.trim(), start:timed?{dateTime:day+'T'+start!.slice(0,5)+':00',timeZone:TIME_ZONE}:{date:day},end:timed?{dateTime:day+'T'+end!.slice(0,5)+':00',timeZone:TIME_ZONE}:{date:nextDay(day)},reminders:{useDefault:false},extendedProperties:{private:{source:'promax',day}}};
+ return {summary:name.trim(), ...contactFields(details), start:timed?{dateTime:day+'T'+start!.slice(0,5)+':00',timeZone:TIME_ZONE}:{date:day},end:timed?{dateTime:day+'T'+end!.slice(0,5)+':00',timeZone:TIME_ZONE}:{date:nextDay(day)},reminders:{useDefault:false},extendedProperties:{private:{source:'promax',day}}};
 }
 export async function eventId(day: string, key: string) {
  const hash = await crypto.subtle.digest('SHA-256',new TextEncoder().encode('promax:'+day+':'+key));
@@ -24,4 +24,15 @@ export function syncDays(today: string) {
 }
 export function staleEvents(events: Array<{id:string;extendedProperties?:{private?:{source?:string;day?:string}}}>, desired: Set<string>, first:string, last:string) {
  return events.filter(e=>e.extendedProperties?.private?.source==='promax' && !!e.extendedProperties.private.day && e.extendedProperties.private.day>=first && e.extendedProperties.private.day<=last && !desired.has(e.id));
+}
+
+export type ClientDetails = {contato?:string|null;telefone?:string|number|null;endereco?:string|null;bairro?:string|null;cidade?:string|null};
+export function contactFields(client:ClientDetails) {
+ const clean=(v:unknown)=>v==null?'':String(v).trim();
+ const escape=(v:string)=>v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+ const contact=clean(client.contato),phone=clean(client.telefone);
+ return {
+  location:[client.endereco,client.bairro,client.cidade].map(clean).filter(Boolean).join(', '),
+  description:[contact?'Contato: '+escape(contact):'',phone?'Telefone: '+escape(phone):''].filter(Boolean).join('\n'),
+ };
 }

@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.101.1';
 import { createRemoteJWKSet, jwtVerify } from 'npm:jose@6.1.0';
-import { localDay, cycle, eventBody, eventId, TIME_ZONE, syncDays, staleEvents } from './model.ts';
+import { localDay, cycle, eventBody, eventId, TIME_ZONE, syncDays, staleEvents, type ClientDetails } from './model.ts';
 const PROJECT = Deno.env.get('SUPABASE_URL')!;
 const APP = 'https://maicon-oliveira-representa-es.vercel.app';
 const OWNER = 'maicon.oliveira1234@gmail.com';
@@ -40,17 +40,17 @@ async function sync() {
   if(conn.last_sync_date===day) return {status:'already_sent',count:conn.last_count};
   const {access_token}=await token({grant_type:'refresh_token',refresh_token:await decrypt(conn.refresh_token)});
   const days=syncDays(day), last=days[days.length-1];
-  const visits=check(await db.from('agenda_visitas').select('id,cliente_id,cliente_nome,semana,dia_semana,horario_inicio,horario_fim,clientes!inner(ativo,cliente)').eq('clientes.ativo',true).neq('status','cancelada')).data||[];
-  const extras=check(await db.from('agenda_pendencias').select('id,cliente_id,data_prevista,horario_inicio,horario_fim,dia_inteiro,clientes!inner(ativo,cliente)').eq('tipo','VISITA_EXTRA').gte('data_prevista',day).lte('data_prevista',last).eq('clientes.ativo',true).in('status',['PENDENTE','EM_ANDAMENTO'])).data||[];
+  const visits=check(await db.from('agenda_visitas').select('id,cliente_id,cliente_nome,semana,dia_semana,horario_inicio,horario_fim,clientes!inner(ativo,cliente,contato,telefone,endereco,bairro,cidade)').eq('clientes.ativo',true).neq('status','cancelada')).data||[];
+  const extras=check(await db.from('agenda_pendencias').select('id,cliente_id,data_prevista,horario_inicio,horario_fim,dia_inteiro,clientes!inner(ativo,cliente,contato,telefone,endereco,bairro,cidade)').eq('tipo','VISITA_EXTRA').gte('data_prevista',day).lte('data_prevista',last).eq('clientes.ativo',true).in('status',['PENDENTE','EM_ANDAMENTO'])).data||[];
   const desired=new Map<string,ReturnType<typeof eventBody>>();
   for(const date of days) {
    const {week,weekday}=cycle(date);
-   const items=new Map<string,{name:string,start:string|null,end:string|null,allDay?:boolean}>();
-   for(const v of visits.filter(v=>v.semana===week&&v.dia_semana===weekday)) {const c=v.clientes as unknown as {cliente:string};items.set(v.cliente_id||v.id,{name:c.cliente||v.cliente_nome,start:v.horario_inicio,end:v.horario_fim});}
-   for(const v of extras.filter(v=>v.data_prevista===date)) {const c=v.clientes as unknown as {cliente:string};items.set(v.cliente_id||v.id,{name:c.cliente,start:v.horario_inicio,end:v.horario_fim,allDay:v.dia_inteiro});}
+   const items=new Map<string,{name:string,start:string|null,end:string|null,allDay?:boolean,details:ClientDetails}>();
+   for(const v of visits.filter(v=>v.semana===week&&v.dia_semana===weekday)) {const c=v.clientes as unknown as {cliente:string}&ClientDetails;items.set(v.cliente_id||v.id,{name:c.cliente||v.cliente_nome,details:c,start:v.horario_inicio,end:v.horario_fim});}
+   for(const v of extras.filter(v=>v.data_prevista===date)) {const c=v.clientes as unknown as {cliente:string}&ClientDetails;items.set(v.cliente_id||v.id,{name:c.cliente,details:c,start:v.horario_inicio,end:v.horario_fim,allDay:v.dia_inteiro});}
    for(const [key,item] of items) {
     if(!item.name?.trim()) throw new Error('missing_client_name');
-    desired.set(await eventId(date,key),eventBody(date,item.name,item.start,item.end,item.allDay));
+    desired.set(await eventId(date,key),eventBody(date,item.name,item.start,item.end,item.allDay,item.details));
    }
   }
   const path='calendars/'+encodeURIComponent(conn.calendar_id)+'/events';
@@ -73,7 +73,7 @@ async function sync() {
    const results=await Promise.allSettled(jobs.slice(i,i+2).map(async([id,body])=>{
     const old=known.get(id) as unknown as ReturnType<typeof eventBody>|undefined;
     const sameTime=(a:any,b:any)=>a?.date===b?.date && a?.dateTime?.slice(0,19)===b?.dateTime?.slice(0,19);
-    if(old && old.summary===body.summary && sameTime(old.start,body.start) && sameTime(old.end,body.end)) return;
+    if(old && old.summary===body.summary && (old.location||'')===body.location && (old.description||'')===body.description && sameTime(old.start,body.start) && sameTime(old.end,body.end)) return;
     if(known.has(id)) {await google(path+'/'+id,access_token,'PUT',{...body,status:'confirmed'});return;}
     const created=await google(path,access_token,'POST',{id,...body});
     if(created.conflict) await google(path+'/'+id,access_token,'PUT',{...body,status:'confirmed'});
