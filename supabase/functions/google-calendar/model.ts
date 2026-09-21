@@ -36,3 +36,16 @@ export function contactFields(client:ClientDetails) {
   description:[contact?'Contato: '+escape(contact):'',phone?'Telefone: '+escape(phone):''].filter(Boolean).join('\n'),
  };
 }
+
+export type CalendarPending = {id:string;tipo:string;titulo:string;data_prevista:string|null;status:string;clientes?: (ClientDetails & {cliente:string;ativo:boolean})|null};
+export function pendingEvent(item:CalendarPending) {
+ if(!item.data_prevista || !['PENDENTE','EM_ANDAMENTO'].includes(item.status) || item.clientes?.ativo===false) return null;
+ const followUp=item.tipo==='TAREFA' && ['Retorno comercial','Reavaliar recompra'].includes(item.titulo);
+ const title=(item.tipo==='VISITA_EXTRA'||followUp)?item.clientes?.cliente||item.titulo:item.titulo;
+ const body=eventBody(item.data_prevista,title||'Tarefa',null,null,true,item.clientes||{});
+ const kind=item.tipo==='VISITA_EXTRA'?'Visita extra':followUp?item.titulo:'Tarefa';
+ const clientLine=item.tipo==='TAREFA'&&!followUp&&item.clientes?.cliente?'Cliente: '+item.clientes.cliente:'';
+ const escape=(v:string)=>v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+ body.description=[escape(kind),escape(clientLine),body.description].filter(Boolean).join('\n');
+ return body;
+}

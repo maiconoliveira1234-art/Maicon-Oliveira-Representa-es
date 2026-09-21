@@ -48,3 +48,21 @@ assert.equal('attendees' in detailed,false);
 assert.equal(eventBody('2026-09-21','Loja',null,null,false,{cidade:'Joinville'}).location,'Joinville');
 assert.equal(eventBody('2026-09-21','Loja',null,null,false,{contato:'<Ana>'}).description,'Contato: &lt;Ana&gt;');
 console.log('Contact fields, absent data and description escaping passed.');
+
+const { pendingEvent } = await import('../../supabase/functions/google-calendar/model');
+const task={id:'task-1',tipo:'TAREFA',titulo:'Conferir material',data_prevista:'2026-09-22',status:'PENDENTE'};
+assert.equal(pendingEvent(task)!.summary,'Conferir material');
+assert.deepEqual(pendingEvent(task)!.start,{date:'2026-09-22'});
+assert.deepEqual(pendingEvent(task)!.end,{date:'2026-09-23'});
+const customer={cliente:'Pet Shop',ativo:true,contato:'Ana',endereco:'Rua A'};
+for(const title of ['Retorno comercial','Reavaliar recompra']) {
+ const body=pendingEvent({...task,titulo:title,clientes:customer})!;
+ assert.equal(body.summary,'Pet Shop'); assert.ok(body.description.startsWith(title));
+}
+assert.equal(pendingEvent({...task,tipo:'VISITA_EXTRA',clientes:customer})!.summary,'Pet Shop');
+assert.equal(pendingEvent({...task,status:'CONCLUIDA'}),null);
+assert.equal(pendingEvent({...task,status:'CANCELADA'}),null);
+assert.equal(pendingEvent({...task,data_prevista:null}),null);
+assert.equal(pendingEvent({...task,clientes:{...customer,ativo:false}}),null);
+assert.notEqual(await eventId(task.data_prevista,'pendencia:task-1'),await eventId(task.data_prevista,'pendencia:task-2'));
+console.log('All-day extras, follow-ups and tasks, including clientless tasks, passed.');

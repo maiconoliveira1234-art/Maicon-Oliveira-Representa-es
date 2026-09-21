@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.101.1';
 import { createRemoteJWKSet, jwtVerify } from 'npm:jose@6.1.0';
-import { localDay, cycle, eventBody, eventId, TIME_ZONE, syncDays, staleEvents, type ClientDetails } from './model.ts';
+import { localDay, cycle, eventBody, eventId, TIME_ZONE, syncDays, staleEvents, pendingEvent, type CalendarPending, type ClientDetails } from './model.ts';
 const PROJECT = Deno.env.get('SUPABASE_URL')!;
 const APP = 'https://maicon-oliveira-representa-es.vercel.app';
 const OWNER = 'maicon.oliveira1234@gmail.com';
@@ -41,17 +41,22 @@ async function sync() {
   const {access_token}=await token({grant_type:'refresh_token',refresh_token:await decrypt(conn.refresh_token)});
   const days=syncDays(day), last=days[days.length-1];
   const visits=check(await db.from('agenda_visitas').select('id,cliente_id,cliente_nome,semana,dia_semana,horario_inicio,horario_fim,clientes!inner(ativo,cliente,contato,telefone,endereco,bairro,cidade)').eq('clientes.ativo',true).neq('status','cancelada')).data||[];
-  const extras=check(await db.from('agenda_pendencias').select('id,cliente_id,data_prevista,horario_inicio,horario_fim,dia_inteiro,clientes!inner(ativo,cliente,contato,telefone,endereco,bairro,cidade)').eq('tipo','VISITA_EXTRA').gte('data_prevista',day).lte('data_prevista',last).eq('clientes.ativo',true).in('status',['PENDENTE','EM_ANDAMENTO'])).data||[];
+  const pending=check(await db.from('agenda_pendencias').select('id,tipo,titulo,data_prevista,status,clientes(ativo,cliente,contato,telefone,endereco,bairro,cidade)').gte('data_prevista',day).lte('data_prevista',last).in('status',['PENDENTE','EM_ANDAMENTO'])).data||[];
   const desired=new Map<string,ReturnType<typeof eventBody>>();
   for(const date of days) {
    const {week,weekday}=cycle(date);
    const items=new Map<string,{name:string,start:string|null,end:string|null,allDay?:boolean,details:ClientDetails}>();
    for(const v of visits.filter(v=>v.semana===week&&v.dia_semana===weekday)) {const c=v.clientes as unknown as {cliente:string}&ClientDetails;items.set(v.cliente_id||v.id,{name:c.cliente||v.cliente_nome,details:c,start:v.horario_inicio,end:v.horario_fim});}
-   for(const v of extras.filter(v=>v.data_prevista===date)) {const c=v.clientes as unknown as {cliente:string}&ClientDetails;items.set(v.cliente_id||v.id,{name:c.cliente,details:c,start:v.horario_inicio,end:v.horario_fim,allDay:v.dia_inteiro});}
+
    for(const [key,item] of items) {
     if(!item.name?.trim()) throw new Error('missing_client_name');
     desired.set(await eventId(date,key),eventBody(date,item.name,item.start,item.end,item.allDay,item.details));
    }
+  }
+  for(const row of pending) {
+   const item=row as unknown as CalendarPending;
+   const body=pendingEvent(item);
+   if(body) desired.set(await eventId(item.data_prevista!,'pendencia:'+item.id),body);
   }
   const path='calendars/'+encodeURIComponent(conn.calendar_id)+'/events';
   const existing: Array<{id:string;extendedProperties?:{private?:{source?:string;day?:string}}}>=[];

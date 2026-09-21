@@ -15,7 +15,7 @@ export function GoogleCalendarSettings() {
   }, []);
   return <section className="rounded-xl border border-neutral-200 bg-white p-5 space-y-3">
     <h2 className="font-bold text-neutral-900">Google Calendar</h2>
-    <p className="text-sm text-neutral-600">Hoje e os próximos 15 dias no calendário Pro Max. Atualização diária às 3h (Brasília).</p>
+    <p className="text-sm text-neutral-600">Hoje e os próximos 15 dias no calendário Pro Max. Atualização diária às 3h (Brasília). Visitas extras, retornos e tarefas aparecem como dia todo.</p>
     <p className="text-sm" role="status">{error ? error : !status ? 'Consultando conexão…' : status.connected ? 'Conta conectada' : 'Conta ainda não conectada'}</p>
     {status?.lastSync && <p className="text-xs text-neutral-500">Último envio: {new Date(status.lastSync).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })} (Brasília)</p>}
     {status?.error && <p className="text-sm text-amber-700">{status.error}</p>}
