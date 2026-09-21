@@ -47,5 +47,5 @@ export function pendingEvent(item:CalendarPending) {
  const clientLine=item.tipo==='TAREFA'&&!followUp&&item.clientes?.cliente?'Cliente: '+item.clientes.cliente:'';
  const escape=(v:string)=>v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
  body.description=[escape(kind),escape(clientLine),body.description].filter(Boolean).join('\n');
- return body;
+ return {...body,colorId:'6'};
 }

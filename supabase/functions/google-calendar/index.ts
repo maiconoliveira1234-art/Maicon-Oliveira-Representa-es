@@ -42,7 +42,7 @@ async function sync() {
   const days=syncDays(day), last=days[days.length-1];
   const visits=check(await db.from('agenda_visitas').select('id,cliente_id,cliente_nome,semana,dia_semana,horario_inicio,horario_fim,clientes!inner(ativo,cliente,contato,telefone,endereco,bairro,cidade)').eq('clientes.ativo',true).neq('status','cancelada')).data||[];
   const pending=check(await db.from('agenda_pendencias').select('id,tipo,titulo,data_prevista,status,clientes(ativo,cliente,contato,telefone,endereco,bairro,cidade)').gte('data_prevista',day).lte('data_prevista',last).in('status',['PENDENTE','EM_ANDAMENTO'])).data||[];
-  const desired=new Map<string,ReturnType<typeof eventBody>>();
+  const desired=new Map<string,ReturnType<typeof eventBody> & {colorId?:string}>();
   for(const date of days) {
    const {week,weekday}=cycle(date);
    const items=new Map<string,{name:string,start:string|null,end:string|null,allDay?:boolean,details:ClientDetails}>();
@@ -76,9 +76,9 @@ async function sync() {
   for(let i=0;i<jobs.length;i+=2) {
    if(Date.now()-now.getTime()>90000) throw new Error('sync_timeout');
    const results=await Promise.allSettled(jobs.slice(i,i+2).map(async([id,body])=>{
-    const old=known.get(id) as unknown as ReturnType<typeof eventBody>|undefined;
+    const old=known.get(id) as unknown as (ReturnType<typeof eventBody> & {colorId?:string})|undefined;
     const sameTime=(a:any,b:any)=>a?.date===b?.date && a?.dateTime?.slice(0,19)===b?.dateTime?.slice(0,19);
-    if(old && old.summary===body.summary && (old.location||'')===body.location && (old.description||'')===body.description && sameTime(old.start,body.start) && sameTime(old.end,body.end)) return;
+    if(old && (!body.colorId || old.colorId===body.colorId) && old.summary===body.summary && (old.location||'')===body.location && (old.description||'')===body.description && sameTime(old.start,body.start) && sameTime(old.end,body.end)) return;
     if(known.has(id)) {await google(path+'/'+id,access_token,'PUT',{...body,status:'confirmed'});return;}
     const created=await google(path,access_token,'POST',{id,...body});
     if(created.conflict) await google(path+'/'+id,access_token,'PUT',{...body,status:'confirmed'});
