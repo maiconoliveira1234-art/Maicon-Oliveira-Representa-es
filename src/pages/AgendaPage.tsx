@@ -23,14 +23,13 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import { Visita, VisitaStatus, DiaSemana } from '../types/agenda';
 import { agendaService } from '../services/agendaService';
-import { AgendaStats } from '../components/agenda/AgendaStats';
 import { VisitaCardCompact } from '../components/agenda/VisitaCardCompact';
 import { AgendaMap } from '../components/agenda/AgendaMap';
 import { VisitaDrawer } from '../components/agenda/VisitaDrawer';
 import { AgendaDatePicker } from '../components/agenda/AgendaDatePicker';
 import { supabase } from '../lib/supabase';
 import { logDiagnostic } from '../lib/diagnostics';
-import { HistVenda, Produto } from '../types';
+import { HistVenda } from '../types';
 import { MapPin } from 'lucide-react';
 import { runAutoAgendaSyncIfEligible } from '../lib/autoAgendaSync';
 import { useDataManager } from '../lib/dataManager';
@@ -55,8 +54,6 @@ export function AgendaPage() {
   
   const { 
     clientes, 
-    produtos: dmProdutos, 
-    metas: dmMetas, 
     agenda_visitas: dmAgendaVisitas, 
     hist_vendas: dmHistVendas, 
     loadingGlobal,
@@ -67,8 +64,6 @@ export function AgendaPage() {
   // Data Flow
   const [visitas, setVisitas] = useState<Visita[]>([]);
   const [historico, setHistorico] = useState<HistVenda[]>([]);
-  const [produtos, setProdutos] = useState<Produto[]>([]);
-  const [metas, setMetas] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [unscheduledClientCount, setUnscheduledClientCount] = useState(0);
@@ -151,8 +146,6 @@ export function AgendaPage() {
 
     try {
       setVisitas(dmAgendaVisitas);
-      setProdutos(dmProdutos);
-      setMetas(dmMetas);
       setHistorico(dmHistVendas);
 
       // Calculate unscheduled client count
@@ -167,7 +160,7 @@ export function AgendaPage() {
     } finally {
       setLoading(false);
     }
-  }, [loadingGlobal, dmAgendaVisitas, dmProdutos, dmMetas, dmHistVendas, clientes]);
+  }, [loadingGlobal, dmAgendaVisitas, dmHistVendas, clientes]);
 
   async function fetchData() {
     // Loaded via useEffect above
@@ -458,39 +451,6 @@ export function AgendaPage() {
       .sort((a, b) => (b.concluida_em || b.updated_at).localeCompare(a.concluida_em || a.updated_at));
   }, [pendencias, completedPeriod, completedType]);
 
-  const agendaStatsData = useMemo(() => {
-    const start = startOfMonth(selectedDate);
-    const end = endOfMonth(selectedDate);
-    const todayClients = filteredVisitas.map(v => v.cliente_id).filter(Boolean) as string[];
-    
-    // Meta do dia: sum of goals for today's clients
-    const metaDia = todayClients.reduce((acc, cid) => acc + (metas[cid] || 0), 0);
-
-    // Pedidos realizados: sum of weights for today's clients in the current month
-    const produtosMap: Record<string, Produto> = {};
-    produtos.forEach(p => produtosMap[p.id] = p);
-
-    let realizadoTotal = 0;
-    const currentMonthVendas = historico.filter(h => {
-      const date = parseISO(h.faturamento);
-      return isWithinInterval(date, { start, end }) && todayClients.includes(h.cliente_id);
-    });
-
-    currentMonthVendas.forEach(v => {
-      const prod = produtosMap[v.produto_id];
-      if (prod) {
-        realizadoTotal += v.qtd * (prod.peso_embalagem || 0);
-      }
-    });
-
-    return {
-      visitasTotal: filteredVisitas.length,
-      metaDia,
-      realizadoTotal
-    };
-  }, [filteredVisitas, metas, historico, produtos, selectedDate]);
-
-
   if (loading) {
     return (
       <div className="min-h-screen bg-neutral-50 flex flex-col items-center justify-center p-8">
@@ -725,12 +685,6 @@ export function AgendaPage() {
           </section>
         ) : (
         <>
-        <AgendaStats 
-          visitasTotal={agendaStatsData.visitasTotal} 
-          metaDia={agendaStatsData.metaDia}
-          realizadoTotal={agendaStatsData.realizadoTotal}
-        />
-
         {viewType === 'map' && (
           <AgendaMap 
             visitas={filteredVisitas}
@@ -861,6 +815,31 @@ export function AgendaPage() {
            </button>
         </div>
 
+          {dayPendencias.length > 0 && (
+            <section className="mb-6 space-y-2">
+              <div className="flex items-center gap-3 px-2 py-1">
+                <div className="h-px flex-1 bg-neutral-200" />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-black uppercase tracking-[0.3em] text-neutral-400">Visitas extras e tarefas</span>
+                  <span className="text-[9px] font-black text-orange-600">{dayPendencias.length}</span>
+                </div>
+                <div className="h-px flex-1 bg-neutral-200" />
+              </div>
+              {dayPendencias.map((item) => (
+                <AgendaPendenciaCard
+                  key={item.id}
+                  item={item}
+                  cliente={clientes.find((cliente) => cliente.id === item.cliente_id)}
+                  onEdit={() => {
+                    setEditingPendencia(item);
+                    setPendenciaModalOpen(true);
+                  }}
+                  onComplete={() => handlePendenciaStatus(item, 'CONCLUIDA')}
+                />
+              ))}
+            </section>
+          )}
+
         {/* Timeline Header */}
         <div className="flex items-center gap-3 mb-4 px-2">
            <div className="h-px bg-neutral-200 flex-1" />
@@ -905,31 +884,6 @@ export function AgendaPage() {
               </p>
             </motion.div>
           ) : null}
-
-          {dayPendencias.length > 0 && (
-            <section className="mt-3 space-y-2">
-              <div className="flex items-center gap-3 px-2 py-1">
-                <div className="h-px flex-1 bg-neutral-200" />
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-black uppercase tracking-[0.3em] text-neutral-400">Visitas extras e tarefas</span>
-                  <span className="text-[9px] font-black text-orange-600">{dayPendencias.length}</span>
-                </div>
-                <div className="h-px flex-1 bg-neutral-200" />
-              </div>
-              {dayPendencias.map((item) => (
-                <AgendaPendenciaCard
-                  key={item.id}
-                  item={item}
-                  cliente={clientes.find((cliente) => cliente.id === item.cliente_id)}
-                  onEdit={() => {
-                    setEditingPendencia(item);
-                    setPendenciaModalOpen(true);
-                  }}
-                  onComplete={() => handlePendenciaStatus(item, 'CONCLUIDA')}
-                />
-              ))}
-            </section>
-          )}
 
           {backlogPendencias.length > 0 && (
             <section className="mt-3 space-y-2">
