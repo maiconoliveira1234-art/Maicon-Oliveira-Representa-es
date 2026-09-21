@@ -23,11 +23,11 @@ async function token(params:Record<string,string>) {
  const r=await fetch('https://oauth2.googleapis.com/token',{method:'POST',body:new URLSearchParams({...params,client_id:CLIENT,client_secret:SECRET}),signal:AbortSignal.timeout(15000)});
  const data=await r.json();if(!r.ok) throw new Error(data.error==='invalid_grant'?'reconnect':'google_auth');return data;
 }
-async function google(path:string,access:string,method='GET',body?:unknown) {
+async function google(path:string,access:string,method='GET',body?:unknown,attempt=0):Promise<any> {
  const r=await fetch('https://www.googleapis.com/calendar/v3/'+path,{method,headers:{Authorization:'Bearer '+access,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(15000)});
  if(method==='DELETE' && (r.status===404||r.status===410)) return {};
  if(r.status===409) return {conflict:true};
- if(!r.ok) throw new Error('calendar_'+r.status);
+ if(!r.ok) {const failure=await r.json().catch(()=>({}));const reason=String(failure.error?.errors?.[0]?.reason||'unknown').replace(/[^a-zA-Z0-9_]/g,'');if(attempt<3 && (r.status===429||r.status>=500||reason==='rateLimitExceeded'||reason==='userRateLimitExceeded')) {await new Promise(resolve=>setTimeout(resolve,1000*2**attempt+Math.random()*250));return google(path,access,method,body,attempt+1);}throw new Error('calendar_'+r.status+'_'+reason);}
  return r.status===204?{}:await r.json();
 }
 async function sync() {
@@ -65,16 +65,20 @@ async function sync() {
    existing.push(...(page.items||[]));pageToken=page.nextPageToken||'';
    if(Date.now()-now.getTime()>90000) throw new Error('sync_timeout');
   } while(pageToken);
-  const known=new Set(existing.map(e=>e.id));
+  const known=new Map(existing.map(e=>[e.id,e]));
   const jobs=[...desired.entries()];
   // Bounded concurrency keeps the expanded window inside the function runtime.
-  for(let i=0;i<jobs.length;i+=4) {
+  for(let i=0;i<jobs.length;i+=2) {
    if(Date.now()-now.getTime()>90000) throw new Error('sync_timeout');
-   const results=await Promise.allSettled(jobs.slice(i,i+4).map(async([id,body])=>{
+   const results=await Promise.allSettled(jobs.slice(i,i+2).map(async([id,body])=>{
+    const old=known.get(id) as unknown as ReturnType<typeof eventBody>|undefined;
+    const sameTime=(a:any,b:any)=>a?.date===b?.date && a?.dateTime?.slice(0,19)===b?.dateTime?.slice(0,19);
+    if(old && old.summary===body.summary && sameTime(old.start,body.start) && sameTime(old.end,body.end)) return;
     if(known.has(id)) {await google(path+'/'+id,access_token,'PUT',{...body,status:'confirmed'});return;}
     const created=await google(path,access_token,'POST',{id,...body});
     if(created.conflict) await google(path+'/'+id,access_token,'PUT',{...body,status:'confirmed'});
    }));
+   await new Promise(resolve=>setTimeout(resolve,500));
    if(results.some(r=>r.status==='rejected')) throw (results.find(r=>r.status==='rejected') as PromiseRejectedResult).reason;
   }
   // Remove cancelled or moved app events only after all desired writes succeed.
@@ -86,7 +90,7 @@ async function sync() {
   check(await db.from('google_calendar_connection').update({last_sync_date:day,last_sync_at:new Date().toISOString(),last_count:count,last_error:null}).eq('id',true));
   return {status:'sent',count,day};
  } catch(e) {
-  const code=e instanceof Error && /^(reconnect|google_auth|calendar_\d+|missing_client_name)$/.test(e.message)?e.message:'sync_failed';
+  const code=e instanceof Error && /^(reconnect|google_auth|calendar_\d+(?:_[a-zA-Z0-9_]+)?|missing_client_name)$/.test(e.message)?e.message:'sync_failed';
   check(await db.from('google_calendar_connection').update({last_error:code}).eq('id',true));
   throw new Error(code);
  } finally {check(await db.from('google_calendar_connection').update({lock_until:'1970-01-01T00:00:00Z'}).eq('id',true));}
@@ -98,7 +102,7 @@ Deno.serve(async(req:Request)=>{
   if(!CLIENT||!SECRET) return json({error:'configuration_missing',missing:[!CLIENT?'GOOGLE_CLIENT_ID':null,!SECRET?'GOOGLE_CLIENT_SECRET':null].filter(Boolean)},503);
   if(path==='status' && req.method==='GET') {
    const r=check(await db.from('google_calendar_connection').select('calendar_id,last_sync_at,last_error').eq('id',true).single()).data;
-   return json({connected:!!r.calendar_id,lastSync:r.last_sync_at,error:r.last_error? 'Não foi possível sincronizar. Reconecte ou contate o responsável.':null});
+   return json({connected:!!r.calendar_id,lastSync:r.last_sync_at,error:r.last_error?.includes('rateLimitExceeded')||r.last_error?.includes('userRateLimitExceeded') ? 'O Google limitou temporariamente o envio. A sincronização ainda não foi concluída.' : r.last_error? 'Não foi possível sincronizar. Reconecte ou contate o responsável.':null});
   }
   if(path==='authorize' && req.method==='GET') {
    check(await db.from('google_calendar_states').delete().lt('expires_at',new Date().toISOString()));
