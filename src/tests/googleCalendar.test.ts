@@ -26,3 +26,15 @@ assert.equal(id, await eventId('2026-09-21', 'client-1'));
 assert.notEqual(id, await eventId('2026-09-22', 'client-1'));
 assert.notEqual(id, await eventId('2026-09-21', 'client-2'));
 console.log('Google Calendar: dates, agenda cycle, event payloads and idempotency passed.');
+
+const { syncDays, staleEvents } = await import('../../supabase/functions/google-calendar/model');
+const windowDays = syncDays('2026-12-25');
+assert.equal(windowDays.length, 16);
+assert.equal(windowDays[15], '2027-01-09');
+assert.equal(new Set(windowDays).size, 16);
+const owned = (id:string, day:string) => ({id,extendedProperties:{private:{source:'promax',day}}});
+assert.deepEqual(staleEvents([
+ owned('keep','2026-12-25'), owned('cancelled','2027-01-09'),
+ owned('past','2026-12-24'), owned('future','2027-01-10'), {id:'personal'}
+], new Set(['keep']), windowDays[0], windowDays[15]).map(e=>e.id), ['cancelled']);
+console.log('15-day horizon and cancellation cleanup boundaries passed.');

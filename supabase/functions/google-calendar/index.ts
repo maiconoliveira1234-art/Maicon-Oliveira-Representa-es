@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.101.1';
 import { createRemoteJWKSet, jwtVerify } from 'npm:jose@6.1.0';
-import { localDay, cycle, eventBody, eventId, TIME_ZONE } from './model.ts';
+import { localDay, cycle, eventBody, eventId, TIME_ZONE, syncDays, staleEvents } from './model.ts';
 const PROJECT = Deno.env.get('SUPABASE_URL')!;
 const APP = 'https://maicon-oliveira-representa-es.vercel.app';
 const OWNER = 'maicon.oliveira1234@gmail.com';
@@ -25,6 +25,7 @@ async function token(params:Record<string,string>) {
 }
 async function google(path:string,access:string,method='GET',body?:unknown) {
  const r=await fetch('https://www.googleapis.com/calendar/v3/'+path,{method,headers:{Authorization:'Bearer '+access,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(15000)});
+ if(method==='DELETE' && (r.status===404||r.status===410)) return {};
  if(r.status===409) return {conflict:true};
  if(!r.ok) throw new Error('calendar_'+r.status);
  return r.status===204?{}:await r.json();
@@ -38,23 +39,50 @@ async function sync() {
   if(!conn.refresh_token||!conn.calendar_id) return {status:'not_connected'};
   if(conn.last_sync_date===day) return {status:'already_sent',count:conn.last_count};
   const {access_token}=await token({grant_type:'refresh_token',refresh_token:await decrypt(conn.refresh_token)});
-  const {week,weekday}=cycle(day);
-  const visits=check(await db.from('agenda_visitas').select('id,cliente_id,cliente_nome,horario_inicio,horario_fim,clientes!inner(ativo,cliente)').eq('semana',week).eq('dia_semana',weekday).eq('clientes.ativo',true).neq('status','cancelada')).data||[];
-  const extras=check(await db.from('agenda_pendencias').select('id,cliente_id,horario_inicio,horario_fim,dia_inteiro,clientes!inner(ativo,cliente)').eq('tipo','VISITA_EXTRA').eq('data_prevista',day).eq('clientes.ativo',true).in('status',['PENDENTE','EM_ANDAMENTO'])).data||[];
-  const items=new Map<string,{name:string,start:string|null,end:string|null,allDay?:boolean}>();
-  for(const v of visits) {const c=v.clientes as unknown as {cliente:string}; items.set(v.cliente_id||v.id,{name:c.cliente||v.cliente_nome,start:v.horario_inicio,end:v.horario_fim});}
-  for(const v of extras) {const c=v.clientes as unknown as {cliente:string};items.set(v.cliente_id||v.id,{name:c.cliente,start:v.horario_inicio,end:v.horario_fim,allDay:v.dia_inteiro});}
-  let count=0;
-  for(const [key,item] of items) {
-   if(Date.now()-now.getTime()>100000) throw new Error("sync_timeout");
-   if(!item.name?.trim()) throw new Error('missing_client_name');
-   const id=await eventId(day,key);
-   const body=eventBody(day,item.name,item.start,item.end,item.allDay);
-   const path='calendars/'+encodeURIComponent(conn.calendar_id)+'/events';
-   const created=await google(path,access_token,'POST',{id,...body});
-   if(created.conflict) await google(path+'/'+id,access_token,'PUT',body);
-   count++;
+  const days=syncDays(day), last=days[days.length-1];
+  const visits=check(await db.from('agenda_visitas').select('id,cliente_id,cliente_nome,semana,dia_semana,horario_inicio,horario_fim,clientes!inner(ativo,cliente)').eq('clientes.ativo',true).neq('status','cancelada')).data||[];
+  const extras=check(await db.from('agenda_pendencias').select('id,cliente_id,data_prevista,horario_inicio,horario_fim,dia_inteiro,clientes!inner(ativo,cliente)').eq('tipo','VISITA_EXTRA').gte('data_prevista',day).lte('data_prevista',last).eq('clientes.ativo',true).in('status',['PENDENTE','EM_ANDAMENTO'])).data||[];
+  const desired=new Map<string,ReturnType<typeof eventBody>>();
+  for(const date of days) {
+   const {week,weekday}=cycle(date);
+   const items=new Map<string,{name:string,start:string|null,end:string|null,allDay?:boolean}>();
+   for(const v of visits.filter(v=>v.semana===week&&v.dia_semana===weekday)) {const c=v.clientes as unknown as {cliente:string};items.set(v.cliente_id||v.id,{name:c.cliente||v.cliente_nome,start:v.horario_inicio,end:v.horario_fim});}
+   for(const v of extras.filter(v=>v.data_prevista===date)) {const c=v.clientes as unknown as {cliente:string};items.set(v.cliente_id||v.id,{name:c.cliente,start:v.horario_inicio,end:v.horario_fim,allDay:v.dia_inteiro});}
+   for(const [key,item] of items) {
+    if(!item.name?.trim()) throw new Error('missing_client_name');
+    desired.set(await eventId(date,key),eventBody(date,item.name,item.start,item.end,item.allDay));
+   }
   }
+  const path='calendars/'+encodeURIComponent(conn.calendar_id)+'/events';
+  const existing: Array<{id:string;extendedProperties?:{private?:{source?:string;day?:string}}}>=[];
+  let pageToken='';
+  do {
+   // Fetch only events owned by this integration. Date tags delimit cleanup,
+   // independently of timezone normalization in Google's returned start/end.
+   const q=new URLSearchParams({privateExtendedProperty:'source=promax',maxResults:'2500',timeMin:day+'T00:00:00Z'});
+   if(pageToken) q.set('pageToken',pageToken);
+   const page=await google(path+'?'+q,access_token);
+   existing.push(...(page.items||[]));pageToken=page.nextPageToken||'';
+   if(Date.now()-now.getTime()>90000) throw new Error('sync_timeout');
+  } while(pageToken);
+  const known=new Set(existing.map(e=>e.id));
+  const jobs=[...desired.entries()];
+  // Bounded concurrency keeps the expanded window inside the function runtime.
+  for(let i=0;i<jobs.length;i+=4) {
+   if(Date.now()-now.getTime()>90000) throw new Error('sync_timeout');
+   const results=await Promise.allSettled(jobs.slice(i,i+4).map(async([id,body])=>{
+    if(known.has(id)) {await google(path+'/'+id,access_token,'PUT',{...body,status:'confirmed'});return;}
+    const created=await google(path,access_token,'POST',{id,...body});
+    if(created.conflict) await google(path+'/'+id,access_token,'PUT',{...body,status:'confirmed'});
+   }));
+   if(results.some(r=>r.status==='rejected')) throw (results.find(r=>r.status==='rejected') as PromiseRejectedResult).reason;
+  }
+  // Remove cancelled or moved app events only after all desired writes succeed.
+  for(const event of staleEvents(existing,new Set(desired.keys()),day,last)) {
+   if(Date.now()-now.getTime()>100000) throw new Error('sync_timeout');
+   await google(path+'/'+event.id,access_token,'DELETE');
+  }
+  const count=desired.size;
   check(await db.from('google_calendar_connection').update({last_sync_date:day,last_sync_at:new Date().toISOString(),last_count:count,last_error:null}).eq('id',true));
   return {status:'sent',count,day};
  } catch(e) {

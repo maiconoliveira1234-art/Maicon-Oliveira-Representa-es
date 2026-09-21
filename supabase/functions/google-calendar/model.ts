@@ -17,3 +17,11 @@ export async function eventId(day: string, key: string) {
  const hash = await crypto.subtle.digest('SHA-256',new TextEncoder().encode('promax:'+day+':'+key));
  return 'pm'+Array.from(new Uint8Array(hash),b=>b.toString(16).padStart(2,'0')).join('');
 }
+
+// Today plus fifteen future dates: the complete fifteenth day is included.
+export function syncDays(today: string) {
+ const days=[today]; for(let i=0;i<15;i++) days.push(nextDay(days[days.length-1])); return days;
+}
+export function staleEvents(events: Array<{id:string;extendedProperties?:{private?:{source?:string;day?:string}}}>, desired: Set<string>, first:string, last:string) {
+ return events.filter(e=>e.extendedProperties?.private?.source==='promax' && !!e.extendedProperties.private.day && e.extendedProperties.private.day>=first && e.extendedProperties.private.day<=last && !desired.has(e.id));
+}
