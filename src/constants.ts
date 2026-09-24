@@ -1,6 +1,6 @@
 import { parseSaleDate } from './lib/utils';
 
-export const APP_VERSION = '1.20.143';
+export const APP_VERSION = '1.20.144';
 export const SALES_CUTOFF_DATE = '2026-04-11';
 export const SALES_CUTOFF_CLIENTS = [
   'LUCIA IRIA SCHNEIDER FLORES',

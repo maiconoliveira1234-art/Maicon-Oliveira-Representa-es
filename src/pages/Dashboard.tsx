@@ -872,9 +872,9 @@ export function Dashboard() {
   };
 
   const tabsConfig = [
-    { id: 'evolucao' as const, label: 'Evolução de Vendas', icon: TrendingUp, badge: 'Novo' },
-    { id: 'visao_geral' as const, label: 'Visão Geral & Faturamento', icon: DollarSign },
-    { id: 'curva_abc' as const, label: 'Curva ABC (Pareto)', icon: BarChart3 },
+    { id: 'evolucao' as const, label: 'Evolução de Vendas', icon: TrendingUp },
+    { id: 'visao_geral' as const, label: 'Faturamento', icon: DollarSign },
+    { id: 'curva_abc' as const, label: 'Curva ABC', icon: BarChart3 },
     { id: 'mix_produtos' as const, label: 'Mix de Produtos', icon: Package },
     { id: 'positivacao' as const, label: 'Positivação da Carteira', icon: Users },
   ];
@@ -963,7 +963,7 @@ export function Dashboard() {
       />
 
       {/* Main Navigation Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-neutral-200 scrollbar-none">
+      <div className="grid grid-flow-col auto-cols-[minmax(112px,1fr)] gap-1.5 overflow-x-auto pb-1 border-b border-neutral-200 scrollbar-none sm:auto-cols-fr lg:flex lg:items-stretch">
         {tabsConfig.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -975,22 +975,14 @@ export function Dashboard() {
               type="button"
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-black whitespace-nowrap transition-all border",
+                "flex min-h-[42px] items-center justify-center gap-1.5 rounded-lg border px-2.5 py-2 text-center text-[11px] font-black leading-tight transition-all sm:gap-2 sm:px-3 sm:text-xs lg:flex-1",
                 isActive
                   ? "bg-orange-600 text-white border-orange-600 shadow-sm"
                   : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50 hover:text-neutral-900"
               )}
             >
-              <Icon size={15} />
-              <span>{tab.label}</span>
-              {tab.badge && (
-                <span className={cn(
-                  "px-1.5 py-0.2 rounded text-[10px] uppercase tracking-wider font-extrabold",
-                  isActive ? "bg-white/20 text-white" : "bg-orange-100 text-orange-700"
-                )}>
-                  {tab.badge}
-                </span>
-              )}
+              <Icon size={15} className="shrink-0" />
+              <span className="min-w-0 whitespace-normal break-words">{tab.label}</span>
             </button>
           );
         })}
