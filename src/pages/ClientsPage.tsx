@@ -12,6 +12,7 @@ import { runAutoAgendaSyncIfEligible } from '../lib/autoAgendaSync';
 
 import { useDataManager } from '../lib/dataManager';
 import { fetchOpenOrderSales, hasPendingOpenOrderSync } from '../lib/openOrderSales';
+import { buildRepurchaseReminderMessage } from '../lib/repurchaseReminder';
 
 import { ClientPageSkeleton } from '../components/ui/Skeleton';
 
@@ -27,16 +28,7 @@ export function ClientsPage() {
       return;
     }
 
-    const rawName = cliente.contato || 'Parceiro';
-    const contactName = rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
-    
-    // Saudação dinâmica baseada no horário
-    const hour = new Date().getHours();
-    let greeting = 'Bom dia';
-    if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
-    else if (hour >= 18 || hour < 5) greeting = 'Boa noite';
-
-    const message = `${greeting} ${contactName}, tudo bem?`;
+    const message = buildRepurchaseReminderMessage(cliente.contato);
     const cleanPhone = String(cliente.telefone || '').replace(/\D/g, '');
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/${cleanPhone}?text=${encodedMessage}`, '_blank');
