@@ -68,7 +68,7 @@ function statusLabel(status: VisitaStatus) {
   return labels[status];
 }
 
-export function HomePage() {
+export function HomePage({ afterHeader }: { afterHeader?: React.ReactNode } = {}) {
   const location = useLocation();
   const selectedDate = (location.state as any)?.selectedDate;
   const today = useMemo(() => startOfToday(), []);
@@ -245,6 +245,8 @@ export function HomePage() {
           </div>
         </div>
       </section>
+
+      {afterHeader}
 
       <section className="grid min-w-0 grid-cols-4 gap-1.5" aria-label="Indicadores do dia">
         <MetricCard label="Visitas" value={summary.todayVisits.length.toString()} />
