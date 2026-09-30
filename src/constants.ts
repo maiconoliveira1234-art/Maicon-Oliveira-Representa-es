@@ -1,6 +1,6 @@
 import { parseSaleDate } from './lib/utils';
 
-export const APP_VERSION = '1.20.146';
+export const APP_VERSION = '1.20.147';
 export const SALES_CUTOFF_DATE = '2026-04-11';
 export const SALES_CUTOFF_CLIENTS = [
   'LUCIA IRIA SCHNEIDER FLORES',
@@ -28,7 +28,6 @@ export const SALES_CUTOFF_CLIENTS = [
 export function shouldExcludeSale(clientNameRaw: string, faturamentoDateStr: string): boolean {
   if (!clientNameRaw || !faturamentoDateStr) return false;
   
-  // Normalize to uppercase, trim and remove accents
   const normalizeText = (text: string) => 
     text.trim()
         .toUpperCase()
@@ -36,8 +35,6 @@ export function shouldExcludeSale(clientNameRaw: string, faturamentoDateStr: str
         .replace(/[\u0300-\u036f]/g, "");
 
   const nameNormalized = normalizeText(clientNameRaw);
-
-  // Standard cutoff clients checking
   const standardCutoffNormalized = SALES_CUTOFF_CLIENTS.map(normalizeText);
   if (standardCutoffNormalized.includes(nameNormalized)) {
     const saleDate = parseSaleDate(faturamentoDateStr);

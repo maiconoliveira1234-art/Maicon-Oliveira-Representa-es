@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, Copy, Link2, Loader2, MessageCircle, RefreshCw, Search, Sparkles, Unlink, XCircle } from 'lucide-react';
+import { ArrowLeft, Check, Link2, Loader2, MessageCircle, RefreshCw, Search, Send, Sparkles, Unlink, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { PageHeader, Panel } from '../components/ui/AppChrome';
@@ -20,6 +20,7 @@ type Cliente = {
   cliente: string;
   contato: string | null;
   cidade: string | null;
+  telefone: string | number | null;
   ativo: boolean | null;
 };
 
@@ -42,7 +43,6 @@ export function WhatsAppContactsPage() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedMap, setSelectedMap] = useState<WhatsAppMap | null>(null);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<Status>('pendente');
@@ -59,7 +59,7 @@ export function WhatsAppContactsPage() {
           .order('ultima_vez_em', { ascending: false }),
         supabase
           .from('clientes')
-          .select('id, cliente, contato, cidade, ativo')
+          .select('id, cliente, contato, cidade, telefone, ativo')
           .order('cliente', { ascending: true }),
         supabase
           .from('whatsapp_mensagens')
@@ -190,15 +190,28 @@ export function WhatsAppContactsPage() {
     }
   };
 
-  const copySuggestion = async (message: UltimaMensagem) => {
+  const openWhatsAppReply = (map: WhatsAppMap, message: UltimaMensagem) => {
     if (!message.sugestao_resposta) return;
-    try {
-      await navigator.clipboard.writeText(message.sugestao_resposta);
-      setCopiedId(message.id);
-      window.setTimeout(() => setCopiedId(current => current === message.id ? null : current), 1800);
-    } catch {
-      setError('Não foi possível copiar a sugestão.');
+
+    const cliente = clientes.find(item => item.id === map.cliente_id);
+    const rawPhone = String(cliente?.telefone ?? '').replace(/\D/g, '');
+    if (!rawPhone) {
+      setError('Este cliente não possui telefone cadastrado no CRM.');
+      return;
     }
+
+    let phone = rawPhone;
+    if ((phone.length === 10 || phone.length === 11) && !phone.startsWith('55')) {
+      phone = `55${phone}`;
+    }
+
+    if (phone.length < 12 || phone.length > 13) {
+      setError('O telefone cadastrado para este cliente parece inválido. Revise o cadastro antes de enviar.');
+      return;
+    }
+
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message.sugestao_resposta)}`;
+    window.location.href = url;
   };
 
   const generateSuggestion = async (message: UltimaMensagem) => {
@@ -322,11 +335,10 @@ export function WhatsAppContactsPage() {
                           <div className="mt-3 flex flex-wrap items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => copySuggestion(last)}
-                              className="inline-flex items-center gap-2 rounded-lg bg-violet-700 px-3 py-2 text-xs font-black text-white"
+                              onClick={() => openWhatsAppReply(map, last)}
+                              className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-xs font-black text-white"
                             >
-                              {copiedId === last.id ? <Check size={14} /> : <Copy size={14} />}
-                              {copiedId === last.id ? 'Copiado' : 'Copiar resposta'}
+                              <Send size={14} /> Enviar resposta
                             </button>
                             <button
                               type="button"
