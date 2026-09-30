@@ -32,6 +32,7 @@ const LoansPage = lazyPage(() => import('./pages/LoansPage'), 'LoansPage');
 const ImportPage = lazyPage(() => import('./pages/ImportPage'), 'ImportPage');
 const SettingsPage = lazyPage(() => import('./pages/SettingsPage'), 'SettingsPage');
 const WhatsAppInboxPage = lazyPage(() => import('./pages/WhatsAppInboxPage'), 'WhatsAppInboxPage');
+const WhatsAppRulesPage = lazyPage(() => import('./pages/WhatsAppRulesPage'), 'WhatsAppRulesPage');
 
 function RouteFallback() {
   return (
@@ -88,6 +89,7 @@ function AppContent() {
               <Route path="/import" element={<ImportPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/whatsapp" element={<WhatsAppInboxPage />} />
+              <Route path="/whatsapp/regras" element={<WhatsAppRulesPage />} />
               <Route path="/settings/whatsapp" element={<Navigate to="/whatsapp" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
