@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, Link2, Loader2, MessageCircle, Search, Unlink, XCircle } from 'lucide-react';
+import { ArrowLeft, Check, Copy, Link2, Loader2, MessageCircle, RefreshCw, Search, Sparkles, Unlink, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { PageHeader, Panel } from '../components/ui/AppChrome';
@@ -24,9 +24,14 @@ type Cliente = {
 };
 
 type UltimaMensagem = {
+  id: string;
   contato_map_id: string | null;
   mensagem: string;
   recebida_em: string;
+  sugestao_resposta: string | null;
+  sugestao_gerada_em: string | null;
+  sugestao_modelo: string | null;
+  sugestao_erro: string | null;
 };
 
 export function WhatsAppContactsPage() {
@@ -36,13 +41,15 @@ export function WhatsAppContactsPage() {
   const [ultimas, setUltimas] = useState<Record<string, UltimaMensagem>>({});
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedMap, setSelectedMap] = useState<WhatsAppMap | null>(null);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<Status>('pendente');
   const [error, setError] = useState<string | null>(null);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const [{ data: mapData, error: mapError }, { data: clientData, error: clientError }, { data: messageData, error: messageError }] = await Promise.all([
@@ -56,7 +63,7 @@ export function WhatsAppContactsPage() {
           .order('cliente', { ascending: true }),
         supabase
           .from('whatsapp_mensagens')
-          .select('contato_map_id, mensagem, recebida_em')
+          .select('id, contato_map_id, mensagem, recebida_em, sugestao_resposta, sugestao_gerada_em, sugestao_modelo, sugestao_erro')
           .order('recebida_em', { ascending: false })
           .limit(500),
       ]);
@@ -77,12 +84,21 @@ export function WhatsAppContactsPage() {
       console.error('Erro ao carregar vínculos WhatsApp:', err);
       setError(err?.message || 'Não foi possível carregar os vínculos do WhatsApp.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    void loadData();
+
+    const refresh = () => void loadData(true);
+    const intervalId = window.setInterval(refresh, 15000);
+    window.addEventListener('focus', refresh);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refresh);
+    };
   }, []);
 
   const visibleMaps = useMemo(
@@ -174,21 +190,49 @@ export function WhatsAppContactsPage() {
     }
   };
 
+  const copySuggestion = async (message: UltimaMensagem) => {
+    if (!message.sugestao_resposta) return;
+    try {
+      await navigator.clipboard.writeText(message.sugestao_resposta);
+      setCopiedId(message.id);
+      window.setTimeout(() => setCopiedId(current => current === message.id ? null : current), 1800);
+    } catch {
+      setError('Não foi possível copiar a sugestão.');
+    }
+  };
+
+  const generateSuggestion = async (message: UltimaMensagem) => {
+    setGeneratingId(message.id);
+    setError(null);
+    try {
+      const { error: invokeError } = await supabase.functions.invoke('whatsapp-suggest', {
+        body: { message_id: message.id },
+      });
+      if (invokeError) throw invokeError;
+      await loadData(true);
+    } catch (err: any) {
+      console.error('Erro ao gerar sugestão:', err);
+      setError(err?.message || 'Não foi possível gerar a sugestão de resposta.');
+    } finally {
+      setGeneratingId(null);
+    }
+  };
+
   const clientName = (clienteId: string | null) => clientes.find(c => c.id === clienteId)?.cliente || 'Cliente não encontrado';
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 py-2">
       <button
         type="button"
-        onClick={() => navigate('/settings')}
+        onClick={() => navigate('/')}
         className="inline-flex items-center gap-2 text-sm font-bold text-neutral-500 hover:text-neutral-900"
       >
-        <ArrowLeft size={16} /> Voltar às configurações
+        <ArrowLeft size={16} /> Voltar para a Home
       </button>
 
       <PageHeader
-        title="Contatos do WhatsApp"
-        subtitle="Associe os nomes exibidos no WhatsApp Business aos clientes do CRM"
+        title="WhatsApp Business"
+        subtitle="Mensagens capturadas, vínculos com clientes e sugestões de resposta"
         icon={<MessageCircle />}
       />
 
@@ -228,6 +272,7 @@ export function WhatsAppContactsPage() {
           {visibleMaps.map(map => {
             const last = ultimas[map.id];
             const busy = savingId === map.id;
+            const generating = Boolean(last && generatingId === last.id);
             return (
               <Panel key={map.id} className="overflow-hidden">
                 <div className="p-4 sm:p-5">
@@ -252,6 +297,75 @@ export function WhatsAppContactsPage() {
                       <p className="mt-1 text-[10px] font-semibold text-neutral-400">
                         {new Date(last.recebida_em).toLocaleString('pt-BR')}
                       </p>
+                    </div>
+                  )}
+
+                  {map.status === 'vinculado' && last && (
+                    <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/60 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <Sparkles size={15} className="text-violet-600" />
+                          <p className="text-[10px] font-black uppercase tracking-wider text-violet-700">Sugestão da IA</p>
+                        </div>
+                        {last.sugestao_gerada_em && (
+                          <span className="text-[9px] font-semibold text-violet-400">
+                            {new Date(last.sugestao_gerada_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
+
+                      {last.sugestao_resposta ? (
+                        <>
+                          <p className="mt-2 whitespace-pre-wrap text-sm font-medium leading-relaxed text-neutral-800">
+                            {last.sugestao_resposta}
+                          </p>
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => copySuggestion(last)}
+                              className="inline-flex items-center gap-2 rounded-lg bg-violet-700 px-3 py-2 text-xs font-black text-white"
+                            >
+                              {copiedId === last.id ? <Check size={14} /> : <Copy size={14} />}
+                              {copiedId === last.id ? 'Copiado' : 'Copiar resposta'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => generateSuggestion(last)}
+                              disabled={generating}
+                              className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-black text-violet-700 disabled:opacity-50"
+                            >
+                              {generating ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                              Atualizar
+                            </button>
+                          </div>
+                        </>
+                      ) : last.sugestao_erro ? (
+                        <div className="mt-2">
+                          <p className="text-xs font-semibold text-rose-700">Não foi possível gerar a sugestão automaticamente.</p>
+                          <button
+                            type="button"
+                            onClick={() => generateSuggestion(last)}
+                            disabled={generating}
+                            className="mt-2 inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-black text-violet-700 disabled:opacity-50"
+                          >
+                            {generating ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                            Tentar novamente
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="mt-2 flex items-center justify-between gap-3">
+                          <p className="text-xs font-semibold text-neutral-500">Ainda não há sugestão para esta mensagem.</p>
+                          <button
+                            type="button"
+                            onClick={() => generateSuggestion(last)}
+                            disabled={generating}
+                            className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs font-black text-violet-700 disabled:opacity-50"
+                          >
+                            {generating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                            Gerar
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 
