@@ -18,7 +18,7 @@ const lazyPage = <T extends Record<string, unknown>, K extends keyof T>(
   return { default: module[exportName] as React.ComponentType };
 });
 
-const HomePage = lazyPage(() => import('./pages/HomePage'), 'HomePage');
+const HomePage = lazyPage(() => import('./pages/HomeWithWhatsAppPage'), 'HomeWithWhatsAppPage');
 const AgendaPage = lazyPage(() => import('./pages/AgendaPage'), 'AgendaPage');
 const ClientsPage = lazyPage(() => import('./pages/ClientsPage'), 'ClientsPage');
 const Dashboard = lazyPage(() => import('./pages/Dashboard'), 'Dashboard');
@@ -31,7 +31,7 @@ const CommissionPage = lazyPage(() => import('./pages/CommissionPage'), 'Commiss
 const LoansPage = lazyPage(() => import('./pages/LoansPage'), 'LoansPage');
 const ImportPage = lazyPage(() => import('./pages/ImportPage'), 'ImportPage');
 const SettingsPage = lazyPage(() => import('./pages/SettingsPage'), 'SettingsPage');
-const WhatsAppContactsPage = lazyPage(() => import('./pages/WhatsAppContactsPage'), 'WhatsAppContactsPage');
+const WhatsAppInboxPage = lazyPage(() => import('./pages/WhatsAppInboxPage'), 'WhatsAppInboxPage');
 
 function RouteFallback() {
   return (
@@ -87,7 +87,8 @@ function AppContent() {
               <Route path="/emprestimos" element={<LoansPage />} />
               <Route path="/import" element={<ImportPage />} />
               <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/settings/whatsapp" element={<WhatsAppContactsPage />} />
+              <Route path="/whatsapp" element={<WhatsAppInboxPage />} />
+              <Route path="/settings/whatsapp" element={<Navigate to="/whatsapp" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
