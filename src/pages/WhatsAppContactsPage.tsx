@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, Link2, Loader2, MessageCircle, RefreshCw, Search, Send, Sparkles, Unlink, XCircle } from 'lucide-react';
+import { ArrowLeft, Check, Link2, Loader2, MessageCircle, MessageSquareText, RefreshCw, Search, Send, Sparkles, Unlink, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { PageHeader, Panel } from '../components/ui/AppChrome';
@@ -29,6 +29,8 @@ type UltimaMensagem = {
   contato_map_id: string | null;
   mensagem: string;
   recebida_em: string;
+  tipo_mensagem: string | null;
+  transcricao_audio: string | null;
   sugestao_resposta: string | null;
   sugestao_gerada_em: string | null;
   sugestao_modelo: string | null;
@@ -63,7 +65,7 @@ export function WhatsAppContactsPage() {
           .order('cliente', { ascending: true }),
         supabase
           .from('whatsapp_mensagens')
-          .select('id, contato_map_id, mensagem, recebida_em, sugestao_resposta, sugestao_gerada_em, sugestao_modelo, sugestao_erro')
+          .select('id, contato_map_id, mensagem, recebida_em, tipo_mensagem, transcricao_audio, sugestao_resposta, sugestao_gerada_em, sugestao_modelo, sugestao_erro')
           .order('recebida_em', { ascending: false })
           .limit(500),
       ]);
@@ -290,7 +292,11 @@ export function WhatsAppContactsPage() {
               <Panel key={map.id} className="overflow-hidden">
                 <div className="p-4 sm:p-5">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => map.status === 'vinculado' && navigate(`/whatsapp/conversa/${map.id}`)}
+                      className={`min-w-0 text-left ${map.status === 'vinculado' ? 'cursor-pointer' : 'cursor-default'}`}
+                    >
                       <div className="flex items-center gap-2">
                         <MessageCircle size={17} className="shrink-0 text-green-600" />
                         <h2 className="truncate font-black text-neutral-900">{map.whatsapp_nome}</h2>
@@ -298,19 +304,25 @@ export function WhatsAppContactsPage() {
                       <p className="mt-1 text-xs font-semibold text-neutral-400">
                         {map.total_mensagens} {map.total_mensagens === 1 ? 'mensagem capturada' : 'mensagens capturadas'}
                       </p>
-                    </div>
+                    </button>
                     {map.status === 'vinculado' && (
                       <span className="rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-black uppercase text-green-700">Vinculado</span>
                     )}
                   </div>
 
                   {last && (
-                    <div className="mt-4 rounded-xl bg-neutral-50 px-3 py-3">
-                      <p className="line-clamp-3 text-sm text-neutral-700">{last.mensagem}</p>
+                    <button
+                      type="button"
+                      onClick={() => map.status === 'vinculado' && navigate(`/whatsapp/conversa/${map.id}`)}
+                      className={`mt-4 w-full rounded-xl bg-neutral-50 px-3 py-3 text-left ${map.status === 'vinculado' ? 'transition hover:bg-neutral-100' : ''}`}
+                    >
+                      <p className="line-clamp-3 text-sm text-neutral-700">
+                        {last.tipo_mensagem === 'audio' && last.transcricao_audio ? `🎤 ${last.transcricao_audio}` : last.mensagem}
+                      </p>
                       <p className="mt-1 text-[10px] font-semibold text-neutral-400">
                         {new Date(last.recebida_em).toLocaleString('pt-BR')}
                       </p>
-                    </div>
+                    </button>
                   )}
 
                   {map.status === 'vinculado' && last && (
@@ -387,7 +399,14 @@ export function WhatsAppContactsPage() {
                         <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Cliente CRM</p>
                         <p className="truncate text-sm font-bold text-neutral-800">{clientName(map.cliente_id)}</p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/whatsapp/conversa/${map.id}`)}
+                          className="inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs font-black text-green-700"
+                        >
+                          <MessageSquareText size={14} /> Conversa
+                        </button>
                         <button
                           type="button"
                           onClick={() => { setSelectedMap(map); setSearch(''); }}
