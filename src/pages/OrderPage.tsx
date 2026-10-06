@@ -38,7 +38,7 @@ import {
 } from '../lib/calculations';
 import { cn, formatCurrency, formatWeight } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { getAvailableTerms } from '../lib/paymentTerms';
+import { getAvailableTerms, MINIMUM_ORDER_VALUE, MINIMUM_INSTALLMENT_VALUE } from '../lib/paymentTerms';
 import { parseISO, differenceInDays, startOfWeek, addWeeks, addDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -825,7 +825,12 @@ export function OrderPage() {
       return;
     }
 
-    if (!selectedPrazo || selectedPrazo === '') {
+    if (!Number.isFinite(valorTotal) || valorTotal < MINIMUM_ORDER_VALUE) {
+      alert(`O pedido mínimo é ${formatCurrency(MINIMUM_ORDER_VALUE)}. Complete o valor do pedido para continuar.`);
+      return;
+    }
+
+    if (!selectedPrazo || !getAvailableTerms(valorTotal).includes(selectedPrazo)) {
       alert('Por favor, selecione uma condição de pagamento.');
       return;
     }
@@ -1293,6 +1298,8 @@ export function OrderPage() {
           <div className="space-y-3">
             <div className="space-y-1.5">
               <label className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">Pagamento</label>
+              <p className="text-xs text-neutral-500">Pedido mínimo: {formatCurrency(MINIMUM_ORDER_VALUE)} · Boleto mínimo: {formatCurrency(MINIMUM_INSTALLMENT_VALUE)}</p>
+              {valorTotal < MINIMUM_ORDER_VALUE && <p role="status" className="text-xs font-bold text-orange-700">Faltam {formatCurrency(MINIMUM_ORDER_VALUE - valorTotal)} para atingir o pedido mínimo.</p>}
               <div className="relative">
                 <select
                   value={selectedPrazo}
@@ -1450,6 +1457,8 @@ export function OrderPage() {
                 <div className="space-y-3">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-neutral-500 uppercase tracking-wider">Pagamento</label>
+                    <p className="text-xs text-neutral-500">Pedido mínimo: {formatCurrency(MINIMUM_ORDER_VALUE)} · Boleto mínimo: {formatCurrency(MINIMUM_INSTALLMENT_VALUE)}</p>
+                    {valorTotal < MINIMUM_ORDER_VALUE && <p role="status" className="text-xs font-bold text-orange-700">Faltam {formatCurrency(MINIMUM_ORDER_VALUE - valorTotal)} para atingir o pedido mínimo.</p>}
                     <div className="relative">
                       <select
                         value={selectedPrazo}

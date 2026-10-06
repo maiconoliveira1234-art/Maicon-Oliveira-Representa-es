@@ -4,12 +4,15 @@ export interface PaymentRule {
   valorMinimo: number;
 }
 
+export const MINIMUM_ORDER_VALUE = 900;
+export const MINIMUM_INSTALLMENT_VALUE = 450;
+
 export const PAYMENT_RULES: PaymentRule[] = [
-  { prazoInicial: 7, prazoFinal: 14, valorMinimo: 700 },
+  { prazoInicial: 7, prazoFinal: 14, valorMinimo: MINIMUM_ORDER_VALUE },
   { prazoInicial: 7, prazoFinal: 21, valorMinimo: 1050 },
   { prazoInicial: 7, prazoFinal: 28, valorMinimo: 1400 },
   { prazoInicial: 7, prazoFinal: 35, valorMinimo: 1800 },
-  { prazoInicial: 14, prazoFinal: 42, valorMinimo: 2600 },
+  { prazoInicial: 14, prazoFinal: 42, valorMinimo: 2500 },
   { prazoInicial: 14, prazoFinal: 49, valorMinimo: 3800 },
   { prazoInicial: 21, prazoFinal: 56, valorMinimo: 5000 },
   { prazoInicial: 21, prazoFinal: 63, valorMinimo: 8000 },
@@ -20,28 +23,19 @@ export const PAYMENT_RULES: PaymentRule[] = [
 ];
 
 export function getAvailableTerms(totalValue: number): string[] {
+  if (!Number.isFinite(totalValue) || totalValue < MINIMUM_ORDER_VALUE) return [];
   const available: string[] = ['À Vista'];
-  
-  // Find max day based on the rules
-  let maxDay = 0;
-  if (totalValue >= 700) maxDay = 14;
-  if (totalValue >= 1050) maxDay = 21;
-  if (totalValue >= 1400) maxDay = 28;
-  if (totalValue >= 1800) maxDay = 35;
-  if (totalValue >= 2600) maxDay = 42;
-  if (totalValue >= 3800) maxDay = 49;
-  if (totalValue >= 5000) maxDay = 56;
-  if (totalValue >= 8000) maxDay = 63;
-  if (totalValue >= 13000) maxDay = 70;
-  if (totalValue >= 17000) maxDay = 77;
-  if (totalValue >= 20000) maxDay = 84;
-  if (totalValue >= 25000) maxDay = 91;
-
-  if (totalValue > 0 && maxDay === 0) maxDay = 7;
+  const maxDay = PAYMENT_RULES.reduce(
+    (max, rule) => totalValue >= rule.valorMinimo ? Math.max(max, rule.prazoFinal) : max,
+    0,
+  );
+  // Work in cents so a rounded-up installment never hides one below the minimum.
+  const totalCents = Math.round(totalValue * 100);
+  const maxInstallments = Math.min(13, Math.floor(totalCents / (MINIMUM_INSTALLMENT_VALUE * 100)));
 
   // Generate sequences following the pattern: XX Boletos (YY-ZZ-...)
   // Starting days can be 07, 14, or 21
-  for (let n = 1; n <= 13; n++) {
+  for (let n = 1; n <= maxInstallments; n++) {
     for (const start of [7, 14, 21]) {
       const end = start + (n - 1) * 7;
       if (end <= maxDay) {
