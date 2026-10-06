@@ -34,6 +34,7 @@ const SettingsPage = lazyPage(() => import('./pages/SettingsPage'), 'SettingsPag
 const WhatsAppInboxPage = lazyPage(() => import('./pages/WhatsAppInboxPage'), 'WhatsAppInboxPage');
 const WhatsAppRulesPage = lazyPage(() => import('./pages/WhatsAppRulesPage'), 'WhatsAppRulesPage');
 const WhatsAppConversationPage = lazyPage(() => import('./pages/WhatsAppConversationPage'), 'WhatsAppConversationPage');
+const WhatsAppHiddenPage = lazyPage(() => import('./pages/WhatsAppHiddenPage'), 'WhatsAppHiddenPage');
 
 function RouteFallback() {
   return (
@@ -91,6 +92,7 @@ function AppContent() {
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/whatsapp" element={<WhatsAppInboxPage />} />
               <Route path="/whatsapp/regras" element={<WhatsAppRulesPage />} />
+              <Route path="/whatsapp/ocultos" element={<WhatsAppHiddenPage />} />
               <Route path="/whatsapp/conversa/:contatoId" element={<WhatsAppConversationPage />} />
               <Route path="/settings/whatsapp" element={<Navigate to="/whatsapp" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />

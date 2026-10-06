@@ -13,6 +13,7 @@ type WhatsAppMap = {
   status: Status;
   total_mensagens: number;
   ultima_vez_em: string;
+  oculto: boolean;
 };
 
 type Cliente = {
@@ -57,7 +58,7 @@ export function WhatsAppContactsPage() {
       const [{ data: mapData, error: mapError }, { data: clientData, error: clientError }, { data: messageData, error: messageError }] = await Promise.all([
         supabase
           .from('whatsapp_contatos_map')
-          .select('id, whatsapp_nome, cliente_id, status, total_mensagens, ultima_vez_em')
+          .select('id, whatsapp_nome, cliente_id, status, total_mensagens, ultima_vez_em, oculto')
           .order('ultima_vez_em', { ascending: false }),
         supabase
           .from('clientes')
@@ -74,7 +75,7 @@ export function WhatsAppContactsPage() {
       if (clientError) throw clientError;
       if (messageError) throw messageError;
 
-      setMaps((mapData || []) as WhatsAppMap[]);
+      setMaps(((mapData || []) as WhatsAppMap[]).filter(item => !item.oculto));
       setClientes((clientData || []) as Cliente[]);
 
       const byMap: Record<string, UltimaMensagem> = {};

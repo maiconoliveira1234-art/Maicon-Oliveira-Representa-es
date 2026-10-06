@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { ShieldCheck } from 'lucide-react';
+import { EyeOff, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { WhatsAppContactsPage } from './WhatsAppContactsPage';
@@ -24,7 +24,14 @@ export function WhatsAppInboxPage() {
 
   return (
     <>
-      <div className="mx-auto mb-3 flex max-w-3xl justify-end">
+      <div className="mx-auto mb-3 flex max-w-3xl justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => navigate('/whatsapp/ocultos')}
+          className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-black text-neutral-700"
+        >
+          <EyeOff size={15} /> Ocultos
+        </button>
         <button
           type="button"
           onClick={() => navigate('/whatsapp/regras')}

@@ -18,27 +18,38 @@ export function HomeWithWhatsAppPage() {
   });
 
   const refreshWhatsAppSummary = useCallback(async () => {
-    const [messagesResult, contactsResult] = await Promise.all([
-      supabase
+    const { data: visibleContacts, error: visibleError } = await supabase
+      .from('whatsapp_contatos_map')
+      .select('id, status')
+      .eq('oculto', false);
+
+    if (visibleError) {
+      console.warn('Não foi possível carregar contatos visíveis do WhatsApp:', visibleError);
+      setSummary(current => ({ ...current, loading: false }));
+      return;
+    }
+
+    const visibleIds = (visibleContacts || []).map(item => item.id);
+    const pendingContacts = (visibleContacts || []).filter(item => item.status === 'pendente').length;
+
+    let newMessages = 0;
+    if (visibleIds.length > 0) {
+      const { count, error: messagesError } = await supabase
         .from('whatsapp_mensagens')
         .select('id', { count: 'exact', head: true })
-        .is('visualizada_em', null),
-      supabase
-        .from('whatsapp_contatos_map')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'pendente'),
-    ]);
+        .is('visualizada_em', null)
+        .in('contato_map_id', visibleIds);
 
-    if (messagesResult.error) {
-      console.warn('Não foi possível contar novas mensagens do WhatsApp:', messagesResult.error);
-    }
-    if (contactsResult.error) {
-      console.warn('Não foi possível contar contatos pendentes do WhatsApp:', contactsResult.error);
+      if (messagesError) {
+        console.warn('Não foi possível contar novas mensagens do WhatsApp:', messagesError);
+      } else {
+        newMessages = count ?? 0;
+      }
     }
 
     setSummary({
-      newMessages: messagesResult.count ?? 0,
-      pendingContacts: contactsResult.count ?? 0,
+      newMessages,
+      pendingContacts,
       loading: false,
     });
   }, []);
