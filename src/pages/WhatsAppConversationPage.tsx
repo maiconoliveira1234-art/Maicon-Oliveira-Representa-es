@@ -63,7 +63,7 @@ export function WhatsAppConversationPage() {
         .from('whatsapp_mensagens')
         .select('id, mensagem, recebida_em, tipo_mensagem, transcricao_audio, sugestao_resposta, sugestao_gerada_em, sugestao_erro')
         .eq('contato_map_id', contatoId)
-        .order('recebida_em', { ascending: true })
+        .order('recebida_em', { ascending: false })
         .limit(200);
 
       const clientQuery = typedMap.cliente_id
@@ -105,7 +105,7 @@ export function WhatsAppConversationPage() {
     };
   }, [contatoId]);
 
-  const latestMessage = messages.length ? messages[messages.length - 1] : null;
+  const latestMessage = messages.length ? messages[0] : null;
   const targetMessage = useMemo(
     () => messages.find(message => message.id === targetMessageId) || null,
     [messages, targetMessageId]
@@ -166,7 +166,7 @@ export function WhatsAppConversationPage() {
     }
 
     const selectedMessages = messages.filter(message => selectedIds.has(message.id));
-    const target = targetMessage || selectedMessages[selectedMessages.length - 1];
+    const target = targetMessage || selectedMessages[0];
     if (!target) return;
 
     setTargetMessageId(target.id);
