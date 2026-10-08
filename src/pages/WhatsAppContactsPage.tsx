@@ -59,6 +59,7 @@ export function WhatsAppContactsPage() {
         supabase
           .from('whatsapp_contatos_map')
           .select('id, whatsapp_nome, cliente_id, status, total_mensagens, ultima_vez_em, oculto')
+          .eq('oculto', false)
           .order('ultima_vez_em', { ascending: false }),
         supabase
           .from('clientes')
