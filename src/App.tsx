@@ -9,13 +9,22 @@ import { Layout } from './components/Layout';
 import { DataManagerProvider, useDataManager } from './lib/dataManager';
 import { APIProvider } from '@vis.gl/react-google-maps';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { isModuleLoadError, recoverModuleLoad } from './lib/moduleRecovery';
 
 const lazyPage = <T extends Record<string, unknown>, K extends keyof T>(
   importer: () => Promise<T>,
   exportName: K
 ) => lazy(async () => {
-  const module = await importer();
-  return { default: module[exportName] as React.ComponentType };
+  try {
+    const module = await importer();
+    return { default: module[exportName] as React.ComponentType };
+  } catch (error) {
+    if (isModuleLoadError(error) && await recoverModuleLoad()) {
+      // Keep the loading state until the fresh document replaces this runtime.
+      return await new Promise<{ default: React.ComponentType }>(() => {});
+    }
+    throw error;
+  }
 });
 
 const HomePage = lazyPage(() => import('./pages/HomeWithWhatsAppPage'), 'HomeWithWhatsAppPage');
