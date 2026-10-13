@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { supabase } from './supabase';
+import { loadClientHistory } from './clientHistory';
 import { Cliente, Produto, HistVenda, EstoqueCliente } from '../types';
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from './mockData';
 import { deduplicateSales } from './utils';
@@ -238,6 +239,7 @@ async function fetchHistVendasChunked(startDate = '2024-01-01'): Promise<{ data:
         .from('hist_vendas')
         .select('*')
         .gte('faturamento', startDate)
+        .order('id', { ascending: true })
         .range(from, to)
     );
 
@@ -256,6 +258,7 @@ async function fetchHistVendasChunked(startDate = '2024-01-01'): Promise<{ data:
               .from('hist_vendas')
               .select('*')
               .gte('faturamento', startDate)
+              .order('id', { ascending: true })
               .range(subFrom, subTo)
           );
           if (subRes.error) {
@@ -489,7 +492,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       
       const dbVisitas = visitasRes.data || cachedVisitas;
       // Normalize legacy duplicate rows once, before any screen calculates totals.
-      const rawHist = (histRes.data && histRes.data.length > 0) ? histRes.data : cachedHist;
+      const rawHist = !histRes.error ? histRes.data : cachedHist;
       const dbHist = deduplicateSales(rawHist);
       const dbEstoque = estoqueRes.data || cachedEstoque;
       const dbLoans = emprestimosRes.data || cachedLoans;
@@ -1451,9 +1454,14 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
   const loadClientDetails = useCallback(async (clientId: string, forceRefresh = false) => {
     const filteredHist = histVendas.filter(h => h.cliente_id === clientId);
     const filteredEstoque = estoqueCliente.filter(e => e.cliente_id === clientId);
-    
+    const cacheKey = `offline_client_history_${clientId}`;
+    const cached = await loadPersisted<HistVenda[] | null>(cacheKey, null);
+    // Prefer a complete per-client snapshot over the device's possibly truncated global cache.
+    const fallback = cached ?? filteredHist;
+    const result = await loadClientHistory(clientId, fallback);
+    if (result.fresh) savePersisted(cacheKey, result.rows);
     return {
-      historico: filteredHist,
+      historico: result.rows,
       estoque: filteredEstoque,
       lastUpdated: Date.now()
     };

@@ -208,9 +208,11 @@ export function ClienteDetail() {
 
   useEffect(() => {
     let cancelled = false;
+    let requestVersion = 0;
 
     async function loadClienteData() {
       if (!id) return;
+      const currentRequest = ++requestVersion;
 
       const cachedCliente = cachedClientes.find(c => c.id === id) || null;
       const detailsPromise = loadClientDetails(id);
@@ -330,7 +332,7 @@ export function ClienteDetail() {
           detailsPromise
         ]);
 
-        if (cancelled) return;
+        if (cancelled || currentRequest !== requestVersion) return;
 
         // Set Client with its Meta
         if (dbClienteData) {
@@ -370,7 +372,7 @@ export function ClienteDetail() {
         setLoading(false);
 
       } catch (err) {
-        if (cancelled) return;
+        if (cancelled || currentRequest !== requestVersion) return;
         console.error('Erro crítico ao carregar dados do cliente:', err);
         
         // Final fallback block in case of absolute catastrophic failure
@@ -414,9 +416,16 @@ export function ClienteDetail() {
       }
     }
 
-    loadClienteData();
+    void loadClienteData();
+    const refreshOnReturn = () => {
+      if (document.visibilityState === 'visible') void loadClienteData();
+    };
+    document.addEventListener('visibilitychange', refreshOnReturn);
+    window.addEventListener('online', refreshOnReturn);
 
     return () => {
+      document.removeEventListener('visibilitychange', refreshOnReturn);
+      window.removeEventListener('online', refreshOnReturn);
       cancelled = true;
     };
   }, [id, allProducts, cachedClientes, cachedMetas, cachedVisitas, cachedLoans, cachedFlex, loadClientDetails]);
@@ -483,9 +492,9 @@ export function ClienteDetail() {
   // Reative Client History synchronized with Global DataManager
   const activeHistorico = React.useMemo(() => {
     if (!id) return [];
-    const fromDM = cachedHistVendas.filter(h => h.cliente_id === id);
-    if (fromDM.length > 0) return fromDM;
-    return historico;
+    // loadClientDetails refreshes this snapshot from the server. A nonempty global
+    // cache is not evidence that it is complete or newer than this snapshot.
+    return historico.filter(h => h.cliente_id === id);
   }, [cachedHistVendas, id, historico]);
 
   // Combined sales dataset: historical sales + open orders dynamically unified as HistVenda
