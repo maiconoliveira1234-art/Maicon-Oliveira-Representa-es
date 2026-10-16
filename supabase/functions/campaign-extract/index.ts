@@ -35,7 +35,7 @@ Se a imagem tiver ofertas diferentes, retorne uma regra por oferta.
 tipos aceitos: bonificacao ou desconto. repetivel só true se texto indicar explicitamente 'a cada X' ou múltiplos.
 Inclua o nome de cada produto exatamente como aparece (campo produto_nome) e família opcional.
 Retorne JSON com: titulo, descricao, inicio, fim, regras[
-{tipo, produto_nome, familia, minimo, repetivel, bonus_produto_nome, bonus_quantidade, desconto_percentual}].
+{tipo, produto_nome, familia, minimo, unidade, repetivel, bonus_produto_nome, bonus_quantidade, desconto_percentual}].
 A imagem pode ter informações incompletas; a aprovação humana é obrigatória.` },
           { inlineData: { mimeType: parsed[1], data: parsed[2] } },
         ],
@@ -56,6 +56,7 @@ A imagem pode ter informações incompletas; a aprovação humana é obrigatóri
         produto_nome: String(r.produto_nome || '').slice(0, 200),
         familia: String(r.familia || '').slice(0, 100),
         minimo: Number(r.minimo) || 0,
+        unidade: ['embalagens','unidades','kg'].includes(r.unidade) ? r.unidade : 'embalagens',
         repetivel: r.repetivel === true,
         bonus_produto_nome: String(r.bonus_produto_nome || '').slice(0, 200),
         bonus_quantidade: Number(r.bonus_quantidade) || 0,
