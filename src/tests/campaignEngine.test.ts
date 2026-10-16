@@ -33,4 +33,12 @@ assert.equal(avaliarCampanhas([{ ...campanha, regras: [{ ...rule, tipo: 'descont
 assert.equal(avaliarCampanhas([{ ...campanha, regras: [{ ...rule, repetivel: false }] }], [
   { produto_id: 'item-a', quantidade: 40, tipo_operacao: 'VENDA' },
 ], [produto], now)[0].bonusQuantidade, 1);
+const caixas = { ...produto, quant_embalagem: 10 } as Produto;
+const unidadesRule = { ...rule, tipo: 'desconto' as const, minimo: 20, unidade: 'unidades' as const, desconto_percentual: 7 };
+assert.equal(avaliarCampanhas([{ ...campanha, regras: [unidadesRule] }], [
+  { produto_id: 'item-a', quantidade: 2, tipo_operacao: 'VENDA' }
+], [caixas], now)[0].descontoPercentual, 7);
+assert.equal(avaliarCampanhas([{ ...campanha, regras: [{ ...unidadesRule, unidade: 'embalagens' }] }], [
+  { produto_id: 'item-a', quantidade: 2, tipo_operacao: 'VENDA' }
+], [caixas], now)[0].descontoPercentual, 0);
 console.log('Testes de campanhas: OK');
