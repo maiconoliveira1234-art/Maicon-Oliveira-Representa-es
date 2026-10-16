@@ -1460,8 +1460,8 @@ export function OrderPage() {
               return <div key={o.regra.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-3 text-xs">
                 <div className="min-w-0 flex-1">
                   <p className="font-bold">{o.campanha.titulo}</p>
-                  <p className="text-neutral-600">{beneficio} · {o.quantidade}/{o.regra.minimo} embalagens</p>
-                  {!o.elegivel && <p className="font-bold text-orange-700">{o.falta > 0 ? 'Faltam ' + o.falta + ' embalagens.' : 'Produto bonificado precisa ser definido para esta combinação.'}</p>}
+                  <p className="text-neutral-600">{beneficio} · {o.quantidade}/{o.regra.minimo} {o.regra.unidade === 'kg' ? 'kg' : o.regra.unidade === 'unidades' ? 'unidades/sacos' : 'embalagens' }</p>
+                  {!o.elegivel && <p className="font-bold text-orange-700">{o.falta > 0 ? 'Faltam ' + o.falta + ' ' + (o.regra.unidade === 'kg' ? 'kg.' : o.regra.unidade === 'unidades' ? 'unidades/sacos.' : 'embalagens.') : 'Produto bonificado precisa ser definido para esta combinação.'}</p>}
                 </div>
                 <button type="button" disabled={!o.elegivel} onClick={() => setRegrasAprovadas(prev => prev.includes(o.regra.id) ? prev.filter(id => id !== o.regra.id) : [...prev, o.regra.id])}
                   className="rounded-lg border border-orange-300 px-3 py-2 font-black text-orange-800 disabled:opacity-40">
@@ -1605,7 +1605,7 @@ export function OrderPage() {
                 </button>
               </div>
 
-              {itens.filter(item => (item.tipo_operacao || 'VENDA') === 'BONIFICACAO_COMERCIAL').length === 0 ? (
+              {computedItens.filter(item => (item.tipo_operacao || 'VENDA') === 'BONIFICACAO_COMERCIAL').length === 0 ? (
                 <p className="text-[11px] text-neutral-400 italic bg-white p-3 rounded-lg border border-neutral-100/50 text-center">
                   Nenhum item bonificado adicionado ainda.
                 </p>
