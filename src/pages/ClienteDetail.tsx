@@ -1,4 +1,5 @@
 import { ClientCommercialPriorities } from '../components/CommercialPriorities';
+import { CampaignClientAlert } from '../components/CampaignClientAlert';
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
@@ -681,6 +682,7 @@ export function ClienteDetail() {
       </header>
 
       <ClientCommercialPriorities key={cliente.id} clienteId={cliente.id} />
+       <CampaignClientAlert cliente={cliente} historico={historico} produtos={produtos.length ? produtos : allProducts} />
 
       {error && (
         <div className="bg-red-50 border border-red-100 p-4 rounded-lg flex items-center gap-3 text-red-700 text-sm">
