@@ -6,6 +6,7 @@ import type { Campanha, RegraCampanha } from '../lib/campaignEngine';
 import { campanhaAtiva, descontoValido, descricaoDesconto, modalidadeDesconto, type ModalidadeDesconto } from '../lib/campaignEngine';
 import { CampaignSkuSearch } from '../components/campaigns/CampaignSkuSearch';
 import { CampaignSkuMultiSearch } from '../components/campaigns/CampaignSkuMultiSearch';
+import { campaignExtractionError } from '../lib/campaignExtractionError';
 
 const blankRule = (): RegraCampanha => ({
   id: crypto.randomUUID(), tipo: 'bonificacao', produto_ids: [],
@@ -123,7 +124,7 @@ export function CampaignPage() {
         regras: rules.length ? rules : current.regras,
       } : current);
       setNotice('Rascunho criado. Confira datas, produtos, unidades e condições antes de ativar. Produtos não correspondidos precisam de seleção manual.');
-    } catch (e: any) { setError(e?.message || 'Falha na leitura da imagem.'); }
+    } catch (e: unknown) { setError(await campaignExtractionError(e)); }
     finally { setExtracting(false); }
   };
 

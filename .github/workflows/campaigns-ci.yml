@@ -18,4 +18,5 @@ jobs:
       - run: npm run lint
       - run: npx tsx src/tests/campaignEngine.test.ts
       - run: npx tsx src/tests/campaignSkuSearch.test.ts
+      - run: npx tsx src/tests/campaignExtraction.test.ts
       - run: npm run build
