@@ -307,7 +307,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <MobileNavItem to="/consulta-preco" icon={<Search size={24} />} label="Preços" />
           <MobileNavItem to="/metas" icon={<BarChart3 size={24} />} label="Metas" />
           <MobileNavItem to="/emprestimos" icon={<ArrowLeftRight size={24} />} label="Trocas" />
-          <MobileNavItem to="/campanhas" icon={<Megaphone size={24} />} label="Campanhas" />
+          <MobileNavItem to="/campanhas" icon={<Megaphone size={24} />} label="Camp." />
            <MobileNavItem to="/settings" icon={<Settings size={24} />} label="Config" />
         </nav>
       )}
