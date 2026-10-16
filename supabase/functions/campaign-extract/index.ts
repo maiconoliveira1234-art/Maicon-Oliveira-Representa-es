@@ -33,9 +33,15 @@ Se a data estiver incompleta, retorne string vazia. Datas em formato YYYY-MM-DD.
 Se não identificar uma unidade, mantenha minimo 0 para revisão humana.
 Se a imagem tiver ofertas diferentes, retorne uma regra por oferta.
 tipos aceitos: bonificacao ou desconto. repetivel só true se texto indicar explicitamente 'a cada X' ou múltiplos.
+Cada desconto tem uma modalidade exclusiva:
+- adicional_percentual = desconto extra aplicado após tabela;
+- absoluto_percentual = percentual total sobre preço cheio substituindo o desconto de tabela;
+- valor = abatimento fixo em R$ por caixa/saco/embalagem comercial;
+- preco_final = preço promocional final por caixa/saco/embalagem comercial.
+Não confundir desconto em valor com preço final; se faltar número retornar zero, para revisão humana.
 Inclua o nome de cada produto exatamente como aparece (campo produto_nome) e família opcional.
 Retorne JSON com: titulo, descricao, inicio, fim, regras[
-{tipo, produto_nome, familia, minimo, unidade, repetivel, bonus_produto_nome, bonus_quantidade, desconto_percentual}].
+{tipo, produto_nome, familia, minimo, unidade, repetivel, bonus_produto_nome, bonus_quantidade, desconto_modalidade, desconto_percentual, desconto_valor, preco_final}].
 A imagem pode ter informações incompletas; a aprovação humana é obrigatória.` },
           { inlineData: { mimeType: parsed[1], data: parsed[2] } },
         ],
@@ -61,6 +67,10 @@ A imagem pode ter informações incompletas; a aprovação humana é obrigatóri
         bonus_produto_nome: String(r.bonus_produto_nome || '').slice(0, 200),
         bonus_quantidade: Number(r.bonus_quantidade) || 0,
         desconto_percentual: Number(r.desconto_percentual) || 0,
+        desconto_modalidade: ['adicional_percentual', 'absoluto_percentual', 'valor', 'preco_final'].includes(r.desconto_modalidade)
+          ? r.desconto_modalidade : 'adicional_percentual',
+        desconto_valor: Number(r.desconto_valor) || 0,
+        preco_final: Number(r.preco_final) || 0,
       })),
     }});
   } catch (err) {
