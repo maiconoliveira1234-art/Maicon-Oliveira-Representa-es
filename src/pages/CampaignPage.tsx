@@ -7,7 +7,7 @@ import { campanhaAtiva } from '../lib/campaignEngine';
 
 const blankRule = (): RegraCampanha => ({
   id: crypto.randomUUID(), tipo: 'bonificacao', produto_ids: [],
-  familia: '', minimo: 10, repetivel: true, bonus_produto_id: '',
+  familia: '', minimo: 10, unidade: 'embalagens', repetivel: true, bonus_produto_id: '',
   bonus_quantidade: 1, desconto_percentual: 0,
 });
 const today = () => {
@@ -86,7 +86,8 @@ export function CampaignPage() {
           ...blankRule(), tipo: r.tipo === 'desconto' ? 'desconto' : 'bonificacao',
           produto_ids: matching.length === 1 ? [matching[0].id] : [],
           familia: familias.find(f => normalize(f) === normalize(String(r.familia || ''))) || '',
-          minimo: Math.max(1, Math.floor(Number(r.minimo) || 1)),
+          minimo: Number(r.minimo) || 0,
+          unidade: ['embalagens', 'unidades', 'kg'].includes(r.unidade) ? r.unidade : 'embalagens',
           repetivel: !!r.repetivel,
           bonus_produto_id: bonus.length === 1 ? bonus[0].id : '',
           bonus_quantidade: Math.max(1, Math.floor(Number(r.bonus_quantidade) || 1)),
@@ -97,8 +98,8 @@ export function CampaignPage() {
         ...current, status: 'rascunho',
         titulo: String(draft.titulo || current.titulo).slice(0, 150),
         descricao: String(draft.descricao || current.descricao).slice(0, 2000),
-        inicio: /^\d{4}-\d{2}-\d{2}$/.test(String(draft.inicio)) ? draft.inicio : current.inicio,
-        fim: /^\d{4}-\d{2}-\d{2}$/.test(String(draft.fim)) ? draft.fim : current.fim,
+        inicio: /^\d{4}-\d{2}-\d{2}$/.test(String(draft.inicio)) ? draft.inicio : '',
+        fim: /^\d{4}-\d{2}-\d{2}$/.test(String(draft.fim)) ? draft.fim : '',
         regras: rules.length ? rules : current.regras,
       } : current);
       setNotice('Rascunho criado. Confira datas, produtos, unidades e condições antes de ativar. Produtos não correspondidos precisam de seleção manual.');
@@ -187,7 +188,8 @@ export function CampaignPage() {
                   <label className={labelClass}>Benefício<select className={inputClass} value={r.tipo} onChange={e => changeRule(r.id, { tipo: e.target.value as RegraCampanha['tipo'] })}>
                     <option value="bonificacao">Bonificação via FX (sem consumir Flex)</option><option value="desconto">Desconto extra</option>
                   </select></label>
-                  <label className={labelClass}>Mínimo de embalagens/caixas<input className={inputClass} type="number" min="1" step="1" value={r.minimo} onChange={e => changeRule(r.id, { minimo: Number(e.target.value) })}/></label>
+                  <label className={labelClass}>Quantidade mínima<input className={inputClass} type="number" min="1" step="1" value={r.minimo} onChange={e => changeRule(r.id, { minimo: Number(e.target.value) })}/></label>
+                  <label className={labelClass}>Unidade do mínimo<select className={inputClass} value={r.unidade || 'embalagens'} onChange={e => changeRule(r.id, { unidade: e.target.value as RegraCampanha['unidade'] })}><option value="embalagens">Embalagens / caixas do pedido</option><option value="unidades">Unidades / sacos individuais</option><option value="kg">Peso líquido (kg)</option></select></label>
                   <label className={labelClass}>Família participante (opcional)<select className={inputClass} value={r.familia} onChange={e => changeRule(r.id, { familia: e.target.value, produto_ids: [] })}>
                     <option value="">Escolher um produto específico</option>{familias.map(f => <option key={f} value={f}>{f}</option>)}
                   </select></label>
