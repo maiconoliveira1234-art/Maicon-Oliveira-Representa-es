@@ -10,22 +10,31 @@ export function normalizeSkuSearch(value: string): string {
     .trim();
 }
 
+/** Uniformiza algumas grafias usuais para ampliar a busca no catálogo. */
+function matchText(value: string): string {
+  return normalizeSkuSearch(value)
+    .replace(/\b(\d+)\s+kg\b/g, '$1kg')
+    .replace(/\b(caes|cao|cachorros?|caninos?)\b/g, 'cao')
+    .replace(/\b(gatos?|felinos?)\b/g, 'gato')
+    .replace(/\b(filhotes?|filh)\b/g, 'filhote');
+}
+
 export function filterCampaignSkus(
   products: Produto[],
   query: string,
   maxResults = 20,
 ): { results: Produto[]; total: number } {
-  const input = normalizeSkuSearch(query);
+  const input = matchText(query);
   const terms = input.split(' ').filter(Boolean);
   const matched = products.filter(product => {
     if (!product.ativo) return false;
-    const haystack = normalizeSkuSearch((product.produto || '') + ' ' + (product.familia || ''));
+    const haystack = matchText((product.produto || '') + ' ' + (product.familia || ''));
     return terms.every(term => haystack.includes(term));
   });
 
   matched.sort((a, b) => {
-    const aName = normalizeSkuSearch(a.produto);
-    const bName = normalizeSkuSearch(b.produto);
+    const aName = matchText(a.produto);
+    const bName = matchText(b.produto);
     const rank = (name: string) => !input ? 0
       : name === input ? 0
       : name.startsWith(input) ? 1

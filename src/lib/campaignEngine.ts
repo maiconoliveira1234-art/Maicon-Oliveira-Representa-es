@@ -7,6 +7,8 @@ export type RegraCampanha = {
   id: string;
   tipo: TipoBeneficio;
   produto_ids: string[];
+  /** Pendências de associação de nomes importados pela IA; revisão antes de ativar. */
+  pendencias_importacao?: string[];
   familia: string;
   minimo: number;
   unidade?: 'embalagens' | 'unidades' | 'kg';
