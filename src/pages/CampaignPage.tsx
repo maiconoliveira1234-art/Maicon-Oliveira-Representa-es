@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useDataManager } from '../lib/dataManager';
 import type { Campanha, RegraCampanha } from '../lib/campaignEngine';
 import { campanhaAtiva } from '../lib/campaignEngine';
+import { CampaignSkuSearch } from '../components/campaigns/CampaignSkuSearch';
 
 const blankRule = (): RegraCampanha => ({
   id: crypto.randomUUID(), tipo: 'bonificacao', produto_ids: [],
@@ -193,13 +194,23 @@ export function CampaignPage() {
                   <label className={labelClass}>Família participante (opcional)<select className={inputClass} value={r.familia} onChange={e => changeRule(r.id, { familia: e.target.value, produto_ids: [] })}>
                     <option value="">Escolher um produto específico</option>{familias.map(f => <option key={f} value={f}>{f}</option>)}
                   </select></label>
-                  <label className={labelClass}>SKU participante (ou toda a família)<select disabled={!!r.familia} className={inputClass} value={r.produto_ids[0] || ''} onChange={e => changeRule(r.id, { produto_ids: e.target.value ? [e.target.value] : [] })}>
-                    <option value="">Selecione</option>{produtos.filter(p => p.ativo).map(p => <option key={p.id} value={p.id}>{p.produto}</option>)}
-                  </select></label>
+                  <CampaignSkuSearch
+                    label="SKU participante (ou toda a família)"
+                    produtos={produtos}
+                    disabled={!!r.familia}
+                    value={r.produto_ids[0] || ''}
+                    onChange={id => changeRule(r.id, { produto_ids: id ? [id] : [] })}
+                    placeholder="Digite o nome do produto participante"
+                  />
                   {r.tipo === 'bonificacao' ? (<>
-                    <label className={labelClass}>Produto bonificado<select className={inputClass} value={r.bonus_produto_id} onChange={e => changeRule(r.id, { bonus_produto_id: e.target.value })}>
-                      <option value="">Mesmo produto (somente SKU único)</option>{produtos.filter(p => p.ativo).map(p => <option key={p.id} value={p.id}>{p.produto}</option>)}
-                    </select></label>
+                    <CampaignSkuSearch
+                      label="SKU bonificado"
+                      produtos={produtos}
+                      value={r.bonus_produto_id}
+                      onChange={id => changeRule(r.id, { bonus_produto_id: id })}
+                      placeholder="Digite o nome do produto bonificado"
+                      allowSameProduct
+                    />
                     <label className={labelClass}>Quantidade bonificada<input type="number" min="1" step="1" className={inputClass} value={r.bonus_quantidade} onChange={e => changeRule(r.id, { bonus_quantidade: Number(e.target.value) })}/></label>
                     <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={r.repetivel} onChange={e => changeRule(r.id, { repetivel: e.target.checked })}/> Repetir benefício a cada múltiplo do mínimo</label>
                   </>) : (
