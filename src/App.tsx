@@ -40,6 +40,7 @@ const CommissionPage = lazyPage(() => import('./pages/CommissionPage'), 'Commiss
 const LoansPage = lazyPage(() => import('./pages/LoansPage'), 'LoansPage');
 const ImportPage = lazyPage(() => import('./pages/ImportPage'), 'ImportPage');
 const SettingsPage = lazyPage(() => import('./pages/SettingsPage'), 'SettingsPage');
+const CampaignPage = lazyPage(() => import('./pages/CampaignPage'), 'CampaignPage');
 const WhatsAppInboxPage = lazyPage(() => import('./pages/WhatsAppInboxPage'), 'WhatsAppInboxPage');
 const WhatsAppRulesPage = lazyPage(() => import('./pages/WhatsAppRulesPage'), 'WhatsAppRulesPage');
 const WhatsAppConversationPage = lazyPage(() => import('./pages/WhatsAppConversationPage'), 'WhatsAppConversationPage');
@@ -99,6 +100,7 @@ function AppContent() {
               <Route path="/emprestimos" element={<LoansPage />} />
               <Route path="/import" element={<ImportPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/campanhas" element={<CampaignPage />} />
               <Route path="/whatsapp" element={<WhatsAppInboxPage />} />
               <Route path="/whatsapp/regras" element={<WhatsAppRulesPage />} />
               <Route path="/whatsapp/ocultos" element={<WhatsAppHiddenPage />} />

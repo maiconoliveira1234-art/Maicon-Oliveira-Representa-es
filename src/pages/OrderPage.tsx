@@ -49,6 +49,7 @@ import { useDataManager } from '../lib/dataManager';
 import { StockCountSkeleton } from '../components/ui/Skeleton';
 import { logDiagnostic } from '../lib/diagnostics';
 import { formatFlexRate, getFlexRateForDate } from '../lib/flexRules';
+import { avaliarCampanhas, produtoNaRegra, type Campanha } from '../lib/campaignEngine';
 
 export function OrderPage() {
   const { clienteId } = useParams();
@@ -59,6 +60,16 @@ export function OrderPage() {
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [itens, setItens] = useState<Partial<ItemPedido>[]>([]);
+  const [campanhasAtivas, setCampanhasAtivas] = useState<Campanha[]>([]);
+  const [regrasAprovadas, setRegrasAprovadas] = useState<string[]>([]);
+  useEffect(() => {
+    let active = true;
+    supabase.from('campanhas_comerciais').select('*').eq('status', 'ativa').then(({ data, error }) => {
+      if (active && !error) setCampanhasAtivas((data || []) as Campanha[]);
+      if (error) console.warn('Campanhas indisponíveis:', error.message);
+    });
+    return () => { active = false; };
+  }, []);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showProductSelector, setShowProductSelector] = useState(false);
@@ -287,6 +298,13 @@ export function OrderPage() {
 
   const currentFaixa = getFaixaEfetiva(pesoTotal, pesoConquistado, null);
 
+  const oportunidadesCampanha = useMemo(
+    () => avaliarCampanhas(campanhasAtivas, itens, produtos), [campanhasAtivas, itens, produtos]
+  );
+  const beneficiosAprovados = useMemo(
+    () => oportunidadesCampanha.filter(o => o.elegivel && regrasAprovadas.includes(o.regra.id)),
+    [oportunidadesCampanha, regrasAprovadas]
+  );
   const computedItens = useMemo(() => {
     // 1. Separate normal sale items to compute unit values
     const vendaItems = itens.filter(i => !i.tipo_operacao || i.tipo_operacao === 'VENDA');
@@ -298,10 +316,12 @@ export function OrderPage() {
       if (!produto) return item;
       const discount = getValorUnitario(produto, currentFaixa) || 0;
       const unitario = calcularPrecoComDesconto(produto.custo_und, discount);
-      const valorTotalItem = unitario * (item.quantidade || 0) * (produto.quant_embalagem || 1);
+      const extra = beneficiosAprovados.filter(o => o.regra.tipo === 'desconto' && produtoNaRegra(produto, o.regra)).reduce((max, o) => Math.max(max, o.descontoPercentual), 0);
+      const unitarioFinal = Number((unitario * (1 - extra / 100)).toFixed(4));
+      const valorTotalItem = unitarioFinal * (item.quantidade || 0) * (produto.quant_embalagem || 1);
       return {
         ...item,
-        valor_unitario: unitario,
+        valor_unitario: unitarioFinal,
         valor_total: valorTotalItem,
         peso_total: (item.quantidade || 0) * produto.peso_embalagem
       };
@@ -331,8 +351,20 @@ export function OrderPage() {
       };
     });
 
-    return [...processedVenda, ...processedNonVenda];
-  }, [itens, produtos, currentFaixa]);
+    const bonificacoesCampanha = beneficiosAprovados
+      .filter(o => o.regra.tipo === 'bonificacao' && o.bonusProdutoId && o.bonusQuantidade > 0)
+      .map(o => {
+        const produto = produtos.find(p => p.id === o.bonusProdutoId)!;
+        return {
+          id: 'campanha-' + o.regra.id, produto_id: produto.id, quantidade: o.bonusQuantidade,
+          peso_total: o.bonusQuantidade * produto.peso_embalagem,
+          valor_unitario: 0, valor_total: 0,
+          tipo_operacao: 'BONIFICACAO_COMERCIAL' as const,
+          campanha_regra_id: o.regra.id, campanha_nome: o.campanha.titulo,
+        };
+      });
+    return [...processedVenda, ...processedNonVenda, ...bonificacoesCampanha];
+  }, [itens, produtos, currentFaixa, beneficiosAprovados]);
 
   const valorVendasSubtotal = useMemo(() => {
     return computedItens
@@ -347,7 +379,7 @@ export function OrderPage() {
 
   const totalBonificacoes = useMemo(() => {
     return computedItens
-      .filter(item => item.tipo_operacao === 'BONIFICACAO_COMERCIAL')
+      .filter(item => item.tipo_operacao === 'BONIFICACAO_COMERCIAL' && !('campanha_regra_id' in item))
       .reduce((acc, item) => acc + (item.valor_total || 0), 0);
   }, [computedItens]);
 
@@ -371,6 +403,7 @@ export function OrderPage() {
     prefilledApplied.current = false;
     setConsultaFaixa('livre');
     setStartedAt(null);
+    setRegrasAprovadas([]);
   }, [clienteId]);
 
   // Load saved items when client or products change
@@ -464,6 +497,7 @@ export function OrderPage() {
               }));
             }
 
+            setRegrasAprovadas(Array.isArray((loadedItemsList[0] as any)?.campanhas_aplicadas) ? (loadedItemsList[0] as any).campanhas_aplicadas : []);
             const newItens: Partial<ItemPedido>[] = [];
             
             // Calculate initial weight to get correct initial price range
@@ -573,10 +607,11 @@ export function OrderPage() {
         return;
       }
 
-      const rawItemList = itens.map(item => ({
+      const rawItemList = itens.map((item, index) => ({
         produto_id: item.produto_id,
         quantidade: item.quantidade,
-        tipo_operacao: item.tipo_operacao || 'VENDA'
+        tipo_operacao: item.tipo_operacao || 'VENDA',
+        ...(index === 0 ? { campanhas_aplicadas: regrasAprovadas } : {}),
       }));
       
       const nowIso = new Date().toISOString();
@@ -609,7 +644,7 @@ export function OrderPage() {
 
       return () => clearTimeout(saveTimer);
     }
-  }, [itens, clienteId, isReady, selectedPrazo, observacoes, startedAt, saveOpenOrder, deleteOpenOrder]);
+  }, [itens, clienteId, isReady, selectedPrazo, observacoes, startedAt, regrasAprovadas, saveOpenOrder, deleteOpenOrder]);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -622,6 +657,7 @@ export function OrderPage() {
       await deleteOpenOrder(clienteId);
     }
     setItens([]);
+    setRegrasAprovadas([]);
     setConsultaFaixa('livre');
     setStartedAt(null);
     setSelectedPrazo('');
@@ -1413,6 +1449,28 @@ export function OrderPage() {
           </div>
         )}
 
+        {oportunidadesCampanha.length > 0 && (
+          <section className="space-y-2 rounded-lg border border-orange-200 bg-orange-50 p-3" aria-label="Oportunidades de campanha">
+            <h4 className="text-sm font-black text-orange-900">Campanhas disponíveis para o pedido</h4>
+            {oportunidadesCampanha.map(o => {
+              const aprovada = regrasAprovadas.includes(o.regra.id);
+              const beneficio = o.regra.tipo === 'bonificacao'
+                ? (o.bonusQuantidade || o.regra.bonus_quantidade) + ' embalagem(ns) bonificada(s) no FX, sem consumo de Flex'
+                : o.regra.desconto_percentual + '% de desconto adicional';
+              return <div key={o.regra.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-3 text-xs">
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold">{o.campanha.titulo}</p>
+                  <p className="text-neutral-600">{beneficio} · {o.quantidade}/{o.regra.minimo} {o.regra.unidade === 'kg' ? 'kg' : o.regra.unidade === 'unidades' ? 'unidades/sacos' : 'embalagens' }</p>
+                  {!o.elegivel && <p className="font-bold text-orange-700">{o.falta > 0 ? 'Faltam ' + o.falta + ' ' + (o.regra.unidade === 'kg' ? 'kg.' : o.regra.unidade === 'unidades' ? 'unidades/sacos.' : 'embalagens.') : 'Produto bonificado precisa ser definido para esta combinação.'}</p>}
+                </div>
+                <button type="button" disabled={!o.elegivel} onClick={() => setRegrasAprovadas(prev => prev.includes(o.regra.id) ? prev.filter(id => id !== o.regra.id) : [...prev, o.regra.id])}
+                  className="rounded-lg border border-orange-300 px-3 py-2 font-black text-orange-800 disabled:opacity-40">
+                  {aprovada ? 'Retirar benefício' : 'Aplicar benefício'}
+                </button>
+              </div>;
+            })}
+          </section>
+        )}
         <button 
           onClick={() => {
             setProductSelectorType('VENDA');
@@ -1531,7 +1589,7 @@ export function OrderPage() {
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-black uppercase text-neutral-500 tracking-wider flex items-center gap-1">
                   <Coins size={12} className="text-orange-500" />
-                  Itens Bonificados (Flex)
+                  Itens Bonificados (Flex e Campanhas)
                 </span>
                 <button
                   type="button"
@@ -1547,7 +1605,7 @@ export function OrderPage() {
                 </button>
               </div>
 
-              {itens.filter(item => (item.tipo_operacao || 'VENDA') === 'BONIFICACAO_COMERCIAL').length === 0 ? (
+              {computedItens.filter(item => (item.tipo_operacao || 'VENDA') === 'BONIFICACAO_COMERCIAL').length === 0 ? (
                 <p className="text-[11px] text-neutral-400 italic bg-white p-3 rounded-lg border border-neutral-100/50 text-center">
                   Nenhum item bonificado adicionado ainda.
                 </p>
@@ -1559,16 +1617,18 @@ export function OrderPage() {
                       const produto = produtos.find(p => p.id === item.produto_id);
                       if (!produto) return null;
                       return (
-                        <div key={item.produto_id} className="flex items-center justify-between p-2.5 bg-white border border-neutral-200/50 rounded-lg">
+                        <div key={item.produto_id + ('campanha_regra_id' in item ? String(item.campanha_regra_id) : '')} className="flex items-center justify-between p-2.5 bg-white border border-neutral-200/50 rounded-lg">
                           <div className="flex-1 min-w-0 pr-2">
                             <p className="text-[11px] font-bold text-neutral-800 truncate">{produto.produto}</p>
                             <p className="text-[9px] text-neutral-400 font-medium">
                               {item.quantidade} x R$ {(item.valor_unitario || 0).toFixed(2)} | Peso: {formatWeight(item.peso_total || 0)}
+                               {'campanha_regra_id' in item && <span className="ml-2 font-bold text-green-700">Campanha — sem Flex</span>}
                             </p>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
                             <button
                               type="button"
+                              disabled={'campanha_regra_id' in item}
                               onClick={() => updateItem(item.produto_id!, (item.quantidade || 0) - 1, 'BONIFICACAO_COMERCIAL')}
                               className="w-5 h-5 flex items-center justify-center bg-neutral-100 rounded text-neutral-600 hover:bg-neutral-200"
                             >
@@ -1577,6 +1637,7 @@ export function OrderPage() {
                             <span className="text-xs font-black min-w-[14px] text-center">{item.quantidade}</span>
                             <button
                               type="button"
+                              disabled={'campanha_regra_id' in item}
                               onClick={() => updateItem(item.produto_id!, (item.quantidade || 0) + 1, 'BONIFICACAO_COMERCIAL')}
                               className="w-5 h-5 flex items-center justify-center bg-orange-600 rounded text-white hover:bg-orange-700"
                             >
@@ -1584,6 +1645,7 @@ export function OrderPage() {
                             </button>
                             <button
                               type="button"
+                              disabled={'campanha_regra_id' in item}
                               onClick={() => updateItem(item.produto_id!, 0, 'BONIFICACAO_COMERCIAL')}
                               className="w-5 h-5 flex items-center justify-center bg-red-50 text-red-650 rounded hover:bg-red-100 ml-1"
                               title="Remover bonificação"
@@ -1885,7 +1947,7 @@ export function OrderPage() {
                                       <div>{produto?.produto}</div>
                                       {item.tipo_operacao && item.tipo_operacao !== 'VENDA' && (
                                         <div className="text-[8px] font-black tracking-widest text-[#ea580c] uppercase mt-0.5">
-                                          {item.tipo_operacao === 'BONIFICACAO_COMERCIAL' ? '• Bonificação' : '• Merchandising'}
+                                          {item.tipo_operacao === 'BONIFICACAO_COMERCIAL' ? ('campanha_regra_id' in item ? '• Bonificação de campanha (sem Flex)' : '• Bonificação') : '• Merchandising'}
                                         </div>
                                       )}
                                     </td>
