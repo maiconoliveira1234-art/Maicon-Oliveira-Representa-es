@@ -7,6 +7,7 @@ export type RegraCampanha = {
   produto_ids: string[];
   familia: string;
   minimo: number;
+  unidade?: 'embalagens' | 'unidades' | 'kg';
   repetivel: boolean;
   bonus_produto_id: string;
   bonus_quantidade: number;
@@ -63,7 +64,11 @@ export function avaliarCampanhas(
         const p = byId.get(i.produto_id || '');
         return !!p && produtoNaRegra(p, regra);
       });
-      const quantidade = elegiveis.reduce((sum, i) => sum + Math.max(0, Number(i.quantidade) || 0), 0);
+      const quantidade = elegiveis.reduce((sum, i) => {
+        const p = byId.get(i.produto_id || '')!;
+        const qtd = Math.max(0, Number(i.quantidade) || 0);
+        return sum + qtd * (regra.unidade === 'unidades' ? (p.quant_embalagem || 1) : regra.unidade === 'kg' ? (p.peso_embalagem || 0) : 1);
+      }, 0);
       // Quando a regra contempla vários SKUs, nunca escolher o bonificado por aproximação.
       const unico = [...new Set(elegiveis.map(i => i.produto_id || ''))];
       const bonusProdutoId = regra.bonus_produto_id || (unico.length === 1 ? unico[0] : null);
