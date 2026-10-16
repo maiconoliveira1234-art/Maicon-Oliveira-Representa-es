@@ -32,6 +32,8 @@ Não invente preços, produtos, descontos, validade, regras de acumulação, SKU
 Se a data estiver incompleta, retorne string vazia. Datas em formato YYYY-MM-DD.
 Se não identificar uma unidade, mantenha minimo 0 para revisão humana.
 Se a imagem tiver ofertas diferentes, retorne uma regra por oferta.
+Quando houver colunas "Compre", "Ganhe" e "Mecânica", AGRUPE as linhas que compartilham "Ganhe" e "Mecânica" em UMA regra. Em "produtos_nomes" liste cada produto da coluna Compre, não um por regra. Produza regras diferentes se as tabelas tiverem produtos elegíveis ou bônus distintos.
+Exemplo: sete SKUs no Compre e "15x1" no Ganhe significam minimo=15, bonus_quantidade=1, tipo=bonificacao. O bonus_produto_nome é SOMENTE o produto da coluna Ganhe. Se houver lista produtos_nomes, não preencha familia para evitar inclusão indevida de outros SKUs.
 tipos aceitos: bonificacao ou desconto. repetivel só true se texto indicar explicitamente 'a cada X' ou múltiplos.
 Cada desconto tem uma modalidade exclusiva:
 - adicional_percentual = desconto extra aplicado após tabela;
@@ -41,7 +43,7 @@ Cada desconto tem uma modalidade exclusiva:
 Não confundir desconto em valor com preço final; se faltar número retornar zero, para revisão humana.
 Inclua o nome de cada produto exatamente como aparece (campo produto_nome) e família opcional.
 Retorne JSON com: titulo, descricao, inicio, fim, regras[
-{tipo, produto_nome, familia, minimo, unidade, repetivel, bonus_produto_nome, bonus_quantidade, desconto_modalidade, desconto_percentual, desconto_valor, preco_final}].
+{tipo, produtos_nomes, produto_nome, familia, minimo, unidade, repetivel, bonus_produto_nome, bonus_quantidade, desconto_modalidade, desconto_percentual, desconto_valor, preco_final}].
 A imagem pode ter informações incompletas; a aprovação humana é obrigatória.` },
           { inlineData: { mimeType: parsed[1], data: parsed[2] } },
         ],
@@ -60,6 +62,9 @@ A imagem pode ter informações incompletas; a aprovação humana é obrigatóri
       regras: extracted.regras.slice(0, 20).map((r: any) => ({
         tipo: r.tipo === 'desconto' ? 'desconto' : 'bonificacao',
         produto_nome: String(r.produto_nome || '').slice(0, 200),
+        produtos_nomes: Array.isArray(r.produtos_nomes)
+          ? r.produtos_nomes.slice(0, 80).map((n: unknown) => String(n || '').slice(0, 200))
+          : [],
         familia: String(r.familia || '').slice(0, 100),
         minimo: Number(r.minimo) || 0,
         unidade: ['embalagens','unidades','kg'].includes(r.unidade) ? r.unidade : 'embalagens',

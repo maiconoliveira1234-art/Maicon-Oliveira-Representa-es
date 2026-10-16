@@ -5,6 +5,7 @@ import { useDataManager } from '../lib/dataManager';
 import type { Campanha, RegraCampanha } from '../lib/campaignEngine';
 import { campanhaAtiva, descontoValido, descricaoDesconto, modalidadeDesconto, type ModalidadeDesconto } from '../lib/campaignEngine';
 import { CampaignSkuSearch } from '../components/campaigns/CampaignSkuSearch';
+import { CampaignSkuMultiSearch } from '../components/campaigns/CampaignSkuMultiSearch';
 
 const blankRule = (): RegraCampanha => ({
   id: crypto.randomUUID(), tipo: 'bonificacao', produto_ids: [],
@@ -80,14 +81,27 @@ export function CampaignPage() {
       if (!draft || !Array.isArray(draft.regras)) throw new Error('A IA não retornou regras válidas.');
       const rules: RegraCampanha[] = draft.regras.slice(0, 20).map((r: any) => {
         // Associação exata: jamais vincular uma promoção ao SKU errado por similaridade.
-        const name = normalize(String(r.produto_nome || ''));
-        const bonusName = normalize(String(r.bonus_produto_nome || ''));
-        const matching = produtos.filter(p => name && normalize(p.produto) === name);
+        const labels: string[] = Array.isArray(r.produtos_nomes) && r.produtos_nomes.length
+          ? r.produtos_nomes.filter((n: unknown): n is string => typeof n === 'string' && !!n.trim()).slice(0, 80)
+          : (String(r.produto_nome || '').trim() ? [String(r.produto_nome).trim()] : []);
+        const selectedIds: string[] = [];
+        const pendencias: string[] = [];
+        for (const label of [...new Set(labels)]) {
+          const normalized = normalize(label);
+          const matching = produtos.filter(p => normalized && normalize(p.produto) === normalized);
+          if (matching.length === 1) selectedIds.push(matching[0].id);
+          else pendencias.push(label);
+        }
+        const bonusNameRaw = String(r.bonus_produto_nome || '').trim();
+        const bonusName = normalize(bonusNameRaw);
         const bonus = produtos.filter(p => bonusName && normalize(p.produto) === bonusName);
+        if (bonusNameRaw && bonus.length !== 1) pendencias.push('SKU bonificado: ' + bonusNameRaw);
         return {
           ...blankRule(), tipo: r.tipo === 'desconto' ? 'desconto' : 'bonificacao',
-          produto_ids: matching.length === 1 ? [matching[0].id] : [],
-          familia: familias.find(f => normalize(f) === normalize(String(r.familia || ''))) || '',
+          produto_ids: [...new Set(selectedIds)],
+          pendencias_importacao: pendencias,
+          // Listas explícitas não significam autorização para incluir a família toda.
+          familia: labels.length ? '' : (familias.find(f => normalize(f) === normalize(String(r.familia || ''))) || ''),
           minimo: Number(r.minimo) || 0,
           unidade: ['embalagens', 'unidades', 'kg'].includes(r.unidade) ? r.unidade : 'embalagens',
           repetivel: !!r.repetivel,
@@ -118,11 +132,14 @@ export function CampaignPage() {
     if (!c.inicio || !c.fim || c.inicio > c.fim) return 'Verifique o período da campanha.';
     if (!c.regras.length) return 'Adicione pelo menos uma regra.';
     for (const r of c.regras) {
-      if (!r.produto_ids?.length && !r.familia) return 'Selecione o produto ou família de cada regra.';
+      if (!r.produto_ids?.length && !r.familia) return 'Selecione um ou mais produtos ou uma família em cada regra.';
+      if (activate && (r.pendencias_importacao?.length || 0) > 0)
+        return 'Confira os SKUs não localizados no encarte e confirme a revisão antes de ativar.';
       if (!Number.isInteger(Number(r.minimo)) || Number(r.minimo) <= 0) return 'Quantidade mínima deve ser inteira e positiva.';
       if (r.tipo === 'bonificacao' && (!Number.isInteger(Number(r.bonus_quantidade)) || Number(r.bonus_quantidade) <= 0))
         return 'Informe uma quantidade bonificada válida.';
-      if (r.tipo === 'bonificacao' && !r.bonus_produto_id && !r.produto_ids?.length) return 'Informe um SKU bonificado para campanhas por família.';
+      if (r.tipo === 'bonificacao' && !r.bonus_produto_id && (r.familia || r.produto_ids.length !== 1))
+        return 'Se vários SKUs participam da regra, selecione o SKU específico da bonificação.';
       if (r.tipo === 'desconto' && !descontoValido(r))
         return 'Informe desconto válido: percentual de 0 a 100% ou valor em reais maior que zero.';
     }
@@ -132,7 +149,7 @@ export function CampaignPage() {
 
   const save = async (activate = false) => {
     if (!form || busy) return;
-    const reason = validate(form, activate);
+    const reason = validate(form, activate || form.status === 'ativa');
     if (reason) { setError(reason); return; }
     setBusy(true); setError(''); setNotice('');
     const payload = {
@@ -199,14 +216,27 @@ export function CampaignPage() {
                   <label className={labelClass}>Família participante (opcional)<select className={inputClass} value={r.familia} onChange={e => changeRule(r.id, { familia: e.target.value, produto_ids: [] })}>
                     <option value="">Escolher um produto específico</option>{familias.map(f => <option key={f} value={f}>{f}</option>)}
                   </select></label>
-                  <CampaignSkuSearch
-                    label="SKU participante (ou toda a família)"
+                  <CampaignSkuMultiSearch
+                    label="SKUs participantes (seleção múltipla)"
                     produtos={produtos}
                     disabled={!!r.familia}
-                    value={r.produto_ids[0] || ''}
-                    onChange={id => changeRule(r.id, { produto_ids: id ? [id] : [] })}
-                    placeholder="Digite o nome do produto participante"
+                    values={r.produto_ids || []}
+                    onChange={ids => changeRule(r.id, { produto_ids: ids })}
                   />
+                  {!!r.pendencias_importacao?.length && (
+                    <div className="space-y-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 sm:col-span-2" role="alert">
+                      <p className="font-bold">A IA não conseguiu associar automaticamente estes nomes do encarte:</p>
+                      <ul className="list-inside list-disc space-y-1">
+                        {r.pendencias_importacao.map((name, index) => <li key={index}>{name}</li>)}
+                      </ul>
+                      <p>Localize os SKUs corretos na pesquisa e confira que o grupo está completo. A campanha só pode ser ativada após a conferência.</p>
+                      <button type="button" disabled={!r.produto_ids.length && !r.familia}
+                        onClick={() => changeRule(r.id, { pendencias_importacao: [] })}
+                        className="rounded-md border border-amber-500 bg-white px-3 py-2 font-bold text-amber-900 disabled:opacity-50">
+                        Conferi os SKUs e a bonificação
+                      </button>
+                    </div>
+                  )}
                   {r.tipo === 'bonificacao' ? (<>
                     <CampaignSkuSearch
                       label="SKU bonificado"
@@ -216,6 +246,11 @@ export function CampaignPage() {
                       placeholder="Digite o nome do produto bonificado"
                       allowSameProduct
                     />
+                    {(r.produto_ids.length > 1 || !!r.familia) && !r.bonus_produto_id && (
+                      <p className="text-xs font-semibold text-orange-700 sm:col-span-2">
+                        Para grupos com vários SKUs, escolha o SKU exato que será bonificado.
+                      </p>
+                    )}
                     <label className={labelClass}>Quantidade bonificada<input type="number" min="1" step="1" className={inputClass} value={r.bonus_quantidade} onChange={e => changeRule(r.id, { bonus_quantidade: Number(e.target.value) })}/></label>
                     <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={r.repetivel} onChange={e => changeRule(r.id, { repetivel: e.target.checked })}/> Repetir benefício a cada múltiplo do mínimo</label>
                   </>) : (

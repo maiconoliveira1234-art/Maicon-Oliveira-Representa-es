@@ -71,4 +71,22 @@ assert.equal(descontoValido({ ...ofertas[1].regra, desconto_percentual: 105 }), 
 assert.equal(descontoValido({ ...rule, tipo: 'desconto', desconto_percentual: 10 }), true);
 assert.equal(descricaoDesconto(ofertas[2].regra).includes('desconto por embalagem'), true);
 assert.equal(avaliarCampanhas([{ ...campanha, regras: [{ ...ofertas[3].regra, preco_final: 0 }] }], [{ produto_id: 'item-a', quantidade: 20 }], [produto], now)[0].elegivel, false);
+const outroSku = { ...produto, id: 'item-b', produto: 'Produto B', familia: 'Origens' } as Produto;
+const fora = { ...produto, id: 'item-c', produto: 'Fora da campanha' } as Produto;
+const regraMista = { ...rule, produto_ids: ['item-a','item-b'], minimo: 15, bonus_produto_id: 'item-a' };
+const pedidoMisto = [
+  { produto_id: 'item-a', quantidade: 5, tipo_operacao: 'VENDA' },
+  { produto_id: 'item-b', quantidade: 10, tipo_operacao: 'VENDA' },
+  { produto_id: 'item-c', quantidade: 30, tipo_operacao: 'VENDA' },
+];
+const resultadoMisto = avaliarCampanhas([{ ...campanha, regras: [regraMista] }],
+  pedidoMisto, [produto, outroSku, fora], now)[0];
+assert.equal(resultadoMisto.quantidade, 15);
+assert.equal(resultadoMisto.elegivel, true);
+assert.equal(resultadoMisto.bonusQuantidade, 1);
+assert.equal(resultadoMisto.bonusProdutoId, 'item-a');
+assert.equal(avaliarCampanhas([{ ...campanha, regras: [{ ...regraMista, bonus_produto_id: '' }] }],
+  pedidoMisto, [produto, outroSku, fora], now)[0].elegivel, false); // Bonificação ambígua bloqueada.
+assert.equal(avaliarCampanhas([{ ...campanha, regras: [{ ...regraMista, tipo: 'desconto', desconto_percentual: 5 }] }],
+  pedidoMisto, [produto, outroSku, fora], now)[0].descontoPercentual, 5);
 console.log('Testes de campanhas: OK');
