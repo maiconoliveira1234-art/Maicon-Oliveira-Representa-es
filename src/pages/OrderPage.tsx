@@ -49,7 +49,8 @@ import { useDataManager } from '../lib/dataManager';
 import { StockCountSkeleton } from '../components/ui/Skeleton';
 import { logDiagnostic } from '../lib/diagnostics';
 import { formatFlexRate, getFlexRateForDate } from '../lib/flexRules';
-import { avaliarCampanhas, produtoNaRegra, type Campanha } from '../lib/campaignEngine';
+import { avaliarCampanhas, descricaoDesconto, type Campanha } from '../lib/campaignEngine';
+import { calcularPrecoDeCampanha } from '../lib/campaignPricing';
 
 export function OrderPage() {
   const { clienteId } = useParams();
@@ -316,9 +317,11 @@ export function OrderPage() {
       if (!produto) return item;
       const discount = getValorUnitario(produto, currentFaixa) || 0;
       const unitario = calcularPrecoComDesconto(produto.custo_und, discount);
-      const extra = beneficiosAprovados.filter(o => o.regra.tipo === 'desconto' && produtoNaRegra(produto, o.regra)).reduce((max, o) => Math.max(max, o.descontoPercentual), 0);
-      const unitarioFinal = Number((unitario * (1 - extra / 100)).toFixed(4));
-      const valorTotalItem = unitarioFinal * (item.quantidade || 0) * (produto.quant_embalagem || 1);
+      const valorCampanha = calcularPrecoDeCampanha(produto, unitario, beneficiosAprovados);
+      const unitarioFinal = valorCampanha.valorUnitario;
+      const valorTotalItem = valorCampanha.regraId
+        ? valorCampanha.valorEmbalagem * (item.quantidade || 0)
+        : unitarioFinal * (item.quantidade || 0) * (produto.quant_embalagem || 1);
       return {
         ...item,
         valor_unitario: unitarioFinal,
@@ -1456,12 +1459,12 @@ export function OrderPage() {
               const aprovada = regrasAprovadas.includes(o.regra.id);
               const beneficio = o.regra.tipo === 'bonificacao'
                 ? (o.bonusQuantidade || o.regra.bonus_quantidade) + ' embalagem(ns) bonificada(s) no FX, sem consumo de Flex'
-                : o.regra.desconto_percentual + '% de desconto adicional';
+                : descricaoDesconto(o.regra);
               return <div key={o.regra.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-3 text-xs">
                 <div className="min-w-0 flex-1">
                   <p className="font-bold">{o.campanha.titulo}</p>
                   <p className="text-neutral-600">{beneficio} · {o.quantidade}/{o.regra.minimo} {o.regra.unidade === 'kg' ? 'kg' : o.regra.unidade === 'unidades' ? 'unidades/sacos' : 'embalagens' }</p>
-                  {!o.elegivel && <p className="font-bold text-orange-700">{o.falta > 0 ? 'Faltam ' + o.falta + ' ' + (o.regra.unidade === 'kg' ? 'kg.' : o.regra.unidade === 'unidades' ? 'unidades/sacos.' : 'embalagens.') : 'Produto bonificado precisa ser definido para esta combinação.'}</p>}
+                  {!o.elegivel && <p className="font-bold text-orange-700">{o.falta > 0 ? 'Faltam ' + o.falta + ' ' + (o.regra.unidade === 'kg' ? 'kg.' : o.regra.unidade === 'unidades' ? 'unidades/sacos.' : 'embalagens.') : o.regra.tipo === 'desconto' ? 'Revise o valor ou percentual da campanha.' : 'Produto bonificado precisa ser definido para esta combinação.'}</p>}
                 </div>
                 <button type="button" disabled={!o.elegivel} onClick={() => setRegrasAprovadas(prev => prev.includes(o.regra.id) ? prev.filter(id => id !== o.regra.id) : [...prev, o.regra.id])}
                   className="rounded-lg border border-orange-300 px-3 py-2 font-black text-orange-800 disabled:opacity-40">

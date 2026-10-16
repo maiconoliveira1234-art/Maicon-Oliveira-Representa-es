@@ -1,6 +1,8 @@
 import type { Produto } from '../types';
 
 export type TipoBeneficio = 'bonificacao' | 'desconto';
+/** Descontos monetários e preço final são valores por embalagem comercial. */
+export type ModalidadeDesconto = 'adicional_percentual' | 'absoluto_percentual' | 'valor' | 'preco_final';
 export type RegraCampanha = {
   id: string;
   tipo: TipoBeneficio;
@@ -12,6 +14,9 @@ export type RegraCampanha = {
   bonus_produto_id: string;
   bonus_quantidade: number;
   desconto_percentual: number;
+  desconto_modalidade?: ModalidadeDesconto; // sem campo: regra antiga de desconto adicional
+  desconto_valor?: number;
+  preco_final?: number;
 };
 export type Campanha = {
   id: string;
@@ -35,6 +40,29 @@ export type OportunidadeCampanha = {
   bonusQuantidade: number;
   descontoPercentual: number;
 };
+
+export function modalidadeDesconto(r: RegraCampanha): ModalidadeDesconto {
+  return ['adicional_percentual', 'absoluto_percentual', 'valor', 'preco_final'].includes(r.desconto_modalidade || '')
+    ? r.desconto_modalidade! : 'adicional_percentual';
+}
+export function descontoValido(r: RegraCampanha): boolean {
+  if (r.tipo !== 'desconto') return false;
+  const modo = modalidadeDesconto(r);
+  const valor = Number(modo === 'valor' ? r.desconto_valor : modo === 'preco_final' ? r.preco_final : r.desconto_percentual);
+  return Number.isFinite(valor) && valor > 0 &&
+    (modo === 'valor' || modo === 'preco_final' ? valor <= 10_000_000 : valor <= 100);
+}
+export function descricaoDesconto(r: RegraCampanha): string {
+  const modo = modalidadeDesconto(r);
+  const percentual = Number(r.desconto_percentual).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+  const moeda = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  switch (modo) {
+    case 'absoluto_percentual': return percentual + '% de desconto absoluto sobre preço cheio';
+    case 'valor': return moeda(Number(r.desconto_valor) || 0) + ' de desconto por embalagem';
+    case 'preco_final': return 'Preço final de ' + moeda(Number(r.preco_final) || 0) + ' por embalagem';
+    default: return percentual + '% de desconto adicional sobre a tabela';
+  }
+}
 
 export function campanhaAtiva(c: Campanha, hoje = new Date()): boolean {
   const dia = [hoje.getFullYear(), String(hoje.getMonth() + 1).padStart(2, '0'), String(hoje.getDate()).padStart(2, '0')].join('-');
@@ -72,7 +100,10 @@ export function avaliarCampanhas(
       // Quando a regra contempla vários SKUs, nunca escolher o bonificado por aproximação.
       const unico = [...new Set(elegiveis.map(i => i.produto_id || ''))];
       const bonusProdutoId = regra.bonus_produto_id || (unico.length === 1 ? unico[0] : null);
-      const elegivel = quantidade >= minimo && (regra.tipo !== 'bonificacao' || !!bonusProdutoId && byId.has(bonusProdutoId));
+      const elegivel = quantidade >= minimo &&
+        (regra.tipo === 'bonificacao'
+          ? !!bonusProdutoId && byId.has(bonusProdutoId)
+          : descontoValido(regra));
       const bonusQuantidade = regra.tipo === 'bonificacao' && elegivel
         ? (regra.repetivel ? Math.floor(quantidade / minimo) : 1) * Math.max(0, Math.floor(Number(regra.bonus_quantidade) || 0))
         : 0;
@@ -82,7 +113,8 @@ export function avaliarCampanhas(
         elegivel: elegivel && (regra.tipo !== 'bonificacao' || bonusQuantidade > 0),
         bonusProdutoId,
         bonusQuantidade,
-        descontoPercentual: regra.tipo === 'desconto' && elegivel
+        descontoPercentual: regra.tipo === 'desconto' && elegivel &&
+          ['adicional_percentual', 'absoluto_percentual'].includes(modalidadeDesconto(regra))
           ? Math.min(100, Math.max(0, Number(regra.desconto_percentual) || 0)) : 0,
       });
     }

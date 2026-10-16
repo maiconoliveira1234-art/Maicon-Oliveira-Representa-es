@@ -3,13 +3,14 @@ import { Megaphone, Plus, Trash2, Sparkles, ImageUp, CheckCircle2, AlertTriangle
 import { supabase } from '../lib/supabase';
 import { useDataManager } from '../lib/dataManager';
 import type { Campanha, RegraCampanha } from '../lib/campaignEngine';
-import { campanhaAtiva } from '../lib/campaignEngine';
+import { campanhaAtiva, descontoValido, descricaoDesconto, modalidadeDesconto, type ModalidadeDesconto } from '../lib/campaignEngine';
 import { CampaignSkuSearch } from '../components/campaigns/CampaignSkuSearch';
 
 const blankRule = (): RegraCampanha => ({
   id: crypto.randomUUID(), tipo: 'bonificacao', produto_ids: [],
   familia: '', minimo: 10, unidade: 'embalagens', repetivel: true, bonus_produto_id: '',
   bonus_quantidade: 1, desconto_percentual: 0,
+  desconto_modalidade: 'adicional_percentual', desconto_valor: 0, preco_final: 0,
 });
 const today = () => {
   const d = new Date();
@@ -92,7 +93,11 @@ export function CampaignPage() {
           repetivel: !!r.repetivel,
           bonus_produto_id: bonus.length === 1 ? bonus[0].id : '',
           bonus_quantidade: Math.max(1, Math.floor(Number(r.bonus_quantidade) || 1)),
-          desconto_percentual: Math.max(0, Math.min(100, Number(r.desconto_percentual) || 0)),
+          desconto_percentual: Number(r.desconto_percentual) || 0,
+          desconto_modalidade: ['adicional_percentual','absoluto_percentual','valor','preco_final'].includes(r.desconto_modalidade)
+            ? r.desconto_modalidade : 'adicional_percentual',
+          desconto_valor: Number(r.desconto_valor) || 0,
+          preco_final: Number(r.preco_final) || 0,
         };
       });
       setForm(current => current ? {
@@ -118,8 +123,8 @@ export function CampaignPage() {
       if (r.tipo === 'bonificacao' && (!Number.isInteger(Number(r.bonus_quantidade)) || Number(r.bonus_quantidade) <= 0))
         return 'Informe uma quantidade bonificada válida.';
       if (r.tipo === 'bonificacao' && !r.bonus_produto_id && !r.produto_ids?.length) return 'Informe um SKU bonificado para campanhas por família.';
-      if (r.tipo === 'desconto' && (Number(r.desconto_percentual) <= 0 || Number(r.desconto_percentual) > 100))
-        return 'O desconto deve ser maior que 0% e até 100%.';
+      if (r.tipo === 'desconto' && !descontoValido(r))
+        return 'Informe desconto válido: percentual de 0 a 100% ou valor em reais maior que zero.';
     }
     if (activate && c.fim < today()) return 'Não é possível ativar campanha com validade encerrada.';
     return '';
@@ -187,7 +192,7 @@ export function CampaignPage() {
                   <button aria-label="Excluir regra" onClick={() => removeRule(r.id)} className="text-red-600"><Trash2 size={16}/></button></div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className={labelClass}>Benefício<select className={inputClass} value={r.tipo} onChange={e => changeRule(r.id, { tipo: e.target.value as RegraCampanha['tipo'] })}>
-                    <option value="bonificacao">Bonificação via FX (sem consumir Flex)</option><option value="desconto">Desconto extra</option>
+                    <option value="bonificacao">Bonificação via FX (sem consumir Flex)</option><option value="desconto">Desconto / preço promocional</option>
                   </select></label>
                   <label className={labelClass}>Quantidade mínima<input className={inputClass} type="number" min="1" step="1" value={r.minimo} onChange={e => changeRule(r.id, { minimo: Number(e.target.value) })}/></label>
                   <label className={labelClass}>Unidade do mínimo<select className={inputClass} value={r.unidade || 'embalagens'} onChange={e => changeRule(r.id, { unidade: e.target.value as RegraCampanha['unidade'] })}><option value="embalagens">Embalagens / caixas do pedido</option><option value="unidades">Unidades / sacos individuais</option><option value="kg">Peso líquido (kg)</option></select></label>
@@ -214,7 +219,48 @@ export function CampaignPage() {
                     <label className={labelClass}>Quantidade bonificada<input type="number" min="1" step="1" className={inputClass} value={r.bonus_quantidade} onChange={e => changeRule(r.id, { bonus_quantidade: Number(e.target.value) })}/></label>
                     <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={r.repetivel} onChange={e => changeRule(r.id, { repetivel: e.target.checked })}/> Repetir benefício a cada múltiplo do mínimo</label>
                   </>) : (
-                    <label className={labelClass}>Desconto adicional (%)<input type="number" className={inputClass} min="0.01" max="100" step="0.01" value={r.desconto_percentual} onChange={e => changeRule(r.id, { desconto_percentual: Number(e.target.value) })}/></label>
+                    <div className="space-y-3 sm:col-span-2">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className={labelClass}>Modalidade de desconto
+                          <select className={inputClass} value={modalidadeDesconto(r)}
+                            onChange={e => changeRule(r.id, {
+                              desconto_modalidade: e.target.value as ModalidadeDesconto,
+                              desconto_percentual: 0, desconto_valor: 0, preco_final: 0,
+                            })}>
+                            <option value="adicional_percentual">Desconto adicional (%)</option>
+                            <option value="absoluto_percentual">Desconto absoluto (%)</option>
+                            <option value="valor">Desconto em valor (R$)</option>
+                            <option value="preco_final">Valor final do item (R$)</option>
+                          </select>
+                        </label>
+                        {['adicional_percentual', 'absoluto_percentual'].includes(modalidadeDesconto(r)) ? (
+                          <label className={labelClass}>Percentual de desconto (%)
+                            <input type="number" inputMode="decimal" className={inputClass} min="0.01" max="100" step="0.01"
+                              value={r.desconto_percentual || ''} placeholder="Ex.: 5"
+                              onChange={e => changeRule(r.id, { desconto_percentual: Number(e.target.value) })}/>
+                          </label>
+                        ) : (
+                          <label className={labelClass}>{modalidadeDesconto(r) === 'valor' ? 'Desconto por embalagem (R$)' : 'Preço final por embalagem (R$)'}
+                            <input type="number" inputMode="decimal" className={inputClass} min="0.01" step="0.01"
+                              value={modalidadeDesconto(r) === 'valor' ? r.desconto_valor || '' : r.preco_final || ''}
+                              placeholder="Ex.: 59,90"
+                              onChange={e => changeRule(r.id, modalidadeDesconto(r) === 'valor'
+                                ? { desconto_valor: Number(e.target.value) } : { preco_final: Number(e.target.value) })}/>
+                          </label>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-neutral-500">
+                        {modalidadeDesconto(r) === 'adicional_percentual'
+                          ? 'Percentual aplicado sobre o preço já calculado pela tabela do cliente.'
+                          : modalidadeDesconto(r) === 'absoluto_percentual'
+                            ? 'Percentual total sobre o preço cheio, substituindo o desconto de tabela.'
+                            : modalidadeDesconto(r) === 'valor'
+                              ? 'Dedução em reais no valor da caixa ou saco, após aplicação da tabela.'
+                              : 'Preço final fixo da caixa ou saco comercial, independentemente da tabela.'}
+                        {' '}Se outras campanhas incidirem sobre o SKU, prevalece o menor preço, sem acumulação.
+                      </p>
+                      {descontoValido(r) && <p className="text-xs font-semibold text-orange-800">{descricaoDesconto(r)}</p>}
+                    </div>
                   )}
                 </div>
               </div>
