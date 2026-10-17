@@ -304,6 +304,7 @@ export function OrderPage() {
   const oportunidadesCampanha = useMemo(
     () => avaliarCampanhas(campanhasAtivas, itens, produtos), [campanhasAtivas, itens, produtos]
   );
+  const campanhasAtingidas = useMemo(() => new Set(oportunidadesCampanha.filter(o => o.elegivel).map(o => o.campanha.id)).size, [oportunidadesCampanha]);
   const beneficiosAprovados = useMemo(
     () => oportunidadesCampanha.filter(o => o.elegivel && regrasAprovadas.includes(o.regra.id)),
     [oportunidadesCampanha, regrasAprovadas]
@@ -1842,16 +1843,17 @@ export function OrderPage() {
                   type="button"
                   onClick={() => setShowCampaigns(current => !current)}
                   aria-expanded={showCampaigns}
-                  aria-label="Campanhas disponíveis"
+                  aria-label={`Campanhas: ${campanhasAtingidas} atingidas de ${new Set(oportunidadesCampanha.map(o => o.campanha.id)).size} disponíveis`}
                   className={cn(
                     "px-3 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all text-[11px]",
-                    showCampaigns
-                      ? "bg-orange-600 text-white ring-2 ring-orange-300"
-                      : "bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50"
+                    campanhasAtingidas > 0
+                      ? showCampaigns ? "bg-green-700 text-white ring-2 ring-green-300" : "bg-green-600 text-white border border-green-700 shadow-md hover:bg-green-700"
+                      : showCampaigns ? "bg-orange-600 text-white ring-2 ring-orange-300" : "bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50"
                   )}
                   title="Campanhas disponíveis"
                 >
-                  <span>Campanhas{ oportunidadesCampanha.length > 0 ? ` (${oportunidadesCampanha.length})` : '' }</span>
+                  <span>Campanhas</span>
+                  {campanhasAtingidas > 0 && <span aria-label={`${campanhasAtingidas} campanhas atingidas`} className="rounded-full bg-white text-green-800 px-2 py-0.5 text-xs font-black min-w-6 text-center">{campanhasAtingidas}</span>}
                 </button>
                 <button 
                   onClick={() => setShowClearConfirm(true)}
