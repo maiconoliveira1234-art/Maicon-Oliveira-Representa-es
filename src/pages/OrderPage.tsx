@@ -296,7 +296,7 @@ export function OrderPage() {
   }, [clienteId, allProducts, loadClientDetails, clientCache?.[clienteId || '']]);
 
   const pesoTotal = useMemo(() => {
-    return itens.reduce((acc, item) => acc + (item.peso_total || 0), 0);
+    return itens.filter(item => !item.tipo_operacao || item.tipo_operacao === 'VENDA').reduce((acc, item) => acc + (item.peso_total || 0), 0);
   }, [itens]);
 
   const currentFaixa = getFaixaEfetiva(pesoTotal, pesoConquistado, null);
@@ -353,7 +353,7 @@ export function OrderPage() {
         ...item,
         valor_unitario: unitario,
         valor_total: valorTotalItem,
-        peso_total: (item.quantidade || 0) * produto.peso_embalagem
+        peso_total: item.tipo_operacao === 'BONIFICACAO_COMERCIAL' ? 0 : (item.quantidade || 0) * produto.peso_embalagem
       };
     });
 
@@ -363,7 +363,7 @@ export function OrderPage() {
         const produto = produtos.find(p => p.id === o.bonusProdutoId)!;
         return {
           id: 'campanha-' + o.regra.id, produto_id: produto.id, quantidade: o.bonusQuantidade,
-          peso_total: o.bonusQuantidade * produto.peso_embalagem,
+          peso_total: 0,
           valor_unitario: 0, valor_total: 0,
           tipo_operacao: 'BONIFICACAO_COMERCIAL' as const,
           campanha_regra_id: o.regra.id, campanha_nome: o.campanha.titulo,
