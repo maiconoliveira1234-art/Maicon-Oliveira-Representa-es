@@ -49,7 +49,7 @@ import { useDataManager } from '../lib/dataManager';
 import { StockCountSkeleton } from '../components/ui/Skeleton';
 import { logDiagnostic } from '../lib/diagnostics';
 import { formatFlexRate, getFlexRateForDate } from '../lib/flexRules';
-import { avaliarCampanhas, descricaoDesconto, type Campanha } from '../lib/campaignEngine';
+import { avaliarCampanhas, type Campanha } from '../lib/campaignEngine';
 import { calcularPrecoDeCampanha } from '../lib/campaignPricing';
 
 export function OrderPage() {
@@ -1467,7 +1467,7 @@ export function OrderPage() {
               >
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-neutral-900">{o.campanha.titulo}</p>
-                  <p className="text-xs text-neutral-600">{o.regra.tipo === 'bonificacao' ? 'Bonificação' : descricaoDesconto(o.regra)} · {o.quantidade}/{o.regra.minimo} {o.regra.unidade === 'kg' ? 'kg' : o.regra.unidade === 'unidades' ? 'unidades' : 'embalagens'}</p>
+                  <p className="text-xs text-neutral-600">{o.regra.tipo === 'bonificacao' ? 'Bonificação' : 'Preço promocional em reais'} · {o.quantidade}/{o.regra.minimo} {o.regra.unidade === 'kg' ? 'kg' : o.regra.unidade === 'unidades' ? 'unidades' : 'embalagens'}</p>
                   <p className={cn("text-xs font-bold", o.elegivel ? "text-green-700" : "text-orange-700")}>{o.elegivel ? 'Condição atingida' : `Faltam ${o.falta} para atingir a condição`}</p>
                 </div>
                 <ChevronDown size={17} className="-rotate-90 shrink-0 text-orange-600" />
@@ -1493,14 +1493,28 @@ export function OrderPage() {
                   </div>
                   <button type="button" aria-label="Fechar campanha" onClick={() => setSelectedCampaignRuleId(null)} className="rounded-lg p-2 bg-neutral-100"><X size={20}/></button>
                 </div>
-                {campanha.descricao && <p className="text-sm text-neutral-700">{campanha.descricao}</p>}
+                {campanha.descricao && regra.tipo === 'bonificacao' && <p className="text-sm text-neutral-700">{campanha.descricao}</p>}
                 <div className="rounded-lg bg-orange-50 border border-orange-200 p-3 space-y-2">
                   <p className="text-xs font-black uppercase text-orange-800">Condição comercial</p>
                   <p className="font-bold text-neutral-900">Compre {regra.minimo} {regra.unidade === 'kg' ? 'kg' : regra.unidade === 'unidades' ? 'unidades' : 'embalagens'} dos produtos participantes</p>
                   {regra.tipo === 'bonificacao' ? (
                     <p className="text-sm">Ganhe <strong>{regra.bonus_quantidade} × {bonificado?.produto || 'Produto bonificado não encontrado'}</strong>{regra.repetivel ? ' a cada meta atingida' : ''}.</p>
                   ) : (
-                    <p className="text-sm font-bold text-orange-900">{descricaoDesconto(regra)}</p>
+                    <div className="space-y-2">
+                      <p className="text-sm font-bold text-orange-900">Valores promocionais por embalagem (R$)</p>
+                      {participantes.map(p => {
+                        const precoTabelaUnitario = calcularPrecoComDesconto(p.custo_und, getValorUnitario(p, currentFaixa) || 0);
+                        const qtdEmbalagem = Number(p.quant_embalagem) > 0 ? Number(p.quant_embalagem) : 1;
+                        const precoTabela = precoTabelaUnitario * qtdEmbalagem;
+                        const precoOferta = calcularPrecoDeCampanha(p, precoTabelaUnitario, [{ ...oportunidade, elegivel: true }]).valorEmbalagem;
+                        return <div key={p.id} className="bg-white border border-orange-100 rounded-lg p-2 text-xs">
+                          <p className="font-bold">{p.produto}</p>
+                          <p>Tabela: {formatCurrency(precoTabela)} · Campanha: <strong>{formatCurrency(precoOferta)}</strong></p>
+                          <p className="text-green-700 font-bold">Economia: {formatCurrency(Math.max(0, precoTabela - precoOferta))} por embalagem</p>
+                        </div>;
+                      })}
+                      <p className="text-[11px] text-neutral-600">Valores calculados pela faixa atual do pedido. Sujeitos ao cumprimento da condição e à tabela vigente.</p>
+                    </div>
                   )}
                   <p className="text-xs text-neutral-600">{regra.repetivel ? 'Benefício repetível conforme quantidade comprada.' : 'Benefício concedido uma vez por pedido.'}</p>
                 </div>
