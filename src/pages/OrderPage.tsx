@@ -1847,13 +1847,13 @@ export function OrderPage() {
                   className={cn(
                     "px-3 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all text-[11px]",
                     campanhasAtingidas > 0
-                      ? showCampaigns ? "bg-green-700 text-white ring-2 ring-green-300" : "bg-green-600 text-white border border-green-700 shadow-md hover:bg-green-700"
+                      ? showCampaigns ? "bg-orange-700 text-white ring-2 ring-orange-300" : "bg-orange-600 text-white border border-orange-700 shadow-md hover:bg-orange-700"
                       : showCampaigns ? "bg-orange-600 text-white ring-2 ring-orange-300" : "bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50"
                   )}
                   title="Campanhas disponíveis"
                 >
                   <span>Campanhas</span>
-                  {campanhasAtingidas > 0 && <span aria-label={`${campanhasAtingidas} campanhas atingidas`} className="rounded-full bg-white text-green-800 px-2 py-0.5 text-xs font-black min-w-6 text-center">{campanhasAtingidas}</span>}
+                  {campanhasAtingidas > 0 && <span aria-label={`${campanhasAtingidas} campanhas atingidas`} className="rounded-full bg-white text-orange-800 px-2 py-0.5 text-xs font-black min-w-6 text-center">{campanhasAtingidas}</span>}
                 </button>
                 <button 
                   onClick={() => setShowClearConfirm(true)}
