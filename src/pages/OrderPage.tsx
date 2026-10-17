@@ -76,6 +76,7 @@ export function OrderPage() {
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [showFlexCard, setShowFlexCard] = useState(false);
   const [showCampaigns, setShowCampaigns] = useState(false);
+  const [selectedCampaignRuleId, setSelectedCampaignRuleId] = useState<string | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [productSelectorType, setProductSelectorType] = useState<'VENDA' | 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING'>('VENDA');
   const [selectedPrazo, setSelectedPrazo] = useState('');
@@ -1455,27 +1456,76 @@ export function OrderPage() {
 
         {showCampaigns && (
           <section className="space-y-2 rounded-lg border border-orange-200 bg-orange-50 p-3" aria-label="Oportunidades de campanha">
-            <h4 className="text-sm font-black text-orange-900">Campanhas disponíveis para o pedido</h4>
-            {oportunidadesCampanha.length === 0 && <p className="text-xs text-orange-800">Nenhuma campanha aplicável aos produtos deste pedido no momento.</p>}
-            {oportunidadesCampanha.map(o => {
-              const aprovada = regrasAprovadas.includes(o.regra.id);
-              const beneficio = o.regra.tipo === 'bonificacao'
-                ? (o.bonusQuantidade || o.regra.bonus_quantidade) + ' embalagem(ns) bonificada(s) no FX, sem consumo de Flex'
-                : descricaoDesconto(o.regra);
-              return <div key={o.regra.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white p-3 text-xs">
-                <div className="min-w-0 flex-1">
-                  <p className="font-bold">{o.campanha.titulo}</p>
-                  <p className="text-neutral-600">{beneficio} · {o.quantidade}/{o.regra.minimo} {o.regra.unidade === 'kg' ? 'kg' : o.regra.unidade === 'unidades' ? 'unidades/sacos' : 'embalagens' }</p>
-                  {!o.elegivel && <p className="font-bold text-orange-700">{o.falta > 0 ? 'Faltam ' + o.falta + ' ' + (o.regra.unidade === 'kg' ? 'kg.' : o.regra.unidade === 'unidades' ? 'unidades/sacos.' : 'embalagens.') : o.regra.tipo === 'desconto' ? 'Revise o valor ou percentual da campanha.' : 'Produto bonificado precisa ser definido para esta combinação.'}</p>}
+            <h4 className="text-sm font-black text-orange-900">Campanhas disponíveis</h4>
+            {oportunidadesCampanha.length === 0 && <p className="text-xs text-orange-800">Nenhuma campanha ativa no momento.</p>}
+            {oportunidadesCampanha.map(o => (
+              <button
+                key={o.regra.id}
+                type="button"
+                onClick={() => setSelectedCampaignRuleId(o.regra.id)}
+                className="w-full rounded-lg border border-orange-100 bg-white p-3 text-left hover:border-orange-400 transition-colors flex items-center justify-between gap-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-neutral-900">{o.campanha.titulo}</p>
+                  <p className="text-xs text-neutral-600">{o.regra.tipo === 'bonificacao' ? 'Bonificação' : descricaoDesconto(o.regra)} · {o.quantidade}/{o.regra.minimo} {o.regra.unidade === 'kg' ? 'kg' : o.regra.unidade === 'unidades' ? 'unidades' : 'embalagens'}</p>
+                  <p className={cn("text-xs font-bold", o.elegivel ? "text-green-700" : "text-orange-700")}>{o.elegivel ? 'Condição atingida' : `Faltam ${o.falta} para atingir a condição`}</p>
                 </div>
-                <button type="button" disabled={!o.elegivel} onClick={() => setRegrasAprovadas(prev => prev.includes(o.regra.id) ? prev.filter(id => id !== o.regra.id) : [...prev, o.regra.id])}
-                  className="rounded-lg border border-orange-300 px-3 py-2 font-black text-orange-800 disabled:opacity-40">
-                  {aprovada ? 'Retirar benefício' : 'Aplicar benefício'}
-                </button>
-              </div>;
-            })}
+                <ChevronDown size={17} className="-rotate-90 shrink-0 text-orange-600" />
+              </button>
+            ))}
           </section>
         )}
+        {selectedCampaignRuleId && (() => {
+          const oportunidade = oportunidadesCampanha.find(o => o.regra.id === selectedCampaignRuleId);
+          if (!oportunidade) return null;
+          const { regra, campanha } = oportunidade;
+          const participantes = produtos.filter(p => (regra.produto_ids || []).includes(p.id) || (!!regra.familia && p.familia === regra.familia));
+          const bonificado = produtos.find(p => p.id === oportunidade.bonusProdutoId);
+          const aprovada = regrasAprovadas.includes(regra.id);
+          return createPortal(
+            <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/70 p-3" role="presentation" onClick={() => setSelectedCampaignRuleId(null)}>
+              <div role="dialog" aria-modal="true" aria-label={campanha.titulo} className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90dvh] overflow-y-auto p-4 space-y-4" onClick={e => e.stopPropagation()}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wide text-orange-600">Detalhes da campanha</p>
+                    <h3 className="text-lg font-black text-neutral-900">{campanha.titulo}</h3>
+                    <p className="text-xs text-neutral-500">Válida de {campanha.inicio.split('-').reverse().join('/')} até {campanha.fim.split('-').reverse().join('/')}</p>
+                  </div>
+                  <button type="button" aria-label="Fechar campanha" onClick={() => setSelectedCampaignRuleId(null)} className="rounded-lg p-2 bg-neutral-100"><X size={20}/></button>
+                </div>
+                {campanha.descricao && <p className="text-sm text-neutral-700">{campanha.descricao}</p>}
+                <div className="rounded-lg bg-orange-50 border border-orange-200 p-3 space-y-2">
+                  <p className="text-xs font-black uppercase text-orange-800">Condição comercial</p>
+                  <p className="font-bold text-neutral-900">Compre {regra.minimo} {regra.unidade === 'kg' ? 'kg' : regra.unidade === 'unidades' ? 'unidades' : 'embalagens'} dos produtos participantes</p>
+                  {regra.tipo === 'bonificacao' ? (
+                    <p className="text-sm">Ganhe <strong>{regra.bonus_quantidade} × {bonificado?.produto || 'Produto bonificado não encontrado'}</strong>{regra.repetivel ? ' a cada meta atingida' : ''}.</p>
+                  ) : (
+                    <p className="text-sm font-bold text-orange-900">{descricaoDesconto(regra)}</p>
+                  )}
+                  <p className="text-xs text-neutral-600">{regra.repetivel ? 'Benefício repetível conforme quantidade comprada.' : 'Benefício concedido uma vez por pedido.'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-black uppercase text-neutral-600 mb-2">Produtos participantes ({participantes.length})</p>
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {participantes.map(p => <div key={p.id} className="text-sm rounded-md bg-neutral-50 border border-neutral-100 px-3 py-2">{p.produto}</div>)}
+                    {participantes.length === 0 && <p className="text-sm text-red-700">Nenhum produto correspondente encontrado no catálogo.</p>}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-neutral-200 p-3 space-y-1">
+                  <p className="text-xs font-black uppercase text-neutral-500">Progresso neste pedido</p>
+                  <p className="font-bold">{oportunidade.quantidade} de {regra.minimo} {regra.unidade === 'kg' ? 'kg' : regra.unidade === 'unidades' ? 'unidades' : 'embalagens'}</p>
+                  <p className={cn("text-sm font-bold", oportunidade.elegivel ? "text-green-700" : "text-orange-700")}>{oportunidade.elegivel ? (regra.tipo === 'bonificacao' ? `${oportunidade.bonusQuantidade} unidade(s) de bonificação disponível(is)` : 'Desconto disponível') : `Faltam ${oportunidade.falta} para atingir a condição`}</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={!oportunidade.elegivel}
+                  onClick={() => setRegrasAprovadas(prev => prev.includes(regra.id) ? prev.filter(id => id !== regra.id) : [...prev, regra.id])}
+                  className="w-full rounded-lg bg-orange-600 text-white px-4 py-3 font-bold disabled:opacity-40"
+                >{aprovada ? 'Retirar benefício do pedido' : 'Aplicar benefício ao pedido'}</button>
+              </div>
+            </div>, document.body
+          );
+        })()}
         <button 
           onClick={() => {
             setProductSelectorType('VENDA');
