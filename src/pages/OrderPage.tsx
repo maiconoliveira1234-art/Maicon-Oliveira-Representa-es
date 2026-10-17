@@ -75,6 +75,7 @@ export function OrderPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showProductSelector, setShowProductSelector] = useState(false);
   const [showFlexCard, setShowFlexCard] = useState(false);
+  const [showCampaigns, setShowCampaigns] = useState(false);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [productSelectorType, setProductSelectorType] = useState<'VENDA' | 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING'>('VENDA');
   const [selectedPrazo, setSelectedPrazo] = useState('');
@@ -1452,9 +1453,10 @@ export function OrderPage() {
           </div>
         )}
 
-        {oportunidadesCampanha.length > 0 && (
+        {showCampaigns && (
           <section className="space-y-2 rounded-lg border border-orange-200 bg-orange-50 p-3" aria-label="Oportunidades de campanha">
             <h4 className="text-sm font-black text-orange-900">Campanhas disponíveis para o pedido</h4>
+            {oportunidadesCampanha.length === 0 && <p className="text-xs text-orange-800">Nenhuma campanha aplicável aos produtos deste pedido no momento.</p>}
             {oportunidadesCampanha.map(o => {
               const aprovada = regrasAprovadas.includes(o.regra.id);
               const beneficio = o.regra.tipo === 'bonificacao'
@@ -1772,6 +1774,21 @@ export function OrderPage() {
                   <Coins size={15} className={showFlexCard ? "animate-pulse" : ""} />
                   <span>FX</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setShowCampaigns(current => !current)}
+                  aria-expanded={showCampaigns}
+                  aria-label="Campanhas disponíveis"
+                  className={cn(
+                    "px-3 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all text-[11px]",
+                    showCampaigns
+                      ? "bg-orange-600 text-white ring-2 ring-orange-300"
+                      : "bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50"
+                  )}
+                  title="Campanhas disponíveis"
+                >
+                  <span>Campanhas{ oportunidadesCampanha.length > 0 ? ` (${oportunidadesCampanha.length})` : '' }</span>
+                </button>
                 <button 
                   onClick={() => setShowClearConfirm(true)}
                   className="flex-1 bg-neutral-100 text-neutral-600 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-neutral-200 transition-all text-[11px]"
@@ -1786,18 +1803,7 @@ export function OrderPage() {
                 </button>
               </>
             )}
-            <button 
-              onClick={() => handleSave(true)}
-              disabled={isGeneratingImage}
-              className="flex-[1.35] bg-green-600 text-white py-2.5 rounded-lg font-bold shadow-md flex items-center justify-center gap-1.5 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 text-[11px]"
-            >
-              {isGeneratingImage ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <Save size={15} />
-              )}
-              <span>{isGeneratingImage ? 'Gerando...' : 'Finalizar'}</span>
-            </button>
+
           </div>
         </div>
       </div>, document.body)}
