@@ -2,7 +2,7 @@ import { EstoqueCliente } from '../types';
 
 export type StockCountPayload = Pick<
   EstoqueCliente,
-  'cliente_id' | 'produto_id' | 'quantidade_atual' | 'ultima_contagem'
+  'cliente_id' | 'produto_id' | 'quantidade_atual' | 'ultima_contagem' | 'inativo_manualmente'
 >;
 
 export function getLocalDateKey(date = new Date()) {
@@ -21,7 +21,8 @@ export function buildStockCountPayload(
     cliente_id: clienteId,
     produto_id: item.produto_id,
     quantidade_atual: Number(item.quantidade_atual) || 0,
-    ultima_contagem: item.ultima_contagem || today
+    ultima_contagem: item.ultima_contagem || today,
+    ...(item.inativo_manualmente !== undefined ? { inativo_manualmente: item.inativo_manualmente } : {})
   }));
 }
 
@@ -48,6 +49,7 @@ export function isStockCountFullyConfirmed(
     const saved = confirmedByProduct.get(item.produto_id);
     return saved
       && Number(saved.quantidade_atual) === Number(item.quantidade_atual)
-      && saved.ultima_contagem === item.ultima_contagem;
+      && saved.ultima_contagem === item.ultima_contagem
+      && (item.inativo_manualmente === undefined || saved.inativo_manualmente === item.inativo_manualmente);
   });
 }

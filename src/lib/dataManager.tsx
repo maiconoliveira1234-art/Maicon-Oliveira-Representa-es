@@ -889,7 +889,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     const { data, error } = await supabase
       .from('estoque_cliente')
       .upsert(updatedStockItems, { onConflict: 'cliente_id,produto_id' })
-      .select('id,cliente_id,produto_id,quantidade_atual,ultima_contagem');
+      .select('id,cliente_id,produto_id,quantidade_atual,ultima_contagem,inativo_manualmente');
 
     if (error) {
       await queueStockCountForRetry(clienteId, updatedStockItems);

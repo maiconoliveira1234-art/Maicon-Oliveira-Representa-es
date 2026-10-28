@@ -89,6 +89,8 @@ export function StockCountPage() {
   const [selectedProductHistory, setSelectedProductHistory] = useState<ItemEstoqueData | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [touchedItems, setTouchedItems] = useState<Set<string>>(new Set());
+  const [manualInactive, setManualInactive] = useState<Set<string>>(new Set());
+  const [savingActivity, setSavingActivity] = useState(false);
   const [countedGraceItems, setCountedGraceItems] = useState<Set<string>>(new Set());
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -258,6 +260,7 @@ export function StockCountPage() {
     }
     setEstoqueMap(initialEstoque);
     setTouchedItems(initialTouched);
+    setManualInactive(new Set(cacheData.estoque.filter(e => e.inativo_manualmente).map(e => e.produto_id)));
 
     setIsReady(false);
 
@@ -481,9 +484,9 @@ export function StockCountPage() {
           : 0;
         const ultimaContagemValor = ultimaContagemMap[produtoId] || 0;
         const isProdutoAtivo = produto?.ativo !== false;
-        const ativoParaContagem = isProdutoAtivo
+        const ativoParaContagem = !manualInactive.has(produtoId) && (isProdutoAtivo
           ? (diasUltCompra <= 365 || ultimaContagemValor > 0)
-          : (ultimaContagemValor !== 0);
+          : (ultimaContagemValor !== 0));
 
         return {
           produto_id: produtoId,
@@ -528,7 +531,7 @@ export function StockCountPage() {
         
         return a.produto_nome.localeCompare(b.produto_nome);
       });
-  }, [historico, estoqueMap, pedidoMap, ultimaContagemMap, produtosMap, showInactive, lastOrderDate, familyPriorityMap]);
+  }, [historico, estoqueMap, pedidoMap, ultimaContagemMap, produtosMap, showInactive, lastOrderDate, familyPriorityMap, manualInactive]);
 
   const diasDesdeUltimoPedidoGlobal = useMemo(() => {
     if (!lastOrderDate) return 0;
@@ -576,6 +579,13 @@ export function StockCountPage() {
 
   const updateQuantity = (produtoId: string, val: string | number) => {
     const num = typeof val === 'string' ? parseInt(val) : val;
+    if (Number.isFinite(num) && num > 0) {
+      setManualInactive(prev => {
+        const next = new Set(prev);
+        next.delete(produtoId);
+        return next;
+      });
+    }
     setEstoqueMap(prev => ({
       ...prev,
       [produtoId]: isNaN(num) ? 0 : Math.max(0, num)
@@ -596,6 +606,34 @@ export function StockCountPage() {
         });
         delete countedGraceTimers.current[produtoId];
       }, 5000);
+    }
+  };
+
+  const toggleProductActivity = async (produtoId: string) => {
+    if (!clienteId || savingActivity) return;
+    const inactive = !manualInactive.has(produtoId);
+    const previous = manualInactive;
+    setManualInactive(current => {
+      const next = new Set(current);
+      if (inactive) next.add(produtoId);
+      else next.delete(produtoId);
+      return next;
+    });
+    setSavingActivity(true);
+    try {
+      const previousCount = cacheData?.estoque.find(e => e.produto_id === produtoId);
+      const result = await saveStockCount(clienteId, [{
+        produto_id: produtoId,
+        quantidade_atual: estoqueMap[produtoId] || 0,
+        ultima_contagem: previousCount?.ultima_contagem,
+        inativo_manualmente: inactive
+      }]);
+      if (result.error) throw new Error(result.error);
+    } catch (error) {
+      setManualInactive(previous);
+      alert('Não foi possível salvar a alteração do item. Tente novamente.');
+    } finally {
+      setSavingActivity(false);
     }
   };
 
@@ -747,7 +785,8 @@ export function StockCountPage() {
         cliente_id: clienteId,
         produto_id: prodId,
         quantidade_atual: estoqueMap[prodId] || 0,
-        ultima_contagem: format(new Date(), 'yyyy-MM-dd')
+        ultima_contagem: format(new Date(), 'yyyy-MM-dd'),
+        inativo_manualmente: manualInactive.has(prodId) && !(estoqueMap[prodId] > 0)
       }));
 
       if (itemsToUpsert.length === 0) {
@@ -1653,6 +1692,20 @@ export function StockCountPage() {
               </div>
 
               <div className="flex-1 overflow-auto p-4">
+                <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                  <div>
+                    <p className="text-sm font-bold text-neutral-800">Item ativo na contagem</p>
+                    <p className="text-xs text-neutral-500">Ao desativar, ele aparece em Exibir inativos. Uma contagem positiva reativa o item.</p>
+                  </div>
+                  <button type="button" role="switch" aria-checked={!manualInactive.has(selectedProductHistory.produto_id)}
+                    aria-label="Item ativo na contagem" disabled={savingActivity}
+                    onClick={() => toggleProductActivity(selectedProductHistory.produto_id)}
+                    className={cn('relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50',
+                      manualInactive.has(selectedProductHistory.produto_id) ? 'bg-neutral-400' : 'bg-orange-600')}>
+                    <span className={cn('absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform',
+                      manualInactive.has(selectedProductHistory.produto_id) ? 'left-1' : 'left-6')} />
+                  </button>
+                </div>
                 <table className="w-full min-w-[550px] md:min-w-0 text-left border-collapse">
                   <thead>
                     <tr className="text-[10px] font-black text-neutral-400 uppercase tracking-wider border-b border-neutral-100">

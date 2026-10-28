@@ -58,6 +58,7 @@ export type EstoqueCliente = {
   produto_id: string;
   quantidade_atual: number;
   ultima_contagem: string;
+  inativo_manualmente?: boolean;
 };
 
 export type Pedido = {

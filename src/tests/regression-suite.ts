@@ -237,6 +237,16 @@ export class RegressionTestSuite {
       category,
       module
     );
+    const hiddenItem = buildStockCountPayload('cliente-estoque', [{
+      produto_id: 'produto-contado', quantidade_atual: 0,
+      ultima_contagem: '2026-07-28', inativo_manualmente: true
+    }]);
+    this.assertEqual(hiddenItem[0].inativo_manualmente, true,
+      'inativacao pertence ao estoque do cliente', category, module);
+    this.assertEqual(isStockCountFullyConfirmed(hiddenItem, [{ ...confirmedStock[0], quantidade_atual: 0, inativo_manualmente: false }]), false,
+      'inativacao exige confirmacao do banco', category, module);
+    this.assertEqual(isStockCountFullyConfirmed(hiddenItem, [{ ...confirmedStock[0], quantidade_atual: 0, inativo_manualmente: true }]), true,
+      'inativacao confirmada e mantida', category, module);
     const cleanupNow = new Date('2026-07-23T12:00:00.000Z');
     this.assertEqual(
       getOpenOrderCleanupCutoff(cleanupNow),
