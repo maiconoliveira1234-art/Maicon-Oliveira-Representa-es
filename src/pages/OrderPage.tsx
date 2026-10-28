@@ -2026,7 +2026,7 @@ export function OrderPage() {
                                       <div>{produto?.produto}</div>
                                       {item.tipo_operacao && item.tipo_operacao !== 'VENDA' && (
                                         <div className="text-[8px] font-black tracking-widest text-[#ea580c] uppercase mt-0.5">
-                                          {item.tipo_operacao === 'BONIFICACAO_COMERCIAL' ? ('campanha_regra_id' in item ? '• Bonificação de campanha' : '• Bonificação') : '• Merchandising'}
+                                          {item.tipo_operacao === 'BONIFICACAO_COMERCIAL' ? 'Bonificação' : '• Merchandising'}
                                         </div>
                                       )}
                                     </td>
