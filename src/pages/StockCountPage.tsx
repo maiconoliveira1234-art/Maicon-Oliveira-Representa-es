@@ -1497,7 +1497,7 @@ export function StockCountPage() {
                             aria-label={`${loansByProduct.get(item.produto_id)!.quantidade.toLocaleString('pt-BR')} unidades emprestadas para outros clientes. Ver detalhes`}
                             className="mt-1 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 hover:bg-amber-200">
                             <AlertTriangle size={12} className="shrink-0" />
-                            {loansByProduct.get(item.produto_id)!.quantidade.toLocaleString('pt-BR')} un. fora
+                            {loansByProduct.get(item.produto_id)!.quantidade.toLocaleString('pt-BR')}
                           </button>}
                           </div>
                         </div>
@@ -1574,7 +1574,7 @@ export function StockCountPage() {
                             aria-label={`${loansByProduct.get(item.produto_id)!.quantidade.toLocaleString('pt-BR')} unidades emprestadas para outros clientes. Ver detalhes`}
                             className="mt-1 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 hover:bg-amber-200">
                             <AlertTriangle size={12} className="shrink-0" />
-                            {loansByProduct.get(item.produto_id)!.quantidade.toLocaleString('pt-BR')} un. fora
+                            {loansByProduct.get(item.produto_id)!.quantidade.toLocaleString('pt-BR')}
                           </button>}
                           </div>
                         </div>
