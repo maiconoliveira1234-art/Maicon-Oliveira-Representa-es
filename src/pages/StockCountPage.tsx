@@ -18,7 +18,8 @@ import {
   MoreHorizontal,
   Eye,
   EyeOff,
-  BarChart3
+  BarChart3,
+  AlertTriangle
 } from 'lucide-react';
 import { ADIMAX_LOGO_URL, waitForReportImages } from '../lib/pdfBranding';
 import jsPDF from 'jspdf';
@@ -65,13 +66,16 @@ interface ItemEstoqueData {
 
 import { useDataManager } from '../lib/dataManager';
 import { StockCountSkeleton } from '../components/ui/Skeleton';
+import { outgoingStockLoans } from '../lib/outgoingStockLoans';
 
 export function StockCountPage() {
   const { clienteId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { produtos, clientCache, loadClientDetails, saveStockCount, saveOpenOrder, deleteOpenOrder } = useDataManager();
+  const { produtos, emprestimos = [], clientes = [], clientCache, loadClientDetails, saveStockCount, saveOpenOrder, deleteOpenOrder } = useDataManager();
   
+  const loansByProduct = useMemo(() => outgoingStockLoans(emprestimos, clienteId), [emprestimos, clienteId]);
+
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [estoqueMap, setEstoqueMap] = useState<Record<string, number>>({});
   const [pedidoMap, setPedidoMap] = useState<Record<string, number>>({});
@@ -1486,7 +1490,16 @@ export function StockCountPage() {
                     {viewMode === 'contagem' && (
                       <>
                         <div className="px-1.5 py-1 border-r border-neutral-100 flex items-center min-h-10 leading-tight min-w-0">
+                          <div className="min-w-0">
                           <span className="block font-bold text-[11px] md:text-[12px] whitespace-normal break-words line-clamp-2 md:line-clamp-none">{item.produto_nome}</span>
+                          {loansByProduct.has(item.produto_id) && <button type="button"
+                            onClick={event => { event.stopPropagation(); setSelectedProductHistory(item); }}
+                            aria-label={`${loansByProduct.get(item.produto_id)!.quantidade.toLocaleString('pt-BR')} unidades emprestadas para outros clientes. Ver detalhes`}
+                            className="mt-1 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 hover:bg-amber-200">
+                            <AlertTriangle size={12} className="shrink-0" />
+                            {loansByProduct.get(item.produto_id)!.quantidade.toLocaleString('pt-BR')} un. fora
+                          </button>}
+                          </div>
                         </div>
                         <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
                           {item.ultima_contagem_valor}
@@ -1554,7 +1567,16 @@ export function StockCountPage() {
                     {viewMode === 'pedido' && (
                       <>
                         <div className="px-1.5 py-1 border-r border-neutral-100 flex items-center min-h-10 leading-tight min-w-0">
+                          <div className="min-w-0">
                           <span className="block font-bold text-[11px] md:text-[12px] whitespace-normal break-words line-clamp-2 md:line-clamp-none">{item.produto_nome}</span>
+                          {loansByProduct.has(item.produto_id) && <button type="button"
+                            onClick={event => { event.stopPropagation(); setSelectedProductHistory(item); }}
+                            aria-label={`${loansByProduct.get(item.produto_id)!.quantidade.toLocaleString('pt-BR')} unidades emprestadas para outros clientes. Ver detalhes`}
+                            className="mt-1 inline-flex items-center gap-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 hover:bg-amber-200">
+                            <AlertTriangle size={12} className="shrink-0" />
+                            {loansByProduct.get(item.produto_id)!.quantidade.toLocaleString('pt-BR')} un. fora
+                          </button>}
+                          </div>
                         </div>
                         <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
                           {item.ultima_contagem_valor}
@@ -1692,6 +1714,22 @@ export function StockCountPage() {
               </div>
 
               <div className="flex-1 overflow-auto p-4">
+                {loansByProduct.has(selectedProductHistory.produto_id) && (() => {
+                  const outside = loansByProduct.get(selectedProductHistory.produto_id)!;
+                  return <section className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-950" aria-label="Estoque emprestado">
+                    <h4 className="flex items-center gap-2 text-sm font-bold"><AlertTriangle size={18} />
+                      {outside.quantidade.toLocaleString('pt-BR')} un. emprestadas para outros clientes
+                    </h4>
+                    <p className="mt-2 text-sm">Ao preencher Est., informe o estoque físico mais as unidades emprestadas. Exemplo: 1 na loja + 1 emprestada = 2 na contagem.</p>
+                    <p className="mt-1 text-xs">A quantidade fora não é somada automaticamente. Se já a incluiu na contagem, não some novamente.</p>
+                    <ul className="mt-3 space-y-1 text-sm">
+                      {outside.emprestimos.map(loan => <li key={loan.id} className="flex justify-between gap-3 rounded bg-white/70 p-2">
+                        <span>{clientes.find(c => c.id === loan.cliente_destino_id)?.cliente || loan.cliente_destino_nome || 'Cliente de destino'}</span>
+                        <strong className="shrink-0">{Number(loan.quantidade).toLocaleString('pt-BR')} un.</strong>
+                      </li>)}
+                    </ul>
+                  </section>;
+                })()}
                 <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
                   <div>
                     <p className="text-sm font-bold text-neutral-800">Item ativo na contagem</p>
