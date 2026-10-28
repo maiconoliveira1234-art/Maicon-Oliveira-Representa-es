@@ -51,6 +51,8 @@ import { logDiagnostic } from '../lib/diagnostics';
 import { formatFlexRate, getFlexRateForDate } from '../lib/flexRules';
 import { avaliarCampanhas, type Campanha } from '../lib/campaignEngine';
 import { calcularPrecoDeCampanha } from '../lib/campaignPricing';
+import { readDraftCampaigns, withDraftCampaigns } from '../lib/orderDraftCampaigns';
+import { createDebouncedDraftSave } from '../lib/debouncedDraftSave';
 
 export function OrderPage() {
   const { clienteId } = useParams();
@@ -503,7 +505,7 @@ export function OrderPage() {
               }));
             }
 
-            setRegrasAprovadas(Array.isArray((loadedItemsList[0] as any)?.campanhas_aplicadas) ? (loadedItemsList[0] as any).campanhas_aplicadas : []);
+            setRegrasAprovadas(readDraftCampaigns(loadedItemsList));
             const newItens: Partial<ItemPedido>[] = [];
             
             // Calculate initial weight to get correct initial price range
@@ -605,20 +607,26 @@ export function OrderPage() {
     }
   }, [itens, startedAt, isReady]);
 
+  const draftSaver = useMemo(() => createDebouncedDraftSave(saveOpenOrder), [saveOpenOrder, clienteId]);
+  useEffect(() => () => {
+    if (suppressDraftPersistence.current) draftSaver.cancel();
+    else draftSaver.flush();
+  }, [draftSaver]);
+
   // Persist items to localStorage and database (Supabase)
   useEffect(() => {
     if (isReady && clienteId && !suppressDraftPersistence.current) {
       if (itens.length === 0) {
+        draftSaver.cancel();
         deleteOpenOrder(clienteId);
         return;
       }
 
-      const rawItemList = itens.map((item, index) => ({
+      const rawItemList = withDraftCampaigns(itens.map(item => ({
         produto_id: item.produto_id,
         quantidade: item.quantidade,
         tipo_operacao: item.tipo_operacao || 'VENDA',
-        ...(index === 0 ? { campanhas_aplicadas: regrasAprovadas } : {}),
-      }));
+      })), regrasAprovadas);
       
       const nowIso = new Date().toISOString();
       const payload = {
@@ -642,15 +650,9 @@ export function OrderPage() {
         updatedAt: nowIso
       }));
 
-      // Debounce sync to cloud/queue
-      const saveTimer = setTimeout(() => {
-        if (suppressDraftPersistence.current) return;
-        saveOpenOrder(payload);
-      }, 800);
-
-      return () => clearTimeout(saveTimer);
+      draftSaver.schedule(payload);
     }
-  }, [itens, clienteId, isReady, selectedPrazo, observacoes, startedAt, regrasAprovadas, saveOpenOrder, deleteOpenOrder]);
+  }, [itens, clienteId, isReady, selectedPrazo, observacoes, startedAt, regrasAprovadas, draftSaver, deleteOpenOrder]);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -659,6 +661,7 @@ export function OrderPage() {
 
   const handleClearOrder = async () => {
     suppressDraftPersistence.current = true;
+    draftSaver.cancel();
     if (clienteId) {
       await deleteOpenOrder(clienteId);
     }
@@ -966,6 +969,7 @@ export function OrderPage() {
       if (shouldClear) {
         if (clienteId) {
           suppressDraftPersistence.current = true;
+          draftSaver.cancel();
           await deleteOpenOrder(clienteId);
         }
         alert('Orçamento gerado com sucesso!');

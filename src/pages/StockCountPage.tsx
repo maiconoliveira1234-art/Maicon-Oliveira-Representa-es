@@ -33,6 +33,7 @@ import { FAMILY_PRIORITY_ORDER } from '../constants';
 import { DIAGNOSTICS } from '../lib/diagnostics';
 import { calcularPrecoComDesconto, getFaixaEfetiva, getValorUnitario } from '../lib/calculations';
 import { hasPendingOpenOrderSync } from '../lib/openOrderSales';
+import { readDraftCampaigns, withDraftCampaigns, localDraftIsNewer } from '../lib/orderDraftCampaigns';
 import { 
   ExportReportModal, 
   StockReportColumnId, 
@@ -258,6 +259,8 @@ export function StockCountPage() {
     setEstoqueMap(initialEstoque);
     setTouchedItems(initialTouched);
 
+    setIsReady(false);
+
     // Initializing pedidoMap
     const pMap: Record<string, number> = {};
     const nonVenda: Array<{ produto_id: string, quantidade: number, tipo_operacao: 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING' }> = [];
@@ -293,13 +296,21 @@ export function StockCountPage() {
     setPedidoMap(pMap);
     setNonVendaItems(nonVenda);
 
-    supabase
+    Promise.resolve(supabase
       .from('pedidos_em_aberto')
-      .select('items, prazo, obs, manual_faixa, started_at')
+      .select('items, prazo, obs, manual_faixa, started_at, updated_at')
       .eq('cliente_id', clienteId)
-      .maybeSingle()
+      .maybeSingle())
       .then(({ data, error }) => {
-        if (error) return;
+        if (lastInitializedClientId.current !== clienteId || error) return;
+        const currentSaved = localStorage.getItem(`pedido_${clienteId}`);
+        if (currentSaved) {
+          try {
+            const current = JSON.parse(currentSaved);
+            // Also protect edits made while this request was in flight.
+            if (currentSaved !== savedPedido || (data && localDraftIsNewer(current, data.updated_at))) return;
+          } catch { /* Fall through to the server when the local draft is invalid. */ }
+        }
         if (!data || !Array.isArray(data.items)) {
           if (!hasPendingOpenOrderSync(clienteId)) {
             localStorage.removeItem(`pedido_${clienteId}`);
@@ -339,12 +350,16 @@ export function StockCountPage() {
           obs: data.obs ?? '',
           manualFaixa: data.manual_faixa ?? null,
           startedAt: data.started_at ?? null,
+          updatedAt: data.updated_at,
           items: mergedItems
         }));
+      })
+      .catch(error => console.warn('Erro ao carregar pedido na contagem:', error))
+      .finally(() => {
+        if (lastInitializedClientId.current === clienteId) setIsReady(true);
       });
 
     lastInitializedClientId.current = clienteId;
-    setIsReady(true);
   }, [clienteId, cacheData]);
 
   const mediaCicloGlobal = useMemo(() => {
@@ -662,6 +677,7 @@ export function StockCountPage() {
       try {
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed === 'object') {
+          itemsList = withDraftCampaigns(itemsList, readDraftCampaigns(parsed.items));
           dataToSave = { ...dataToSave, ...parsed, items: itemsList };
         }
       } catch (e) {
