@@ -1081,7 +1081,7 @@ export function OrderPage() {
     const hasObs = !!(observacoes && observacoes.trim().length > 0);
     const isLongObs = hasObs && observacoes.trim().length > 80;
 
-    const bonusSpace = sortedItens.some(item => item.tipo_operacao === 'BONIFICACAO_COMERCIAL') ? 2 : 0;
+    const bonusSpace = sortedItens.some(item => item.tipo_operacao === 'BONIFICACAO_COMERCIAL') ? 3 : 0;
     const singlePageLimit = (isLongObs ? 13 : (hasObs ? 15 : 17)) - bonusSpace;
     const p1Limit = 22 - bonusSpace;
     const pInterLimit = 26 - bonusSpace;
@@ -1218,7 +1218,7 @@ export function OrderPage() {
                 const beginsBonus = item.tipo_operacao === 'BONIFICACAO_COMERCIAL' && (idx === 0 || chunk[idx - 1].tipo_operacao !== 'BONIFICACAO_COMERCIAL');
                 return (
                   <React.Fragment key={idx}>
-                  {beginsBonus && <tr><td colSpan={5} style={{ padding: '16px 12px 8px', borderBottom: '2px solid #e5e5e5', color: '#525252', fontSize: '12px', fontWeight: 900 }}>Bonificações</td></tr>}
+                  {beginsBonus && <tr><td colSpan={5} style={{ padding: '36px 12px 8px', borderBottom: '2px solid #e5e5e5', color: '#525252', fontSize: '12px', fontWeight: 900 }}>Bonificações</td></tr>}
                   <tr style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb', borderBottom: '1px solid #f0f0f0' }}>
                     <td style={{ padding: '7px 12px', fontSize: '11px', fontWeight: 700, lineHeight: '14px', color: '#171717', wordBreak: 'break-word' }}>
                       <div>{produto?.produto}</div>
@@ -1954,7 +1954,7 @@ export function OrderPage() {
                     let i = 0;
                     let isFirstPage = true;
                     while (i < sortedItens.length) {
-                      const itemsLimit = (isFirstPage ? 10 : 15) - (sortedItens.some(item => item.tipo_operacao === 'BONIFICACAO_COMERCIAL') ? 2 : 0);
+                      const itemsLimit = (isFirstPage ? 10 : 15) - (sortedItens.some(item => item.tipo_operacao === 'BONIFICACAO_COMERCIAL') ? 3 : 0);
                       chunks.push(sortedItens.slice(i, i + itemsLimit));
                       i += itemsLimit;
                       isFirstPage = false;
@@ -2021,7 +2021,7 @@ export function OrderPage() {
                                 const beginsBonus = item.tipo_operacao === 'BONIFICACAO_COMERCIAL' && (idx === 0 || chunk[idx - 1].tipo_operacao !== 'BONIFICACAO_COMERCIAL');
                                 return (
                                   <React.Fragment key={idx}>
-                                  {beginsBonus && <tr><td colSpan={5} className="pt-4 pb-2 px-3 border-b-2 border-[#e5e5e5] text-[#525252] text-xs font-black">Bonificações</td></tr>}
+                                  {beginsBonus && <tr><td colSpan={5} className="pt-9 pb-2 px-3 border-b-2 border-[#e5e5e5] text-[#525252] text-xs font-black">Bonificações</td></tr>}
                                   <tr className={cn("text-[10px]", idx % 2 === 0 ? "bg-[#ffffff]" : "bg-[#fafafa]")}>
                                     <td className="py-2 px-3 font-bold text-[#262626] leading-tight max-w-[200px] break-words">
                                       <div>{produto?.produto}</div>
