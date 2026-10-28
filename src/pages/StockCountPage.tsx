@@ -1424,7 +1424,7 @@ export function StockCountPage() {
             <div className="w-full">
               <div 
                 className={cn(
-                  "grid bg-neutral-100 border-b border-neutral-200 text-[10px] md:text-[11px] font-bold text-neutral-500 uppercase tracking-tight sticky top-0 z-[100] shadow-sm",
+                  "grid bg-neutral-100 border-b border-neutral-200 text-[10px] md:text-[11px] font-bold text-neutral-500 uppercase tracking-tight sticky top-0 z-10 shadow-sm",
                   gridCols
                 )}
               >
