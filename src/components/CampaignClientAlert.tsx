@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import type { Cliente, HistVenda, Produto } from '../types';
 import type { Campanha } from '../lib/campaignEngine';
 import { campanhasParaHistorico } from '../lib/campaignEngine';
+import { ClientDetailModal } from './ui/ClientDetailModal';
 
 export function CampaignClientAlert({ cliente, historico, produtos }: {
   cliente: Cliente;
@@ -11,6 +12,7 @@ export function CampaignClientAlert({ cliente, historico, produtos }: {
   produtos: Produto[];
 }) {
   const [campanhas, setCampanhas] = useState<Campanha[]>([]);
+  const [open, setOpen] = useState(false);
   useEffect(() => {
     let mounted = true;
     supabase.from('campanhas_comerciais').select('*').eq('status', 'ativa').then(({ data, error }) => {
@@ -43,10 +45,16 @@ export function CampaignClientAlert({ cliente, historico, produtos }: {
 
   if (!elegiveis.length) return null;
   return (
-    <section className="space-y-3 rounded-xl border border-orange-200 bg-orange-50 p-4" aria-label="Campanhas para este cliente">
-      <h3 className="flex items-center gap-2 text-sm font-black text-orange-900"><Megaphone size={18}/> Campanhas para oferecer ({elegiveis.length})</h3>
-      <p className="text-xs text-orange-900/80">Baseado em produtos comprados nos últimos 12 meses. O envio é sempre manual.</p>
-      {elegiveis.map(c => <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white p-3">
+    <>
+      <button type="button" onClick={() => setOpen(true)}
+        className="flex w-full items-center justify-between rounded-xl border border-orange-200 bg-orange-50 p-4 text-left text-sm font-bold text-orange-900 hover:bg-orange-100">
+        <span className="flex items-center gap-2"><Megaphone size={18}/> Campanhas para oferecer ({elegiveis.length})</span>
+        <span className="text-xs">Ver campanhas</span>
+      </button>
+      {open && <ClientDetailModal title={`Campanhas para oferecer (${elegiveis.length})`} onClose={() => setOpen(false)}>
+      <div className="space-y-3">
+      <p className="text-xs text-neutral-600">Baseado em produtos comprados nos últimos 12 meses. O envio é sempre manual.</p>
+      {elegiveis.map(c => <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-white p-3">
         <div className="min-w-0 flex-1"><p className="text-sm font-bold text-neutral-900">{c.titulo}</p>
           <p className="text-xs text-neutral-500">Válida até {new Date(c.fim + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
         </div>
@@ -55,6 +63,8 @@ export function CampaignClientAlert({ cliente, historico, produtos }: {
           <Send size={14}/> Oferecer no WhatsApp
         </a> : <span className="text-xs text-neutral-500">Telefone não disponível</span>}
       </div>)}
-    </section>
+      </div>
+      </ClientDetailModal>}
+    </>
   );
 }

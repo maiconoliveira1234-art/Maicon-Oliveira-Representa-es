@@ -1,5 +1,6 @@
 import { ClientCommercialPriorities } from '../components/CommercialPriorities';
 import { CampaignClientAlert } from '../components/CampaignClientAlert';
+import { ClientDetailModal } from '../components/ui/ClientDetailModal';
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
@@ -142,6 +143,7 @@ export function ClienteDetail() {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [estoque, setEstoque] = useState<EstoqueCliente[]>([]);
   const [emprestimos, setEmprestimos] = useState<Emprestimo[]>([]);
+  const [showLoans, setShowLoans] = useState(false);
   const [visitaAgenda, setVisitaAgenda] = useState<{ semana: 1 | 2; dia_semana: string } | null>(null);
   const [flexExtrato, setFlexExtrato] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -693,8 +695,13 @@ export function ClienteDetail() {
       
       {/* Loans Warnings */}
       {emprestimos.length > 0 && (
-        <section className="space-y-3">
-          <h3 className="text-xs font-black text-neutral-400 uppercase tracking-widest px-1">Débitos de Empréstimo</h3>
+        <>
+          <button type="button" onClick={() => setShowLoans(true)}
+            className="flex w-full items-center justify-between rounded-xl border border-neutral-200 bg-white p-4 text-left text-sm font-bold text-neutral-800 hover:bg-neutral-50">
+            <span className="flex items-center gap-2"><ArrowLeftRight size={18} /> Itens emprestados ({emprestimos.length})</span>
+            <span className="text-xs">Ver itens</span>
+          </button>
+          {showLoans && <ClientDetailModal title={`Itens emprestados (${emprestimos.length})`} onClose={() => setShowLoans(false)}>
           <div className="space-y-2">
             {emprestimos.map((loan) => {
               const days = differenceInDays(new Date(), parseISO(loan.data_emprestimo));
@@ -705,7 +712,7 @@ export function ClienteDetail() {
                 <div 
                   key={loan.id}
                   className={cn(
-                    "p-4 rounded-lg flex items-center gap-4 border transition-all",
+                    "p-3 rounded-lg flex items-center gap-3 border transition-all",
                     isUrgent 
                       ? "bg-rose-50 border-rose-200 text-rose-900 shadow-sm animate-pulse" 
                       : isWarning 
@@ -745,7 +752,8 @@ export function ClienteDetail() {
               );
             })}
           </div>
-        </section>
+          </ClientDetailModal>}
+        </>
       )}
 
       {/* Quick Actions */}
