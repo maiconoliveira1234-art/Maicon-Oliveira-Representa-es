@@ -1218,13 +1218,13 @@ export function OrderPage() {
                 const beginsBonus = item.tipo_operacao === 'BONIFICACAO_COMERCIAL' && (idx === 0 || chunk[idx - 1].tipo_operacao !== 'BONIFICACAO_COMERCIAL');
                 return (
                   <React.Fragment key={idx}>
-                  {beginsBonus && <tr><td colSpan={5} style={{ padding: '16px 12px 8px', borderBottom: '2px solid #ea580c', color: '#9a3412', fontSize: '12px', fontWeight: 900 }}>Bonificação</td></tr>}
+                  {beginsBonus && <tr><td colSpan={5} style={{ padding: '16px 12px 8px', borderBottom: '2px solid #e5e5e5', color: '#525252', fontSize: '12px', fontWeight: 900 }}>Bonificações</td></tr>}
                   <tr style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb', borderBottom: '1px solid #f0f0f0' }}>
                     <td style={{ padding: '7px 12px', fontSize: '11px', fontWeight: 700, lineHeight: '14px', color: '#171717', wordBreak: 'break-word' }}>
                       <div>{produto?.produto}</div>
-                      {item.tipo_operacao && item.tipo_operacao !== 'VENDA' && (
+                      {item.tipo_operacao === 'MERCHANDISING' && (
                         <span style={{ display: 'inline-block', fontSize: '8px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px', padding: '1px 5px', borderRadius: '3px', color: '#c2410c', backgroundColor: '#ffedd5' }}>
-                          {item.tipo_operacao === 'BONIFICACAO_COMERCIAL' ? 'Bonificação' : 'Merchandising'}
+                          Merchandising
                         </span>
                       )}
                     </td>
@@ -1235,10 +1235,10 @@ export function OrderPage() {
                       {formatWeight(item.peso_total || 0)}
                     </td>
                     <td style={{ padding: '7px 8px', textAlign: 'right', fontSize: '11px', fontWeight: 500, color: '#525252' }}>
-                      {formatCurrency(item.valor_unitario || 0)}
+                      {formatCurrency(item.tipo_operacao === 'BONIFICACAO_COMERCIAL' ? 0 : item.valor_unitario || 0)}
                     </td>
                     <td style={{ padding: '7px 12px', textAlign: 'right', fontSize: '11px', fontWeight: 900, color: '#171717' }}>
-                      {formatCurrency(item.valor_total || 0)}
+                      {formatCurrency(item.tipo_operacao === 'BONIFICACAO_COMERCIAL' ? 0 : item.valor_total || 0)}
                     </td>
                   </tr>
                   </React.Fragment>
@@ -2021,13 +2021,13 @@ export function OrderPage() {
                                 const beginsBonus = item.tipo_operacao === 'BONIFICACAO_COMERCIAL' && (idx === 0 || chunk[idx - 1].tipo_operacao !== 'BONIFICACAO_COMERCIAL');
                                 return (
                                   <React.Fragment key={idx}>
-                                  {beginsBonus && <tr><td colSpan={5} className="pt-4 pb-2 px-3 border-b-2 border-orange-600 text-orange-800 text-xs font-black">Bonificação</td></tr>}
+                                  {beginsBonus && <tr><td colSpan={5} className="pt-4 pb-2 px-3 border-b-2 border-[#e5e5e5] text-[#525252] text-xs font-black">Bonificações</td></tr>}
                                   <tr className={cn("text-[10px]", idx % 2 === 0 ? "bg-[#ffffff]" : "bg-[#fafafa]")}>
                                     <td className="py-2 px-3 font-bold text-[#262626] leading-tight max-w-[200px] break-words">
                                       <div>{produto?.produto}</div>
-                                      {item.tipo_operacao && item.tipo_operacao !== 'VENDA' && (
+                                      {item.tipo_operacao === 'MERCHANDISING' && (
                                         <div className="text-[8px] font-black tracking-widest text-[#ea580c] uppercase mt-0.5">
-                                          {item.tipo_operacao === 'BONIFICACAO_COMERCIAL' ? 'Bonificação' : '• Merchandising'}
+                                          • Merchandising
                                         </div>
                                       )}
                                     </td>
@@ -2038,10 +2038,10 @@ export function OrderPage() {
                                       {formatWeight(item.peso_total || 0)}
                                     </td>
                                     <td className="py-2 px-3 text-right font-bold text-[#737373]">
-                                      {formatCurrency(item.valor_unitario || 0)}
+                                      {formatCurrency(item.tipo_operacao === 'BONIFICACAO_COMERCIAL' ? 0 : item.valor_unitario || 0)}
                                     </td>
                                     <td className="py-2 px-3 text-right font-black text-[#171717]">
-                                      {formatCurrency(item.valor_total || 0)}
+                                      {formatCurrency(item.tipo_operacao === 'BONIFICACAO_COMERCIAL' ? 0 : item.valor_total || 0)}
                                     </td>
                                   </tr>
                                   </React.Fragment>
