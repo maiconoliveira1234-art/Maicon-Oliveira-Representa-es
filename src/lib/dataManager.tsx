@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { supabase } from './supabase';
 import { loadClientHistory } from './clientHistory';
+import { shouldSyncAfterReturn } from './resumeSyncPolicy';
 import { Cliente, Produto, HistVenda, EstoqueCliente } from '../types';
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from './mockData';
 import { deduplicateSales } from './utils';
@@ -106,7 +107,7 @@ interface DataManagerContextType {
   deleteOpenOrder: (clienteId: string) => Promise<{ status: 'synced' | 'queued'; error?: string }>;
   
   // Compatibility methods
-  loadClientDetails: (clientId: string, forceRefresh?: boolean) => Promise<ClientCache | undefined>;
+  loadClientDetails: (clientId: string, forceRefresh?: boolean, preferCached?: boolean) => Promise<ClientCache | undefined>;
   prefetchClientData: (clientId: string) => void;
   loadLatestSalesMap: (forceRefresh?: boolean) => Promise<Record<string, { date: string; weight: number }>>;
   
@@ -116,7 +117,7 @@ interface DataManagerContextType {
 
 const DataManagerContext = createContext<DataManagerContextType | undefined>(undefined);
 const DAILY_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
-const IDLE_SYNC_INTERVAL_MS = 5 * 60 * 1000;
+const LAST_ACTIVITY_KEY = 'offline_last_activity_at';
 
 const mergeByKey = <T,>(current: T[], incoming: T[], getKey: (item: T) => string) => {
   const merged = new Map(current.map(item => [getKey(item), item]));
@@ -318,6 +319,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
   
   const initialLoadStarted = useRef(false);
   const isSyncingRef = useRef(false);
+  const startupLastActivity = useRef(loadLocal<number>(LAST_ACTIVITY_KEY, 0));
 
   // Sync queue count to render badges
   const pendingQueueCount = pendingQueue.length;
@@ -739,7 +741,6 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       const cachedLoans = await loadPersisted<any[]>('offline_db_emprestimos', []);
       const cachedFlex = await loadPersisted<any[]>('offline_db_verba_flex_extrato', []);
       const cachedTime = await loadPersisted<number>('offline_db_last_synced', 0);
-      const cachedFullSyncTime = await loadPersisted<number>('offline_db_last_full_synced', 0);
       const cachedQueue = await loadPersisted<OfflineQueueItem[]>('offline_db_pending_queue', []);
       
       setClientes(cachedClientes);
@@ -781,10 +782,10 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
         if (cachedQueue.length > 0) {
           flushOfflineQueue(cachedQueue);
         }
-        const syncIsStale = !cachedFullSyncTime || Date.now() - cachedFullSyncTime >= DAILY_SYNC_INTERVAL_MS;
-        if (syncIsStale && navigator.onLine !== false) {
+        const lastActivity = startupLastActivity.current || cachedTime;
+        if (navigator.onLine !== false && shouldSyncAfterReturn(lastActivity, cachedTime, Date.now())) {
           window.setTimeout(() => {
-            syncAllDataInternal(false);
+            syncChangedDataInternal();
           }, 0);
         }
         return;
@@ -802,47 +803,43 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     } finally {
       setLoadingGlobal(false);
     }
-  }, [syncAllDataInternal, flushOfflineQueue]);
+  }, [syncAllDataInternal, syncChangedDataInternal, flushOfflineQueue]);
 
   useEffect(() => {
-    let idleTimer: number | undefined;
-    let idleInterval: number | undefined;
-
-    const stopIdleInterval = () => {
-      if (idleInterval !== undefined) window.clearInterval(idleInterval);
-      idleInterval = undefined;
-    };
-
-    const beginIdleSync = () => {
-      syncChangedDataInternal();
-      stopIdleInterval();
-      idleInterval = window.setInterval(syncChangedDataInternal, IDLE_SYNC_INTERVAL_MS);
-    };
-
+    // Activity is recorded for reopened tabs; it never starts a sync while the user works.
+    let lastRecordedActivity = 0;
+    let hiddenAt = 0;
     const registerActivity = () => {
-      if (idleTimer !== undefined) window.clearTimeout(idleTimer);
-      stopIdleInterval();
-      idleTimer = window.setTimeout(beginIdleSync, IDLE_SYNC_INTERVAL_MS);
+      const now = Date.now();
+      if (now - lastRecordedActivity >= 60_000) {
+        saveLocal(LAST_ACTIVITY_KEY, now);
+        lastRecordedActivity = now;
+      }
     };
-
     const syncWhenReturning = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+        saveLocal(LAST_ACTIVITY_KEY, hiddenAt);
+        return;
+      }
       if (document.visibilityState !== 'visible') return;
+      const inactiveSince = hiddenAt || loadLocal<number>(LAST_ACTIVITY_KEY, 0);
       const lastSync = loadLocal<number>('offline_db_last_synced', 0);
-      if (!lastSync || Date.now() - lastSync >= IDLE_SYNC_INTERVAL_MS) syncChangedDataInternal();
+      if (navigator.onLine !== false && shouldSyncAfterReturn(inactiveSince, lastSync, Date.now())) syncChangedDataInternal();
+      hiddenAt = 0;
       registerActivity();
     };
 
+    const recordLeaving = () => saveLocal(LAST_ACTIVITY_KEY, Date.now());
+
     const activityEvents: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
     activityEvents.forEach(event => window.addEventListener(event, registerActivity, { passive: true }));
-    window.addEventListener('online', syncWhenReturning);
+    window.addEventListener('pagehide', recordLeaving);
     document.addEventListener('visibilitychange', syncWhenReturning);
-    registerActivity();
 
     return () => {
-      if (idleTimer !== undefined) window.clearTimeout(idleTimer);
-      stopIdleInterval();
       activityEvents.forEach(event => window.removeEventListener(event, registerActivity));
-      window.removeEventListener('online', syncWhenReturning);
+      window.removeEventListener('pagehide', recordLeaving);
       document.removeEventListener('visibilitychange', syncWhenReturning);
     };
   }, [syncChangedDataInternal]);
@@ -1451,13 +1448,16 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     return cache;
   }, [clientes, histVendas, estoqueCliente]);
 
-  const loadClientDetails = useCallback(async (clientId: string, forceRefresh = false) => {
+  const loadClientDetails = useCallback(async (clientId: string, forceRefresh = false, preferCached = false) => {
     const filteredHist = histVendas.filter(h => h.cliente_id === clientId);
     const filteredEstoque = estoqueCliente.filter(e => e.cliente_id === clientId);
     const cacheKey = `offline_client_history_${clientId}`;
     const cached = await loadPersisted<HistVenda[] | null>(cacheKey, null);
     // Prefer a complete per-client snapshot over the device's possibly truncated global cache.
     const fallback = cached ?? filteredHist;
+    if (preferCached && !forceRefresh && fallback.length > 0) {
+      return { historico: fallback, estoque: filteredEstoque, lastUpdated: Date.now() };
+    }
     const result = await loadClientHistory(clientId, fallback);
     if (result.fresh) savePersisted(cacheKey, result.rows);
     return {

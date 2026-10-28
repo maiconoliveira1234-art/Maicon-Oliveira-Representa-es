@@ -160,7 +160,7 @@ export function StockCountPage() {
         
         // This will retrieve the client details. If it's a retry (errorCount > 0), we force refresh.
         const cacheStartTime = performance.now();
-        const cache = await loadClientDetails(clienteId, errorCount > 0);
+        const cache = await loadClientDetails(clienteId, errorCount > 0, true);
         if (!active) return;
 
         if (DEBUG_STOCK) {
@@ -178,11 +178,10 @@ export function StockCountPage() {
 
         // Fetch Cliente Details from table
         const clientQueryStartTime = performance.now();
-        const { data: clienteData, error: clientErr } = await supabase
-          .from('clientes')
-          .select('*')
-          .eq('id', clienteId)
-          .single();
+        const knownClient = clientes.find(c => c.id === clienteId);
+        const { data: clienteData, error: clientErr } = knownClient
+          ? { data: knownClient, error: null }
+          : await supabase.from('clientes').select('*').eq('id', clienteId).single();
         
         if (clientErr) {
           throw new Error(`Erro ao buscar detalhes do cliente: ${clientErr.message}`);
@@ -224,7 +223,7 @@ export function StockCountPage() {
     return () => {
       active = false;
     };
-  }, [clienteId, errorCount, loadClientDetails]);
+  }, [clienteId, errorCount, loadClientDetails, clientes]);
 
   // Safe lazy state map initialization from cacheData + localStorage once cache becomes available
   const lastInitializedClientId = useRef<string | null>(null);
