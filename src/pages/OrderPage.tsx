@@ -53,6 +53,7 @@ import { avaliarCampanhas, type Campanha } from '../lib/campaignEngine';
 import { calcularPrecoDeCampanha } from '../lib/campaignPricing';
 import { readDraftCampaigns, withDraftCampaigns } from '../lib/orderDraftCampaigns';
 import { createDebouncedDraftSave } from '../lib/debouncedDraftSave';
+import { orderQuoteItems } from '../lib/quoteItemOrder';
 
 export function OrderPage() {
   const { clienteId } = useParams();
@@ -1055,11 +1056,7 @@ export function OrderPage() {
 >
   {(() => {
     // Sort items alphabetically by product name
-    const sortedItens = [...computedItens].sort((a, b) => {
-      const prodA = produtos.find(p => p.id === a.produto_id)?.produto || '';
-      const prodB = produtos.find(p => p.id === b.produto_id)?.produto || '';
-      return prodA.localeCompare(prodB);
-    });
+    const sortedItens = orderQuoteItems(computedItens, produtos);
 
     const orderDateStr = (() => {
       try {
@@ -1084,10 +1081,11 @@ export function OrderPage() {
     const hasObs = !!(observacoes && observacoes.trim().length > 0);
     const isLongObs = hasObs && observacoes.trim().length > 80;
 
-    const singlePageLimit = isLongObs ? 13 : (hasObs ? 15 : 17);
-    const p1Limit = 22;
-    const pInterLimit = 26;
-    const pLastLimit = isLongObs ? 14 : (hasObs ? 16 : 19);
+    const bonusSpace = sortedItens.some(item => item.tipo_operacao === 'BONIFICACAO_COMERCIAL') ? 2 : 0;
+    const singlePageLimit = (isLongObs ? 13 : (hasObs ? 15 : 17)) - bonusSpace;
+    const p1Limit = 22 - bonusSpace;
+    const pInterLimit = 26 - bonusSpace;
+    const pLastLimit = (isLongObs ? 14 : (hasObs ? 16 : 19)) - bonusSpace;
 
     const chunks: (typeof sortedItens)[] = [];
     const total = sortedItens.length;
@@ -1217,8 +1215,11 @@ export function OrderPage() {
             <tbody>
               {chunk.map((item, idx) => {
                 const produto = produtos.find(p => p.id === item.produto_id)!;
+                const beginsBonus = item.tipo_operacao === 'BONIFICACAO_COMERCIAL' && (idx === 0 || chunk[idx - 1].tipo_operacao !== 'BONIFICACAO_COMERCIAL');
                 return (
-                  <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb', borderBottom: '1px solid #f0f0f0' }}>
+                  <React.Fragment key={idx}>
+                  {beginsBonus && <tr><td colSpan={5} style={{ padding: '16px 12px 8px', borderBottom: '2px solid #ea580c', color: '#9a3412', fontSize: '12px', fontWeight: 900 }}>Bonificação</td></tr>}
+                  <tr style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb', borderBottom: '1px solid #f0f0f0' }}>
                     <td style={{ padding: '7px 12px', fontSize: '11px', fontWeight: 700, lineHeight: '14px', color: '#171717', wordBreak: 'break-word' }}>
                       <div>{produto?.produto}</div>
                       {item.tipo_operacao && item.tipo_operacao !== 'VENDA' && (
@@ -1240,6 +1241,7 @@ export function OrderPage() {
                       {formatCurrency(item.valor_total || 0)}
                     </td>
                   </tr>
+                  </React.Fragment>
                 );
               })}
             </tbody>
@@ -1928,11 +1930,7 @@ export function OrderPage() {
               <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-neutral-200/50">
                 <div className="max-w-[800px] mx-auto shadow-2xl">
                   {(() => {
-                    const sortedItens = [...computedItens].sort((a, b) => {
-                      const prodA = produtos.find(p => p.id === a.produto_id)?.produto || '';
-                      const prodB = produtos.find(p => p.id === b.produto_id)?.produto || '';
-                      return prodA.localeCompare(prodB);
-                    });
+                    const sortedItens = orderQuoteItems(computedItens, produtos);
 
                     const orderDateStr = (() => {
                       try {
@@ -1956,7 +1954,7 @@ export function OrderPage() {
                     let i = 0;
                     let isFirstPage = true;
                     while (i < sortedItens.length) {
-                      const itemsLimit = isFirstPage ? 10 : 15;
+                      const itemsLimit = (isFirstPage ? 10 : 15) - (sortedItens.some(item => item.tipo_operacao === 'BONIFICACAO_COMERCIAL') ? 2 : 0);
                       chunks.push(sortedItens.slice(i, i + itemsLimit));
                       i += itemsLimit;
                       isFirstPage = false;
@@ -2020,8 +2018,11 @@ export function OrderPage() {
                             <tbody className="divide-y divide-[#f5f5f5]">
                               {chunk.map((item, idx) => {
                                 const produto = produtos.find(p => p.id === item.produto_id)!;
+                                const beginsBonus = item.tipo_operacao === 'BONIFICACAO_COMERCIAL' && (idx === 0 || chunk[idx - 1].tipo_operacao !== 'BONIFICACAO_COMERCIAL');
                                 return (
-                                  <tr key={idx} className={cn("text-[10px]", idx % 2 === 0 ? "bg-[#ffffff]" : "bg-[#fafafa]")}>
+                                  <React.Fragment key={idx}>
+                                  {beginsBonus && <tr><td colSpan={5} className="pt-4 pb-2 px-3 border-b-2 border-orange-600 text-orange-800 text-xs font-black">Bonificação</td></tr>}
+                                  <tr className={cn("text-[10px]", idx % 2 === 0 ? "bg-[#ffffff]" : "bg-[#fafafa]")}>
                                     <td className="py-2 px-3 font-bold text-[#262626] leading-tight max-w-[200px] break-words">
                                       <div>{produto?.produto}</div>
                                       {item.tipo_operacao && item.tipo_operacao !== 'VENDA' && (
@@ -2043,6 +2044,7 @@ export function OrderPage() {
                                       {formatCurrency(item.valor_total || 0)}
                                     </td>
                                   </tr>
+                                  </React.Fragment>
                                 );
                               })}
                             </tbody>
