@@ -54,6 +54,7 @@ import { calcularPrecoDeCampanha } from '../lib/campaignPricing';
 import { readDraftCampaigns, withDraftCampaigns } from '../lib/orderDraftCampaigns';
 import { createDebouncedDraftSave } from '../lib/debouncedDraftSave';
 import { orderQuoteItems } from '../lib/quoteItemOrder';
+import { paginateQuoteItems } from '../lib/quotePagination';
 
 export function OrderPage() {
   const { clienteId } = useParams();
@@ -1076,64 +1077,7 @@ export function OrderPage() {
       }
     })();
 
-    // Content-aware balanced pagination
-    // Guarantees that client info, rows, payment terms, and observations are never truncated or cramped
-    const hasObs = !!(observacoes && observacoes.trim().length > 0);
-    const isLongObs = hasObs && observacoes.trim().length > 80;
-
-    const bonusSpace = sortedItens.some(item => item.tipo_operacao === 'BONIFICACAO_COMERCIAL') ? 3 : 0;
-    const singlePageLimit = (isLongObs ? 13 : (hasObs ? 15 : 17)) - bonusSpace;
-    const p1Limit = 22 - bonusSpace;
-    const pInterLimit = 26 - bonusSpace;
-    const pLastLimit = (isLongObs ? 14 : (hasObs ? 16 : 19)) - bonusSpace;
-
-    const chunks: (typeof sortedItens)[] = [];
-    const total = sortedItens.length;
-
-    if (total <= singlePageLimit) {
-      chunks.push(sortedItens);
-    } else if (total <= p1Limit + pLastLimit) {
-      // Balanced 2-page distribution
-      let p1Count = Math.ceil(total * 0.54);
-      if (p1Count > p1Limit) p1Count = p1Limit;
-      let p2Count = total - p1Count;
-      if (p2Count > pLastLimit) {
-        p1Count = total - pLastLimit;
-      }
-      chunks.push(sortedItens.slice(0, p1Count));
-      chunks.push(sortedItens.slice(p1Count));
-    } else {
-      // 3 or more pages
-      let remaining = [...sortedItens];
-      const firstChunk = remaining.slice(0, p1Limit);
-      chunks.push(firstChunk);
-      remaining = remaining.slice(p1Limit);
-
-      while (remaining.length > 0) {
-        if (remaining.length <= pLastLimit) {
-          chunks.push(remaining);
-          remaining = [];
-        } else if (remaining.length <= pInterLimit + pLastLimit) {
-          // Balance the final 2 pages so the last page isn't left with an awkward small number of items
-          let midCount = Math.ceil(remaining.length * 0.55);
-          if (midCount > pInterLimit) midCount = pInterLimit;
-          let lastCount = remaining.length - midCount;
-          if (lastCount > pLastLimit) {
-            midCount = remaining.length - pLastLimit;
-          }
-          chunks.push(remaining.slice(0, midCount));
-          chunks.push(remaining.slice(midCount));
-          remaining = [];
-        } else {
-          chunks.push(remaining.slice(0, pInterLimit));
-          remaining = remaining.slice(pInterLimit);
-        }
-      }
-    }
-
-    if (chunks.length === 0) {
-      chunks.push([]);
-    }
+    const chunks = paginateQuoteItems(sortedItens, observacoes);
 
     return chunks.map((chunk, pageIdx) => (
       <div 
@@ -1201,7 +1145,7 @@ export function OrderPage() {
         )}
 
         {/* Items Table */}
-        <div style={{ flex: 1, minHeight: 0 }}>
+        <div style={{ minHeight: 0 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <thead>
               <tr style={{ backgroundColor: '#171717', color: '#ffffff' }}>
@@ -1950,15 +1894,7 @@ export function OrderPage() {
                       }
                     })();
 
-                    const chunks = [];
-                    let i = 0;
-                    let isFirstPage = true;
-                    while (i < sortedItens.length) {
-                      const itemsLimit = (isFirstPage ? 10 : 15) - (sortedItens.some(item => item.tipo_operacao === 'BONIFICACAO_COMERCIAL') ? 3 : 0);
-                      chunks.push(sortedItens.slice(i, i + itemsLimit));
-                      i += itemsLimit;
-                      isFirstPage = false;
-                    }
+                    const chunks = paginateQuoteItems(sortedItens, observacoes);
 
                     return chunks.map((chunk, pageIdx) => (
                       <div 
@@ -2004,7 +1940,7 @@ export function OrderPage() {
                         )}
 
                         {/* Items Table */}
-                        <div className="flex-1 overflow-hidden">
+                        <div>
                           <table className="w-full border-collapse">
                             <thead>
                               <tr className="bg-[#171717] text-[#ffffff]">
