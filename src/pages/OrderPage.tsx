@@ -1194,7 +1194,7 @@ export function OrderPage() {
 
         {/* Summary Section (Only on last page) */}
         {pageIdx === chunks.length - 1 && (
-          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '2px solid #e5e5e5' }}>
+          <div style={{ marginTop: 'auto', paddingTop: '12px', borderTop: '2px solid #e5e5e5' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'stretch' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div style={{ padding: '10px 12px', border: '1px solid #e5e5e5', borderRadius: '10px', backgroundColor: '#fcfcfc' }}>
@@ -1253,7 +1253,7 @@ export function OrderPage() {
         )}
 
         {/* Footer */}
-        <div style={{ marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '9px', fontWeight: 700, color: '#737373' }}>
+        <div style={{ marginTop: pageIdx === chunks.length - 1 ? '12px' : 'auto', paddingTop: '10px', borderTop: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '9px', fontWeight: 700, color: '#737373' }}>
           <p style={{ margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>MAICON OLIVEIRA REPRESENTAÇÕES</p>
           <p style={{ margin: 0, fontStyle: 'italic' }}>Documento sem validade fiscal</p>
           <p style={{ margin: 0 }}>Página {pageIdx + 1} de {chunks.length}</p>
@@ -1989,7 +1989,7 @@ export function OrderPage() {
 
                         {/* Summary Section */}
                         {pageIdx === chunks.length - 1 && (
-                          <div className="mt-6 pt-6 border-t-2 border-[#f5f5f5]">
+                          <div className="mt-auto pt-6 border-t-2 border-[#f5f5f5]">
                             <div className="grid grid-cols-2 gap-8 items-stretch">
                               <div className="flex flex-col gap-3">
                                 <div className="p-3 border border-[#e5e5e5] rounded-lg">
@@ -2047,7 +2047,7 @@ export function OrderPage() {
                         )}
 
                         {/* Footer */}
-                        <div className="mt-8 text-center">
+                        <div className={cn("text-center", pageIdx === chunks.length - 1 ? "mt-3" : "mt-auto")}>
                           <p className="text-[8px] font-black text-[#d4d4d4] uppercase tracking-[0.2em]">MAICON OLIVEIRA REPRESENTAÇÕES</p>
                           <p className="text-[8px] font-bold text-[#a3a3a3] mt-1 italic uppercase tracking-wider">Este documento é um orçamento e não possui validade fiscal.</p>
                           <p className="text-[8px] font-bold text-[#a3a3a3] mt-2">Página {pageIdx + 1} de {chunks.length}</p>
