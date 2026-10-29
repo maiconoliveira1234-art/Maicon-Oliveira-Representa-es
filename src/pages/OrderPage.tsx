@@ -54,6 +54,7 @@ import { calcularPrecoDeCampanha } from '../lib/campaignPricing';
 import { readDraftCampaigns, withDraftCampaigns } from '../lib/orderDraftCampaigns';
 import { createDebouncedDraftSave } from '../lib/debouncedDraftSave';
 import { orderQuoteItems } from '../lib/quoteItemOrder';
+import { saveDraftLocally, readDraftLocally, clearLocalDraft } from '../lib/draftStorage';
 import { paginateQuoteItems } from '../lib/quotePagination';
 
 export function OrderPage() {
@@ -450,7 +451,7 @@ export function OrderPage() {
 
         // 2. Load from localStorage
         let localData: any = null;
-        const saved = localStorage.getItem(`pedido_${clienteId}`);
+        const saved = await readDraftLocally(`pedido_${clienteId}`);
         if (saved) {
           try {
             localData = JSON.parse(saved);
@@ -466,7 +467,7 @@ export function OrderPage() {
           // If server confirmed no open order on the cloud, check if there is an offline queue item
           if (serverChecked && !hasPendingOpenOrderSync(clienteId)) {
             // Orphan draft from another device that already invoiced/deleted it. Purge!
-            localStorage.removeItem(`pedido_${clienteId}`);
+            clearLocalDraft(`pedido_${clienteId}`);
             savedData = null;
           } else {
             savedData = localData;
@@ -574,7 +575,7 @@ export function OrderPage() {
       }, (payload) => {
         if (payload.old && (payload.old as any).cliente_id === clienteId) {
           if (!hasPendingOpenOrderSync(clienteId)) {
-            localStorage.removeItem(`pedido_${clienteId}`);
+            clearLocalDraft(`pedido_${clienteId}`);
             setItens([]);
             setStartedAt(null);
           }
@@ -584,7 +585,7 @@ export function OrderPage() {
 
     const handlePurged = (e: any) => {
       if (e.detail?.clienteId === clienteId && !hasPendingOpenOrderSync(clienteId)) {
-        localStorage.removeItem(`pedido_${clienteId}`);
+        clearLocalDraft(`pedido_${clienteId}`);
         // Keep the handler idempotent. deleteOpenOrder dispatches this event;
         // replacing an already-empty array would retrigger the persistence
         // effect and start another delete, creating a render/request loop.
@@ -643,7 +644,7 @@ export function OrderPage() {
       };
       
       // Update localStorage instantly for snappiness & data safety
-      localStorage.setItem(`pedido_${clienteId}`, JSON.stringify({
+      saveDraftLocally(`pedido_${clienteId}`, JSON.stringify({
         items: rawItemList,
         prazo: selectedPrazo,
         obs: observacoes,

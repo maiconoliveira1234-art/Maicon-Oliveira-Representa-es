@@ -1,3 +1,4 @@
+import { saveDraftLocally, clearLocalDraft } from './draftStorage';
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { supabase } from './supabase';
 import { loadClientHistory } from './clientHistory';
@@ -1036,7 +1037,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
       startedAt: payload.started_at || new Date().toISOString(),
       updatedAt: payload.updated_at || new Date().toISOString()
     };
-    localStorage.setItem(`pedido_${payload.cliente_id}`, JSON.stringify(rawData));
+    saveDraftLocally(`pedido_${payload.cliente_id}`, JSON.stringify(rawData));
 
     if (navigator.onLine === false) {
       await queueOpenOrderForRetry('save_open_order', payload);
@@ -1081,7 +1082,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
 
   // Offline-Safe Write Wrapper: deleteOpenOrder
   const deleteOpenOrder = useCallback(async (clienteId: string) => {
-    localStorage.removeItem(`pedido_${clienteId}`);
+    clearLocalDraft(`pedido_${clienteId}`);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId } }));
     }
@@ -1582,7 +1583,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
             }
           }
           keysToPurge.forEach(k => {
-            localStorage.removeItem(k);
+            clearLocalDraft(k);
             const cId = k.replace('pedido_', '');
             if (typeof window !== 'undefined') {
               window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId: cId } }));
@@ -1603,7 +1604,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
         const cId = (payload.old as any)?.cliente_id;
         if (cId) {
           try {
-            localStorage.removeItem(`pedido_${cId}`);
+            clearLocalDraft(`pedido_${cId}`);
             if (typeof window !== 'undefined') {
               window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId: cId } }));
             }

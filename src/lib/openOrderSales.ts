@@ -1,3 +1,4 @@
+import { clearLocalDraft } from './draftStorage';
 import { supabase } from './supabase';
 import { HistVenda, Cliente, Produto } from '../types';
 import { getFaixaPreco, getValorUnitario, calcularPrecoComDesconto } from './calculations';
@@ -28,7 +29,7 @@ export function purgeOrphanLocalOpenOrder(clienteId: string): void {
   if (!clienteId) return;
   if (!hasPendingOpenOrderSync(clienteId)) {
     try {
-      localStorage.removeItem(`pedido_${clienteId}`);
+      clearLocalDraft(`pedido_${clienteId}`);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId } }));
       }
@@ -56,7 +57,7 @@ export function reconcileAndCleanOrphanOpenOrders(serverClientIds: Set<string>):
       }
     }
     keysToPurge.forEach(k => {
-      localStorage.removeItem(k);
+      clearLocalDraft(k);
       const cId = k.replace('pedido_', '');
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId: cId } }));
@@ -407,7 +408,7 @@ export async function getClientOpenOrderSummary(
 export async function deleteClientOpenOrder(clienteId: string): Promise<boolean> {
   if (!clienteId) return false;
   try {
-    localStorage.removeItem(`pedido_${clienteId}`);
+    clearLocalDraft(`pedido_${clienteId}`);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId } }));
     }
