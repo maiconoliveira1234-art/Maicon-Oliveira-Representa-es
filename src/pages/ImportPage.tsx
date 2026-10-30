@@ -154,24 +154,62 @@ export function ImportPage() {
   }, [produtos]);
 
   const handleProcess = () => {
-    if (!selectedClienteId) {
-      setError('Selecione um cliente antes de processar.');
-      return;
-    }
-    if (!orderDate) {
-      setError('Selecione uma data antes de processar.');
-      return;
-    }
-
     setProcessing(true);
     setError(null);
     setSuccess(false);
     setOpenOrderCleanupStatus(null);
 
     try {
-      const lines = rawData.split('\n').filter(line => line.trim() !== '');
-      const newRows: RawRow[] = lines.map((line, index) => {
-        const cols = line.split('\t');
+      // Aceita tanto o modelo legado (7 colunas) quanto o relatório completo
+      // copiado do Memphis, com cabeçalho do pedido e tabela de itens.
+      const allLines = rawData.split(/\r?\n/).filter(line => line.trim() !== '');
+      const splitColumns = (line: string) => {
+        const clean = (value: string) => value.trim().replace(/^\*\*|\*\*$/g, '').trim();
+        const cells = line.includes('\t')
+          ? line.split('\t')
+          : line.trim().startsWith('|')
+            ? line.trim().replace(/^\||\|$/g, '').split('|')
+            : [line];
+        return cells.map(clean);
+      };
+      const rows = allLines.map(splitColumns).filter(cells => !cells.every(c => /^:?-{3,}:?$/.test(c) || !c));
+      const headerPositions = rows.flatMap((cols, i) => /^pedido$/i.test(cols[0] || '') && /nome do cliente/i.test(cols.join(' ')) ? [i] : []);
+      if (headerPositions.length > 1) throw new Error('Cole um pedido por vez. Foram encontrados vários cabeçalhos de pedido.');
+      let itemRows: string[][] = [];
+      let effectiveClient = selectedClienteId;
+      let effectiveDate = orderDate;
+      if (headerPositions.length === 1) {
+        const headerIndex = headerPositions[0];
+        const summary = rows[headerIndex + 1];
+        if (!summary || !/^\d+$/.test(summary[0] || '')) throw new Error('Número do pedido ERP não encontrado no cabeçalho.');
+        const erp = summary[0];
+        const clientName = (summary[2] || '').trim();
+        const matchedClient = clientes.find(c => c.cliente.trim().toLocaleLowerCase('pt-BR') === clientName.toLocaleLowerCase('pt-BR'));
+        if (!matchedClient) throw new Error(`Cliente do relatório não encontrado no cadastro: ${clientName}`);
+        const dateParts = (summary[1] || '').match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+        if (!dateParts) throw new Error('Data do pedido inválida no cabeçalho.');
+        effectiveClient = matchedClient.id;
+        effectiveDate = `${dateParts[3]}-${dateParts[2]}-${dateParts[1]}`;
+        setSelectedClienteId(effectiveClient);
+        setClientSearch(matchedClient.cliente);
+        setOrderDate(effectiveDate);
+        setNumeroPedidoErp(erp);
+        sessionStorage.setItem('last_pedido_erp', erp);
+        const itemHeader = rows.findIndex(cols => /tabela de pre[cç]o/i.test(cols[0] || '') && /nome do item/i.test(cols[1] || ''));
+        if (itemHeader < 0) throw new Error('Cabeçalho de itens não encontrado.');
+        itemRows = rows.slice(itemHeader + 1).filter(cols => cols.length >= 7 && cols[0] && !/^itens?$/i.test(cols[0]) && !/^-+$/.test(cols[0]));
+        // Confere o valor comercial do cabeçalho com a soma dos itens.
+        const parseBRL = (v: string) => Number(v.replace(/[^0-9,.-]/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.')) || 0;
+        const sumItems = itemRows.reduce((sum, cols) => sum + parseBRL(cols[3] || '0'), 0);
+        if (Math.abs(sumItems - parseBRL(summary[4] || '0')) > 0.02) {
+          throw new Error('Total dos itens não confere com o valor total do pedido. Confira os dados copiados.');
+        }
+      } else {
+        if (!effectiveClient) throw new Error('Selecione um cliente antes de processar.');
+        if (!effectiveDate) throw new Error('Selecione uma data antes de processar.');
+        itemRows = rows;
+      }
+      const newRows: RawRow[] = itemRows.map((cols, index) => {
         
         if (cols.length < 7) {
           return {
@@ -198,12 +236,12 @@ export function ImportPage() {
 
         const parseValorTotal = (val: string) => {
           if (!val) return 0;
-          return parseFloat(val.trim().replace(',', '.')) || 0;
+          return parseFloat(val.trim().replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.')) || 0;
         };
 
         const parseAcrescido = (val: string) => {
           if (!val) return 0;
-          const v = val.trim().replace(',', '.') + '.00';
+          const v = val.trim().replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.');
           return parseFloat(v) || 0;
         };
 
@@ -1089,11 +1127,11 @@ export function ImportPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Dados Brutos (Cole aqui)</label>
+              <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Importação de Pedido — relatório Memphis ou itens (7 colunas)</label>
               <textarea
                 value={rawData}
                 onChange={(e) => setRawData(e.target.value)}
-                placeholder="Cole as linhas da planilha aqui..."
+                placeholder="Cole o relatório completo da Memphis ou as 7 colunas dos itens..."
                 className="w-full h-64 p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm font-mono resize-none"
               />
             </div>
