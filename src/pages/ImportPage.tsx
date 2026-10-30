@@ -271,7 +271,7 @@ export function ImportPage() {
       setProcessedRows(newRows);
     } catch (err) {
       console.error('Erro ao processar dados:', err);
-      setError('Erro ao processar o texto colado. Verifique o formato.');
+      setError(err instanceof Error ? err.message : 'Erro ao processar o texto colado. Verifique o formato.');
     } finally {
       setProcessing(false);
     }
@@ -1131,6 +1131,24 @@ export function ImportPage() {
               <textarea
                 value={rawData}
                 onChange={(e) => setRawData(e.target.value)}
+                onPaste={(e) => {
+                  const html = e.clipboardData.getData('text/html');
+                  if (!html || !/<(?:table|tr)\b/i.test(html)) return;
+                  const doc = new DOMParser().parseFromString(html, 'text/html');
+                  const rows = Array.from(doc.querySelectorAll('tr')).map(tr =>
+                    Array.from(tr.children)
+                      .filter(el => /^(TD|TH)$/i.test(el.tagName))
+                      .map(el => (el.textContent || '').replace(/\s+/g, ' ').trim())
+                  ).filter(cells => cells.length >= 2);
+                  if (!rows.length) return;
+                  // Preserve as colunas originais da tabela HTML, inclusive os cabeçalhos.
+                  e.preventDefault();
+                  const pasted = rows.map(cells => cells.join('\t')).join('\n');
+                  const field = e.currentTarget;
+                  const start = field.selectionStart;
+                  const end = field.selectionEnd;
+                  setRawData(current => current.slice(0, start) + pasted + current.slice(end));
+                }}
                 placeholder="Cole o relatório completo da Memphis ou as 7 colunas dos itens..."
                 className="w-full h-64 p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm font-mono resize-none"
               />
