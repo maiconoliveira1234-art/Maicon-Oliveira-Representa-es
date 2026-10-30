@@ -215,7 +215,7 @@ export function ImportPage() {
           return {
             id: `row-${index}`,
             tabela: '',
-            produto: line,
+            produto: cols.join(' | '),
             qtd: 0,
             valor_total: 0,
             tipo: '',
