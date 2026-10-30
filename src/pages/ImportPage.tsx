@@ -88,7 +88,20 @@ export function ImportPage() {
   const [orderDate, setOrderDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [rawData, setRawData] = useState('');
   const [parcelamentoRaw, setParcelamentoRaw] = useState('');
+  const prazosColados = useMemo(() => {
+    const raw = parcelamentoRaw.replace(/\*\*/g, '').trim();
+    if (!raw || !/^W\s+/i.test(raw)) return null;
+    const normalized = raw.replace(/^W\s+/i, '').trim();
+    if (!/^\d+(?:\s*,\s*\d+)*$/.test(normalized)) return { prazos: [] as number[], erro: 'Use o formato W 14, 21, 28.' };
+    const prazos = normalized.split(',').map(item => Number(item.trim()));
+    if (prazos.some(d => d < 1 || d > 365) || new Set(prazos).size !== prazos.length || prazos.some((d,i) => i > 0 && d <= prazos[i-1])) {
+      return { prazos: [] as number[], erro: 'Os prazos devem ser únicos, crescentes e entre 1 e 365 dias.' };
+    }
+    return { prazos, erro: '' };
+  }, [parcelamentoRaw]);
+
   const parcelasLidas = useMemo(() => {
+    if (prazosColados) return { parcelas: [] as Array<{ vencimento: string; valor: number }>, erro: prazosColados.erro }; 
     if (!parcelamentoRaw.trim()) return { parcelas: [] as Array<{ vencimento: string; valor: number }>, erro: '' };
     const parcelas: Array<{ vencimento: string; valor: number }> = [];
     for (const line of parcelamentoRaw.split(/\r?\n/)) {
@@ -106,7 +119,7 @@ export function ImportPage() {
       parcelas.push({ vencimento, valor });
     }
     return { parcelas, erro: parcelas.length ? '' : 'Nenhuma parcela válida encontrada.' };
-  }, [parcelamentoRaw]);
+  }, [parcelamentoRaw, prazosColados]);
   const [numeroPedidoErp, setNumeroPedidoErp] = useState<string>(() => {
     return sessionStorage.getItem('last_pedido_erp') || '';
   });
@@ -1179,15 +1192,15 @@ export function ImportPage() {
               <textarea
                 value={parcelamentoRaw}
                 onChange={(e) => setParcelamentoRaw(e.target.value)}
-                placeholder={"Cole uma parcela por linha:\n06/11/2026  583,13\n13/11/2026  583,13"}
+                placeholder="W 14, 21, 28"
                 className="w-full h-28 p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm font-mono resize-y"
               />
               {parcelamentoRaw.trim() && (
-                <div className={cn("text-xs font-semibold", parcelasLidas.erro ? "text-red-600" : "text-emerald-700")}>
-                  {parcelasLidas.erro || `${parcelasLidas.parcelas.length} parcela(s) reconhecida(s) — total ${formatCurrency(parcelasLidas.parcelas.reduce((sum, parcela) => sum + parcela.valor, 0))}`}
+                <div className={cn("text-xs font-semibold", (prazosColados?.erro || parcelasLidas.erro) ? "text-red-600" : "text-emerald-700")}>
+                  {prazosColados ? (prazosColados.erro || `${prazosColados.prazos.length} prazo(s) reconhecido(s): ${prazosColados.prazos.join(", ")} dias`) : (parcelasLidas.erro || `${parcelasLidas.parcelas.length} parcela(s) reconhecida(s) — total ${formatCurrency(parcelasLidas.parcelas.reduce((sum, parcela) => sum + parcela.valor, 0))}`)}
                 </div>
               )}
-              <p className="text-[10px] text-neutral-500">Conferência do parcelamento. Ainda não gera títulos financeiros automaticamente.</p>
+              <p className="text-[10px] text-neutral-500">Aceita W 14, 21, 28 (dias após faturamento) ou vencimento e valor por linha. Ainda não gera títulos automaticamente.</p>
             </div>
 
             <button
