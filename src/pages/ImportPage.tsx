@@ -87,6 +87,26 @@ export function ImportPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [orderDate, setOrderDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [rawData, setRawData] = useState('');
+  const [parcelamentoRaw, setParcelamentoRaw] = useState('');
+  const parcelasLidas = useMemo(() => {
+    if (!parcelamentoRaw.trim()) return { parcelas: [] as Array<{ vencimento: string; valor: number }>, erro: '' };
+    const parcelas: Array<{ vencimento: string; valor: number }> = [];
+    for (const line of parcelamentoRaw.split(/\r?\n/)) {
+      const raw = line.replace(/\*\*/g, '').trim();
+      if (!raw || /^(vencimento|data vec|data venc|total|[-|:\s]+$)/i.test(raw)) continue;
+      const match = raw.match(/(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2}).*?(\d[\d.]*,\d{1,2}|\d+\.\d{2})\s*(?:\|)?\s*$/);
+      if (!match) return { parcelas: [], erro: `Linha não reconhecida: ${raw.slice(0, 80)}` };
+      const [day, month, year] = match[1].includes('/') ? match[1].split('/') : [];
+      const vencimento = day ? `${year}-${month}-${day}` : match[1];
+      const valor = Number(match[2].replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.'));
+      const date = new Date(vencimento + 'T12:00:00Z');
+      if (!Number.isFinite(valor) || valor <= 0 || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== vencimento) {
+        return { parcelas: [], erro: `Vencimento ou valor inválido: ${raw.slice(0, 80)}` };
+      }
+      parcelas.push({ vencimento, valor });
+    }
+    return { parcelas, erro: parcelas.length ? '' : 'Nenhuma parcela válida encontrada.' };
+  }, [parcelamentoRaw]);
   const [numeroPedidoErp, setNumeroPedidoErp] = useState<string>(() => {
     return sessionStorage.getItem('last_pedido_erp') || '';
   });
@@ -1152,6 +1172,22 @@ export function ImportPage() {
                 placeholder="Cole o relatório completo da Memphis ou as 7 colunas dos itens..."
                 className="w-full h-64 p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm font-mono resize-none"
               />
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-neutral-500 uppercase">Parcelamento do boleto (opcional)</label>
+              <textarea
+                value={parcelamentoRaw}
+                onChange={(e) => setParcelamentoRaw(e.target.value)}
+                placeholder={"Cole uma parcela por linha:\n06/11/2026  583,13\n13/11/2026  583,13"}
+                className="w-full h-28 p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm font-mono resize-y"
+              />
+              {parcelamentoRaw.trim() && (
+                <div className={cn("text-xs font-semibold", parcelasLidas.erro ? "text-red-600" : "text-emerald-700")}>
+                  {parcelasLidas.erro || `${parcelasLidas.parcelas.length} parcela(s) reconhecida(s) — total ${formatCurrency(parcelasLidas.parcelas.reduce((sum, parcela) => sum + parcela.valor, 0))}`}
+                </div>
+              )}
+              <p className="text-[10px] text-neutral-500">Conferência do parcelamento. Ainda não gera títulos financeiros automaticamente.</p>
             </div>
 
             <button
