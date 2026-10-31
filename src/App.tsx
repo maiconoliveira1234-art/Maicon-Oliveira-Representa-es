@@ -77,6 +77,71 @@ const hasValidKey =
 // A branch main continua usando VITE_REQUIRE_AUTH (desativado por padrão).
 const authRequired = true;
 
+// Verificações apenas de leitura: usam o JWT real da sessão, não alteram o banco.
+function PreviewAccessChecks() {
+  const [expanded, setExpanded] = useState(true);
+  const [checking, setChecking] = useState(false);
+  const [results, setResults] = useState<Array<{ name: string; ok: boolean; detail: string }>>([]);
+
+  const check = async () => {
+    if (checking) return;
+    setChecking(true);
+    try {
+      const tables = [
+        { name: 'Clientes', table: 'clientes', min: 1 },
+        { name: 'Produtos', table: 'produtos', min: 1 },
+        { name: 'Histórico de vendas', table: 'hist_vendas', min: 1 },
+        { name: 'Pedidos', table: 'pedidos', min: 0 },
+        { name: 'Pedidos em aberto', table: 'pedidos_em_aberto', min: 0 },
+        { name: 'Estoque', table: 'estoque_cliente', min: 0 },
+        { name: 'Agenda', table: 'agenda_visitas', min: 0 },
+        { name: 'Limites de crédito', table: 'entidades_financeiras', min: 1 },
+        { name: 'Boletos', table: 'titulos_credito', min: 1 }
+      ];
+      const next = await Promise.all(tables.map(async item => {
+        try {
+          const { count, error: queryError } = await supabase.from(item.table)
+            .select('*', { head: true, count: 'exact' });
+          const ok = !queryError && count !== null && count >= item.min;
+          return { name: item.name, ok, detail: queryError ? queryError.message : count === null ? 'Sem contagem' : `${count} registro(s)` };
+        } catch {
+          return { name: item.name, ok: false, detail: 'Falha na consulta' };
+        }
+      }));
+      setResults(next);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  useEffect(() => { void check(); }, []);
+
+  return (
+    <aside className="fixed bottom-4 right-4 z-[100] w-[min(360px,calc(100vw-2rem))] rounded-xl border border-orange-200 bg-white p-3 shadow-xl">
+      <div className="flex items-center justify-between gap-2">
+        <button type="button" onClick={() => setExpanded(value => !value)} className="text-left text-xs font-bold text-orange-700">
+          Teste de autenticação {results.length ? `(${results.filter(item => item.ok).length}/${results.length})` : ''}
+        </button>
+        <button type="button" onClick={() => void supabase.auth.signOut()} className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-bold text-white">Sair</button>
+      </div>
+      {expanded && (
+        <div className="mt-2 max-h-64 space-y-1 overflow-y-auto">
+          <p className="text-[11px] text-neutral-500">Consultas somente de leitura, usando sua sessão autenticada.</p>
+          {results.map(item => (
+            <div key={item.name} className="flex items-center justify-between gap-3 text-xs">
+              <span className="text-neutral-800">{item.name}</span>
+              <span className={item.ok ? 'text-green-700' : 'text-red-700'}>{item.ok ? 'OK' : 'Falha'} · {item.detail}</span>
+            </div>
+          ))}
+          <button disabled={checking} type="button" onClick={() => void check()} className="mt-2 rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
+            {checking ? 'Verificando...' : 'Repetir verificações'}
+          </button>
+        </div>
+      )}
+    </aside>
+  );
+}
+
 function ProtectedApp({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
@@ -137,10 +202,7 @@ function ProtectedApp({ children }: { children: React.ReactNode }) {
   if (session && accessStatus === 'authorized') {
     return (
       <>
-        <div className="fixed bottom-4 right-4 z-[100] flex items-center gap-3 rounded-lg border border-orange-200 bg-white/95 p-2 shadow-lg">
-          <span className="text-xs font-semibold text-orange-700">Teste de autenticação</span>
-          <button type="button" onClick={() => void supabase.auth.signOut()} className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-bold text-white">Sair</button>
-        </div>
+        <PreviewAccessChecks />
         {children}
       </>
     );
