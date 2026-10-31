@@ -1055,6 +1055,42 @@ export function ImportPage() {
         {/* Input Section */}
         <div className="lg:col-span-1 space-y-4">
           <div className="bg-white p-4 rounded-lg border border-neutral-200 shadow-sm space-y-4">
+            {/* Número do Pedido ERP Field */}
+            <div className="bg-orange-50/50 p-3.5 rounded-lg border border-orange-100 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-black text-orange-850 uppercase tracking-wider flex items-center gap-1.5">
+                  <Coins size={14} className="text-orange-600" />
+                  Pedido ERP (Identificador Mestre)
+                </label>
+                {numeroPedidoErp && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNumeroPedidoErp('');
+                      sessionStorage.removeItem('last_pedido_erp');
+                    }}
+                    className="text-[10px] text-red-500 font-extrabold hover:underline transition-all"
+                  >
+                    Mudar/Limpar
+                  </button>
+                )}
+              </div>
+              <input
+                type="text"
+                placeholder="Exemplo: PEDIDO-94812"
+                value={numeroPedidoErp}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setNumeroPedidoErp(val);
+                  sessionStorage.setItem('last_pedido_erp', val);
+                }}
+                className="w-full p-2.5 bg-white border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all text-sm font-bold text-neutral-800 placeholder-neutral-400 shadow-3xs"
+              />
+              <p className="text-[9px] text-orange-700/80 font-medium leading-tight">
+                Proteção Idempotente ativa contra reimportações acidentais ou duplicidades.
+              </p>
+            </div>
+
             <div className="relative">
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-bold text-neutral-500 uppercase">Cliente</label>
@@ -1133,40 +1169,32 @@ export function ImportPage() {
               </div>
             </div>
 
-            {/* Número do Pedido ERP Field */}
-            <div className="bg-orange-50/50 p-3.5 rounded-lg border border-orange-100 space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-black text-orange-850 uppercase tracking-wider flex items-center gap-1.5">
-                  <Coins size={14} className="text-orange-600" />
-                  Pedido ERP (Identificador Mestre)
-                </label>
-                {numeroPedidoErp && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNumeroPedidoErp('');
-                      sessionStorage.removeItem('last_pedido_erp');
-                    }}
-                    className="text-[10px] text-red-500 font-extrabold hover:underline transition-all"
-                  >
-                    Mudar/Limpar
-                  </button>
-                )}
-              </div>
-              <input
-                type="text"
-                placeholder="Exemplo: PEDIDO-94812"
-                value={numeroPedidoErp}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setNumeroPedidoErp(val);
-                  sessionStorage.setItem('last_pedido_erp', val);
-                }}
-                className="w-full p-2.5 bg-white border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all text-sm font-bold text-neutral-800 placeholder-neutral-400 shadow-3xs"
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-neutral-500 uppercase">Parcelamento do boleto (opcional)</label>
+              <textarea
+                value={parcelamentoRaw}
+                onChange={(e) => setParcelamentoRaw(e.target.value)}
+                placeholder="W 14, 21, 28"
+                className="w-full h-28 p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm font-mono resize-y"
               />
-              <p className="text-[9px] text-orange-700/80 font-medium leading-tight">
-                Proteção Idempotente ativa contra reimportações acidentais ou duplicidades.
-              </p>
+              {parcelamentoRaw.trim() && (
+                <div className={cn("text-xs font-semibold", (prazosColados?.erro || parcelasLidas.erro) ? "text-red-600" : "text-emerald-700")}>
+                  {prazosColados ? (prazosColados.erro || `${prazosColados.prazos.length} prazo(s) reconhecido(s): ${prazosColados.prazos.join(", ")} dias`) : (parcelasLidas.erro || `${parcelasLidas.parcelas.length} parcela(s) reconhecida(s) — total ${formatCurrency(parcelasLidas.parcelas.reduce((sum, parcela) => sum + parcela.valor, 0))}`)}
+                </div>
+              )}
+              {vencimentosW.length > 0 && (
+                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 space-y-2">
+                  <p className="text-xs font-bold text-neutral-700">Vencimentos calculados a partir do pedido ({orderDate.split('-').reverse().join('/')})</p>
+                  {vencimentosW.map(({ prazo, vencimento }, index) => (
+                    <div key={prazo} className="flex justify-between text-xs text-neutral-700">
+                      <span>{index + 1}ª parcela — {prazo} dias</span>
+                      <strong>{vencimento.split('-').reverse().join('/')}</strong>
+                    </div>
+                  ))}
+                  <p className="text-[10px] text-neutral-500">Base: sexta-feira da semana seguinte ao pedido. Sem ajuste por feriados ou fins de semana.</p>
+                </div>
+              )}
+              <p className="text-[10px] text-neutral-500">Aceita W 14, 21, 28 ou vencimento e valor por linha. Os vencimentos W são calculados para conferência e ainda não geram títulos financeiros automaticamente.</p>
             </div>
 
             <div>
@@ -1205,34 +1233,6 @@ export function ImportPage() {
                 placeholder="Cole o relatório completo da Memphis ou as 7 colunas dos itens..."
                 className="w-full h-64 p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm font-mono resize-none"
               />
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-neutral-500 uppercase">Parcelamento do boleto (opcional)</label>
-              <textarea
-                value={parcelamentoRaw}
-                onChange={(e) => setParcelamentoRaw(e.target.value)}
-                placeholder="W 14, 21, 28"
-                className="w-full h-28 p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm font-mono resize-y"
-              />
-              {parcelamentoRaw.trim() && (
-                <div className={cn("text-xs font-semibold", (prazosColados?.erro || parcelasLidas.erro) ? "text-red-600" : "text-emerald-700")}>
-                  {prazosColados ? (prazosColados.erro || `${prazosColados.prazos.length} prazo(s) reconhecido(s): ${prazosColados.prazos.join(", ")} dias`) : (parcelasLidas.erro || `${parcelasLidas.parcelas.length} parcela(s) reconhecida(s) — total ${formatCurrency(parcelasLidas.parcelas.reduce((sum, parcela) => sum + parcela.valor, 0))}`)}
-                </div>
-              )}
-              {vencimentosW.length > 0 && (
-                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 space-y-2">
-                  <p className="text-xs font-bold text-neutral-700">Vencimentos calculados a partir do pedido ({orderDate.split('-').reverse().join('/')})</p>
-                  {vencimentosW.map(({ prazo, vencimento }, index) => (
-                    <div key={prazo} className="flex justify-between text-xs text-neutral-700">
-                      <span>{index + 1}ª parcela — {prazo} dias</span>
-                      <strong>{vencimento.split('-').reverse().join('/')}</strong>
-                    </div>
-                  ))}
-                  <p className="text-[10px] text-neutral-500">Base: sexta-feira da semana seguinte ao pedido. Sem ajuste por feriados ou fins de semana.</p>
-                </div>
-              )}
-              <p className="text-[10px] text-neutral-500">Aceita W 14, 21, 28 ou vencimento e valor por linha. Os vencimentos W são calculados para conferência e ainda não geram títulos financeiros automaticamente.</p>
             </div>
 
             <button
