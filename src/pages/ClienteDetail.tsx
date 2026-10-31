@@ -155,11 +155,13 @@ export function ClienteDetail() {
   const [openOrderSales, setOpenOrderSales] = useState<HistVenda[]>([]);
   const [credito, setCredito] = useState<{ limite_total: number; disponivel_oficial_snapshot: number; data_snapshot: string; titulos: Array<{ vencimento: string; valor: number; baixado_em: string | null }> } | null>(null);
   const [creditoError, setCreditoError] = useState(false);
+  const [creditoSemAcesso, setCreditoSemAcesso] = useState(false);
 
   useEffect(() => {
     let active = true;
     setCredito(null);
     setCreditoError(false);
+    setCreditoSemAcesso(false);
     if (!id) return;
     const load = async () => {
       const entidade = await supabase.from('entidades_financeiras')
@@ -167,7 +169,7 @@ export function ClienteDetail() {
         .eq('cliente_comercial_id', id).maybeSingle();
       if (!active) return;
       if (entidade.error) { setCreditoError(true); return; }
-      if (!entidade.data) return;
+      if (!entidade.data) { setCreditoSemAcesso(true); return; }
       const titulos = await supabase.from('titulos_credito')
         .select('vencimento, valor, baixado_em')
         .eq('entidade_financeira_id', entidade.data.id);
@@ -714,14 +716,16 @@ export function ClienteDetail() {
         </div>
       </header>
 
-      {(credito || creditoError) && (
+      {(credito || creditoError || creditoSemAcesso) && (
         <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <Coins size={18} className="text-orange-600" />
             <h2 className="text-sm font-bold text-neutral-900">Limite de crédito</h2>
           </div>
           {creditoError ? (
-            <p className="text-sm text-amber-700">Não foi possível consultar os dados financeiros deste cliente.</p>
+            <p className="text-sm text-amber-700">Não foi possível consultar os dados financeiros deste cliente. Verifique as permissões de acesso.</p>
+          ) : creditoSemAcesso ? (
+            <p className="text-sm text-amber-700">Limite de crédito indisponível nesta sessão. Os dados podem estar protegidos pelas permissões do banco. Nenhum saldo foi considerado como zero.</p>
           ) : credito && (
             <>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
