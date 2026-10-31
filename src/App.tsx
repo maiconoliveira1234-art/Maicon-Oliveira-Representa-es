@@ -116,13 +116,17 @@ function ProtectedApp({ children }: { children: React.ReactNode }) {
     }
     let active = true;
     setAccessStatus('checking');
-    void supabase.from('crm_usuarios_autorizados')
-      .select('user_id')
-      .eq('user_id', session.user.id)
-      .maybeSingle()
-      .then(({ data, error: permissionError }) => {
+    void (async () => {
+      try {
+        const { data, error: permissionError } = await supabase.from('crm_usuarios_autorizados')
+          .select('user_id')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
         if (active) setAccessStatus(!permissionError && data ? 'authorized' : 'denied');
-      }).catch(() => { if (active) setAccessStatus('denied'); });
+      } catch {
+        if (active) setAccessStatus('denied');
+      }
+    })();
     return () => { active = false; };
   }, [session?.user.id, session?.access_token]);
 
