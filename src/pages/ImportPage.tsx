@@ -1048,7 +1048,7 @@ export function ImportPage() {
   }
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="mx-auto w-full max-w-7xl space-y-5 pb-12">
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-black text-neutral-900 flex items-center gap-2">
           <FileUp className="text-orange-600" />
@@ -1059,15 +1059,15 @@ export function ImportPage() {
         </p>
       </header>
 
-      <div className="grid grid-cols-1 gap-4">
+      <div className="grid grid-cols-1 gap-5">
         {/* Input Section */}
         <div className="space-y-3">
-          <div className="bg-white p-4 rounded-lg border border-neutral-200 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4 items-start rounded-xl border border-neutral-200 bg-white p-4 sm:p-5 shadow-sm">
             {/* Número do Pedido ERP Field */}
-            <div className="min-w-0 space-y-1">
+            <div className="min-w-0 space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="block text-xs font-black text-orange-850 uppercase tracking-wider flex items-center gap-1.5">
-                  <Coins size={14} className="text-orange-600" />
+                <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+                  <Coins size={14} className="text-orange-500" />
                   Pedido ERP
                 </label>
                 {numeroPedidoErp && (
@@ -1092,14 +1092,14 @@ export function ImportPage() {
                   setNumeroPedidoErp(val);
                   sessionStorage.setItem('last_pedido_erp', val);
                 }}
-                className="w-full p-2.5 bg-white border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all text-sm font-bold text-neutral-800 placeholder-neutral-400 shadow-3xs"
+                className="h-11 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 text-sm font-semibold text-neutral-800 outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
               />
 
             </div>
 
-            <div className="relative">
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-bold text-neutral-500 uppercase">Cliente</label>
+            <div className="relative min-w-0">
+              <div className="flex h-[18px] items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-600">Cliente</label>
                 <button 
                   onClick={() => setShowInactive(!showInactive)}
                   className={cn(
@@ -1125,7 +1125,7 @@ export function ImportPage() {
                       if (!e.target.value) setSelectedClienteId('');
                     }}
                     onFocus={() => setIsDropdownOpen(true)}
-                    className="w-full p-2.5 pl-10 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm font-bold"
+                    className="h-11 w-full rounded-lg border border-neutral-200 bg-neutral-50 pl-10 pr-10 text-sm font-semibold outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                   />
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={18} />
                   <button 
@@ -1176,14 +1176,14 @@ export function ImportPage() {
             </div>
 
             <div className="min-w-0">
-              <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Parcelamento</label>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-600">Parcelamento</label>
               <input
                 type="text"
                 value={parcelamentoRaw}
                 onChange={(e) => setParcelamentoRaw(e.target.value)}
                 placeholder="W 14, 21, 28"
                 aria-invalid={!!(prazosColados?.erro || parcelasLidas.erro)}
-                className="w-full p-2.5 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                className="h-11 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 text-sm outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
               />
               {(prazosColados?.erro || parcelasLidas.erro) && (
                 <p className="text-xs text-red-600 mt-1">{prazosColados?.erro || parcelasLidas.erro}</p>
@@ -1191,17 +1191,17 @@ export function ImportPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Data do Pedido</label>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-600">Data do Pedido</label>
               <input
                 type="date"
                 value={orderDate}
                 onChange={(e) => setOrderDate(e.target.value)}
-                className="w-full p-2.5 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm"
+                className="h-11 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 text-sm outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
               />
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Importação de Pedido — relatório Memphis ou itens (7 colunas)</label>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-600">Importação de Pedido</label>
               <textarea
                 value={rawData}
                 onChange={(e) => setRawData(e.target.value)}
@@ -1224,14 +1224,14 @@ export function ImportPage() {
                   setRawData(current => current.slice(0, start) + pasted + current.slice(end));
                 }}
                 placeholder="Cole o relatório completo da Memphis ou as 7 colunas dos itens..."
-                className="w-full h-44 p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm font-mono resize-none"
+                className="h-44 w-full resize-y rounded-lg border border-neutral-200 bg-neutral-50 p-3 font-mono text-sm outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
               />
             </div>
 
             <button
               onClick={handleProcess}
               disabled={processing || !rawData.trim()}
-              className="sm:col-span-2 w-full py-3 bg-neutral-900 text-white rounded-lg font-bold hover:bg-neutral-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              className="sm:col-span-2 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-neutral-900 text-sm font-semibold text-white transition-colors hover:bg-neutral-800 disabled:opacity-50"
             >
               {processing ? <Loader2 className="animate-spin" size={20} /> : <FileUp size={20} />}
               Processar Dados
