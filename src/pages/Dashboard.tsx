@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   TrendingUp, 
@@ -74,7 +74,7 @@ import {
 } from '../lib/salesTrendAnalysis';
 import { fetchOpenOrderSales } from '../lib/openOrderSales';
 
-export type DashboardTab = 'evolucao' | 'visao_geral' | 'curva_abc' | 'mix_produtos' | 'positivacao';
+export type DashboardTab = 'evolucao' | 'visao_geral' | 'curva_abc' | 'mix_produtos' | 'positivacao' | 'comissoes';
 type AbcMetric = 'volume' | 'faturamento' | 'ponderado';
 
 function abcValue(item: { totalKg: number; totalVal: number }, totals: { totalKg: number; totalVal: number }, metric: AbcMetric): number {
@@ -91,6 +91,8 @@ function abcValue(item: { totalKg: number; totalVal: number }, totals: { totalKg
   return 0;
 }
 
+const CommissionTab = lazy(() => import('./CommissionPage').then(module => ({ default: module.CommissionPage })));
+
 export function Dashboard() {
   const navigate = useNavigate();
   const {
@@ -100,7 +102,7 @@ export function Dashboard() {
     loadingGlobal
   } = useDataManager();
 
-  const [activeTab, setActiveTab] = useState<DashboardTab>('evolucao');
+  const [activeTab, setActiveTab] = useState<DashboardTab>(() => new URLSearchParams(window.location.search).get('aba') === 'comissoes' ? 'comissoes' : 'evolucao');
   const [loading, setLoading] = useState(true);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
@@ -877,6 +879,7 @@ export function Dashboard() {
     { id: 'curva_abc' as const, label: 'Curva ABC', icon: BarChart3 },
     { id: 'mix_produtos' as const, label: 'Mix de Produtos', icon: Package },
     { id: 'positivacao' as const, label: 'Positivação da Carteira', icon: Users },
+    { id: 'comissoes' as const, label: 'Comissões', icon: DollarSign },
   ];
 
   const situationList: TrendCategory[] = [
@@ -987,6 +990,12 @@ export function Dashboard() {
           );
         })}
       </div>
+
+      {activeTab === 'comissoes' && (
+        <Suspense fallback={<div className="py-8 text-center text-sm text-neutral-500">Carregando comissões...</div>}>
+          <CommissionTab embedded />
+        </Suspense>
+      )}
 
       {/* ================= TAB 1: EVOLUÇÃO DE VENDAS ================= */}
       {activeTab === 'evolucao' && (
