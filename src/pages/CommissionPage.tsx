@@ -69,7 +69,7 @@ function calculateCommissionValue(totalValue: number, commissionPercent: number,
   return shouldApplyIpiCommissionDiscount(produto) ? baseCommission * IPI_COMMISSION_FACTOR : baseCommission;
 }
 
-export function CommissionPage() {
+export function CommissionPage({ embedded = false }: { embedded?: boolean } = {}) {
   const {
     clientes: cachedClientes,
     produtos: cachedProdutos,
@@ -403,8 +403,8 @@ export function CommissionPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-neutral-100/70 p-3 md:p-5 space-y-4">
-      <PageHeader
+    <div className={embedded ? "w-full min-w-0 space-y-4" : "min-h-screen bg-neutral-100/70 p-3 md:p-5 space-y-4"}>
+      {!embedded && <PageHeader
         title="Acompanhamento de Comissão"
         subtitle="Análise detalhada de comissões por período, cliente e produto"
         icon={<DollarSign />}
@@ -417,7 +417,8 @@ export function CommissionPage() {
             Filtros
           </ActionButton>
         }
-      />
+      />}
+      {embedded && <div className="flex justify-end"><ActionButton onClick={() => setShowFilters(!showFilters)} variant={showFilters ? "primary" : "secondary"} icon={<Filter />}>Filtros</ActionButton></div>}
 
       {/* Filters Panel */}
       {showFilters && (
