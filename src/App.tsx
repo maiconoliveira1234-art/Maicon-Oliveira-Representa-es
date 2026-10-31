@@ -5,6 +5,8 @@
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { supabase } from './lib/supabase';
+import type { Session } from '@supabase/supabase-js';
 import { Layout } from './components/Layout';
 import { DataManagerProvider, useDataManager } from './lib/dataManager';
 import { APIProvider } from '@vis.gl/react-google-maps';
@@ -71,6 +73,76 @@ const hasValidKey =
   API_KEY.startsWith('AIzaSy') &&
   API_KEY.length >= 20;
 
+// Ativação controlada: nunca ligar sem validar permissões e credenciais.
+const authRequired = (import.meta as any).env?.VITE_REQUIRE_AUTH === 'true';
+
+function ProtectedApp({ children }: { children: React.ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(authRequired);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!authRequired) return;
+    let live = true;
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!live) return;
+      if (error) setError('Não foi possível verificar a sessão.');
+      setSession(data.session);
+      setLoading(false);
+    }).catch(() => { if (live) { setError('Não foi possível verificar a sessão.'); setLoading(false); } });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (live) setSession(nextSession);
+    });
+    return () => { live = false; subscription.unsubscribe(); };
+  }, []);
+
+  if (!authRequired) return <>{children}</>;
+  if (loading) return <div role="status" className="flex min-h-screen items-center justify-center text-sm text-neutral-600">Verificando acesso ao CRM...</div>;
+  if (session) return <>{children}</>;
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-neutral-100 p-4">
+      <form
+        onSubmit={async (event) => {
+          event.preventDefault();
+          if (busy) return;
+          setError('');
+          setBusy(true);
+          try {
+            const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+            if (signInError) throw signInError;
+          } catch {
+            setError('Não foi possível entrar. Confira as credenciais ou a conexão.');
+          } finally {
+            setBusy(false);
+          }
+        }}
+        className="w-full max-w-sm space-y-5 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm"
+      >
+        <div>
+          <h1 className="text-2xl font-bold text-neutral-900">Pro Max</h1>
+          <p className="mt-1 text-sm text-neutral-500">Acesso restrito ao CRM</p>
+        </div>
+        <label className="block space-y-1 text-sm font-semibold text-neutral-700">
+          <span>E-mail</span>
+          <input required type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} className="h-11 w-full rounded-lg border border-neutral-300 px-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20" />
+        </label>
+        <label className="block space-y-1 text-sm font-semibold text-neutral-700">
+          <span>Senha</span>
+          <input required type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} className="h-11 w-full rounded-lg border border-neutral-300 px-3 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20" />
+        </label>
+        {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+        <button type="submit" disabled={busy} className="h-11 w-full rounded-lg bg-orange-600 text-sm font-bold text-white hover:bg-orange-700 disabled:opacity-50">
+          {busy ? 'Entrando...' : 'Entrar'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 function AppContent() {
   const { loadInitialData } = useDataManager();
 
@@ -130,9 +202,11 @@ function InitialRouteGuard() {
 
 export default function App() {
   const appContent = (
-    <DataManagerProvider>
-      <AppContent />
-    </DataManagerProvider>
+    <ProtectedApp>
+      <DataManagerProvider>
+        <AppContent />
+      </DataManagerProvider>
+    </ProtectedApp>
   );
 
   if (hasValidKey) {
