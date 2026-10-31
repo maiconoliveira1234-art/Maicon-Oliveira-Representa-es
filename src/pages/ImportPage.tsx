@@ -207,6 +207,14 @@ export function ImportPage() {
   }, [produtos]);
 
   const handleProcess = () => {
+    if (prazosColados?.erro || parcelasLidas.erro) {
+      setError(prazosColados?.erro || parcelasLidas.erro);
+      return;
+    }
+    if (prazosColados && vencimentosW.length !== prazosColados.prazos.length) {
+      setError('Não foi possível calcular os vencimentos para a data selecionada.');
+      return;
+    }
     setProcessing(true);
     setError(null);
     setSuccess(false);
@@ -1051,16 +1059,16 @@ export function ImportPage() {
         </p>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-4">
         {/* Input Section */}
-        <div className="lg:col-span-1 space-y-4">
-          <div className="bg-white p-4 rounded-lg border border-neutral-200 shadow-sm space-y-4">
+        <div className="space-y-3">
+          <div className="bg-white p-4 rounded-lg border border-neutral-200 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
             {/* Número do Pedido ERP Field */}
-            <div className="bg-orange-50/50 p-3.5 rounded-lg border border-orange-100 space-y-2">
+            <div className="min-w-0 space-y-1">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-black text-orange-850 uppercase tracking-wider flex items-center gap-1.5">
                   <Coins size={14} className="text-orange-600" />
-                  Pedido ERP (Identificador Mestre)
+                  Pedido ERP
                 </label>
                 {numeroPedidoErp && (
                   <button
@@ -1086,9 +1094,7 @@ export function ImportPage() {
                 }}
                 className="w-full p-2.5 bg-white border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all text-sm font-bold text-neutral-800 placeholder-neutral-400 shadow-3xs"
               />
-              <p className="text-[9px] text-orange-700/80 font-medium leading-tight">
-                Proteção Idempotente ativa contra reimportações acidentais ou duplicidades.
-              </p>
+
             </div>
 
             <div className="relative">
@@ -1169,32 +1175,19 @@ export function ImportPage() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-neutral-500 uppercase">Parcelamento do boleto (opcional)</label>
-              <textarea
+            <div className="min-w-0">
+              <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Parcelamento</label>
+              <input
+                type="text"
                 value={parcelamentoRaw}
                 onChange={(e) => setParcelamentoRaw(e.target.value)}
                 placeholder="W 14, 21, 28"
-                className="w-full h-28 p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm font-mono resize-y"
+                aria-invalid={!!(prazosColados?.erro || parcelasLidas.erro)}
+                className="w-full p-2.5 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm"
               />
-              {parcelamentoRaw.trim() && (
-                <div className={cn("text-xs font-semibold", (prazosColados?.erro || parcelasLidas.erro) ? "text-red-600" : "text-emerald-700")}>
-                  {prazosColados ? (prazosColados.erro || `${prazosColados.prazos.length} prazo(s) reconhecido(s): ${prazosColados.prazos.join(", ")} dias`) : (parcelasLidas.erro || `${parcelasLidas.parcelas.length} parcela(s) reconhecida(s) — total ${formatCurrency(parcelasLidas.parcelas.reduce((sum, parcela) => sum + parcela.valor, 0))}`)}
-                </div>
+              {(prazosColados?.erro || parcelasLidas.erro) && (
+                <p className="text-xs text-red-600 mt-1">{prazosColados?.erro || parcelasLidas.erro}</p>
               )}
-              {vencimentosW.length > 0 && (
-                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 space-y-2">
-                  <p className="text-xs font-bold text-neutral-700">Vencimentos calculados a partir do pedido ({orderDate.split('-').reverse().join('/')})</p>
-                  {vencimentosW.map(({ prazo, vencimento }, index) => (
-                    <div key={prazo} className="flex justify-between text-xs text-neutral-700">
-                      <span>{index + 1}ª parcela — {prazo} dias</span>
-                      <strong>{vencimento.split('-').reverse().join('/')}</strong>
-                    </div>
-                  ))}
-                  <p className="text-[10px] text-neutral-500">Base: sexta-feira da semana seguinte ao pedido. Sem ajuste por feriados ou fins de semana.</p>
-                </div>
-              )}
-              <p className="text-[10px] text-neutral-500">Aceita W 14, 21, 28 ou vencimento e valor por linha. Os vencimentos W são calculados para conferência e ainda não geram títulos financeiros automaticamente.</p>
             </div>
 
             <div>
@@ -1207,7 +1200,7 @@ export function ImportPage() {
               />
             </div>
 
-            <div>
+            <div className="sm:col-span-2">
               <label className="block text-xs font-bold text-neutral-500 uppercase mb-1">Importação de Pedido — relatório Memphis ou itens (7 colunas)</label>
               <textarea
                 value={rawData}
@@ -1231,14 +1224,14 @@ export function ImportPage() {
                   setRawData(current => current.slice(0, start) + pasted + current.slice(end));
                 }}
                 placeholder="Cole o relatório completo da Memphis ou as 7 colunas dos itens..."
-                className="w-full h-64 p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm font-mono resize-none"
+                className="w-full h-44 p-3 bg-neutral-50 border border-neutral-200 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none transition-all text-sm font-mono resize-none"
               />
             </div>
 
             <button
               onClick={handleProcess}
               disabled={processing || !rawData.trim()}
-              className="w-full py-3 bg-neutral-900 text-white rounded-lg font-bold hover:bg-neutral-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              className="sm:col-span-2 w-full py-3 bg-neutral-900 text-white rounded-lg font-bold hover:bg-neutral-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {processing ? <Loader2 className="animate-spin" size={20} /> : <FileUp size={20} />}
               Processar Dados
@@ -1247,7 +1240,7 @@ export function ImportPage() {
         </div>
 
         {/* Preview Section */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="space-y-4">
           {statusImportacao === 'PROCESSANDO' && (
             <div className="bg-orange-50 border border-orange-100 text-orange-700 p-4 rounded-lg flex items-center gap-3 animate-pulse shadow-sm">
               <Loader2 className="animate-spin text-orange-600 shrink-0" size={18} />
