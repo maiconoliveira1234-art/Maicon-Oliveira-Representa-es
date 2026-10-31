@@ -43,6 +43,21 @@ interface NewProductData {
   "4000kg": number;
 }
 
+// Prazos W: sexta-feira da semana seguinte ao pedido + dias do prazo.
+ // Datas em UTC impedem deslocamentos por fuso e não aplicam feriados.
+const calcularVencimentosW = (dataPedido: string, prazos: number[]) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataPedido)) return [];
+  const data = new Date(dataPedido + 'T12:00:00Z');
+  if (Number.isNaN(data.getTime()) || data.toISOString().slice(0, 10) !== dataPedido) return [];
+  const diaSemanaSegundaZero = (data.getUTCDay() + 6) % 7;
+  data.setUTCDate(data.getUTCDate() + 11 - diaSemanaSegundaZero);
+  return prazos.map(prazo => {
+    const vencimento = new Date(data);
+    vencimento.setUTCDate(vencimento.getUTCDate() + prazo);
+    return { prazo, vencimento: vencimento.toISOString().slice(0, 10) };
+  });
+};
+
 export function ImportPage() {
   const {
     clientes: cachedClientes,
@@ -99,6 +114,11 @@ export function ImportPage() {
     }
     return { prazos, erro: '' };
   }, [parcelamentoRaw]);
+
+  const vencimentosW = useMemo(
+    () => prazosColados && !prazosColados.erro ? calcularVencimentosW(orderDate, prazosColados.prazos) : [],
+    [orderDate, prazosColados]
+  );
 
   const parcelasLidas = useMemo(() => {
     if (prazosColados) return { parcelas: [] as Array<{ vencimento: string; valor: number }>, erro: prazosColados.erro }; 
@@ -1200,7 +1220,19 @@ export function ImportPage() {
                   {prazosColados ? (prazosColados.erro || `${prazosColados.prazos.length} prazo(s) reconhecido(s): ${prazosColados.prazos.join(", ")} dias`) : (parcelasLidas.erro || `${parcelasLidas.parcelas.length} parcela(s) reconhecida(s) — total ${formatCurrency(parcelasLidas.parcelas.reduce((sum, parcela) => sum + parcela.valor, 0))}`)}
                 </div>
               )}
-              <p className="text-[10px] text-neutral-500">Aceita W 14, 21, 28 (dias após faturamento) ou vencimento e valor por linha. Ainda não gera títulos automaticamente.</p>
+              {vencimentosW.length > 0 && (
+                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 space-y-2">
+                  <p className="text-xs font-bold text-neutral-700">Vencimentos calculados a partir do pedido ({orderDate.split('-').reverse().join('/')})</p>
+                  {vencimentosW.map(({ prazo, vencimento }, index) => (
+                    <div key={prazo} className="flex justify-between text-xs text-neutral-700">
+                      <span>{index + 1}ª parcela — {prazo} dias</span>
+                      <strong>{vencimento.split('-').reverse().join('/')}</strong>
+                    </div>
+                  ))}
+                  <p className="text-[10px] text-neutral-500">Base: sexta-feira da semana seguinte ao pedido. Sem ajuste por feriados ou fins de semana.</p>
+                </div>
+              )}
+              <p className="text-[10px] text-neutral-500">Aceita W 14, 21, 28 ou vencimento e valor por linha. Os vencimentos W são calculados para conferência e ainda não geram títulos financeiros automaticamente.</p>
             </div>
 
             <button
