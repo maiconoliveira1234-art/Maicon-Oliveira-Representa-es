@@ -1,4 +1,3 @@
-import { ClientCommercialPriorities } from '../components/CommercialPriorities';
 import { CampaignClientAlert } from '../components/CampaignClientAlert';
 import { ClientDetailModal } from '../components/ui/ClientDetailModal';
 import React, { useEffect, useState } from 'react';
@@ -683,7 +682,6 @@ export function ClienteDetail() {
         </div>
       </header>
 
-      <ClientCommercialPriorities key={cliente.id} clienteId={cliente.id} />
        <CampaignClientAlert cliente={cliente} historico={historico} produtos={produtos.length ? produtos : allProducts} />
 
       {error && (
