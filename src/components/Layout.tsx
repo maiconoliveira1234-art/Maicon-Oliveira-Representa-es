@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Search, PackageSearch, BarChart3, Settings, FileUp, ShoppingCart, PieChart, Calendar, ArrowLeftRight, Home, RefreshCw, Cloud, CloudOff, List, Rows3, Megaphone } from 'lucide-react';
+import { LayoutDashboard, Users, Search, PackageSearch, BarChart3, Settings, FileUp, ShoppingCart, Calendar, ArrowLeftRight, Home, RefreshCw, Cloud, CloudOff, List, Rows3, Megaphone } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useDataManager } from '../lib/dataManager';
 
@@ -19,7 +19,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       return 'compact';
     }
   });
-  const hasMobileList = ['/consulta-preco', '/metas', '/comissoes', '/emprestimos', '/import'].includes(location.pathname) || location.pathname.includes('/estoque/');
+  const hasMobileList = ['/consulta-preco', '/metas', '/emprestimos', '/import'].includes(location.pathname) || location.pathname.includes('/estoque/');
 
   const toggleMobileListMode = () => {
     setMobileListMode(current => {
@@ -261,7 +261,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <NavItem to="/clientes" icon={<Users size={24} />} label="" />
           <NavItem to="/consulta-preco" icon={<PackageSearch size={24} />} label="" />
           <NavItem to="/metas" icon={<BarChart3 size={24} />} label="" />
-          <NavItem to="/comissoes" icon={<PieChart size={24} />} label="" />
            <NavItem to="/campanhas" icon={<Megaphone size={24} />} label="" />
           <NavItem to="/dashboard" icon={<LayoutDashboard size={24} />} label="" />
           <NavItem to="/import" icon={<FileUp size={24} />} label="" />
