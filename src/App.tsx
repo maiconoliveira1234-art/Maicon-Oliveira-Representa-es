@@ -36,7 +36,6 @@ const ClienteDetail = lazyPage(() => import('./pages/ClienteDetail'), 'ClienteDe
 const StockCountPage = lazyPage(() => import('./pages/StockCountPage'), 'StockCountPage');
 const OrderPage = lazyPage(() => import('./pages/OrderPage'), 'OrderPage');
 const MetasPage = lazyPage(() => import('./pages/MetasPage'), 'MetasPage');
-const CommissionPage = lazyPage(() => import('./pages/CommissionPage'), 'CommissionPage');
 const LoansPage = lazyPage(() => import('./pages/LoansPage'), 'LoansPage');
 const ImportPage = lazyPage(() => import('./pages/ImportPage'), 'ImportPage');
 const SettingsPage = lazyPage(() => import('./pages/SettingsPage'), 'SettingsPage');
@@ -96,7 +95,7 @@ function AppContent() {
               <Route path="/estoque/:clienteId" element={<StockCountPage />} />
               <Route path="/pedido/novo/:clienteId" element={<OrderPage />} />
               <Route path="/metas" element={<MetasPage />} />
-              <Route path="/comissoes" element={<CommissionPage />} />
+              <Route path="/comissoes" element={<Navigate to="/dashboard?aba=comissoes" replace />} />
               <Route path="/emprestimos" element={<LoansPage />} />
               <Route path="/import" element={<ImportPage />} />
               <Route path="/settings" element={<SettingsPage />} />
