@@ -1,4 +1,4 @@
-import { saveDraftLocally, clearLocalDraft } from './draftStorage';
+import { saveDraftLocally, clearLocalDraft, listLocalOrderDrafts } from './draftStorage';
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { supabase } from './supabase';
 import { loadClientHistory } from './clientHistory';
@@ -1555,9 +1555,58 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     await syncAllDataInternal(true);
   }, [syncAllDataInternal]);
 
-  // Nenhum rascunho local deve ser apagado por uma consulta vazia ou evento
-  // Realtime: a exclusão só ocorre por ação explícita na tela do pedido.
-  // O servidor pode responder temporariamente sem linhas durante login/sync.
+  // Recuperação não destrutiva ao iniciar sessão: se existir um rascunho
+  // no dispositivo mas não no servidor, reenviá-lo. Nunca inferir
+  // exclusão do cliente apenas porque a consulta retornou zero registros.
+  useEffect(() => {
+    let active = true;
+    const restoreLocalOpenOrders = async () => {
+      if (navigator.onLine === false) return;
+      try {
+        const drafts = await listLocalOrderDrafts();
+        if (!active || drafts.length === 0) return;
+        const { data, error } = await supabase
+          .from('pedidos_em_aberto').select('cliente_id');
+        if (error || !data || !active) {
+          console.warn('[Rascunhos] Consulta remota indisponível; mantendo cópias locais.', error);
+          return;
+        }
+        const serverIds = new Set(data.map(d => d.cliente_id));
+        const queue = await loadPersisted<OfflineQueueItem[]>('offline_db_pending_queue', []);
+        for (const { clienteId, draft } of drafts) {
+          if (!active || serverIds.has(clienteId)) continue;
+          // Respeitar uma exclusão explicitamente solicitada pelo usuário.
+          if (queue.some(item => item.action === 'delete_open_order' &&
+              item.payload?.explicit === true && item.payload?.cliente_id === clienteId)) continue;
+          const items = draft.items ?? draft;
+          if (!items || typeof items !== 'object') continue;
+          const { data: restored, error: restoreError } = await supabase
+            .from('pedidos_em_aberto')
+            .upsert({
+              cliente_id: clienteId,
+              items,
+              prazo: draft.prazo || null,
+              obs: draft.obs || null,
+              manual_faixa: draft.manualFaixa || null,
+              desconto_extra: draft.desconto_extra || 0,
+              started_at: draft.startedAt || new Date().toISOString(),
+              updated_at: draft.updatedAt || new Date().toISOString()
+            }, { onConflict: 'cliente_id' }).select('cliente_id').single();
+          if (restoreError || !restored) {
+            console.warn('[Rascunhos] Não foi possível restaurar pedido; cópia local preservada:', clienteId, restoreError);
+          } else {
+            serverIds.add(clienteId);
+            console.info('[Rascunhos] Pedido recuperado do armazenamento local:', clienteId);
+          }
+        }
+      } catch (error) {
+        console.warn('[Rascunhos] Recuperação adiada; nenhum arquivo local foi removido.', error);
+      }
+    };
+    void restoreLocalOpenOrders();
+    return () => { active = false; };
+  }, []);
+
 
   return (
     <DataManagerContext.Provider value={{
