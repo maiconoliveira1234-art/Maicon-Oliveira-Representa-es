@@ -681,7 +681,7 @@ export function ClienteDetail() {
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-          <h2 className="text-xl font-bold text-neutral-900 truncate leading-tight mb-2" id="cliente-nome-header">
+          <h2 className="min-w-0 flex-1 truncate text-xl font-bold leading-tight text-neutral-900" id="cliente-nome-header">
             {cliente.cliente}
           </h2>
           <div className="flex shrink-0 flex-row items-center gap-1.5" role="group" aria-label="Atalhos do cliente">
