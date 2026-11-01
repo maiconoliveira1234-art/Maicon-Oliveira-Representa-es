@@ -372,12 +372,20 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
             }, { onConflict: 'cliente_id' });
           if (error) throw error;
         } else if (item.action === 'delete_open_order') {
+          // Filas de versões antigas podem conter exclusões AUTOMÁTICAS geradas
+          // na montagem da tela vazia. Nunca aplicá-las após relogar.
+          if (item.payload?.explicit !== true) {
+            console.warn('[OfflineManager] Ignorando exclusão antiga não confirmada:', item.id);
+            continue;
+          }
           const { cliente_id } = item.payload;
-          const { error } = await supabase
-            .from('pedidos_em_aberto')
-            .delete()
-            .eq('cliente_id', cliente_id);
+          const { error } = await supabase.from('pedidos_em_aberto')
+            .delete().eq('cliente_id', cliente_id);
           if (error) throw error;
+          clearLocalDraft(`pedido_${cliente_id}`);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId: cliente_id } }));
+          }
         }
       }
       
@@ -1080,43 +1088,35 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     }
   }, [queueOpenOrderForRetry]);
 
-  // Offline-Safe Write Wrapper: deleteOpenOrder
+  // Exclusão é autorizada somente por ação explícita (Limpar/finalizar).
+  // Só descartar a cópia local quando o banco confirmar a operação.
   const deleteOpenOrder = useCallback(async (clienteId: string) => {
-    clearLocalDraft(`pedido_${clienteId}`);
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId } }));
-    }
-
+    const deletion = { cliente_id: clienteId, explicit: true };
     if (navigator.onLine === false) {
-      await queueOpenOrderForRetry('delete_open_order', { cliente_id: clienteId });
+      await queueOpenOrderForRetry('delete_open_order', deletion);
       return { status: 'queued' as const };
     }
-
     try {
-      const { error } = await supabase
-        .from('pedidos_em_aberto')
-        .delete()
-        .eq('cliente_id', clienteId);
-
-      if (error) {
-        console.warn('[DataManager] deleteOpenOrder error, queuing for retry:', error);
-        await queueOpenOrderForRetry('delete_open_order', { cliente_id: clienteId });
-        return { status: 'queued' as const, error: error.message };
-      }
+      const { error } = await supabase.from('pedidos_em_aberto')
+        .delete().eq('cliente_id', clienteId);
+      if (error) throw error;
 
       const currentQueue = await loadPersisted<OfflineQueueItem[]>('offline_db_pending_queue', []);
       const updatedQueue = currentQueue.filter(item =>
-        !( (item.action === 'save_open_order' || item.action === 'delete_open_order') &&
-           (item.payload?.cliente_id === clienteId || item.payload?.clienteId === clienteId) )
+        !((item.action === 'save_open_order' || item.action === 'delete_open_order') &&
+           (item.payload?.cliente_id === clienteId || item.payload?.clienteId === clienteId))
       );
       setPendingQueue(updatedQueue);
       savePersisted('offline_db_pending_queue', updatedQueue);
-
+      clearLocalDraft(`pedido_${clienteId}`);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId } }));
+      }
       return { status: 'synced' as const };
-    } catch (e: any) {
-      console.warn('[DataManager] deleteOpenOrder exception, queuing for retry:', e);
-      await queueOpenOrderForRetry('delete_open_order', { cliente_id: clienteId });
-      return { status: 'queued' as const, error: e?.message };
+    } catch (error: any) {
+      console.warn('[DataManager] Exclusão não confirmada; rascunho local preservado:', error);
+      await queueOpenOrderForRetry('delete_open_order', deletion);
+      return { status: 'queued' as const, error: error?.message };
     }
   }, [queueOpenOrderForRetry]);
 
@@ -1555,68 +1555,9 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     await syncAllDataInternal(true);
   }, [syncAllDataInternal]);
 
-  // Global Realtime listener and startup reconciliation for open orders to keep all devices synchronized
-  useEffect(() => {
-    // 1. Startup reconciliation for local storage drafts
-    const reconcileOpenOrders = async () => {
-      if (typeof navigator === 'undefined' || navigator.onLine === false) return;
-      try {
-        const { data, error } = await supabase.from('pedidos_em_aberto').select('cliente_id');
-        if (!error && data) {
-          const serverClientIds = new Set(data.map(d => d.cliente_id));
-          const keysToPurge: string[] = [];
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith('pedido_')) {
-              const cId = key.replace('pedido_', '');
-              if (cId && !serverClientIds.has(cId)) {
-                // Check if there is an offline creation waiting in queue
-                const rawQueue = localStorage.getItem('offline_db_pending_queue');
-                const hasPending = rawQueue && JSON.parse(rawQueue)?.some(
-                  (item: any) => item.action === 'save_open_order' &&
-                  (item.payload?.cliente_id === cId || item.payload?.clienteId === cId)
-                );
-                if (!hasPending) {
-                  keysToPurge.push(key);
-                }
-              }
-            }
-          }
-          keysToPurge.forEach(k => {
-            clearLocalDraft(k);
-            const cId = k.replace('pedido_', '');
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId: cId } }));
-            }
-          });
-        }
-      } catch (err) {
-        console.warn('[DataManager] Erro ao reconciliar rascunhos de pedidos:', err);
-      }
-    };
-
-    reconcileOpenOrders();
-
-    // 2. Global Realtime subscription for DELETE events on pedidos_em_aberto
-    const channel = supabase
-      .channel('global-open-orders-sync')
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pedidos_em_aberto' }, (payload) => {
-        const cId = (payload.old as any)?.cliente_id;
-        if (cId) {
-          try {
-            clearLocalDraft(`pedido_${cId}`);
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId: cId } }));
-            }
-          } catch {}
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+  // Nenhum rascunho local deve ser apagado por uma consulta vazia ou evento
+  // Realtime: a exclusão só ocorre por ação explícita na tela do pedido.
+  // O servidor pode responder temporariamente sem linhas durante login/sync.
 
   return (
     <DataManagerContext.Provider value={{
