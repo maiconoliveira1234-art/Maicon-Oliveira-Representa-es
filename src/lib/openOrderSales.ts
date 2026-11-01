@@ -1,3 +1,4 @@
+import { clearLocalDraft } from './draftStorage';
 import { supabase } from './supabase';
 import { HistVenda, Cliente, Produto } from '../types';
 import { getFaixaPreco, getValorUnitario, calcularPrecoComDesconto } from './calculations';
