@@ -130,7 +130,9 @@ function PreviewAccessChecks() {
         { name: 'Estoque', table: 'estoque_cliente', min: 0 },
         { name: 'Agenda', table: 'agenda_visitas', min: 0 },
         { name: 'Limites de crédito', table: 'entidades_financeiras', min: 1 },
-        { name: 'Boletos', table: 'titulos_credito', min: 1 }
+        { name: 'Boletos', table: 'titulos_credito', min: 1 },
+        { name: 'Mensagens WhatsApp', table: 'whatsapp_mensagens', min: 1 },
+        { name: 'Contatos WhatsApp', table: 'whatsapp_contatos_map', min: 1 }
       ];
       const next = await Promise.all(tables.map(async item => {
         try {
@@ -159,7 +161,19 @@ function PreviewAccessChecks() {
         <button type="button" onClick={() => void supabase.auth.signOut()} className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-bold text-white">Sair</button>
       </div>
       {expanded && (
-        <div className="mt-2 max-h-64 space-y-1 overflow-y-auto">
+        <>
+          <div className="mt-2 border-t border-orange-100 pt-2">
+            <button disabled={checkingWrites} type="button" onClick={() => void checkWritePermissions()} className="w-full rounded-md bg-orange-600 px-3 py-2 text-xs font-bold text-white hover:bg-orange-700 disabled:opacity-50">
+              {checkingWrites ? 'Testando permissões...' : 'Testar escrita sem alterar dados'}
+            </button>
+            <p className="mt-1 text-[10px] text-neutral-500">Verificação com filtros sem correspondência: nenhum pedido ou estoque é alterado.</p>
+            {writeResults.map(item => (
+              <div key={item.name} className="flex items-center justify-between gap-2 pt-1 text-[11px]">
+                <span>{item.name}</span><span className={item.ok ? 'text-green-700' : 'text-red-700'}>{item.ok ? 'OK' : 'Falha'} · {item.detail}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 max-h-48 space-y-1 overflow-y-auto border-t border-neutral-200 pt-2">
           <p className="text-[11px] text-neutral-500">Consultas somente de leitura, usando sua sessão autenticada.</p>
           {results.map(item => (
             <div key={item.name} className="flex items-center justify-between gap-3 text-xs">
@@ -170,18 +184,9 @@ function PreviewAccessChecks() {
           <button disabled={checking} type="button" onClick={() => void check()} className="mt-2 rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
             {checking ? 'Verificando...' : 'Repetir verificações'}
           </button>
-          <div className="mt-2 border-t border-neutral-200 pt-2">
-            <p className="text-[11px] text-neutral-500">Verificação de permissões de escrita: UUID inexistente, zero alterações. Não equivale a salvar um pedido real.</p>
-            <button disabled={checkingWrites} type="button" onClick={() => void checkWritePermissions()} className="mt-1 rounded-md border border-orange-200 px-3 py-1.5 text-xs font-semibold text-orange-700 disabled:opacity-50">
-              {checkingWrites ? 'Testando permissões...' : 'Testar escrita sem alterar dados'}
-            </button>
-            {writeResults.map(item => (
-              <div key={item.name} className="flex items-center justify-between gap-2 pt-1 text-[11px]">
-                <span>{item.name}</span><span className={item.ok ? 'text-green-700' : 'text-red-700'}>{item.ok ? 'OK' : 'Falha'} · {item.detail}</span>
-              </div>
-            ))}
+
           </div>
-        </div>
+        </>
       )}
     </aside>
   );
