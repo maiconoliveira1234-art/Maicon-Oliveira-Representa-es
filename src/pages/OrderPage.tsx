@@ -1890,7 +1890,7 @@ export function OrderPage() {
             </div>
             <div className="min-w-0 border-l border-white/20 pl-1 text-center">
               <p className="text-[8px] font-bold uppercase opacity-80">Faixa kg</p>
-              <p className="truncate text-[10px] font-black sm:text-xs">{currentFaixa.replace(/\\s*kg$/i, '')}</p>
+              <p className="truncate text-[10px] font-black sm:text-xs">{currentFaixa.replace(/\s*kg$/i, '')}</p>
             </div>
             <div className="min-w-0 border-l border-white/20 pl-1 text-center">
               <p className="text-[8px] font-bold uppercase opacity-80">Recompra kg</p>
