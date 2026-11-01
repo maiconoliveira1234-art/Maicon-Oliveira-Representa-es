@@ -153,39 +153,67 @@ export function ClienteDetail() {
   const [showFlex, setShowFlex] = useState(false);
   const [evolutionTrendMode, setEvolutionTrendMode] = useState<TrendMode>('quarterly');
   const [openOrderSales, setOpenOrderSales] = useState<HistVenda[]>([]);
-  const [credito, setCredito] = useState<{ limite_total: number; disponivel_oficial_snapshot: number; data_snapshot: string; titulos: Array<{ vencimento: string; valor: number; baixado_em: string | null }> } | null>(null);
+  const [showCredito, setShowCredito] = useState(false);
+  const [creditos, setCreditos] = useState<Array<{
+    id: string;
+    razao_social: string;
+    limite_total: number;
+    disponivel_oficial_snapshot: number;
+    data_snapshot: string;
+    titulos: Array<{ vencimento: string; valor: number; baixado_em: string | null }>;
+  }>>([]);
   const [creditoError, setCreditoError] = useState(false);
   const [creditoSemAcesso, setCreditoSemAcesso] = useState(false);
 
   useEffect(() => {
     let active = true;
-    setCredito(null);
+    setCreditos([]);
     setCreditoError(false);
     setCreditoSemAcesso(false);
+    setShowCredito(false);
     if (!id) return;
+
     const load = async () => {
-      const entidade = await supabase.from('entidades_financeiras')
-        .select('id, limite_total, disponivel_oficial_snapshot, data_snapshot')
-        .eq('cliente_comercial_id', id).maybeSingle();
-      if (!active) return;
-      if (entidade.error) { setCreditoError(true); return; }
-      if (!entidade.data) { setCreditoSemAcesso(true); return; }
-      const titulos = await supabase.from('titulos_credito')
-        .select('vencimento, valor, baixado_em')
-        .eq('entidade_financeira_id', entidade.data.id);
-      if (!active) return;
-      if (titulos.error) { setCreditoError(true); return; }
-      setCredito({
-        limite_total: Number(entidade.data.limite_total || 0),
-        disponivel_oficial_snapshot: Number(entidade.data.disponivel_oficial_snapshot || 0),
-        data_snapshot: entidade.data.data_snapshot,
-        titulos: (titulos.data || []).map(t => ({ vencimento: t.vencimento, valor: Number(t.valor || 0), baixado_em: t.baixado_em }))
-      });
+      try {
+        const entidades = await supabase.from('entidades_financeiras')
+          .select('id, razao_social, limite_total, disponivel_oficial_snapshot, data_snapshot')
+          .eq('cliente_comercial_id', id)
+          .order('razao_social');
+        if (!active) return;
+        if (entidades.error) throw entidades.error;
+        if (!entidades.data?.length) {
+          setCreditoSemAcesso(true);
+          return;
+        }
+
+        const resumos = await Promise.all(entidades.data.map(async entidade => {
+          const titulos = await supabase.from('titulos_credito')
+            .select('vencimento, valor, baixado_em')
+            .eq('entidade_financeira_id', entidade.id);
+          if (titulos.error) throw titulos.error;
+          return {
+            id: entidade.id,
+            razao_social: entidade.razao_social,
+            limite_total: Number(entidade.limite_total || 0),
+            disponivel_oficial_snapshot: Number(entidade.disponivel_oficial_snapshot || 0),
+            data_snapshot: entidade.data_snapshot,
+            titulos: (titulos.data || []).map(t => ({
+              vencimento: t.vencimento,
+              valor: Number(t.valor || 0),
+              baixado_em: t.baixado_em
+            }))
+          };
+        }));
+        if (active) setCreditos(resumos);
+      } catch (error) {
+        if (!active) return;
+        console.warn('Falha ao carregar os dados financeiros do cliente:', error);
+        setCreditoError(true);
+      }
     };
     void load();
     return () => { active = false; };
   }, [id]);
-
 
 
   // Real-time synchronization of Open Orders converted to HistVenda for this client
@@ -656,7 +684,8 @@ export function ClienteDetail() {
             {cliente.cliente}
           </h2>
           
-          <div className="flex flex-col gap-1.5 mt-1" id="cliente-contact-info">
+          <div className="mt-1 flex items-start gap-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5" id="cliente-contact-info">
             {cliente.endereco && (
               <a 
                 href={
@@ -713,42 +742,78 @@ export function ClienteDetail() {
               </span>
             </button>
           </div>
+          <div className="flex shrink-0 flex-col gap-2" role="group" aria-label="Atalhos do cliente">
+            <button
+              type="button"
+              onClick={() => setShowCredito(true)}
+              aria-label="Dados financeiros do cliente"
+              title="Dados financeiros"
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 text-orange-700 shadow-sm transition-colors hover:bg-orange-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600"
+            >
+              <Coins size={20} aria-hidden="true" />
+            </button>
+            <CampaignClientAlert
+              cliente={cliente}
+              historico={historico}
+              produtos={produtos.length ? produtos : allProducts}
+              iconOnly
+            />
+            <button
+              type="button"
+              onClick={() => setShowLoans(true)}
+              aria-label={`Itens emprestados do cliente: ${emprestimos.length}`}
+              title="Itens emprestados"
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600"
+            >
+              <ArrowLeftRight size={20} aria-hidden="true" />
+            </button>
+          </div>
+          </div>
         </div>
       </header>
 
-      {(credito || creditoError || creditoSemAcesso) && (
-        <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center gap-2">
-            <Coins size={18} className="text-orange-600" />
-            <h2 className="text-sm font-bold text-neutral-900">Limite de crédito</h2>
-          </div>
+      {showCredito && (
+        <ClientDetailModal title="Dados financeiros do cliente" onClose={() => setShowCredito(false)}>
           {creditoError ? (
-            <p className="text-sm text-amber-700">Não foi possível consultar os dados financeiros deste cliente. Verifique as permissões de acesso.</p>
+            <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+              Não foi possível consultar os dados financeiros deste cliente. Confira a conexão e as permissões.
+            </p>
           ) : creditoSemAcesso ? (
-            <p className="text-sm text-amber-700">Limite de crédito indisponível nesta sessão. Os dados podem estar protegidos pelas permissões do banco. Nenhum saldo foi considerado como zero.</p>
-          ) : credito && (
-            <>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="rounded-lg bg-neutral-50 p-3">
-                  <p className="text-xs text-neutral-500">Limite total</p>
-                  <p className="text-lg font-bold text-neutral-900">{formatCurrency(credito.limite_total)}</p>
-                </div>
-                <div className="rounded-lg bg-neutral-50 p-3">
-                  <p className="text-xs text-neutral-500">Disponível no levantamento</p>
-                  <p className="text-lg font-bold text-neutral-900">{formatCurrency(credito.disponivel_oficial_snapshot)}</p>
-                </div>
-                <div className="rounded-lg bg-neutral-50 p-3">
-                  <p className="text-xs text-neutral-500">Boletos ainda não vencidos</p>
-                  <p className="text-lg font-bold text-neutral-900">{formatCurrency(credito.titulos.filter(t => !t.baixado_em && t.vencimento >= format(new Date(), 'yyyy-MM-dd')).reduce((total, t) => total + t.valor, 0))}</p>
-                </div>
-              </div>
-              <p className="mt-2 text-xs text-neutral-500">Disponível conforme levantamento de {credito.data_snapshot.split('-').reverse().join('/')}. Não representa confirmação de saldo em tempo real.</p>
-            </>
+            <p className="rounded-lg bg-neutral-50 p-3 text-sm text-neutral-600">
+              Nenhum cadastro financeiro disponível para este cliente. Nenhum saldo foi considerado como zero.
+            </p>
+          ) : creditos.length === 0 ? (
+            <p className="text-sm text-neutral-600">Carregando informações financeiras...</p>
+          ) : (
+            <div className="space-y-4">
+              {creditos.map(entidade => (
+                <section key={entidade.id} className="rounded-lg border border-neutral-200 p-3">
+                  <h3 className="mb-3 text-sm font-bold text-neutral-900">{entidade.razao_social}</h3>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className="rounded-lg bg-neutral-50 p-3">
+                      <p className="text-xs text-neutral-500">Limite total</p>
+                      <p className="text-base font-bold text-neutral-900">{formatCurrency(entidade.limite_total)}</p>
+                    </div>
+                    <div className="rounded-lg bg-neutral-50 p-3">
+                      <p className="text-xs text-neutral-500">Disponível no levantamento</p>
+                      <p className="text-base font-bold text-neutral-900">{formatCurrency(entidade.disponivel_oficial_snapshot)}</p>
+                    </div>
+                    <div className="rounded-lg bg-neutral-50 p-3">
+                      <p className="text-xs text-neutral-500">Boletos ainda não vencidos</p>
+                      <p className="text-base font-bold text-neutral-900">
+                        {formatCurrency(entidade.titulos.filter(t => !t.baixado_em && t.vencimento >= format(new Date(), 'yyyy-MM-dd')).reduce((total, t) => total + t.valor, 0))}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-xs text-neutral-500">
+                    Levantamento de {entidade.data_snapshot.split('-').reverse().join('/')}. Não representa saldo confirmado em tempo real pelo ERP.
+                  </p>
+                </section>
+              ))}
+            </div>
           )}
-        </section>
+        </ClientDetailModal>
       )}
-
-       <CampaignClientAlert cliente={cliente} historico={historico} produtos={produtos.length ? produtos : allProducts} />
 
       {error && (
         <div className="bg-red-50 border border-red-100 p-4 rounded-lg flex items-center gap-3 text-red-700 text-sm">
@@ -758,14 +823,11 @@ export function ClienteDetail() {
       )}
       
       {/* Loans Warnings */}
-      {emprestimos.length > 0 && (
-        <>
-          <button type="button" onClick={() => setShowLoans(true)}
-            className="flex w-full items-center justify-between rounded-xl border border-neutral-200 bg-white p-4 text-left text-sm font-bold text-neutral-800 hover:bg-neutral-50">
-            <span className="flex items-center gap-2"><ArrowLeftRight size={18} /> Itens emprestados ({emprestimos.length})</span>
-            <span className="text-xs">Ver itens</span>
-          </button>
-          {showLoans && <ClientDetailModal title={`Itens emprestados (${emprestimos.length})`} onClose={() => setShowLoans(false)}>
+      {showLoans && (
+        <ClientDetailModal title={`Itens emprestados (${emprestimos.length})`} onClose={() => setShowLoans(false)}>
+          {emprestimos.length === 0 && (
+            <p className="text-sm text-neutral-600">Nenhum item emprestado para este cliente.</p>
+          )}
           <div className="space-y-2">
             {emprestimos.map((loan) => {
               const days = differenceInDays(new Date(), parseISO(loan.data_emprestimo));
@@ -816,8 +878,7 @@ export function ClienteDetail() {
               );
             })}
           </div>
-          </ClientDetailModal>}
-        </>
+        </ClientDetailModal>
       )}
 
       {/* Quick Actions */}
