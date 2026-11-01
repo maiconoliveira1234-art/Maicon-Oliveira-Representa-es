@@ -23,49 +23,16 @@ export function hasPendingOpenOrderSync(clienteId: string): boolean {
 }
 
 /**
- * Purges an orphan local draft if it does not exist on the server and is not queued for sync
+ * Compatibilidade: não eliminar rascunhos pela ausência em uma consulta remota.
+ * Somente ações explícitas de Limpar/finalizar podem excluir um pedido.
  */
-export function purgeOrphanLocalOpenOrder(clienteId: string): void {
-  if (!clienteId) return;
-  if (!hasPendingOpenOrderSync(clienteId)) {
-    try {
-      clearLocalDraft(`pedido_${clienteId}`);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId } }));
-      }
-    } catch {
-      // ignore
-    }
-  }
+export function purgeOrphanLocalOpenOrder(_clienteId: string): void {
+  // Preserva rascunho local para recuperação após reconexão.
 }
 
-/**
- * Scans localStorage for any draft open orders and purges those that are no longer
- * present on the server (unless they are waiting in the offline queue to be uploaded).
- */
-export function reconcileAndCleanOrphanOpenOrders(serverClientIds: Set<string>): void {
-  if (typeof localStorage === 'undefined') return;
-  try {
-    const keysToPurge: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('pedido_')) {
-        const clienteId = key.replace('pedido_', '');
-        if (clienteId && !serverClientIds.has(clienteId) && !hasPendingOpenOrderSync(clienteId)) {
-          keysToPurge.push(key);
-        }
-      }
-    }
-    keysToPurge.forEach(k => {
-      clearLocalDraft(k);
-      const cId = k.replace('pedido_', '');
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId: cId } }));
-      }
-    });
-  } catch (err) {
-    console.warn('[OpenOrders] Error reconciling orphan local drafts:', err);
-  }
+/** Compatibilidade com chamadas antigas: reconciliação nunca apaga rascunhos. */
+export function reconcileAndCleanOrphanOpenOrders(_serverClientIds: Set<string>): void {
+  // Preserva a cópia local mesmo se a listagem remota estiver vazia.
 }
 
 export interface RawOpenOrderItem {
@@ -406,41 +373,38 @@ export async function getClientOpenOrderSummary(
 }
 
 export async function deleteClientOpenOrder(clienteId: string): Promise<boolean> {
-  if (!clienteId) return false;
+  if (!clienteId || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+    // Sem confirmação do servidor não se elimina a única cópia local.
+    return false;
+  }
   try {
+    const { error } = await supabase.from('pedidos_em_aberto')
+      .delete().eq('cliente_id', clienteId);
+    if (error) {
+      console.error('Erro ao excluir pedido no Supabase; rascunho preservado:', error);
+      return false;
+    }
+
     clearLocalDraft(`pedido_${clienteId}`);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('openOrderPurged', { detail: { clienteId } }));
     }
-    // Remove from offline queue if queued
     try {
       const raw = localStorage.getItem('offline_db_pending_queue');
       if (raw) {
         const queue = JSON.parse(raw);
         if (Array.isArray(queue)) {
-          const updated = queue.filter(item => 
-            !( (item.action === 'save_open_order' || item.action === 'delete_open_order') &&
-               (item.payload?.cliente_id === clienteId || item.payload?.clienteId === clienteId) )
+          const updated = queue.filter(item =>
+            !((item.action === 'save_open_order' || item.action === 'delete_open_order') &&
+              (item.payload?.cliente_id === clienteId || item.payload?.clienteId === clienteId))
           );
           localStorage.setItem('offline_db_pending_queue', JSON.stringify(updated));
         }
       }
-    } catch {}
-
-    if (typeof navigator !== 'undefined' && navigator.onLine !== false) {
-      const { error } = await supabase
-        .from('pedidos_em_aberto')
-        .delete()
-        .eq('cliente_id', clienteId);
-
-      if (error) {
-        console.error('Erro ao deletar pedido em aberto do Supabase:', error);
-        return false;
-      }
-    }
+    } catch { /* A exclusão já foi confirmada no servidor */ }
     return true;
   } catch (err) {
-    console.error('Falha ao limpar pedido em aberto:', err);
+    console.error('Falha ao excluir pedido; rascunho preservado:', err);
     return false;
   }
 }
@@ -494,15 +458,8 @@ export async function fetchOpenOrderSales(
     try {
       const saved = localStorage.getItem(`pedido_${c.id}`);
       if (saved) {
-        // If server responded cleanly and client is NOT in server open orders:
-        // Only accept if it is an offline creation waiting in queue.
-        if (serverLoaded && !openOrdersMap.has(c.id)) {
-          if (!hasPendingOpenOrderSync(c.id)) {
-            purgeOrphanLocalOpenOrder(c.id);
-            return;
-          }
-        }
-
+        // Não descartar um pedido local porque o Supabase retornou zero linhas.
+        // O rascunho pode ainda não ter sincronizado após o login.
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed === 'object') {
           const localItems = parsed.items || (Array.isArray(parsed) ? parsed : null);

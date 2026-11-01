@@ -20,4 +20,5 @@ jobs:
       - run: npx tsx src/tests/campaignSkuSearch.test.ts
       - run: npx tsx src/tests/campaignExtraction.test.ts
       - run: npx tsx src/tests/creditAlert.test.ts
+      - run: npx tsx src/tests/openOrderSafety.test.ts
       - run: npm run build

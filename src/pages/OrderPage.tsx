@@ -45,7 +45,6 @@ import { parseISO, differenceInDays, startOfWeek, addWeeks, addDays, format } fr
 import { ptBR } from 'date-fns/locale';
 
 import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from '../lib/mockData';
-import { hasPendingOpenOrderSync } from '../lib/openOrderSales';
 
 import { useDataManager } from '../lib/dataManager';
 import { StockCountSkeleton } from '../components/ui/Skeleton';
@@ -446,7 +445,6 @@ export function OrderPage() {
         let dbData: any = null;
         
         // 1. Try Supabase first if online
-        let serverChecked = false;
         if (navigator.onLine !== false) {
           try {
             const { data, error } = await supabase
@@ -454,7 +452,6 @@ export function OrderPage() {
               .select('*')
               .eq('cliente_id', clienteId)
               .maybeSingle();
-            serverChecked = !error;
             if (!error && data) {
               dbData = {
                 items: data.items,
@@ -484,14 +481,10 @@ export function OrderPage() {
         if (dbData && !localData) {
           savedData = dbData;
         } else if (!dbData && localData) {
-          // If server confirmed no open order on the cloud, check if there is an offline queue item
-          if (serverChecked && !hasPendingOpenOrderSync(clienteId)) {
-            // Orphan draft from another device that already invoiced/deleted it. Purge!
-            clearLocalDraft(`pedido_${clienteId}`);
-            savedData = null;
-          } else {
-            savedData = localData;
-          }
+          // Consulta vazia NÃO é confirmação de exclusão. Após relogar, uma
+          // sessão/replicação atrasada pode devolver zero linhas temporariamente.
+          // Recuperar o rascunho local e tentar reenviá-lo ao Supabase.
+          savedData = localData;
         } else if (dbData && localData) {
           const localTime = localData.updatedAt ? new Date(localData.updatedAt).getTime() : (localData.startedAt ? new Date(localData.startedAt).getTime() : 0);
           const serverTime = dbData.updatedAt ? new Date(dbData.updatedAt).getTime() : (dbData.startedAt ? new Date(dbData.startedAt).getTime() : 0);
@@ -586,25 +579,10 @@ export function OrderPage() {
   // Listen for realtime deletion or purge of open order for this client
   useEffect(() => {
     if (!clienteId) return;
-    const channel = supabase
-      .channel(`order-page-open-order-${clienteId}`)
-      .on('postgres_changes', { 
-        event: 'DELETE', 
-        schema: 'public', 
-        table: 'pedidos_em_aberto' 
-      }, (payload) => {
-        if (payload.old && (payload.old as any).cliente_id === clienteId) {
-          if (!hasPendingOpenOrderSync(clienteId)) {
-            clearLocalDraft(`pedido_${clienteId}`);
-            setItens([]);
-            setStartedAt(null);
-          }
-        }
-      })
-      .subscribe();
-
+    // Não apagar o rascunho por eventos DELETE de outros dispositivos.
+    // Exclusão local somente após confirmação explícita e persistida.
     const handlePurged = (e: any) => {
-      if (e.detail?.clienteId === clienteId && !hasPendingOpenOrderSync(clienteId)) {
+      if (e.detail?.clienteId === clienteId) {
         clearLocalDraft(`pedido_${clienteId}`);
         // Keep the handler idempotent. deleteOpenOrder dispatches this event;
         // replacing an already-empty array would retrigger the persistence
@@ -617,7 +595,6 @@ export function OrderPage() {
 
     return () => {
       window.removeEventListener('openOrderPurged', handlePurged);
-      supabase.removeChannel(channel);
     };
   }, [clienteId]);
 
@@ -640,8 +617,9 @@ export function OrderPage() {
   useEffect(() => {
     if (isReady && clienteId && !suppressDraftPersistence.current) {
       if (itens.length === 0) {
+        // Nunca excluir pedidos na montagem da página ou ao relogar.
+        // Limpar e finalizar são as únicas ações que solicitam exclusão.
         draftSaver.cancel();
-        deleteOpenOrder(clienteId);
         return;
       }
 
