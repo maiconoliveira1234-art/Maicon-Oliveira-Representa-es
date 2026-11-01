@@ -1,5 +1,5 @@
 -- CRM Pro Max | Restricao de acesso apos login em producao
--- ESTAGIADO / NAO EXECUTADO.
+-- ESTAGIADO / NAO EXECUTADO. NAO USAR SEM VALIDACAO FUNCIONAL DE GRAVACAO.
 -- Precondicoes: login obrigatorio implantado e validado, testes funcionais de
 -- pedidos/estoque/importacao APROVADOS, backup recente recuperavel, janela de rollback.
 -- ATENCAO: esta migracao revoga o acesso anonimo utilizado pela producao atual.
@@ -111,7 +111,9 @@ alter function public.editar_pedido_venda_transacional(text,text,text,text,date,
 alter function public.editar_pedido_venda_transacional(text,uuid,uuid,text,date,jsonb,jsonb,uuid[])
   security invoker;
 alter function public.garantir_reset_flex_trimestral() security invoker;
-alter function public.whatsapp_recalcular_ocultacao() security invoker;
+-- Trigger de WhatsApp permanece SECURITY DEFINER: é executado pelo serviço
+-- de ingestão; alterar para invoker pode interromper a rotina. A execução
+-- direta anon/public será revogada abaixo, sem afetar disparo por trigger.
 
 -- Eliminar EXECUTE do PUBLIC (inclui anon) nas rotinas sensiveis.
 revoke all on function public.importar_faturamento_transacional(uuid,text,text,jsonb,numeric,jsonb) from PUBLIC,anon;
