@@ -66,6 +66,10 @@ type EntidadeCredito = {
   titulos_conferidos: boolean;
 };
 
+// Rodapé compacto: as unidades aparecem nos títulos, não nos valores.
+const formatNumeroRodape = (value: number) =>
+  new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+
 export function OrderPage() {
   const { clienteId } = useParams();
   const navigate = useNavigate();
@@ -1877,32 +1881,32 @@ export function OrderPage() {
             </div>
           )}
           <div className={cn(
-            "grid grid-cols-[0.75fr_0.65fr_0.85fr_1.3fr_1.3fr] items-center gap-1 rounded-lg p-2 text-white shadow-sm transition-colors sm:gap-2",
+            "grid grid-cols-[0.85fr_0.7fr_0.9fr_1.25fr_1.3fr] items-center gap-1 rounded-lg p-2 text-white shadow-sm transition-colors sm:gap-2",
             avaliacaoCredito?.situacao === 'insuficiente' ? "bg-red-700" : "bg-orange-600"
           )}>
             <div className="min-w-0 text-center">
-              <p className="text-[8px] uppercase font-bold opacity-80">Peso</p>
-              <p className="text-[10px] sm:text-sm font-black truncate">{formatWeight(pesoTotal)}</p>
+              <p className="text-[8px] font-bold uppercase opacity-80">Peso kg</p>
+              <p className="truncate text-[10px] font-black tabular-nums sm:text-sm">{formatNumeroRodape(pesoTotal)}</p>
             </div>
-            <div className="min-w-0 text-center border-l border-white/20 pl-1">
-              <p className="text-[8px] uppercase font-bold opacity-80">Faixa</p>
-              <p className="text-[10px] sm:text-xs font-black truncate">{currentFaixa}</p>
+            <div className="min-w-0 border-l border-white/20 pl-1 text-center">
+              <p className="text-[8px] font-bold uppercase opacity-80">Faixa kg</p>
+              <p className="truncate text-[10px] font-black sm:text-xs">{currentFaixa.replace(/\\s*kg$/i, '')}</p>
             </div>
-            <div className="min-w-0 text-center border-l border-white/20 pl-1">
-              <p className="text-[8px] uppercase font-bold opacity-80">Recompra</p>
-              <p className="text-[10px] sm:text-xs font-black truncate">{pesoConquistado > 0 ? formatWeight(pesoConquistado) : '-'}</p>
-            </div>
-            <div className="min-w-0 border-l border-white/20 pl-1 text-right">
-              <p className="text-[8px] uppercase font-bold opacity-80">Total</p>
-              <p className="text-[10px] sm:text-sm font-black tabular-nums leading-tight">{formatCurrency(valorTotal)}</p>
+            <div className="min-w-0 border-l border-white/20 pl-1 text-center">
+              <p className="text-[8px] font-bold uppercase opacity-80">Recompra kg</p>
+              <p className="truncate text-[10px] font-black tabular-nums sm:text-xs">{pesoConquistado > 0 ? formatNumeroRodape(pesoConquistado) : '—'}</p>
             </div>
             <div className="min-w-0 border-l border-white/20 pl-1 text-right" title="Crédito disponível projetado para o cadastro financeiro selecionado">
-              <p className="text-[8px] uppercase font-bold opacity-80">Limite</p>
-              <p className="text-[10px] sm:text-sm font-black tabular-nums leading-tight">
+              <p className="text-[8px] font-bold uppercase opacity-80">Limite R$</p>
+              <p className="truncate text-[10px] font-black tabular-nums leading-tight sm:text-sm">
                 {creditoCadastroStatus === 'loading' || (entidadeCreditoId && creditoSaldoStatus === 'loading')
                   ? '…'
-                  : avaliacaoCredito ? formatCurrency(avaliacaoCredito.disponivelProjetado) : '—'}
+                  : avaliacaoCredito ? formatNumeroRodape(avaliacaoCredito.disponivelProjetado) : '—'}
               </p>
+            </div>
+            <div className="min-w-0 border-l border-white/20 pl-1 text-right">
+              <p className="text-[8px] font-bold uppercase opacity-80">Total R$</p>
+              <p className="truncate text-[10px] font-black tabular-nums leading-tight sm:text-sm">{formatNumeroRodape(valorTotal)}</p>
             </div>
           </div>
 
