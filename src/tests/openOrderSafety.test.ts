@@ -21,6 +21,7 @@ assert.match(storage, /db\.getAll\('app_cache'\)/);
 assert.match(manager, /item\.payload\?\.explicit !== true/);
 assert.match(manager, /const deletion = \{ cliente_id: clienteId, explicit: true \}/);
 assert.match(sales, /export function purgeOrphanLocalOpenOrder/);
-assert.doesNotMatch(sales, /clearLocalDraft/);
+assert.doesNotMatch(sales, /if \(serverLoaded && !openOrdersMap\.has/);
+assert.match(sales, /if \(error\) \{[\s\S]*?return false;[\s\S]*?clearLocalDraft/);
 
 console.log('Segurança de pedidos: início de sessão, armazenamento local e exclusões explícitas verificados.');
