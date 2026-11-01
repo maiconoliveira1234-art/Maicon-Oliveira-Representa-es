@@ -1582,7 +1582,7 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
           if (!items || typeof items !== 'object') continue;
           const { data: restored, error: restoreError } = await supabase
             .from('pedidos_em_aberto')
-            .upsert({
+            .insert({
               cliente_id: clienteId,
               items,
               prazo: draft.prazo || null,
@@ -1591,8 +1591,11 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
               desconto_extra: draft.desconto_extra || 0,
               started_at: draft.startedAt || new Date().toISOString(),
               updated_at: draft.updatedAt || new Date().toISOString()
-            }, { onConflict: 'cliente_id' }).select('cliente_id').single();
-          if (restoreError || !restored) {
+            }).select('cliente_id').single();
+          if (restoreError?.code === '23505') {
+            // Outro dispositivo recuperou primeiro; não sobrescrever o servidor.
+            serverIds.add(clienteId);
+          } else if (restoreError || !restored) {
             console.warn('[Rascunhos] Não foi possível restaurar pedido; cópia local preservada:', clienteId, restoreError);
           } else {
             serverIds.add(clienteId);
