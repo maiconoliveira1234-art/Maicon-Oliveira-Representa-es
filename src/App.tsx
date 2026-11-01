@@ -195,7 +195,6 @@ function AppContent() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
-        <InitialRouteGuard />
         <Layout>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
@@ -226,20 +225,6 @@ function AppContent() {
       </BrowserRouter>
     </ErrorBoundary>
   );
-}
-
-function InitialRouteGuard() {
-  const [redirectFromSettings, setRedirectFromSettings] = useState(() => window.location.pathname === '/settings');
-
-  useEffect(() => {
-    if (redirectFromSettings) setRedirectFromSettings(false);
-  }, [redirectFromSettings]);
-
-  if (redirectFromSettings && window.location.pathname === '/settings') {
-    return <Navigate to="/" replace />;
-  }
-
-  return null;
 }
 
 export default function App() {
