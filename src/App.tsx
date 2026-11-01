@@ -133,16 +133,7 @@ function ProtectedApp({ children }: { children: React.ReactNode }) {
   if (sessionLoading || (session && accessStatus === 'checking')) {
     return <div role="status" className="flex min-h-screen items-center justify-center text-sm text-neutral-600">Verificando acesso ao CRM...</div>;
   }
-  if (session && accessStatus === 'authorized') {
-    return (
-      <>
-        <div className="fixed bottom-4 right-4 z-[100] rounded-lg border border-neutral-200 bg-white/95 p-2 shadow-lg">
-          <button type="button" onClick={() => void supabase.auth.signOut()} className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-semibold text-white">Sair da conta</button>
-        </div>
-        {children}
-      </>
-    );
-  }
+  if (session && accessStatus === 'authorized') return <>{children}</>;
   if (session && accessStatus === 'denied') {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-neutral-100 p-4 text-center">
