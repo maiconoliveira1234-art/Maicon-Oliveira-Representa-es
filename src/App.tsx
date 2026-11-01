@@ -73,12 +73,129 @@ const hasValidKey =
   API_KEY.startsWith('AIzaSy') &&
   API_KEY.length >= 20;
 
-// Ativação controlada: nunca ligar sem validar permissões e credenciais.
-const authRequired = (import.meta as any).env?.VITE_REQUIRE_AUTH === 'true';
+// Exclusivo da branch preview/auth-crm-pro-max.
+// A branch main continua usando VITE_REQUIRE_AUTH (desativado por padrão).
+const authRequired = true;
+
+// Verificações apenas de leitura: usam o JWT real da sessão, não alteram o banco.
+function PreviewAccessChecks() {
+  const [expanded, setExpanded] = useState(true);
+  const [checking, setChecking] = useState(false);
+  const [results, setResults] = useState<Array<{ name: string; ok: boolean; detail: string }>>([]);
+  const [checkingWrites, setCheckingWrites] = useState(false);
+  const [writeResults, setWriteResults] = useState<Array<{ name: string; ok: boolean; detail: string }>>([]);
+
+  // Checks permission to issue mutations but targets a non-existent ID.
+  // This does not add, edit, or remove records and cannot prove a full write workflow.
+  const checkWritePermissions = async () => {
+    if (checkingWrites) return;
+    setCheckingWrites(true);
+    try {
+      const nonexistentId = '00000000-0000-0000-0000-000000000000';
+      const cases = [
+        { name: 'Pedido · UPDATE', run: () => supabase.from('pedidos').update({ valor_total: 0 }, { count: 'exact' }).eq('id', nonexistentId).neq('id', nonexistentId) },
+        { name: 'Pedido · DELETE', run: () => supabase.from('pedidos').delete({ count: 'exact' }).eq('id', nonexistentId).neq('id', nonexistentId) },
+        { name: 'Estoque · UPDATE', run: () => supabase.from('estoque_cliente').update({ quantidade_atual: 0 }, { count: 'exact' }).eq('id', nonexistentId).neq('id', nonexistentId) },
+        { name: 'Estoque · DELETE', run: () => supabase.from('estoque_cliente').delete({ count: 'exact' }).eq('id', nonexistentId).neq('id', nonexistentId) }
+      ];
+      const next = await Promise.all(cases.map(async item => {
+        try {
+          const { count, error: writeError } = await item.run();
+          return {
+            name: item.name,
+            ok: !writeError && count === 0,
+            detail: writeError ? writeError.message : count === 0 ? '0 registros modificados' : 'Contagem inesperada'
+          };
+        } catch {
+          return { name: item.name, ok: false, detail: 'Falha de autorização/rede' };
+        }
+      }));
+      setWriteResults(next);
+    } finally {
+      setCheckingWrites(false);
+    }
+  };
+
+
+  const check = async () => {
+    if (checking) return;
+    setChecking(true);
+    try {
+      const tables = [
+        { name: 'Clientes', table: 'clientes', min: 1 },
+        { name: 'Produtos', table: 'produtos', min: 1 },
+        { name: 'Histórico de vendas', table: 'hist_vendas', min: 1 },
+        { name: 'Pedidos', table: 'pedidos', min: 0 },
+        { name: 'Pedidos em aberto', table: 'pedidos_em_aberto', min: 0 },
+        { name: 'Estoque', table: 'estoque_cliente', min: 0 },
+        { name: 'Agenda', table: 'agenda_visitas', min: 0 },
+        { name: 'Limites de crédito', table: 'entidades_financeiras', min: 1 },
+        { name: 'Boletos', table: 'titulos_credito', min: 1 },
+        { name: 'Mensagens WhatsApp', table: 'whatsapp_mensagens', min: 1 },
+        { name: 'Contatos WhatsApp', table: 'whatsapp_contatos_map', min: 1 }
+      ];
+      const next = await Promise.all(tables.map(async item => {
+        try {
+          const { count, error: queryError } = await supabase.from(item.table)
+            .select('*', { head: true, count: 'exact' });
+          const ok = !queryError && count !== null && count >= item.min;
+          return { name: item.name, ok, detail: queryError ? queryError.message : count === null ? 'Sem contagem' : `${count} registro(s)` };
+        } catch {
+          return { name: item.name, ok: false, detail: 'Falha na consulta' };
+        }
+      }));
+      setResults(next);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  useEffect(() => { void check(); }, []);
+
+  return (
+    <aside className="fixed bottom-4 right-4 z-[100] w-[min(360px,calc(100vw-2rem))] rounded-xl border border-orange-200 bg-white p-3 shadow-xl">
+      <div className="flex items-center justify-between gap-2">
+        <button type="button" onClick={() => setExpanded(value => !value)} className="text-left text-xs font-bold text-orange-700">
+          Teste de autenticação {results.length ? `(${results.filter(item => item.ok).length}/${results.length})` : ''}
+        </button>
+        <button type="button" onClick={() => void supabase.auth.signOut()} className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-bold text-white">Sair</button>
+      </div>
+      {expanded && (
+        <>
+          <div className="mt-2 border-t border-orange-100 pt-2">
+            <button disabled={checkingWrites} type="button" onClick={() => void checkWritePermissions()} className="w-full rounded-md bg-orange-600 px-3 py-2 text-xs font-bold text-white hover:bg-orange-700 disabled:opacity-50">
+              {checkingWrites ? 'Testando permissões...' : 'Testar escrita sem alterar dados'}
+            </button>
+            <p className="mt-1 text-[10px] text-neutral-500">Verificação com filtros sem correspondência: nenhum pedido ou estoque é alterado.</p>
+            {writeResults.map(item => (
+              <div key={item.name} className="flex items-center justify-between gap-2 pt-1 text-[11px]">
+                <span>{item.name}</span><span className={item.ok ? 'text-green-700' : 'text-red-700'}>{item.ok ? 'OK' : 'Falha'} · {item.detail}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 max-h-48 space-y-1 overflow-y-auto border-t border-neutral-200 pt-2">
+          <p className="text-[11px] text-neutral-500">Consultas somente de leitura, usando sua sessão autenticada.</p>
+          {results.map(item => (
+            <div key={item.name} className="flex items-center justify-between gap-3 text-xs">
+              <span className="text-neutral-800">{item.name}</span>
+              <span className={item.ok ? 'text-green-700' : 'text-red-700'}>{item.ok ? 'OK' : 'Falha'} · {item.detail}</span>
+            </div>
+          ))}
+          <button disabled={checking} type="button" onClick={() => void check()} className="mt-2 rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
+            {checking ? 'Verificando...' : 'Repetir verificações'}
+          </button>
+
+          </div>
+        </>
+      )}
+    </aside>
+  );
+}
 
 function ProtectedApp({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(authRequired);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [accessStatus, setAccessStatus] = useState<'checking' | 'authorized' | 'denied'>('checking');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -86,22 +203,69 @@ function ProtectedApp({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!authRequired) return;
-    let live = true;
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (!live) return;
-      if (error) setError('Não foi possível verificar a sessão.');
+    let active = true;
+    void supabase.auth.getSession().then(({ data, error: sessionError }) => {
+      if (!active) return;
+      if (sessionError) setError('Não foi possível verificar a sessão.');
       setSession(data.session);
-      setLoading(false);
-    }).catch(() => { if (live) { setError('Não foi possível verificar a sessão.'); setLoading(false); } });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (live) setSession(nextSession);
+      setSessionLoading(false);
+    }).catch(() => {
+      if (active) {
+        setError('Não foi possível verificar a sessão.');
+        setSessionLoading(false);
+      }
     });
-    return () => { live = false; subscription.unsubscribe(); };
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (active) {
+        setSession(nextSession);
+        setSessionLoading(false);
+      }
+    });
+    return () => { active = false; subscription.unsubscribe(); };
   }, []);
 
+  useEffect(() => {
+    if (!authRequired || !session) {
+      setAccessStatus('checking');
+      return;
+    }
+    let active = true;
+    setAccessStatus('checking');
+    void (async () => {
+      try {
+        const { data, error: permissionError } = await supabase.from('crm_usuarios_autorizados')
+          .select('user_id')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+        if (active) setAccessStatus(!permissionError && data ? 'authorized' : 'denied');
+      } catch {
+        if (active) setAccessStatus('denied');
+      }
+    })();
+    return () => { active = false; };
+  }, [session?.user.id, session?.access_token]);
+
   if (!authRequired) return <>{children}</>;
-  if (loading) return <div role="status" className="flex min-h-screen items-center justify-center text-sm text-neutral-600">Verificando acesso ao CRM...</div>;
-  if (session) return <>{children}</>;
+  if (sessionLoading || (session && accessStatus === 'checking')) {
+    return <div role="status" className="flex min-h-screen items-center justify-center text-sm text-neutral-600">Verificando acesso ao CRM...</div>;
+  }
+  if (session && accessStatus === 'authorized') {
+    return (
+      <>
+        <PreviewAccessChecks />
+        {children}
+      </>
+    );
+  }
+  if (session && accessStatus === 'denied') {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-neutral-100 p-4 text-center">
+        <h1 className="text-xl font-bold">Acesso não autorizado</h1>
+        <p className="max-w-md text-sm text-neutral-600">Esta conta não está cadastrada como administradora do CRM ou as permissões não puderam ser verificadas.</p>
+        <button type="button" className="rounded-lg bg-neutral-900 px-4 py-2 text-white" onClick={() => void supabase.auth.signOut()}>Trocar conta</button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-neutral-100 p-4">
@@ -114,6 +278,7 @@ function ProtectedApp({ children }: { children: React.ReactNode }) {
           try {
             const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
             if (signInError) throw signInError;
+            setPassword('');
           } catch {
             setError('Não foi possível entrar. Confira as credenciais ou a conexão.');
           } finally {
@@ -123,8 +288,9 @@ function ProtectedApp({ children }: { children: React.ReactNode }) {
         className="w-full max-w-sm space-y-5 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm"
       >
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Pro Max</h1>
-          <p className="mt-1 text-sm text-neutral-500">Acesso restrito ao CRM</p>
+          <p className="text-xs font-bold uppercase tracking-wide text-orange-600">Ambiente de testes</p>
+          <h1 className="mt-1 text-2xl font-bold text-neutral-900">Pro Max</h1>
+          <p className="mt-1 text-sm text-neutral-500">Entre com a conta autorizada no Supabase Auth</p>
         </div>
         <label className="block space-y-1 text-sm font-semibold text-neutral-700">
           <span>E-mail</span>
