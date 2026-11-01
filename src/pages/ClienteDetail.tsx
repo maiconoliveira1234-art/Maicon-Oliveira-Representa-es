@@ -153,39 +153,67 @@ export function ClienteDetail() {
   const [showFlex, setShowFlex] = useState(false);
   const [evolutionTrendMode, setEvolutionTrendMode] = useState<TrendMode>('quarterly');
   const [openOrderSales, setOpenOrderSales] = useState<HistVenda[]>([]);
-  const [credito, setCredito] = useState<{ limite_total: number; disponivel_oficial_snapshot: number; data_snapshot: string; titulos: Array<{ vencimento: string; valor: number; baixado_em: string | null }> } | null>(null);
+  const [showCredito, setShowCredito] = useState(false);
+  const [creditos, setCreditos] = useState<Array<{
+    id: string;
+    razao_social: string;
+    limite_total: number;
+    disponivel_oficial_snapshot: number;
+    data_snapshot: string;
+    titulos: Array<{ vencimento: string; valor: number; baixado_em: string | null }>;
+  }>>([]);
   const [creditoError, setCreditoError] = useState(false);
   const [creditoSemAcesso, setCreditoSemAcesso] = useState(false);
 
   useEffect(() => {
     let active = true;
-    setCredito(null);
+    setCreditos([]);
     setCreditoError(false);
     setCreditoSemAcesso(false);
+    setShowCredito(false);
     if (!id) return;
+
     const load = async () => {
-      const entidade = await supabase.from('entidades_financeiras')
-        .select('id, limite_total, disponivel_oficial_snapshot, data_snapshot')
-        .eq('cliente_comercial_id', id).maybeSingle();
-      if (!active) return;
-      if (entidade.error) { setCreditoError(true); return; }
-      if (!entidade.data) { setCreditoSemAcesso(true); return; }
-      const titulos = await supabase.from('titulos_credito')
-        .select('vencimento, valor, baixado_em')
-        .eq('entidade_financeira_id', entidade.data.id);
-      if (!active) return;
-      if (titulos.error) { setCreditoError(true); return; }
-      setCredito({
-        limite_total: Number(entidade.data.limite_total || 0),
-        disponivel_oficial_snapshot: Number(entidade.data.disponivel_oficial_snapshot || 0),
-        data_snapshot: entidade.data.data_snapshot,
-        titulos: (titulos.data || []).map(t => ({ vencimento: t.vencimento, valor: Number(t.valor || 0), baixado_em: t.baixado_em }))
-      });
+      try {
+        const entidades = await supabase.from('entidades_financeiras')
+          .select('id, razao_social, limite_total, disponivel_oficial_snapshot, data_snapshot')
+          .eq('cliente_comercial_id', id)
+          .order('razao_social');
+        if (!active) return;
+        if (entidades.error) throw entidades.error;
+        if (!entidades.data?.length) {
+          setCreditoSemAcesso(true);
+          return;
+        }
+
+        const resumos = await Promise.all(entidades.data.map(async entidade => {
+          const titulos = await supabase.from('titulos_credito')
+            .select('vencimento, valor, baixado_em')
+            .eq('entidade_financeira_id', entidade.id);
+          if (titulos.error) throw titulos.error;
+          return {
+            id: entidade.id,
+            razao_social: entidade.razao_social,
+            limite_total: Number(entidade.limite_total || 0),
+            disponivel_oficial_snapshot: Number(entidade.disponivel_oficial_snapshot || 0),
+            data_snapshot: entidade.data_snapshot,
+            titulos: (titulos.data || []).map(t => ({
+              vencimento: t.vencimento,
+              valor: Number(t.valor || 0),
+              baixado_em: t.baixado_em
+            }))
+          };
+        }));
+        if (active) setCreditos(resumos);
+      } catch (error) {
+        if (!active) return;
+        console.warn('Falha ao carregar os dados financeiros do cliente:', error);
+        setCreditoError(true);
+      }
     };
     void load();
     return () => { active = false; };
   }, [id]);
-
 
 
   // Real-time synchronization of Open Orders converted to HistVenda for this client
