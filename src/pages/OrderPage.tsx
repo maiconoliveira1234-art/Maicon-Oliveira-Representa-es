@@ -981,6 +981,37 @@ export function OrderPage() {
       return;
     }
 
+    // O orçamento pode ser compartilhado mesmo com crédito insuficiente,
+    // mas somente após aviso explícito. Buscar saldo atualizado antes de gerar.
+    if (selectedPrazo !== 'À Vista') {
+      if (!entidadeCreditoId || creditoCadastroStatus !== 'ready') {
+        if (!window.confirm('ATENÇÃO: não foi possível verificar o limite de crédito deste cliente. Deseja gerar o orçamento mesmo sem conferência financeira?')) return;
+      } else {
+        try {
+          const { data, error: consultaError } = await supabase.rpc('saldo_credito_projetado', {
+            p_entidade: entidadeCreditoId,
+            p_data: format(new Date(), 'yyyy-MM-dd')
+          });
+          if (consultaError) throw consultaError;
+          const atualizado = Array.isArray(data) ? data[0] : data;
+          if (!atualizado) throw new Error('Saldo financeiro não retornado');
+          const resultado = avaliarLimiteCredito(valorTotal, {
+            limite: Number(atualizado.limite),
+            disponivel_oficial: Number(atualizado.disponivel_oficial),
+            disponivel_estimado: Number(atualizado.disponivel_estimado),
+            reservas_total: Number(atualizado.reservas_total)
+          }, selectedPrazo);
+          if (resultado.situacao === 'insuficiente' &&
+            !window.confirm(`CRÉDITO INSUFICIENTE! O pedido ultrapassa o saldo projetado em ${formatCurrency(resultado.excesso)}. Há risco de devolução pelo financeiro. Deseja gerar o orçamento mesmo assim?`)) return;
+          if (resultado.situacao === 'atencao' &&
+            !window.confirm('O pedido ultrapassa o saldo disponível do levantamento, mas cabe na projeção por vencimentos. Confirme no ERP. Deseja continuar?')) return;
+        } catch (error) {
+          console.warn('Falha ao conferir crédito antes do orçamento:', error);
+          if (!window.confirm('Não foi possível atualizar o crédito no Supabase. Não considere o pedido aprovado financeiramente. Deseja gerar o orçamento mesmo assim?')) return;
+        }
+      }
+    }
+
     try {
       setIsGeneratingImage(true);
       
