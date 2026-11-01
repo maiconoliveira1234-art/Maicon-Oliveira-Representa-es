@@ -1141,6 +1141,78 @@ export function OrderPage() {
         </div>
       </header>
 
+      <section aria-label="Análise de limite de crédito" className={`rounded-xl border p-4 shadow-sm ${
+        avaliacaoCredito?.situacao === 'insuficiente' ? 'border-red-300 bg-red-50'
+        : avaliacaoCredito?.situacao === 'atencao' || avisoCreditoPendente ? 'border-amber-300 bg-amber-50'
+        : 'border-neutral-200 bg-white'
+      }`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <ShieldAlert size={19} className={avaliacaoCredito?.situacao === 'insuficiente' ? 'text-red-600' : 'text-orange-600'} />
+            <h3 className="text-sm font-bold text-neutral-900">Limite de crédito</h3>
+          </div>
+          <button type="button" onClick={() => setCreditoRefreshKey(n => n + 1)}
+            className="flex items-center gap-1 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50">
+            <RotateCcw size={13} /> Atualizar
+          </button>
+        </div>
+
+        {creditoCadastroStatus === 'loading' ? (
+          <p className="mt-2 text-xs text-neutral-600">Consultando cadastro financeiro...</p>
+        ) : creditoCadastroStatus === 'error' ? (
+          <p role="alert" className="mt-2 text-sm font-semibold text-amber-800">Não foi possível verificar o limite de crédito. Atualize e confira a conexão antes de enviar o pedido.</p>
+        ) : entidadesCredito.length === 0 ? (
+          <p role="alert" className="mt-2 text-sm font-semibold text-amber-800">Este cliente não possui limite financeiro cadastrado. Não é possível avaliar o crédito do pedido.</p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {entidadesCredito.length > 1 && (
+              <label className="block text-xs font-semibold text-neutral-700">
+                Cadastro financeiro (selecione o CNPJ/razão social do pedido)
+                <select value={entidadeCreditoId} onChange={e => setEntidadeCreditoId(e.target.value)}
+                  className="mt-1 h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-800 outline-none focus:ring-2 focus:ring-orange-500/20">
+                  <option value="">Selecione a razão social...</option>
+                  {entidadesCredito.map(entidade => (
+                    <option key={entidade.id} value={entidade.id}>{entidade.razao_social}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {!entidadeCreditoId ? (
+              <p role="alert" className="text-sm font-semibold text-amber-800">Selecione a empresa responsável pelo faturamento para conferir o crédito.</p>
+            ) : creditoSaldoStatus === 'loading' ? (
+              <p className="text-xs text-neutral-600">Calculando limite disponível...</p>
+            ) : creditoSaldoStatus === 'error' || !avaliacaoCredito ? (
+              <p role="alert" className="text-sm font-semibold text-amber-800">Saldo indisponível. Não considere o pedido liberado sem consultar o limite.</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div><p className="text-[10px] font-semibold uppercase text-neutral-500">Limite total</p><p className="text-sm font-bold text-neutral-900">{formatCurrency(saldoCredito!.limite)}</p></div>
+                  <div><p className="text-[10px] font-semibold uppercase text-neutral-500">Disponível base</p><p className="text-sm font-bold text-neutral-900">{formatCurrency(avaliacaoCredito.disponivelConservador)}</p></div>
+                  <div><p className="text-[10px] font-semibold uppercase text-neutral-500">Disponível projetado</p><p className="text-sm font-bold text-neutral-900">{formatCurrency(avaliacaoCredito.disponivelProjetado)}</p></div>
+                  <div><p className="text-[10px] font-semibold uppercase text-neutral-500">Valor do pedido</p><p className="text-sm font-bold text-neutral-900">{formatCurrency(valorTotal)}</p></div>
+                </div>
+                {avaliacaoCredito.situacao === 'insuficiente' && (
+                  <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-100 px-3 py-2 text-sm font-bold text-red-900">
+                    <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+                    <span>CRÉDITO INSUFICIENTE — Pedido excede o disponível em {formatCurrency(avaliacaoCredito.excesso)}. Risco de devolução pelo financeiro.</span>
+                  </div>
+                )}
+                {avaliacaoCredito.situacao === 'atencao' && (
+                  <p role="status" className="text-xs font-bold text-amber-800">Atenção: pedido acima do disponível no levantamento. A projeção considera boletos liberados desde então; confirme o saldo no ERP.</p>
+                )}
+                {avaliacaoCredito.situacao === 'suficiente' && valorTotal > 0 && (
+                  <p role="status" className="text-xs font-medium text-emerald-700">Pedido dentro do limite projetado. Confirme o saldo no ERP antes de enviar.</p>
+                )}
+                {avaliacaoCredito.situacao === 'avista' && (
+                  <p className="text-xs text-neutral-600">Pagamento à vista: a comparação de limite de boletos é apenas informativa.</p>
+                )}
+                <p className="text-[10px] text-neutral-500">Base financeira: {entidadeSelecionada?.data_snapshot.split('-').reverse().join('/')}. Saldo estimado, não consultado em tempo real no ERP. Orçamentos não são reservas financeiras.</p>
+              </>
+            )}
+          </div>
+        )}
+      </section>
+
 <div 
   ref={receiptRef}
   style={{ 
@@ -1816,6 +1888,12 @@ export function OrderPage() {
         className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-neutral-200 shadow-[0_-8px_18px_rgba(0,0,0,0.08)] p-2 pb-[calc(8px+env(safe-area-inset-bottom))] md:p-3 md:pb-[calc(12px+env(safe-area-inset-bottom))] will-change-transform"
       >
         <div className="max-w-4xl mx-auto space-y-2">
+          {avaliacaoCredito?.situacao === 'insuficiente' && (
+            <div role="alert" className="flex items-center justify-between gap-2 rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-900">
+              <span className="flex items-center gap-1"><AlertTriangle size={14} /> Crédito insuficiente</span>
+              <span>Excesso: {formatCurrency(avaliacaoCredito.excesso)}</span>
+            </div>
+          )}
           <div className="grid grid-cols-4 gap-2 rounded-lg bg-orange-600 p-2 text-white shadow-sm">
             <div className="min-w-0 text-center">
               <p className="text-[8px] uppercase font-bold opacity-80">Peso</p>
