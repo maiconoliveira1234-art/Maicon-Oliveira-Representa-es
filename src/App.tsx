@@ -82,6 +82,40 @@ function PreviewAccessChecks() {
   const [expanded, setExpanded] = useState(true);
   const [checking, setChecking] = useState(false);
   const [results, setResults] = useState<Array<{ name: string; ok: boolean; detail: string }>>([]);
+  const [checkingWrites, setCheckingWrites] = useState(false);
+  const [writeResults, setWriteResults] = useState<Array<{ name: string; ok: boolean; detail: string }>>([]);
+
+  // Checks permission to issue mutations but targets a non-existent ID.
+  // This does not add, edit, or remove records and cannot prove a full write workflow.
+  const checkWritePermissions = async () => {
+    if (checkingWrites) return;
+    setCheckingWrites(true);
+    try {
+      const nonexistentId = '00000000-0000-0000-0000-000000000000';
+      const cases = [
+        { name: 'Pedido · UPDATE', run: () => supabase.from('pedidos').update({ valor_total: 0 }, { count: 'exact' }).eq('id', nonexistentId) },
+        { name: 'Pedido · DELETE', run: () => supabase.from('pedidos').delete({ count: 'exact' }).eq('id', nonexistentId) },
+        { name: 'Estoque · UPDATE', run: () => supabase.from('estoque_cliente').update({ quantidade_atual: 0 }, { count: 'exact' }).eq('id', nonexistentId) },
+        { name: 'Estoque · DELETE', run: () => supabase.from('estoque_cliente').delete({ count: 'exact' }).eq('id', nonexistentId) }
+      ];
+      const next = await Promise.all(cases.map(async item => {
+        try {
+          const { count, error: writeError } = await item.run();
+          return {
+            name: item.name,
+            ok: !writeError && count === 0,
+            detail: writeError ? writeError.message : count === 0 ? '0 registros modificados' : 'Contagem inesperada'
+          };
+        } catch {
+          return { name: item.name, ok: false, detail: 'Falha de autorização/rede' };
+        }
+      }));
+      setWriteResults(next);
+    } finally {
+      setCheckingWrites(false);
+    }
+  };
+
 
   const check = async () => {
     if (checking) return;
@@ -136,6 +170,17 @@ function PreviewAccessChecks() {
           <button disabled={checking} type="button" onClick={() => void check()} className="mt-2 rounded-md border border-neutral-200 px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
             {checking ? 'Verificando...' : 'Repetir verificações'}
           </button>
+          <div className="mt-2 border-t border-neutral-200 pt-2">
+            <p className="text-[11px] text-neutral-500">Verificação de permissões de escrita: UUID inexistente, zero alterações. Não equivale a salvar um pedido real.</p>
+            <button disabled={checkingWrites} type="button" onClick={() => void checkWritePermissions()} className="mt-1 rounded-md border border-orange-200 px-3 py-1.5 text-xs font-semibold text-orange-700 disabled:opacity-50">
+              {checkingWrites ? 'Testando permissões...' : 'Testar escrita sem alterar dados'}
+            </button>
+            {writeResults.map(item => (
+              <div key={item.name} className="flex items-center justify-between gap-2 pt-1 text-[11px]">
+                <span>{item.name}</span><span className={item.ok ? 'text-green-700' : 'text-red-700'}>{item.ok ? 'OK' : 'Falha'} · {item.detail}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </aside>
