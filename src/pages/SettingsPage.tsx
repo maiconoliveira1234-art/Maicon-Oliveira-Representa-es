@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Settings, Info, Shield, Database, Smartphone, RefreshCw, Loader2, CheckCircle2, Route } from 'lucide-react';
+import { Settings, Info, Shield, Database, Smartphone, RefreshCw, Loader2, CheckCircle2, Route, LogOut } from 'lucide-react';
 import { APP_VERSION } from '../constants';
 import { optimizeAllTerritories } from '../lib/territoryOptimization';
 import { PageHeader, Panel } from '../components/ui/AppChrome';
 import { useDataManager } from '../lib/dataManager';
+import { supabase } from '../lib/supabase';
 
 export function SettingsPage() {
   const { isSyncing, pendingQueueCount, syncAllData, lastSyncedTime } = useDataManager();
@@ -11,6 +12,26 @@ export function SettingsPage() {
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optSuccess, setOptSuccess] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+
+  const handleSignOut = async () => {
+    if (isSigningOut) return;
+    if (pendingQueueCount > 0 && !window.confirm(
+      `Existem ${pendingQueueCount} alteração(ões) pendente(s) de sincronização. Deseja sair da conta mesmo assim?`
+    )) return;
+    setIsSigningOut(true);
+    setSignOutError(null);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } catch (error) {
+      console.error('Erro ao sair da conta:', error);
+      setSignOutError('Não foi possível encerrar a sessão. Tente novamente.');
+    } finally {
+      setIsSigningOut(false);
+    }
+  };
 
   const handleUpdate = () => {
     setIsUpdating(true);
@@ -177,15 +198,33 @@ export function SettingsPage() {
           </div>
         </Panel>
 
-        {/* Segurança */}
-        <Panel className="overflow-hidden opacity-50 grayscale pointer-events-none">
-          <div className="p-6 border-b border-neutral-100 bg-neutral-50/50 flex items-center gap-2">
+        {/* Segurança & Privacidade */}
+        <Panel className="overflow-hidden">
+          <div className="flex items-center gap-2 border-b border-neutral-100 bg-neutral-50/50 p-6">
             <Shield size={18} className="text-neutral-400" />
-            <h2 className="font-bold text-neutral-900 uppercase tracking-wider text-xs">Segurança & Privacidade</h2>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-900">Segurança & Privacidade</h2>
           </div>
-          <div className="p-6">
-            <p className="text-sm text-neutral-500 italic">Opções de segurança em desenvolvimento...</p>
+          <div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="rounded-lg bg-neutral-100 p-2 text-neutral-600">
+                <LogOut size={20} />
+              </div>
+              <div>
+                <p className="font-bold text-neutral-900">Encerrar sessão</p>
+                <p className="text-xs text-neutral-500">Sair do CRM e retornar à tela de login</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleSignOut}
+              disabled={isSigningOut}
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
+            >
+              {isSigningOut ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />}
+              {isSigningOut ? 'Saindo...' : 'Sair da conta'}
+            </button>
           </div>
+          {signOutError && <p role="alert" className="px-6 pb-4 text-xs text-red-600">{signOutError}</p>}
         </Panel>
       </div>
 
