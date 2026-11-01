@@ -679,12 +679,38 @@ export function ClienteDetail() {
         >
           <ArrowLeft size={24} />
         </button>
-        <div className="flex min-w-0 flex-1 items-start gap-3">
-          <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
           <h2 className="text-xl font-bold text-neutral-900 truncate leading-tight mb-2" id="cliente-nome-header">
             {cliente.cliente}
           </h2>
-          
+          <div className="flex shrink-0 flex-row items-center gap-1.5" role="group" aria-label="Atalhos do cliente">
+            <button
+              type="button"
+              onClick={() => setShowCredito(true)}
+              aria-label="Dados financeiros do cliente"
+              title="Dados financeiros"
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 text-orange-700 shadow-sm transition-colors hover:bg-orange-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600"
+            >
+              <Coins size={20} aria-hidden="true" />
+            </button>
+            <CampaignClientAlert
+              cliente={cliente}
+              historico={historico}
+              produtos={produtos.length ? produtos : allProducts}
+              iconOnly
+            />
+            <button
+              type="button"
+              onClick={() => setShowLoans(true)}
+              aria-label={`Itens emprestados do cliente: ${emprestimos.length}`}
+              title="Itens emprestados"
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600"
+            >
+              <ArrowLeftRight size={20} aria-hidden="true" />
+            </button>
+          </div>
+          </div>
           <div className="mt-1 flex flex-col gap-1.5" id="cliente-contact-info">
             {cliente.endereco && (
               <a 
@@ -740,33 +766,6 @@ export function ClienteDetail() {
                   ? `Próxima visita: ${formattedNextVisit.label}`
                   : 'Próxima visita: Não agendada'}
               </span>
-            </button>
-          </div>
-          </div>
-          <div className="flex shrink-0 flex-col gap-2" role="group" aria-label="Atalhos do cliente">
-            <button
-              type="button"
-              onClick={() => setShowCredito(true)}
-              aria-label="Dados financeiros do cliente"
-              title="Dados financeiros"
-              className="flex h-10 w-10 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 text-orange-700 shadow-sm transition-colors hover:bg-orange-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600"
-            >
-              <Coins size={20} aria-hidden="true" />
-            </button>
-            <CampaignClientAlert
-              cliente={cliente}
-              historico={historico}
-              produtos={produtos.length ? produtos : allProducts}
-              iconOnly
-            />
-            <button
-              type="button"
-              onClick={() => setShowLoans(true)}
-              aria-label={`Itens emprestados do cliente: ${emprestimos.length}`}
-              title="Itens emprestados"
-              className="flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600"
-            >
-              <ArrowLeftRight size={20} aria-hidden="true" />
             </button>
           </div>
         </div>
