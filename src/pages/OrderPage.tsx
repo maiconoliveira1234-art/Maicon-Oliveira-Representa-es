@@ -1881,32 +1881,32 @@ export function OrderPage() {
             </div>
           )}
           <div className={cn(
-            "grid grid-cols-[0.85fr_0.7fr_0.9fr_1.25fr_1.3fr] items-center gap-1 rounded-lg p-2 text-white shadow-sm transition-colors sm:gap-2",
+            "grid grid-cols-5 items-center gap-0 rounded-lg px-1.5 py-2 text-white shadow-sm transition-colors sm:px-2",
             avaliacaoCredito?.situacao === 'insuficiente' ? "bg-red-700" : "bg-orange-600"
           )}>
-            <div className="min-w-0 text-center">
-              <p className="text-[8px] font-bold uppercase opacity-80">Peso kg</p>
-              <p className="truncate text-[10px] font-black tabular-nums sm:text-sm">{formatNumeroRodape(pesoTotal)}</p>
+            <div className="min-w-0 px-0.5 text-center">
+              <p className="text-[9px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Peso kg</p>
+              <p className="truncate text-[11px] font-black tabular-nums tracking-tight leading-tight min-[375px]:text-xs sm:text-sm">{formatNumeroRodape(pesoTotal)}</p>
             </div>
-            <div className="min-w-0 border-l border-white/20 pl-1 text-center">
-              <p className="text-[8px] font-bold uppercase opacity-80">Faixa kg</p>
-              <p className="truncate text-[10px] font-black sm:text-xs">{currentFaixa.replace(/\s*kg$/i, '')}</p>
+            <div className="min-w-0 border-l border-white/20 px-0.5 text-center">
+              <p className="text-[9px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Faixa kg</p>
+              <p className="truncate text-[11px] font-black tabular-nums tracking-tight leading-tight min-[375px]:text-xs sm:text-sm">{currentFaixa.replace(/\s*kg$/i, '')}</p>
             </div>
-            <div className="min-w-0 border-l border-white/20 pl-1 text-center">
-              <p className="text-[8px] font-bold uppercase opacity-80">Recompra kg</p>
-              <p className="truncate text-[10px] font-black tabular-nums sm:text-xs">{pesoConquistado > 0 ? formatNumeroRodape(pesoConquistado) : '—'}</p>
+            <div className="min-w-0 border-l border-white/20 px-0.5 text-center">
+              <p className="text-[9px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Recompra kg</p>
+              <p className="truncate text-[11px] font-black tabular-nums tracking-tight leading-tight min-[375px]:text-xs sm:text-sm">{pesoConquistado > 0 ? formatNumeroRodape(pesoConquistado) : '—'}</p>
             </div>
-            <div className="min-w-0 border-l border-white/20 pl-1 text-right" title="Crédito disponível projetado para o cadastro financeiro selecionado">
-              <p className="text-[8px] font-bold uppercase opacity-80">Limite R$</p>
-              <p className="truncate text-[10px] font-black tabular-nums leading-tight sm:text-sm">
+            <div className="min-w-0 border-l border-white/20 px-0.5 text-center" title="Crédito disponível projetado para o cadastro financeiro selecionado">
+              <p className="text-[9px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Limite R$</p>
+              <p className="truncate text-[11px] font-black tabular-nums tracking-tight leading-tight min-[375px]:text-xs sm:text-sm">
                 {creditoCadastroStatus === 'loading' || (entidadeCreditoId && creditoSaldoStatus === 'loading')
                   ? '…'
                   : avaliacaoCredito ? formatNumeroRodape(avaliacaoCredito.disponivelProjetado) : '—'}
               </p>
             </div>
-            <div className="min-w-0 border-l border-white/20 pl-1 text-right">
-              <p className="text-[8px] font-bold uppercase opacity-80">Total R$</p>
-              <p className="truncate text-[10px] font-black tabular-nums leading-tight sm:text-sm">{formatNumeroRodape(valorTotal)}</p>
+            <div className="min-w-0 border-l border-white/20 px-0.5 text-center">
+              <p className="text-[9px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Total R$</p>
+              <p className="truncate text-[11px] font-black tabular-nums tracking-tight leading-tight min-[375px]:text-xs sm:text-sm">{formatNumeroRodape(valorTotal)}</p>
             </div>
           </div>
 
