@@ -78,7 +78,8 @@ const authRequired = (import.meta as any).env?.VITE_REQUIRE_AUTH === 'true';
 
 function ProtectedApp({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(authRequired);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [accessStatus, setAccessStatus] = useState<'checking' | 'authorized' | 'denied'>('checking');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -86,22 +87,71 @@ function ProtectedApp({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!authRequired) return;
-    let live = true;
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (!live) return;
-      if (error) setError('Não foi possível verificar a sessão.');
+    let active = true;
+    void supabase.auth.getSession().then(({ data, error: sessionError }) => {
+      if (!active) return;
+      if (sessionError) setError('Não foi possível verificar a sessão.');
       setSession(data.session);
-      setLoading(false);
-    }).catch(() => { if (live) { setError('Não foi possível verificar a sessão.'); setLoading(false); } });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (live) setSession(nextSession);
+      setSessionLoading(false);
+    }).catch(() => {
+      if (active) {
+        setError('Não foi possível verificar a sessão.');
+        setSessionLoading(false);
+      }
     });
-    return () => { live = false; subscription.unsubscribe(); };
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (active) {
+        setSession(nextSession);
+        setSessionLoading(false);
+      }
+    });
+    return () => { active = false; subscription.unsubscribe(); };
   }, []);
 
+  useEffect(() => {
+    if (!authRequired || !session) {
+      setAccessStatus('checking');
+      return;
+    }
+    let active = true;
+    setAccessStatus('checking');
+    void (async () => {
+      try {
+        const { data, error: permissionError } = await supabase.from('crm_usuarios_autorizados')
+          .select('user_id')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+        if (active) setAccessStatus(!permissionError && data ? 'authorized' : 'denied');
+      } catch {
+        if (active) setAccessStatus('denied');
+      }
+    })();
+    return () => { active = false; };
+  }, [session?.user.id, session?.access_token]);
+
   if (!authRequired) return <>{children}</>;
-  if (loading) return <div role="status" className="flex min-h-screen items-center justify-center text-sm text-neutral-600">Verificando acesso ao CRM...</div>;
-  if (session) return <>{children}</>;
+  if (sessionLoading || (session && accessStatus === 'checking')) {
+    return <div role="status" className="flex min-h-screen items-center justify-center text-sm text-neutral-600">Verificando acesso ao CRM...</div>;
+  }
+  if (session && accessStatus === 'authorized') {
+    return (
+      <>
+        <div className="fixed bottom-4 right-4 z-[100] rounded-lg border border-neutral-200 bg-white/95 p-2 shadow-lg">
+          <button type="button" onClick={() => void supabase.auth.signOut()} className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-semibold text-white">Sair da conta</button>
+        </div>
+        {children}
+      </>
+    );
+  }
+  if (session && accessStatus === 'denied') {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-neutral-100 p-4 text-center">
+        <h1 className="text-xl font-bold">Acesso não autorizado</h1>
+        <p className="max-w-md text-sm text-neutral-600">Esta conta não está cadastrada como administradora do CRM ou as permissões não puderam ser verificadas.</p>
+        <button type="button" className="rounded-lg bg-neutral-900 px-4 py-2 text-white" onClick={() => void supabase.auth.signOut()}>Trocar conta</button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-neutral-100 p-4">
@@ -114,6 +164,7 @@ function ProtectedApp({ children }: { children: React.ReactNode }) {
           try {
             const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
             if (signInError) throw signInError;
+            setPassword('');
           } catch {
             setError('Não foi possível entrar. Confira as credenciais ou a conexão.');
           } finally {
@@ -123,8 +174,8 @@ function ProtectedApp({ children }: { children: React.ReactNode }) {
         className="w-full max-w-sm space-y-5 rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm"
       >
         <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Pro Max</h1>
-          <p className="mt-1 text-sm text-neutral-500">Acesso restrito ao CRM</p>
+          <h1 className="mt-1 text-2xl font-bold text-neutral-900">Pro Max</h1>
+          <p className="mt-1 text-sm text-neutral-500">Acesso autorizado ao CRM Pro Max</p>
         </div>
         <label className="block space-y-1 text-sm font-semibold text-neutral-700">
           <span>E-mail</span>
