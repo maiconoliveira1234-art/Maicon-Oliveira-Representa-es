@@ -24,10 +24,14 @@ import {
   FileText,
   Eye,
   Home,
+  AlertTriangle,
+  ShieldAlert,
+  RotateCcw,
   Coins
 } from 'lucide-react';
 import { Cliente, Produto, ItemPedido, PrecoFaixa } from '../types';
 import { supabase } from '../lib/supabase';
+import { avaliarLimiteCredito, type SaldoCredito } from '../lib/creditAlert';
 import { getFromLocal } from '../lib/offline';
 import { 
   getFaixaPreco, 
@@ -57,6 +61,13 @@ import { orderQuoteItems } from '../lib/quoteItemOrder';
 import { saveDraftLocally, readDraftLocally, clearLocalDraft } from '../lib/draftStorage';
 import { paginateQuoteItems } from '../lib/quotePagination';
 
+type EntidadeCredito = {
+  id: string;
+  razao_social: string;
+  data_snapshot: string;
+  titulos_conferidos: boolean;
+};
+
 export function OrderPage() {
   const { clienteId } = useParams();
   const navigate = useNavigate();
@@ -85,6 +96,13 @@ export function OrderPage() {
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [productSelectorType, setProductSelectorType] = useState<'VENDA' | 'BONIFICACAO_COMERCIAL' | 'MERCHANDISING'>('VENDA');
   const [selectedPrazo, setSelectedPrazo] = useState('');
+  const [entidadesCredito, setEntidadesCredito] = useState<EntidadeCredito[]>([]);
+  const [entidadeCreditoId, setEntidadeCreditoId] = useState('');
+  const [creditoCadastroStatus, setCreditoCadastroStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [creditoSaldoStatus, setCreditoSaldoStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [saldoCredito, setSaldoCredito] = useState<SaldoCredito | null>(null);
+  const [creditoRefreshKey, setCreditoRefreshKey] = useState(0);
+
   const [selectedFamily, setSelectedFamily] = useState('Todas');
   const [selectedWeight, setSelectedWeight] = useState('Todos');
   const [showOnlyPositivados, setShowOnlyPositivados] = useState(false);
@@ -681,6 +699,86 @@ export function OrderPage() {
   const valorTotal = useMemo(() => {
     return valorFinalCliente;
   }, [valorFinalCliente]);
+
+
+  // A mesma carteira comercial pode possuir mais de uma razão social financeira.
+  // Nesse caso a escolha é explícita: nunca somar limites de CNPJs distintos.
+  useEffect(() => {
+    let active = true;
+    setCreditoCadastroStatus('loading');
+    setEntidadesCredito([]);
+    setEntidadeCreditoId('');
+    setSaldoCredito(null);
+    if (!clienteId) return;
+    void (async () => {
+      try {
+        const { data, error } = await supabase.from('entidades_financeiras')
+          .select('id, razao_social, data_snapshot, titulos_conferidos')
+          .eq('cliente_comercial_id', clienteId)
+          .order('razao_social');
+        if (!active) return;
+        if (error) throw error;
+        const lista = (data || []) as EntidadeCredito[];
+        setEntidadesCredito(lista);
+        setEntidadeCreditoId(anterior => lista.some(e => e.id === anterior) ? anterior : lista.length === 1 ? lista[0].id : '');
+        setCreditoCadastroStatus('ready');
+      } catch (error) {
+        if (!active) return;
+        console.warn('Falha ao consultar entidades financeiras:', error);
+        setCreditoCadastroStatus('error');
+      }
+    })();
+    return () => { active = false; };
+  }, [clienteId, creditoRefreshKey]);
+
+  useEffect(() => {
+    let active = true;
+    setSaldoCredito(null);
+    setCreditoSaldoStatus('loading');
+    if (!entidadeCreditoId) return;
+    void (async () => {
+      try {
+        const { data, error } = await supabase.rpc('saldo_credito_projetado', {
+          p_entidade: entidadeCreditoId,
+          p_data: format(new Date(), 'yyyy-MM-dd')
+        });
+        if (!active) return;
+        if (error) throw error;
+        const resultado = Array.isArray(data) ? data[0] : data;
+        if (!resultado) throw new Error('Nenhum saldo de crédito retornado.');
+        setSaldoCredito({
+          limite: Number(resultado.limite),
+          disponivel_oficial: Number(resultado.disponivel_oficial),
+          disponivel_estimado: Number(resultado.disponivel_estimado),
+          reservas_total: Number(resultado.reservas_total)
+        });
+        setCreditoSaldoStatus('ready');
+      } catch (error) {
+        if (!active) return;
+        console.warn('Falha ao consultar crédito projetado:', error);
+        setCreditoSaldoStatus('error');
+      }
+    })();
+    return () => { active = false; };
+  }, [entidadeCreditoId, creditoRefreshKey]);
+
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'visible') setCreditoRefreshKey(n => n + 1);
+    };
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, []);
+
+  const avaliacaoCredito = useMemo(
+    () => saldoCredito ? avaliarLimiteCredito(valorTotal, saldoCredito, selectedPrazo) : null,
+    [valorTotal, saldoCredito, selectedPrazo]
+  );
+  const entidadeSelecionada = entidadesCredito.find(e => e.id === entidadeCreditoId);
+  const avisoCreditoPendente = creditoCadastroStatus === 'error'
+    || creditoCadastroStatus === 'ready' && (
+      entidadesCredito.length === 0 || !entidadeCreditoId || creditoSaldoStatus === 'error'
+    );
 
   const availableTerms = useMemo(() => {
     return getAvailableTerms(valorTotal);
