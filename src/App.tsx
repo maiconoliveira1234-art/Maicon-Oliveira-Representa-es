@@ -93,10 +93,10 @@ function PreviewAccessChecks() {
     try {
       const nonexistentId = '00000000-0000-0000-0000-000000000000';
       const cases = [
-        { name: 'Pedido · UPDATE', run: () => supabase.from('pedidos').update({ valor_total: 0 }, { count: 'exact' }).eq('id', nonexistentId) },
-        { name: 'Pedido · DELETE', run: () => supabase.from('pedidos').delete({ count: 'exact' }).eq('id', nonexistentId) },
-        { name: 'Estoque · UPDATE', run: () => supabase.from('estoque_cliente').update({ quantidade_atual: 0 }, { count: 'exact' }).eq('id', nonexistentId) },
-        { name: 'Estoque · DELETE', run: () => supabase.from('estoque_cliente').delete({ count: 'exact' }).eq('id', nonexistentId) }
+        { name: 'Pedido · UPDATE', run: () => supabase.from('pedidos').update({ valor_total: 0 }, { count: 'exact' }).eq('id', nonexistentId).neq('id', nonexistentId) },
+        { name: 'Pedido · DELETE', run: () => supabase.from('pedidos').delete({ count: 'exact' }).eq('id', nonexistentId).neq('id', nonexistentId) },
+        { name: 'Estoque · UPDATE', run: () => supabase.from('estoque_cliente').update({ quantidade_atual: 0 }, { count: 'exact' }).eq('id', nonexistentId).neq('id', nonexistentId) },
+        { name: 'Estoque · DELETE', run: () => supabase.from('estoque_cliente').delete({ count: 'exact' }).eq('id', nonexistentId).neq('id', nonexistentId) }
       ];
       const next = await Promise.all(cases.map(async item => {
         try {
