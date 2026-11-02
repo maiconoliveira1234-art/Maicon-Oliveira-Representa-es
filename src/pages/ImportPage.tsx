@@ -271,6 +271,21 @@ export function ImportPage() {
       .reduce((total, row) => total + Math.max(0, Number(row.valor_total) || 0), 0),
     [processedRows]
   );
+
+  // Distribui os centavos para não criar boletos com somas divergentes.
+  const calcularParcelasFinanceiras = (totalVenda: number) => {
+    if (prazosColados && vencimentosW.length) {
+      const totalCentavos = Math.round(totalVenda * 100);
+      const parcelaBase = Math.floor(totalCentavos / vencimentosW.length);
+      return vencimentosW.map(({ vencimento }, index) => ({
+        vencimento,
+        valor: (index === vencimentosW.length - 1
+          ? totalCentavos - parcelaBase * (vencimentosW.length - 1)
+          : parcelaBase) / 100
+      }));
+    }
+    return parcelasLidas.parcelas;
+  };
   const validarLojaFinanceira = (): boolean => {
     if (lojasStatus !== 'ready' || lojasClienteCarregado !== selectedClienteId) {
       setError('Não foi possível confirmar as lojas financeiras do cliente. Verifique a conexão antes de importar.');
@@ -432,6 +447,11 @@ export function ImportPage() {
     if (processedRows.length === 0) return;
     if (!validarLojaFinanceira()) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    if (parcelasLidas.parcelas.length > 0 &&
+        Math.abs(parcelasLidas.parcelas.reduce((sum, p) => sum + p.valor, 0) - totalVendasParaCredito) > 0.02) {
+      setError('A soma dos boletos informados não corresponde ao valor das vendas faturadas.');
       return;
     }
 
@@ -663,6 +683,13 @@ export function ImportPage() {
         });
       }
 
+      const parcelasFinanceiras = lojaFinanceiraId
+        ? calcularParcelasFinanceiras(totalVendaValor)
+        : [];
+      if (parcelasFinanceiras.some(p => p.valor <= 0)) {
+        throw new Error('O valor de cada boleto deve ser positivo. Revise as parcelas.');
+      }
+
       // --- TENTATIVA 1: EXECUÇÃO TRANSACIONAL ATÔMICA REAL DO POSTGRES (Supabase RPC) ---
       let rpcSuccess = false;
       try {
@@ -679,7 +706,8 @@ export function ImportPage() {
           tabela: r.tabela,
           produto_id: r.produto_id || null,
           numero_pedido_erp: r.numero_pedido_erp,
-          entidade_financeira_id: r.entidade_financeira_id
+          entidade_financeira_id: r.entidade_financeira_id,
+          parcelas_credito: parcelasFinanceiras
         }));
 
         const mappedExtratosForRpc = extratoEntries.map(e => ({
@@ -718,6 +746,13 @@ export function ImportPage() {
           throw rpcErr;
         }
         console.error('Falha genérica no RPC, prosseguindo para o Fallback:', rpcErr);
+      }
+
+      // Não perder a atribuição financeira por fallback não atômico: se
+      // existe loja selecionada, o faturamento e os boletos devem ser salvos
+      // na mesma transação; em caso de falha, NÃO importar parcialmente.
+      if (!rpcSuccess && lojaFinanceiraId) {
+        throw new Error('Não foi possível gravar o faturamento e os boletos da loja de forma atômica. Nenhum item foi importado.');
       }
 
       // --- TENTATIVA 2: FALLBACK COM TRANSAÇÃO POR APLICAÇÃO (E ROLLBACK SEGURO) ---
@@ -1304,6 +1339,11 @@ export function ImportPage() {
               {lojasStatus === 'ready' && lojasFinanceiras.length > 1 && !lojaFinanceiraId && (
                 <p className="mt-1 text-xs font-semibold text-orange-700">
                   Este cliente possui {lojasFinanceiras.length} lojas financeiras. A escolha é obrigatória.
+                </p>
+              )}
+              {lojaSelecionada && !parcelamentoRaw.trim() && (
+                <p className="mt-1 text-xs text-amber-700">
+                  Sem parcelamento informado: a importação consome o limite, mas não terá vencimentos para projetar sua liberação.
                 </p>
               )}
               {lojaSelecionada && (
