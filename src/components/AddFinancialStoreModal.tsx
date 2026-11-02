@@ -18,9 +18,9 @@ type Props = {
 };
 
 function parseMoney(raw: string): number {
-  const value = raw.trim().replace(/\\s/g, '').replace(/R\\$/gi, '');
+  const value = raw.trim().replace(/\s/g, '').replace(/R\$/gi, '');
   if (!value) return NaN;
-  const normalized = value.includes(',') ? value.replace(/\\./g, '').replace(',', '.') : value;
+  const normalized = value.includes(',') ? value.replace(/\./g, '').replace(',', '.') : value;
   return Number(normalized);
 }
 
@@ -35,7 +35,7 @@ export function AddFinancialStoreModal({ clienteId, clienteNome, onClose, onCrea
     event.preventDefault();
     if (saving) return;
     setError('');
-    const name = razaoSocial.trim().replace(/\\s+/g, ' ').toUpperCase();
+    const name = razaoSocial.trim().replace(/\s+/g, ' ').toUpperCase();
     const total = parseMoney(limite);
     const initialAvailable = disponivel.trim() ? parseMoney(disponivel) : total;
 
@@ -43,7 +43,7 @@ export function AddFinancialStoreModal({ clienteId, clienteNome, onClose, onCrea
       setError('Informe a razão social (3 a 200 caracteres).');
       return;
     }
-    if (!Number.isFinite(total) || total <= 0 || Math.round(total * 100) !== total * 100 && Math.abs(Math.round(total * 100) - total * 100) > 0.0001) {
+    if (!Number.isFinite(total) || total <= 0 || Math.abs(Math.round(total * 100) - total * 100) > 0.0001) {
       setError('Informe um limite positivo, com até duas casas decimais.');
       return;
     }
