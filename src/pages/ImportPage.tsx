@@ -1314,13 +1314,7 @@ export function ImportPage() {
                 aria-required={lojasFinanceiras.length > 0}
                 className="h-11 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 text-sm font-semibold text-neutral-800 outline-none focus:border-orange-500 disabled:opacity-60"
               >
-                <option value="">
-                  {!selectedClienteId ? 'Selecione primeiro o cliente'
-                    : lojasStatus === 'loading' ? 'Buscando lojas vinculadas...'
-                    : lojasStatus === 'error' ? 'Falha na consulta das lojas'
-                    : lojasFinanceiras.length === 0 ? 'Cliente sem cadastro financeiro'
-                    : 'Selecione a loja do pedido'}
-                </option>
+                <option value="">Selecione a loja do pedido</option>
                 {lojasFinanceiras.map(loja => (
                   <option key={loja.id} value={loja.id}>{loja.razao_social}</option>
                 ))}
