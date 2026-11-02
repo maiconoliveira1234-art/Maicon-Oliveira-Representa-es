@@ -1301,6 +1301,8 @@ export function ImportPage() {
             </div>
 
             <div className="min-w-0 sm:col-span-2">
+              {lojasStatus === 'ready' && lojasFinanceiras.length > 1 && (
+                <>
               <label htmlFor="import-loja-financeira" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-600">
                 Loja do faturamento / CNPJ
               </label>
@@ -1312,17 +1314,13 @@ export function ImportPage() {
                 aria-required={lojasFinanceiras.length > 0}
                 className="h-11 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 text-sm font-semibold text-neutral-800 outline-none focus:border-orange-500 disabled:opacity-60"
               >
-                <option value="">
-                  {!selectedClienteId ? 'Selecione primeiro o cliente'
-                    : lojasStatus === 'loading' ? 'Buscando lojas vinculadas...'
-                    : lojasStatus === 'error' ? 'Falha na consulta das lojas'
-                    : lojasFinanceiras.length === 0 ? 'Cliente sem cadastro financeiro'
-                    : 'Selecione a loja do pedido'}
-                </option>
+                <option value="">Selecione a loja do pedido</option>
                 {lojasFinanceiras.map(loja => (
                   <option key={loja.id} value={loja.id}>{loja.razao_social}</option>
                 ))}
               </select>
+                </>
+              )}
               {lojasStatus === 'ready' && lojasFinanceiras.length === 0 && (
                 <p className="mt-1 text-xs text-amber-700">
                   Sem cadastro financeiro vinculado. A importação será permitida, mas não atualizará o limite de crédito.

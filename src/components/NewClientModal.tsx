@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Loader2, UserPlus, Edit3, AlertCircle } from 'lucide-react';
+import { X, Save, Loader2, UserPlus, Edit3, AlertCircle, Plus, Store } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { Cliente } from '../types';
 import { geocodeAddress, getAddressSuggestions, PlaceSuggestion } from '../services/geocodingService';
 import { runAutoAgendaSyncIfEligible } from '../lib/autoAgendaSync';
+import { AddFinancialStoreModal, type FinancialStoreSummary } from './AddFinancialStoreModal';
 
 interface NewClientModalProps {
   isOpen: boolean;
@@ -26,6 +27,10 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
     agenda_fixa: false,
   });
 
+  const [showAddStore, setShowAddStore] = useState(false);
+  const [lojas, setLojas] = useState<FinancialStoreSummary[]>([]);
+  const [lojasLoading, setLojasLoading] = useState(false);
+  const [lojasError, setLojasError] = useState(false);
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -54,6 +59,34 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
     setSuggestions([]);
     setShowSuggestions(false);
   }, [editingCliente, isOpen]);
+
+  useEffect(() => {
+    let active = true;
+    setShowAddStore(false);
+    setLojas([]);
+    setLojasError(false);
+    setLojasLoading(!!(isOpen && editingCliente?.id));
+    if (!isOpen || !editingCliente?.id) return;
+    void (async () => {
+      try {
+        const { data, error: lookupError } = await supabase.from('entidades_financeiras')
+          .select('id, razao_social, limite_total')
+          .eq('cliente_comercial_id', editingCliente.id)
+          .order('razao_social');
+        if (!active) return;
+        if (lookupError) throw lookupError;
+        setLojas((data || []).map(loja => ({ ...loja, limite_total: Number(loja.limite_total) })));
+      } catch (error) {
+        if (active) {
+          setLojasError(true);
+          console.warn('Falha ao carregar lojas do cliente:', error);
+        }
+      } finally {
+        if (active) setLojasLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [isOpen, editingCliente?.id]);
 
   // Debounced Address Suggestion Lookup (500ms)
   useEffect(() => {
@@ -237,6 +270,7 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
   };
 
   return (
+    <>
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-white w-full max-w-lg rounded-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
         <div className="flex items-center justify-between p-6 border-b border-neutral-100">
@@ -375,6 +409,40 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
             </div>
           </div>
 
+          {editingCliente && (
+            <section className="space-y-2 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-sm font-bold text-neutral-900">
+                  <Store size={17} className="text-orange-600" />
+                  Lojas vinculadas
+                </div>
+                <button type="button" disabled={lojasLoading || lojasError || loading}
+                  onClick={() => setShowAddStore(true)}
+                  className="flex items-center gap-1 rounded-lg border border-orange-200 bg-orange-50 px-2 py-2 text-xs font-bold text-orange-800 hover:bg-orange-100 disabled:opacity-50">
+                  <Plus size={15} /> Acrescentar loja
+                </button>
+              </div>
+              {lojasLoading ? (
+                <p className="text-xs text-neutral-500">Consultando lojas...</p>
+              ) : lojasError ? (
+                <p role="alert" className="text-xs text-red-700">Falha na consulta. Reabra a edição para tentar novamente.</p>
+              ) : lojas.length === 0 ? (
+                <p className="text-xs text-neutral-600">Nenhuma loja financeira vinculada.</p>
+              ) : (
+                <div className="space-y-1">
+                  {lojas.map(loja => (
+                    <div key={loja.id} className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2 text-xs">
+                      <span className="min-w-0 truncate font-medium text-neutral-800">{loja.razao_social}</span>
+                      <span className="shrink-0 font-bold tabular-nums text-neutral-900">
+                        {Number(loja.limite_total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
           <div className="flex gap-3 pt-4">
             <button
               type="button"
@@ -395,6 +463,18 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
         </form>
       </div>
     </div>
+    {showAddStore && editingCliente && (
+      <AddFinancialStoreModal
+        clienteId={editingCliente.id}
+        clienteNome={editingCliente.cliente}
+        onClose={() => setShowAddStore(false)}
+        onCreated={loja => {
+          setLojas(current => [...current, loja].sort((a, b) => a.razao_social.localeCompare(b.razao_social, 'pt-BR')));
+          setShowAddStore(false);
+        }}
+      />
+    )}
+    </>
   );
 }
 
