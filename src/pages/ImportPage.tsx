@@ -8,6 +8,7 @@ import { auditRowCost, CostAuditResult } from '../lib/costAuditer';
 import { useDataManager } from '../lib/dataManager';
 import { getFaixaPreco, getValorUnitario } from '../lib/calculations';
 import { getFlexRateForDate } from '../lib/flexRules';
+import { distribuirFaturamentoEmParcelas } from '../lib/creditImport';
 import { ensureQuarterlyFlexReset } from '../services/flexService';
 import { getClientOpenOrderSummary, deleteClientOpenOrder, ClientOpenOrderSummary } from '../lib/openOrderSales';
 
@@ -24,6 +25,12 @@ interface RawRow {
   isValid: boolean;
   isMissingProduct?: boolean;
   error?: string;
+}
+
+interface LojaFinanceira {
+  id: string;
+  razao_social: string;
+  limite_total: number;
 }
 
 interface NewProductData {
@@ -97,6 +104,11 @@ export function ImportPage() {
 
   // Form states
   const [selectedClienteId, setSelectedClienteId] = useState('');
+  const [lojasFinanceiras, setLojasFinanceiras] = useState<LojaFinanceira[]>([]);
+  const [lojaFinanceiraId, setLojaFinanceiraId] = useState('');
+  const [lojasStatus, setLojasStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [lojasClienteCarregado, setLojasClienteCarregado] = useState('');
+  const [saldoLoja, setSaldoLoja] = useState<number | null>(null);
   const [clientSearch, setClientSearch] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
@@ -200,6 +212,84 @@ export function ImportPage() {
       loadClientDetails(selectedClienteId);
     }
   }, [selectedClienteId, loadClientDetails]);
+  
+  // Uma carteira comercial pode faturar em CNPJs diferentes. Cada loja
+  // usa seu próprio saldo: nunca somar limites das empresas vinculadas.
+  useEffect(() => {
+    let active = true;
+    setLojasStatus('loading');
+    setLojasClienteCarregado('');
+    setLojasFinanceiras([]);
+    setLojaFinanceiraId('');
+    setSaldoLoja(null);
+    if (!selectedClienteId) return;
+    void (async () => {
+      try {
+        const { data, error } = await supabase.from('entidades_financeiras')
+          .select('id, razao_social, limite_total')
+          .eq('cliente_comercial_id', selectedClienteId)
+          .order('razao_social');
+        if (!active) return;
+        if (error) throw error;
+        const lojas = (data || []) as LojaFinanceira[];
+        setLojasFinanceiras(lojas);
+        setLojaFinanceiraId(lojas.length === 1 ? lojas[0].id : '');
+        setLojasClienteCarregado(selectedClienteId);
+        setLojasStatus('ready');
+      } catch (error) {
+        if (!active) return;
+        console.warn('Falha ao consultar lojas financeiras para importação:', error);
+        setLojasStatus('error');
+      }
+    })();
+    return () => { active = false; };
+  }, [selectedClienteId]);
+
+  useEffect(() => {
+    let active = true;
+    setSaldoLoja(null);
+    if (!lojaFinanceiraId) return;
+    void (async () => {
+      try {
+        const { data, error } = await supabase.rpc('saldo_credito_projetado', {
+          p_entidade: lojaFinanceiraId,
+          p_data: format(new Date(), 'yyyy-MM-dd')
+        });
+        if (!active) return;
+        if (error) throw error;
+        const registro = Array.isArray(data) ? data[0] : data;
+        setSaldoLoja(registro ? Number(registro.disponivel_estimado) : null);
+      } catch (error) {
+        if (active) console.warn('Falha na consulta do saldo da loja:', error);
+      }
+    })();
+    return () => { active = false; };
+  }, [lojaFinanceiraId]);
+
+  const lojaSelecionada = lojasFinanceiras.find(loja => loja.id === lojaFinanceiraId);
+  const totalVendasParaCredito = useMemo(
+    () => processedRows.filter(row => row.isValid && row.tipo.toUpperCase().trim() === 'VENDAS')
+      .reduce((total, row) => total + Math.max(0, Number(row.valor_total) || 0), 0),
+    [processedRows]
+  );
+
+  const calcularParcelasFinanceiras = (totalVenda: number) =>
+    prazosColados && vencimentosW.length
+      ? distribuirFaturamentoEmParcelas(totalVenda, vencimentosW.map(v => v.vencimento))
+      : parcelasLidas.parcelas;
+
+  const validarLojaFinanceira = (): boolean => {
+    if (lojasStatus !== 'ready' || lojasClienteCarregado !== selectedClienteId) {
+      setError('Não foi possível confirmar as lojas financeiras do cliente. Verifique a conexão antes de importar.');
+      return false;
+    }
+    if (lojasFinanceiras.length > 0 && !lojaSelecionada) {
+      setError('Selecione a loja (razão social/CNPJ) responsável pelo faturamento para controlar o limite.');
+      return false;
+    }
+    return true;
+  };
+
 
   const families = useMemo(() => {
     const fams = new Set(produtos.map(p => p.familia).filter(Boolean));
@@ -347,6 +437,15 @@ export function ImportPage() {
       return;
     }
     if (processedRows.length === 0) return;
+    if (!validarLojaFinanceira()) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    if (parcelasLidas.parcelas.length > 0 &&
+        Math.abs(parcelasLidas.parcelas.reduce((sum, p) => sum + p.valor, 0) - totalVendasParaCredito) > 0.02) {
+      setError('A soma dos boletos informados não corresponde ao valor das vendas faturadas.');
+      return;
+    }
 
     if (!numeroPedidoErp.trim()) {
       setError('O "Número do Pedido ERP" é obrigatório para realizar a importação protegida contra duplicidades.');
@@ -424,6 +523,15 @@ export function ImportPage() {
       if (!numeroPedidoErp.trim()) {
         throw new Error('Número do pedido ERP ausente.');
       }
+      if (!validarLojaFinanceira()) {
+        throw new Error('Loja de faturamento não confirmada.');
+      }
+      // Revalidar o vínculo no momento da gravação, não só na seleção visual.
+      if (lojaFinanceiraId) {
+        const { data: lojaValida, error: lojaErro } = await supabase.from('entidades_financeiras')
+          .select('id').eq('id', lojaFinanceiraId).eq('cliente_comercial_id', selectedClienteId).maybeSingle();
+        if (lojaErro || !lojaValida) throw new Error('Loja de faturamento inválida para o cliente selecionado.');
+      }
 
       const selectedCliente = clientes.find(c => c.id === selectedClienteId);
       
@@ -433,6 +541,7 @@ export function ImportPage() {
         const record: any = {
           cliente_id: selectedClienteId,
           cliente: selectedCliente?.cliente || '',
+          entidade_financeira_id: lojaFinanceiraId || null,
           faturamento: orderDate,
           produtos: row.produto,
           qtd: row.qtd,
@@ -566,6 +675,13 @@ export function ImportPage() {
         });
       }
 
+      const parcelasFinanceiras = lojaFinanceiraId
+        ? calcularParcelasFinanceiras(totalVendaValor)
+        : [];
+      if (parcelasFinanceiras.some(p => p.valor <= 0)) {
+        throw new Error('O valor de cada boleto deve ser positivo. Revise as parcelas.');
+      }
+
       // --- TENTATIVA 1: EXECUÇÃO TRANSACIONAL ATÔMICA REAL DO POSTGRES (Supabase RPC) ---
       let rpcSuccess = false;
       try {
@@ -581,7 +697,9 @@ export function ImportPage() {
           acresc_val: Number(r["acresc."] || 0),
           tabela: r.tabela,
           produto_id: r.produto_id || null,
-          numero_pedido_erp: r.numero_pedido_erp
+          numero_pedido_erp: r.numero_pedido_erp,
+          entidade_financeira_id: r.entidade_financeira_id,
+          parcelas_credito: parcelasFinanceiras
         }));
 
         const mappedExtratosForRpc = extratoEntries.map(e => ({
@@ -620,6 +738,13 @@ export function ImportPage() {
           throw rpcErr;
         }
         console.error('Falha genérica no RPC, prosseguindo para o Fallback:', rpcErr);
+      }
+
+      // Não perder a atribuição financeira por fallback não atômico: se
+      // existe loja selecionada, o faturamento e os boletos devem ser salvos
+      // na mesma transação; em caso de falha, NÃO importar parcialmente.
+      if (!rpcSuccess && lojaFinanceiraId) {
+        throw new Error('Não foi possível gravar o faturamento e os boletos da loja de forma atômica. Nenhum item foi importado.');
       }
 
       // --- TENTATIVA 2: FALLBACK COM TRANSAÇÃO POR APLICAÇÃO (E ROLLBACK SEGURO) ---
@@ -1175,6 +1300,58 @@ export function ImportPage() {
               </div>
             </div>
 
+            <div className="min-w-0 sm:col-span-2">
+              <label htmlFor="import-loja-financeira" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-600">
+                Loja do faturamento / CNPJ
+              </label>
+              <select
+                id="import-loja-financeira"
+                value={lojaFinanceiraId}
+                onChange={event => setLojaFinanceiraId(event.target.value)}
+                disabled={!selectedClienteId || lojasStatus !== 'ready' || lojasFinanceiras.length === 0}
+                aria-required={lojasFinanceiras.length > 0}
+                className="h-11 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 text-sm font-semibold text-neutral-800 outline-none focus:border-orange-500 disabled:opacity-60"
+              >
+                <option value="">
+                  {!selectedClienteId ? 'Selecione primeiro o cliente'
+                    : lojasStatus === 'loading' ? 'Buscando lojas vinculadas...'
+                    : lojasStatus === 'error' ? 'Falha na consulta das lojas'
+                    : lojasFinanceiras.length === 0 ? 'Cliente sem cadastro financeiro'
+                    : 'Selecione a loja do pedido'}
+                </option>
+                {lojasFinanceiras.map(loja => (
+                  <option key={loja.id} value={loja.id}>{loja.razao_social}</option>
+                ))}
+              </select>
+              {lojasStatus === 'ready' && lojasFinanceiras.length === 0 && (
+                <p className="mt-1 text-xs text-amber-700">
+                  Sem cadastro financeiro vinculado. A importação será permitida, mas não atualizará o limite de crédito.
+                </p>
+              )}
+              {lojasStatus === 'ready' && lojasFinanceiras.length > 1 && !lojaFinanceiraId && (
+                <p className="mt-1 text-xs font-semibold text-orange-700">
+                  Este cliente possui {lojasFinanceiras.length} lojas financeiras. A escolha é obrigatória.
+                </p>
+              )}
+              {lojaSelecionada && !parcelamentoRaw.trim() && (
+                <p className="mt-1 text-xs text-amber-700">
+                  Sem parcelamento informado: a importação consome o limite, mas não terá vencimentos para projetar sua liberação.
+                </p>
+              )}
+              {lojaSelecionada && (
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-neutral-600">
+                  <span>Limite total: <strong>{formatCurrency(lojaSelecionada.limite_total)}</strong></span>
+                  <span>Disponível projetado: <strong>{saldoLoja === null ? 'Consultando...' : formatCurrency(saldoLoja)}</strong></span>
+                  {totalVendasParaCredito > 0 && <span>Faturamento: <strong>{formatCurrency(totalVendasParaCredito)}</strong></span>}
+                  {saldoLoja !== null && totalVendasParaCredito > saldoLoja && (
+                    <p role="alert" className="w-full font-bold text-red-700">
+                      Atenção: o faturamento ultrapassa o limite projetado em {formatCurrency(totalVendasParaCredito - saldoLoja)}.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="min-w-0">
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-600">Parcelamento</label>
               <input
@@ -1680,6 +1857,10 @@ export function ImportPage() {
                 <div className="flex justify-between items-center text-xs text-neutral-500 font-semibold uppercase">
                   <span>Cliente</span>
                   <span className="text-neutral-700 font-bold">{selectedCliente?.cliente}</span>
+                </div>
+                <div className="flex justify-between gap-3 text-xs text-neutral-500 font-semibold uppercase">
+                  <span>Loja/CNPJ</span>
+                  <span className="text-right text-neutral-800 font-bold">{lojaSelecionada?.razao_social || 'Sem cadastro financeiro'}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs text-neutral-500 font-semibold uppercase">
                   <span>Itens para Importar</span>
