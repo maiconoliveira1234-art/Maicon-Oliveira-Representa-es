@@ -1301,6 +1301,8 @@ export function ImportPage() {
             </div>
 
             <div className="min-w-0 sm:col-span-2">
+              {lojasStatus === 'ready' && lojasFinanceiras.length > 1 && (
+                <>
               <label htmlFor="import-loja-financeira" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-600">
                 Loja do faturamento / CNPJ
               </label>
@@ -1323,6 +1325,8 @@ export function ImportPage() {
                   <option key={loja.id} value={loja.id}>{loja.razao_social}</option>
                 ))}
               </select>
+                </>
+              )}
               {lojasStatus === 'ready' && lojasFinanceiras.length === 0 && (
                 <p className="mt-1 text-xs text-amber-700">
                   Sem cadastro financeiro vinculado. A importação será permitida, mas não atualizará o limite de crédito.
