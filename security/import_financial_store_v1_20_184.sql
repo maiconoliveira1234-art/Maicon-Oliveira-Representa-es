@@ -13,6 +13,9 @@ BEGIN
       FOREIGN KEY (entidade_financeira_id) REFERENCES public.entidades_financeiras(id);
   END IF;
 END $ddl$;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_credit_titles_erp_due
+  ON public.titulos_credito(entidade_financeira_id, referencia_externa, vencimento)
+  WHERE origem = 'faturamento' AND referencia_externa IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_hist_vendas_entidade_data
   ON public.hist_vendas (entidade_financeira_id, faturamento)
   WHERE entidade_financeira_id IS NOT NULL;
@@ -29,6 +32,9 @@ DECLARE
     v_extrato RECORD;
     v_entidade_id UUID;
     v_lojas_distintas INTEGER;
+    v_parcela RECORD;
+    v_parcelas JSONB;
+    v_snapshot DATE;
 BEGIN
     -- A. Verificar duplicidade em transação isolada
     SELECT EXISTS (
@@ -55,6 +61,10 @@ BEGIN
       WHERE e.id=v_entidade_id AND e.cliente_comercial_id=p_cliente_id
     ) THEN
       RAISE EXCEPTION 'Loja financeira não pertence ao cliente selecionado';
+    END IF;
+
+    IF v_entidade_id IS NOT NULL THEN
+      SELECT data_snapshot INTO v_snapshot FROM public.entidades_financeiras WHERE id=v_entidade_id;
     END IF;
 
     -- B. Gravar itens faturados agrupados de forma atômica
@@ -137,8 +147,29 @@ BEGIN
         END LOOP;
     END IF;
 
+    -- Títulos novos: somente notas posteriores à fotografia financeira.
+    -- Liberados no dia seguinte ao vencimento, pela projeção existente.
+    IF v_entidade_id IS NOT NULL AND CAST(p_order_date AS DATE) > v_snapshot THEN
+      v_parcelas := coalesce(p_itens->0->'parcelas_credito', '[]'::jsonb);
+      IF jsonb_typeof(v_parcelas) <> 'array' THEN
+        RAISE EXCEPTION 'Parcelas de crédito com formato inválido';
+      END IF;
+      FOR v_parcela IN SELECT * FROM jsonb_to_recordset(v_parcelas)
+        AS x(vencimento DATE, valor NUMERIC)
+      LOOP
+        IF v_parcela.vencimento IS NULL OR v_parcela.valor IS NULL OR v_parcela.valor <= 0 THEN
+          RAISE EXCEPTION 'Parcela de crédito inválida';
+        END IF;
+        INSERT INTO public.titulos_credito (
+          entidade_financeira_id, vencimento, valor, origem, referencia_externa
+        ) VALUES (
+          v_entidade_id, v_parcela.vencimento, v_parcela.valor, 'faturamento', p_numero_pedido_erp
+        );
+      END LOOP;
+    END IF;
+
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.saldo_credito_projetado(p_entidade uuid, p_data date DEFAULT CURRENT_DATE)
  RETURNS TABLE(limite numeric, disponivel_oficial numeric, disponivel_estimado numeric, titulos_conferidos boolean, titulos_total numeric, reservas_total numeric)
