@@ -8,6 +8,7 @@ import { auditRowCost, CostAuditResult } from '../lib/costAuditer';
 import { useDataManager } from '../lib/dataManager';
 import { getFaixaPreco, getValorUnitario } from '../lib/calculations';
 import { getFlexRateForDate } from '../lib/flexRules';
+import { distribuirFaturamentoEmParcelas } from '../lib/creditImport';
 import { ensureQuarterlyFlexReset } from '../services/flexService';
 import { getClientOpenOrderSummary, deleteClientOpenOrder, ClientOpenOrderSummary } from '../lib/openOrderSales';
 
@@ -272,20 +273,11 @@ export function ImportPage() {
     [processedRows]
   );
 
-  // Distribui os centavos para não criar boletos com somas divergentes.
-  const calcularParcelasFinanceiras = (totalVenda: number) => {
-    if (prazosColados && vencimentosW.length) {
-      const totalCentavos = Math.round(totalVenda * 100);
-      const parcelaBase = Math.floor(totalCentavos / vencimentosW.length);
-      return vencimentosW.map(({ vencimento }, index) => ({
-        vencimento,
-        valor: (index === vencimentosW.length - 1
-          ? totalCentavos - parcelaBase * (vencimentosW.length - 1)
-          : parcelaBase) / 100
-      }));
-    }
-    return parcelasLidas.parcelas;
-  };
+  const calcularParcelasFinanceiras = (totalVenda: number) =>
+    prazosColados && vencimentosW.length
+      ? distribuirFaturamentoEmParcelas(totalVenda, vencimentosW.map(v => v.vencimento))
+      : parcelasLidas.parcelas;
+
   const validarLojaFinanceira = (): boolean => {
     if (lojasStatus !== 'ready' || lojasClienteCarregado !== selectedClienteId) {
       setError('Não foi possível confirmar as lojas financeiras do cliente. Verifique a conexão antes de importar.');
