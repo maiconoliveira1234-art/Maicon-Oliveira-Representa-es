@@ -6,6 +6,17 @@ import { getFaixaPreco, getValorUnitario, calcularPrecoComDesconto } from './cal
 /**
  * Checks if the client has a pending offline open order creation/update waiting in queue
  */
+export function hasPendingExplicitOrderDeletion(clienteId: string): boolean {
+  if (!clienteId) return false;
+  try {
+    const queue = JSON.parse(localStorage.getItem('offline_db_pending_queue') || '[]');
+    return Array.isArray(queue) && queue.some(
+      item => item.action === 'delete_open_order' &&
+        item.payload?.explicit === true && item.payload?.cliente_id === clienteId
+    );
+  } catch { return false; }
+}
+
 export function hasPendingOpenOrderSync(clienteId: string): boolean {
   if (!clienteId) return false;
   try {
@@ -240,11 +251,27 @@ export async function getClientOpenOrderSummary(
     }
   }
 
-  // 2. Check localStorage (only accept if pending in offline queue OR server was not reachable)
+  // 2. Consultar marca de exclusao intencional para nunca mostrar rascunho antigo.
+  let deletedAt = 0;
+  try {
+    if (typeof navigator !== 'undefined' && navigator.onLine !== false) {
+      const { data, error } = await supabase.from('pedidos_em_aberto_excluidos')
+        .select('deleted_at').eq('cliente_id', clienteId).maybeSingle();
+      if (!error && data) deletedAt = Date.parse(data.deleted_at) || 0;
+    }
+  } catch { /* conserva dados se estiver offline */ }
+  // 3. Check localStorage (only accept if pending in offline queue OR server was not reachable)
   try {
     const saved = localStorage.getItem(`pedido_${clienteId}`);
     if (saved) {
-      if (serverChecked && !rawOrder) {
+      const cached = JSON.parse(saved);
+      const cachedStart = Date.parse(cached?.startedAt || '') || 0;
+      if (hasPendingExplicitOrderDeletion(clienteId)) {
+        rawOrder = null;
+      } else if (deletedAt && cachedStart <= deletedAt) {
+        clearLocalDraft(`pedido_${clienteId}`);
+        rawOrder = null;
+      } else if (serverChecked && !rawOrder) {
         // The server was checked and has no open order. Check if there is an offline creation pending.
         if (!hasPendingOpenOrderSync(clienteId)) {
           // This is an orphan draft (already deleted/invoiced on another device). Purge it!
@@ -378,8 +405,7 @@ export async function deleteClientOpenOrder(clienteId: string): Promise<boolean>
     return false;
   }
   try {
-    const { error } = await supabase.from('pedidos_em_aberto')
-      .delete().eq('cliente_id', clienteId);
+    const { error } = await supabase.rpc('excluir_pedido_em_aberto', { p_cliente_id: clienteId });
     if (error) {
       console.error('Erro ao excluir pedido no Supabase; rascunho preservado:', error);
       return false;
@@ -427,6 +453,16 @@ export async function fetchOpenOrderSales(
     }
   }
 
+  const deletedAtByClient = new Map<string, number>();
+  if (typeof navigator !== 'undefined' && navigator.onLine !== false) {
+    try {
+      const { data, error } = await supabase.from('pedidos_em_aberto_excluidos')
+        .select('cliente_id,deleted_at');
+      if (!error && data) data.forEach(row =>
+        deletedAtByClient.set(row.cliente_id, Date.parse(row.deleted_at) || 0));
+    } catch { /* manter lista do servidor se a consulta auxiliar falhar */ }
+  }
+
   const openOrdersMap = new Map<string, RawOpenOrder>();
   const serverClientIds = new Set<string>();
 
@@ -456,11 +492,20 @@ export async function fetchOpenOrderSales(
   // 2. Merge / Fallback with localStorage (compare timestamps if both exist)
   (clientesList || []).forEach(c => {
     try {
+      if (hasPendingExplicitOrderDeletion(c.id)) {
+        openOrdersMap.delete(c.id);
+        return;
+      }
       const saved = localStorage.getItem(`pedido_${c.id}`);
       if (saved) {
-        // Não descartar um pedido local porque o Supabase retornou zero linhas.
-        // O rascunho pode ainda não ter sincronizado após o login.
         const parsed = JSON.parse(saved);
+        const deletedAt = deletedAtByClient.get(c.id) || 0;
+        const startedAt = Date.parse(parsed?.startedAt || '') || 0;
+        if (deletedAt && startedAt <= deletedAt) {
+          clearLocalDraft(`pedido_${c.id}`);
+          return;
+        }
+        // Rascunhos locais validos so sao exibidos quando nao precedem exclusao.
         if (parsed && typeof parsed === 'object') {
           const localItems = parsed.items || (Array.isArray(parsed) ? parsed : null);
           if (localItems) {

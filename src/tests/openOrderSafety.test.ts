@@ -12,9 +12,9 @@ assert.doesNotMatch(order, /if \(itens\.length === 0\) \{\s*draftSaver\.cancel\(
 assert.match(order, /else if \(!dbData && localData\) \{[\s\S]*?savedData = localData;/);
 assert.doesNotMatch(manager, /const reconcileOpenOrders = async/);
 
-// Rascunhos sobrevivem à consulta remota vazia e podem voltar à nuvem.
-assert.match(manager, /listLocalOrderDrafts\(\)/);
-assert.match(manager, /\.from\('pedidos_em_aberto'\)[\s\S]*?\.insert\(\{/);
+// Recuperacao so acontece por escrita explicita: nunca ao inicializar a sessao.
+assert.doesNotMatch(manager, /listLocalOrderDrafts\(\)/);
+assert.doesNotMatch(manager, /restoreLocalOpenOrders/);
 assert.match(storage, /db\.getAll\('app_cache'\)/);
 
 // Exclusões antigas sem confirmação explícita não podem ser reaplicadas.
