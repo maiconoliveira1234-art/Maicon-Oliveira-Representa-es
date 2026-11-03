@@ -466,12 +466,39 @@ export function OrderPage() {
           }
         }
 
-        // 2. Load from localStorage
+        // 2. Consultar exclusoes intencionais antes de recuperar copias locais.
+        // Se houver uma exclusao pendente, a copia antiga nunca deve aparecer.
+        let deletedAt = 0;
+        let deletionPending = false;
+        try {
+          const rawQueue = localStorage.getItem('offline_db_pending_queue');
+          const queue = rawQueue ? JSON.parse(rawQueue) : [];
+          deletionPending = Array.isArray(queue) && queue.some((item: any) =>
+            item.action === 'delete_open_order' && item.payload?.explicit === true &&
+            item.payload?.cliente_id === clienteId);
+        } catch { /* preservar dados se o armazenamento estiver indisponivel */ }
+        if (navigator.onLine !== false) {
+          try {
+            const { data, error } = await supabase.from('pedidos_em_aberto_excluidos')
+              .select('deleted_at').eq('cliente_id', clienteId).maybeSingle();
+            if (!error && data?.deleted_at) deletedAt = Date.parse(data.deleted_at) || 0;
+          } catch (error) {
+            console.warn('Nao foi possivel consultar exclusao de pedido:', error);
+          }
+        }
+
+        // 3. Load from localStorage
         let localData: any = null;
         const saved = await readDraftLocally(`pedido_${clienteId}`);
         if (saved) {
           try {
-            localData = JSON.parse(saved);
+            const parsed = JSON.parse(saved);
+            const started = Date.parse(parsed.startedAt || '') || 0;
+            if (!deletionPending && (!deletedAt || started > deletedAt)) {
+              localData = parsed;
+            } else if (deletedAt && started <= deletedAt) {
+              clearLocalDraft(`pedido_${clienteId}`);
+            }
           } catch (e) {
             console.error('Error parsing localStorage:', e);
           }
@@ -481,9 +508,8 @@ export function OrderPage() {
         if (dbData && !localData) {
           savedData = dbData;
         } else if (!dbData && localData) {
-          // Consulta vazia NÃO é confirmação de exclusão. Após relogar, uma
-          // sessão/replicação atrasada pode devolver zero linhas temporariamente.
-          // Recuperar o rascunho local e tentar reenviá-lo ao Supabase.
+          // Nunca recriar o pedido apenas por carregar uma copia local.
+          // Edicoes reais posteriores sao gravadas pelo autosave.
           savedData = localData;
         } else if (dbData && localData) {
           const localTime = localData.updatedAt ? new Date(localData.updatedAt).getTime() : (localData.startedAt ? new Date(localData.startedAt).getTime() : 0);
@@ -663,9 +689,13 @@ export function OrderPage() {
   const handleClearOrder = async () => {
     suppressDraftPersistence.current = true;
     draftSaver.cancel();
-    if (clienteId) {
-      await deleteOpenOrder(clienteId);
+    const result = clienteId ? await deleteOpenOrder(clienteId) : { status: 'synced' as const };
+    if (result.status !== 'synced' && result.status !== 'queued') {
+      suppressDraftPersistence.current = false;
+      return;
     }
+    // Em caso de falha de rede, a exclusao continua na fila; nao recriar
+    // o rascunho enquanto a intencao de limpar estiver pendente.
     setItens([]);
     setRegrasAprovadas([]);
     setConsultaFaixa('livre');
@@ -1081,7 +1111,10 @@ export function OrderPage() {
         if (clienteId) {
           suppressDraftPersistence.current = true;
           draftSaver.cancel();
-          await deleteOpenOrder(clienteId);
+          const removal = await deleteOpenOrder(clienteId);
+          if (removal.error && removal.status === 'queued') {
+            console.warn('Exclusao de rascunho aguardando sincronizacao:', removal.error);
+          }
         }
         alert('Orçamento gerado com sucesso!');
         navigate(`/cliente/${clienteId}`);
