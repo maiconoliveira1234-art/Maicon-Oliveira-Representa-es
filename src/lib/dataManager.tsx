@@ -370,6 +370,12 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
               started_at: payload.started_at || new Date().toISOString(),
               updated_at: payload.updated_at || new Date().toISOString()
             }, { onConflict: 'cliente_id' });
+          if (error?.code === 'P0001' && error.message?.includes('Pedido anterior foi limpo')) {
+            // A exclusao intencional foi registrada por outro dispositivo.
+            // Nao reprocessar indefinidamente uma copia antiga.
+            clearLocalDraft(`pedido_${payload.cliente_id}`);
+            continue;
+          }
           if (error) throw error;
         } else if (item.action === 'delete_open_order') {
           // Filas de versões antigas podem conter exclusões AUTOMÁTICAS geradas
@@ -1072,6 +1078,10 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
           updated_at: payload.updated_at || new Date().toISOString()
         }, { onConflict: 'cliente_id' });
 
+      if (error?.code === 'P0001' && error.message?.includes('Pedido anterior foi limpo')) {
+        clearLocalDraft(`pedido_${payload.cliente_id}`);
+        return { status: 'synced' as const, error: 'Rascunho antigo descartado: pedido ja excluido' };
+      }
       if (error) {
         console.warn('[DataManager] saveOpenOrder error, queuing for retry:', error);
         await queueOpenOrderForRetry('save_open_order', payload);
