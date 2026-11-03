@@ -6,6 +6,17 @@ import { getFaixaPreco, getValorUnitario, calcularPrecoComDesconto } from './cal
 /**
  * Checks if the client has a pending offline open order creation/update waiting in queue
  */
+export function hasPendingExplicitOrderDeletion(clienteId: string): boolean {
+  if (!clienteId) return false;
+  try {
+    const queue = JSON.parse(localStorage.getItem('offline_db_pending_queue') || '[]');
+    return Array.isArray(queue) && queue.some(
+      item => item.action === 'delete_open_order' &&
+        item.payload?.explicit === true && item.payload?.cliente_id === clienteId
+    );
+  } catch { return false; }
+}
+
 export function hasPendingOpenOrderSync(clienteId: string): boolean {
   if (!clienteId) return false;
   try {
@@ -255,8 +266,11 @@ export async function getClientOpenOrderSummary(
     if (saved) {
       const cached = JSON.parse(saved);
       const cachedStart = Date.parse(cached?.startedAt || '') || 0;
-      if (deletedAt && cachedStart <= deletedAt) {
+      if (hasPendingExplicitOrderDeletion(clienteId)) {
+        rawOrder = null;
+      } else if (deletedAt && cachedStart <= deletedAt) {
         clearLocalDraft(`pedido_${clienteId}`);
+        rawOrder = null;
       } else if (serverChecked && !rawOrder) {
         // The server was checked and has no open order. Check if there is an offline creation pending.
         if (!hasPendingOpenOrderSync(clienteId)) {
@@ -391,8 +405,7 @@ export async function deleteClientOpenOrder(clienteId: string): Promise<boolean>
     return false;
   }
   try {
-    const { error } = await supabase.from('pedidos_em_aberto')
-      .delete().eq('cliente_id', clienteId);
+    const { error } = await supabase.rpc('excluir_pedido_em_aberto', { p_cliente_id: clienteId });
     if (error) {
       console.error('Erro ao excluir pedido no Supabase; rascunho preservado:', error);
       return false;
@@ -479,6 +492,10 @@ export async function fetchOpenOrderSales(
   // 2. Merge / Fallback with localStorage (compare timestamps if both exist)
   (clientesList || []).forEach(c => {
     try {
+      if (hasPendingExplicitOrderDeletion(c.id)) {
+        openOrdersMap.delete(c.id);
+        return;
+      }
       const saved = localStorage.getItem(`pedido_${c.id}`);
       if (saved) {
         const parsed = JSON.parse(saved);
