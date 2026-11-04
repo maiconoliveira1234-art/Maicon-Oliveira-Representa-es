@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const page = readFileSync('src/pages/PriceInquiryPage.tsx','utf8');
+assert.match(page,/\[showInactive, setShowInactive\] = useState\(false\)/);
+assert.match(page,/const localProducts = cachedProdutos;/);
+assert.match(page,/\.from\('produtos'\)[\s\S]*?\.select\('\*'\)\s*\.order\('familia'\)/);
+assert.doesNotMatch(page,/\.from\('produtos'\)[\s\S]*?\.select\('\*'\)\s*\.eq\('ativo', true\)/);
+assert.match(page,/showInactive \? p\.ativo !== false : p\.ativo === false/);
+assert.match(page,/\{showInactive \? 'Mostrar Ativos' : 'Inativos'\}/);
+assert.match(page,/ativo: editForm\.ativo/);
+assert.match(page,/onClick=\{\(\) => setEditForm\(\{ \.\.\.editForm, ativo: !editForm\.ativo \}\)\}/);
+assert.match(page,/filteredProdutos\.filter\(p => p\.ativo !== false\)\.map\(p => p\.id\)/);
+console.log('Reativacao de produtos pelo CRM: verificacoes aprovadas.');
