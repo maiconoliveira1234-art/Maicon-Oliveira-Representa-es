@@ -396,6 +396,15 @@ export function OrderPage() {
     return [...processedVenda, ...processedNonVenda, ...bonificacoesCampanha];
   }, [itens, produtos, currentFaixa, beneficiosAprovados]);
 
+  // Produtos bonificados em campanhas continuam tendo preco normal quando
+  // adicionados como VENDA. Somente a linha extra de bonificacao fica zerada.
+  const vendasSemPreco = useMemo(() => computedItens.filter(item =>
+    (!item.tipo_operacao || item.tipo_operacao === 'VENDA') &&
+    Number(item.quantidade) > 0 &&
+    (!Number.isFinite(Number(item.valor_unitario)) || Number(item.valor_unitario) <= 0 ||
+     !Number.isFinite(Number(item.valor_total)) || Number(item.valor_total) <= 0)
+  ), [computedItens]);
+
   const valorVendasSubtotal = useMemo(() => {
     return computedItens
       .filter(item => !item.tipo_operacao || item.tipo_operacao === 'VENDA')
@@ -980,6 +989,14 @@ export function OrderPage() {
       return;
     }
 
+    if (vendasSemPreco.length > 0) {
+      const nomes = vendasSemPreco.map(item =>
+        produtos.find(p => p.id === item.produto_id)?.produto || 'Produto sem cadastro'
+      ).join(', ');
+      alert(`Existem itens de VENDA com preco zerado (${nomes}). Confira o cadastro do produto antes de gerar o orcamento. Somente bonificacoes podem ter preco zero.`);
+      return;
+    }
+
     if (!Number.isFinite(valorTotal) || valorTotal < MINIMUM_ORDER_VALUE) {
       alert(`O pedido mínimo é ${formatCurrency(MINIMUM_ORDER_VALUE)}. Complete o valor do pedido para continuar.`);
       return;
@@ -1479,6 +1496,12 @@ export function OrderPage() {
       )}
 
       {/* Items List */}
+      {vendasSemPreco.length > 0 && (
+        <div role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-xs font-bold text-red-800">
+          Atenção: há produtos de VENDA com preço zerado. Confira o cadastro antes de gerar o orçamento.
+          Apenas as unidades de bonificação de campanha devem ficar zeradas.
+        </div>
+      )}
       <div className="space-y-3">
         <div className="px-1 py-3 border-b border-neutral-200">
           <h3 className="font-bold text-neutral-800">Itens do Orçamento</h3>
