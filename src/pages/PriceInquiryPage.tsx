@@ -19,6 +19,7 @@ export function PriceInquiryPage() {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
   const [selectedFamily, setSelectedFamily] = useState<string>('all');
   const [selectedTable, setSelectedTable] = useState<PrecoFaixa>('livre');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -96,6 +97,8 @@ export function PriceInquiryPage() {
 
       // Update local state is crucial
       setProdutos(prev => prev.map(p => p.id === editForm.id ? { ...p, ...editForm } : p));
+      if (editForm.ativo === false) setSelectedIds(prev => new Set([...prev].filter(id => id !== editForm.id)));
+      setSelectedFamily('all');
       setIsEditModalOpen(false);
     } catch (err) {
       console.error('Erro ao salvar produto:', err);
@@ -120,7 +123,7 @@ export function PriceInquiryPage() {
       const startTime = performance.now();
       logDiagnostic('DEBUG_PRICE', 'Iniciando busca de produtos para consulta de preços...');
       try {
-        const localProducts = cachedProdutos.filter(p => p.ativo !== false);
+        const localProducts = cachedProdutos;
         if (localProducts.length > 0) {
           setProdutos([...localProducts].sort((a, b) => `${a.familia || ''}${a.produto}`.localeCompare(`${b.familia || ''}${b.produto}`)));
         }
@@ -129,7 +132,6 @@ export function PriceInquiryPage() {
         const { data, error } = await supabase
           .from('produtos')
           .select('*')
-          .eq('ativo', true)
           .order('familia')
           .order('produto');
         
@@ -282,15 +284,16 @@ export function PriceInquiryPage() {
   };
 
   const families = useMemo(() => {
-    const activeProducts = produtos.filter(p => p.ativo !== false);
-    const fams = new Set(activeProducts.map(p => p.familia || 'Sem Família'));
+    const visibleProducts = produtos.filter(p => showInactive ? p.ativo === false : p.ativo !== false);
+    const fams = new Set(visibleProducts.map(p => p.familia || 'Sem Família'));
     return Array.from(fams).sort();
-  }, [produtos]);
+  }, [produtos, showInactive]);
 
   const filteredProdutos = useMemo(() => {
     const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word.length > 0);
     
     return produtos.filter(p => {
+      if (showInactive ? p.ativo !== false : p.ativo === false) return false;
       const productName = p.produto || '';
       const productFamily = p.familia || '';
       const targetString = `${productName} ${productFamily}`.toLowerCase();
@@ -308,10 +311,10 @@ export function PriceInquiryPage() {
 
       return matchesSearch && matchesFamily;
     });
-  }, [produtos, searchTerm, selectedFamily, selectedClient, clientLastPrices, clientLastPricesByName]);
+  }, [produtos, searchTerm, selectedFamily, selectedClient, clientLastPrices, clientLastPricesByName, showInactive]);
 
   const selectAll = () => {
-    const allIds = filteredProdutos.map(p => p.id);
+    const allIds = filteredProdutos.filter(p => p.ativo !== false).map(p => p.id);
     setSelectedIds(new Set(allIds));
   };
 
@@ -539,6 +542,31 @@ export function PriceInquiryPage() {
           )}
         </div>
 
+        <div className="flex justify-center">
+          <button
+            type="button"
+            aria-pressed={showInactive}
+            onClick={() => {
+              setShowInactive(value => !value);
+              setSelectedFamily('all');
+              setSelectedClient('all');
+              setSelectedIds(new Set());
+              setHistoryProductId(null);
+            }}
+            className={cn(
+              "rounded-lg border px-4 py-2 text-xs font-bold transition-colors",
+              showInactive
+                ? "border-orange-300 bg-orange-100 text-orange-700"
+                : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
+            )}
+          >
+            {showInactive ? 'Mostrar Ativos' : 'Inativos'}
+            {!showInactive && produtos.some(p => p.ativo === false)
+              ? ` (${produtos.filter(p => p.ativo === false).length})`
+              : ''}
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl mx-auto">
           <div className="relative">
             <FilterDropdown 
@@ -708,8 +736,9 @@ export function PriceInquiryPage() {
               return (
                 <div
                   key={produto.id}
-                  onClick={() => toggleSelect(produto.id)}
-                  className="flex items-center justify-between p-4 hover:bg-neutral-50 transition-colors group cursor-pointer"
+                  onClick={() => { if (produto.ativo !== false) toggleSelect(produto.id); }}
+                  className={cn("flex items-center justify-between p-4 transition-colors group",
+                    produto.ativo === false ? "bg-neutral-50/60" : "hover:bg-neutral-50 cursor-pointer")}
                 >
                   <div className="flex items-center gap-3">
                     <div
@@ -723,6 +752,7 @@ export function PriceInquiryPage() {
                     <div>
                       <h3 className="font-bold text-neutral-900 text-base">{produto.produto}</h3>
                       <p className="text-[10px] text-neutral-400 font-bold uppercase">{produto.familia}</p>
+                      {produto.ativo === false && <span className="text-[10px] font-bold uppercase text-amber-700">Inativo · Editar para reativar</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-4 md:gap-6">
@@ -763,7 +793,7 @@ export function PriceInquiryPage() {
             })
           ) : (
             <div className="p-12 text-center text-neutral-400">
-              <p className="font-medium text-neutral-600">Nenhum produto encontrado</p>
+              <p className="font-medium text-neutral-600">{showInactive ? 'Nenhum produto inativo encontrado' : 'Nenhum produto encontrado'}</p>
               {selectedClient !== 'all' ? (
                 <p className="text-xs text-neutral-400 mt-1">
                   O filtro por cliente exibe apenas os produtos que o cliente já comprou no histórico. Para ver toda a tabela ou produtos novos, selecione &quot;Todos os Clientes&quot;.
