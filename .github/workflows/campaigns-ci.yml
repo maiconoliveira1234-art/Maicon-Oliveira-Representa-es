@@ -23,6 +23,7 @@ jobs:
       - run: npx tsx src/tests/creditAlert.test.ts
       - run: npx tsx src/tests/creditImport.test.ts
       - run: npx tsx src/tests/financialStoreUi.test.ts
+      - run: npx tsx src/tests/productReactivationUi.test.ts
       - run: npx tsx src/tests/openOrderSafety.test.ts
       - run: npx tsx src/tests/openOrderDeletionSafety.test.ts
       - run: npm run build
