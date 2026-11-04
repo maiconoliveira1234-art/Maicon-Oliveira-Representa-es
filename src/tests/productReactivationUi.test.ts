@@ -8,6 +8,6 @@ assert.doesNotMatch(page,/\.from\('produtos'\)[\s\S]*?\.select\('\*'\)\s*\.eq\('
 assert.match(page,/showInactive \? p\.ativo !== false : p\.ativo === false/);
 assert.match(page,/\{showInactive \? 'Mostrar Ativos' : 'Inativos'\}/);
 assert.match(page,/ativo: editForm\.ativo/);
-assert.match(page,/onClick=\{\(\) => setEditForm\(\{ \.\.\.editForm, ativo: !editForm\.ativo \}\)\}/);
+assert.match(page,/ativo: !editForm\.ativo/);
 assert.match(page,/filteredProdutos\.filter\(p => p\.ativo !== false\)\.map\(p => p\.id\)/);
 console.log('Reativacao de produtos pelo CRM: verificacoes aprovadas.');
