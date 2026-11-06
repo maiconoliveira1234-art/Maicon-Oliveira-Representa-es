@@ -9,9 +9,9 @@ assert.deepEqual(adjustedCredit('R$ 15.000,25', 10000, 2000), { limit: 15000.25,
 for (const value of ['', '-1', '1,001', 'abc', '1e5', '7.999,99', '1.2.3', '999999999999999999999']) {
   assert.throws(() => adjustedCredit(value, 10000, 2000));
 }
-assert.equal(titleStatus({ vencimento: '2026-11-05', baixado_em: null }, '2026-11-06'), 'Vencido — sem baixa');
-assert.equal(titleStatus({ vencimento: '2026-11-06', baixado_em: null }, '2026-11-06'), 'Vence hoje');
+assert.equal(titleStatus({ vencimento: '2026-11-05', baixado_em: null }, '2026-11-06'), 'Pagamento presumido');
+assert.equal(titleStatus({ vencimento: '2026-11-06', baixado_em: null }, '2026-11-06'), 'Pagamento presumido');
 assert.equal(titleStatus({ vencimento: '2026-11-07', baixado_em: null }, '2026-11-06'), 'A vencer');
 assert.equal(titleStatus({ vencimento: '2026-11-05', baixado_em: '2026-11-06' }, '2026-11-06'), 'Baixado');
-assert.equal(titleStatus({ vencimento: '2026-11-05', baixado_em: '2026-11-07' }, '2026-11-06'), 'Vencido — sem baixa');
+assert.equal(titleStatus({ vencimento: '2026-11-05', baixado_em: '2026-11-07' }, '2026-11-06'), 'Pagamento presumido');
 console.log('Financial review tests passed.');

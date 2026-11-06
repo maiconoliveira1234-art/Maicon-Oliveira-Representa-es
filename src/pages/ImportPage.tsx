@@ -8,7 +8,7 @@ import { auditRowCost, CostAuditResult } from '../lib/costAuditer';
 import { useDataManager } from '../lib/dataManager';
 import { getFaixaPreco, getValorUnitario } from '../lib/calculations';
 import { getFlexRateForDate } from '../lib/flexRules';
-import { distribuirFaturamentoEmParcelas } from '../lib/creditImport';
+import { calcularVencimentosW, distribuirFaturamentoEmParcelas } from '../lib/creditImport';
 import { ensureQuarterlyFlexReset } from '../services/flexService';
 import { getClientOpenOrderSummary, deleteClientOpenOrder, ClientOpenOrderSummary } from '../lib/openOrderSales';
 
@@ -49,21 +49,6 @@ interface NewProductData {
   "2000kg": number;
   "4000kg": number;
 }
-
-// Prazos W: sexta-feira da semana seguinte ao pedido + dias do prazo.
- // Datas em UTC impedem deslocamentos por fuso e não aplicam feriados.
-const calcularVencimentosW = (dataPedido: string, prazos: number[]) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataPedido)) return [];
-  const data = new Date(dataPedido + 'T12:00:00Z');
-  if (Number.isNaN(data.getTime()) || data.toISOString().slice(0, 10) !== dataPedido) return [];
-  const diaSemanaSegundaZero = (data.getUTCDay() + 6) % 7;
-  data.setUTCDate(data.getUTCDate() + 11 - diaSemanaSegundaZero);
-  return prazos.map(prazo => {
-    const vencimento = new Date(data);
-    vencimento.setUTCDate(vencimento.getUTCDate() + prazo);
-    return { prazo, vencimento: vencimento.toISOString().slice(0, 10) };
-  });
-};
 
 export function ImportPage() {
   const {
@@ -439,6 +424,10 @@ export function ImportPage() {
     if (processedRows.length === 0) return;
     if (!validarLojaFinanceira()) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    if (prazosColados?.erro || parcelasLidas.erro || (prazosColados && vencimentosW.length !== prazosColados.prazos.length)) {
+      setError(prazosColados?.erro || parcelasLidas.erro || 'Confira a data do faturamento e os prazos das parcelas.');
       return;
     }
     if (parcelasLidas.parcelas.length > 0 &&
@@ -1360,13 +1349,15 @@ export function ImportPage() {
                 aria-invalid={!!(prazosColados?.erro || parcelasLidas.erro)}
                 className="h-11 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 text-sm outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
               />
+              <p className="mt-1 text-xs text-neutral-600">Prazos em dias contados a partir do sábado da semana seguinte à data do faturamento.</p>
+              {vencimentosW.length > 0 && <p className="mt-1 text-xs font-semibold text-orange-700">Vencimentos: {vencimentosW.map(v => v.vencimento.split('-').reverse().join('/')).join(' • ')}</p>}
               {(prazosColados?.erro || parcelasLidas.erro) && (
                 <p className="text-xs text-red-600 mt-1">{prazosColados?.erro || parcelasLidas.erro}</p>
               )}
             </div>
 
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-600">Data do Pedido</label>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-600">Data do Faturamento</label>
               <input
                 type="date"
                 value={orderDate}
@@ -2063,3 +2054,4 @@ export function ImportPage() {
     </div>
   );
 }
+

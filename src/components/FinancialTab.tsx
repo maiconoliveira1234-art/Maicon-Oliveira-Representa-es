@@ -26,6 +26,8 @@ async function loadTitles(id: string): Promise<CreditTitle[]> {
 }
 
 function StoreReview({ store, onSaved }: { store: Store; onSaved: (store: Store) => void }) {
+  const [available, setAvailable] = useState<number | null>(null);
+  const [balanceError, setBalanceError] = useState('');
   const [titles, setTitles] = useState<CreditTitle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -35,7 +37,7 @@ function StoreReview({ store, onSaved }: { store: Store; onSaved: (store: Store)
   const [message, setMessage] = useState('');
   const [filter, setFilter] = useState('Todos');
   const lock = useRef(false);
-  const today = format(new Date(), 'yyyy-MM-dd');
+  const [today, setToday] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -45,6 +47,27 @@ function StoreReview({ store, onSaved }: { store: Store; onSaved: (store: Store)
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [store.id]);
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      if (active) setToday(format(new Date(), 'yyyy-MM-dd'));
+      try {
+        const { data, error: readError } = await supabase.rpc('saldo_credito_projetado', {
+          p_entidade: store.id, p_data: format(new Date(), 'yyyy-MM-dd')
+        });
+        if (readError) throw readError;
+        const row = Array.isArray(data) ? data[0] : data;
+        if (!row || !Number.isFinite(Number(row.disponivel_estimado))) throw new Error('Saldo indisponível');
+        if (active) { setAvailable(Number(row.disponivel_estimado)); setBalanceError(''); }
+      } catch {
+        if (active) { setAvailable(null); setBalanceError('Não foi possível atualizar o disponível. Atualize a consulta.'); }
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(refresh, 60000);
+    window.addEventListener('focus', refresh);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [store.id, store.limite_total, store.disponivel_oficial_snapshot]);
   let preview: ReturnType<typeof adjustedCredit> | null = null;
   let validation = '';
   if (editing && raw.trim()) {
@@ -83,9 +106,10 @@ function StoreReview({ store, onSaved }: { store: Store; onSaved: (store: Store)
     <h3 className="font-extrabold text-neutral-900">{store.razao_social}</h3>
     <div className="grid gap-3 sm:grid-cols-2">
       <div><p className="text-xs text-neutral-500">Limite total</p><p className="text-xl font-black">{formatCurrency(store.limite_total)}</p></div>
-      <div><p className="text-xs text-neutral-500">Disponível no levantamento</p><p className="text-xl font-black">{formatCurrency(store.disponivel_oficial_snapshot)}</p></div>
+      <div><p className="text-xs text-neutral-500">Disponível atualizado (pagamento presumido)</p><p className="text-xl font-black">{available === null ? 'Indisponível / consultando...' : formatCurrency(available)}</p></div>
     </div>
-    <p className="text-xs text-neutral-600">Levantamento de {dateLabel(store.data_snapshot)}. O disponível não é um saldo em tempo real. A projeção de crédito dos pedidos segue as regras atuais do CRM.</p>
+    <p className="text-xs text-neutral-600">Base do ERP de {dateLabel(store.data_snapshot)}: {formatCurrency(store.disponivel_oficial_snapshot)}. O disponível atualizado considera os boletos pagos no vencimento, desconta novos faturamentos e reservas e respeita o limite total. É uma estimativa do CRM.</p>
+    {balanceError && <p role="alert" className="text-sm text-red-700">{balanceError}</p>}
     {!editing ? <button type="button" className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white"
       onClick={() => { setRaw(store.limite_total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })); setMessage(''); setEditing(true); }}>Alterar limite</button> :
       <form onSubmit={save} className="space-y-3 rounded-lg bg-orange-50 p-3">
@@ -105,7 +129,7 @@ function StoreReview({ store, onSaved }: { store: Store; onSaved: (store: Store)
       <h4 className="font-bold">Boletos</h4>
       <label className="text-xs">Situação
         <select className={inputClass} value={filter} onChange={e => setFilter(e.target.value)}>
-          {['Todos', 'Vencido — sem baixa', 'Vence hoje', 'A vencer', 'Baixado'].map(s => <option key={s}>{s}</option>)}
+          {['Todos', 'Pagamento presumido', 'A vencer', 'Baixado'].map(s => <option key={s}>{s}</option>)}
         </select>
       </label>
     </div>
@@ -119,13 +143,20 @@ function StoreReview({ store, onSaved }: { store: Store; onSaved: (store: Store)
               <td className="p-2">{titleStatus(t, today)}</td><td className="p-2">{dateLabel(t.baixado_em)}</td>
             </tr>)}</tbody>
           </table></div>}
-        <p className="text-xs text-neutral-500">Vencimento não confirma pagamento. “Baixado” indica uma baixa registrada no CRM; confira com o financeiro da empresa.</p>
+        <p className="text-xs text-neutral-500">No vencimento, o CRM presume o pagamento e libera o crédito automaticamente. “Baixado” indica baixa registrada. O pagamento presumido não é confirmação bancária.</p>
       </>}
   </article>;
 }
 
 export function FinancialTab({ clientes }: { clientes: Cliente[] }) {
   const [clientId, setClientId] = useState('');
+  const [clientSearch, setClientSearch] = useState('');
+  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').trim();
+  const activeClients = clientes.filter(c => c.ativo !== false);
+  const filteredClients = activeClients.filter(c => normalize(c.cliente).includes(normalize(clientSearch)));
+  useEffect(() => {
+    if (clientId && !clientes.some(c => c.id === clientId && c.ativo !== false)) setClientId('');
+  }, [clientes, clientId]);
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -155,12 +186,17 @@ export function FinancialTab({ clientes }: { clientes: Cliente[] }) {
     <div className="rounded-xl border border-neutral-200 bg-white p-4">
       <h2 className="text-lg font-extrabold">Financeiro por cliente</h2>
       <p className="mb-4 text-sm text-neutral-600">Consulte boletos e atualize o limite de cada loja conforme a aprovação no ERP.</p>
+      <label className="mb-3 block text-sm font-bold">Buscar cliente ativo
+        <input type="search" className={inputClass} value={clientSearch} onChange={e => setClientSearch(e.target.value)} placeholder="Digite o nome do cliente" />
+      </label>
       <label className="block text-sm font-bold">Cliente
         <select value={clientId} onChange={e => setClientId(e.target.value)} className={inputClass}>
           <option value="">Selecione um cliente</option>
-          {[...clientes].sort((a, b) => a.cliente.localeCompare(b.cliente, 'pt-BR')).map(c => <option key={c.id} value={c.id}>{c.cliente}{c.ativo === false ? ' (inativo)' : ''}</option>)}
+          {activeClients.filter(c => c.id === clientId && !filteredClients.some(f => f.id === c.id)).map(c => <option key={c.id} value={c.id} hidden>{c.cliente}</option>)}
+          {[...filteredClients].sort((a, b) => a.cliente.localeCompare(b.cliente, 'pt-BR')).map(c => <option key={c.id} value={c.id}>{c.cliente}</option>)}
         </select>
       </label>
+      <p role="status" className="mt-1 text-xs text-neutral-500">{filteredClients.length === 0 ? 'Nenhum cliente ativo encontrado.' : `${filteredClients.length} cliente(s) ativo(s) encontrado(s).`}</p>
       <button type="button" disabled={!clientId || loading} onClick={() => setRevision(n => n + 1)} className="mt-3 rounded-lg border px-4 py-2 text-sm font-bold disabled:opacity-50">Atualizar consulta</button>
     </div>
     {loading && <p role="status">Consultando financeiro...</p>}
