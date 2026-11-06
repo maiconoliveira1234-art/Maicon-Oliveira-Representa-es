@@ -1,6 +1,6 @@
 import { parseSaleDate } from './lib/utils';
 
-export const APP_VERSION = '1.20.188';
+export const APP_VERSION = '1.20.189';
 export const SALES_CUTOFF_DATE = '2026-04-11';
 export const SALES_CUTOFF_CLIENTS = [
   'LUCIA IRIA SCHNEIDER FLORES',
@@ -81,3 +81,4 @@ export const FAMILY_PRIORITY_ORDER = [
   'AMOSTRA - AGROP E VENDAS ONLINE VIGORA 01.02.2024',
   'BRINDES - AGROP E VENDAS ONLINE'
 ];
+

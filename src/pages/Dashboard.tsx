@@ -74,7 +74,7 @@ import {
 } from '../lib/salesTrendAnalysis';
 import { fetchOpenOrderSales } from '../lib/openOrderSales';
 
-export type DashboardTab = 'evolucao' | 'visao_geral' | 'curva_abc' | 'mix_produtos' | 'positivacao' | 'comissoes';
+export type DashboardTab = 'evolucao' | 'visao_geral' | 'curva_abc' | 'mix_produtos' | 'positivacao' | 'comissoes' | 'financeiro';
 type AbcMetric = 'volume' | 'faturamento' | 'ponderado';
 
 function abcValue(item: { totalKg: number; totalVal: number }, totals: { totalKg: number; totalVal: number }, metric: AbcMetric): number {
@@ -91,6 +91,8 @@ function abcValue(item: { totalKg: number; totalVal: number }, totals: { totalKg
   return 0;
 }
 
+const FinancialTab = lazy(() => import('../components/FinancialTab').then(module => ({ default: module.FinancialTab })));
+
 const CommissionTab = lazy(() => import('./CommissionPage').then(module => ({ default: module.CommissionPage })));
 
 export function Dashboard() {
@@ -102,7 +104,7 @@ export function Dashboard() {
     loadingGlobal
   } = useDataManager();
 
-  const [activeTab, setActiveTab] = useState<DashboardTab>(() => new URLSearchParams(window.location.search).get('aba') === 'comissoes' ? 'comissoes' : 'evolucao');
+  const [activeTab, setActiveTab] = useState<DashboardTab>(() => (['comissoes', 'financeiro'].includes(new URLSearchParams(window.location.search).get('aba') || '') ? new URLSearchParams(window.location.search).get('aba') as DashboardTab : 'evolucao'));
   const [loading, setLoading] = useState(true);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
@@ -880,6 +882,7 @@ export function Dashboard() {
     { id: 'mix_produtos' as const, label: 'Mix de Produtos', icon: Package },
     { id: 'positivacao' as const, label: 'Positivação da Carteira', icon: Users },
     { id: 'comissoes' as const, label: 'Comissões', icon: DollarSign },
+    { id: 'financeiro' as const, label: 'Financeiro', icon: DollarSign },
   ];
 
   const situationList: TrendCategory[] = [
@@ -946,7 +949,7 @@ export function Dashboard() {
                 <option value={-3}>3 Meses Atrás ({format(subMonths(new Date(), 3), 'MMMM/yyyy', { locale: ptBR })})</option>
               </select>
             </div>
-          ) : (
+          ) : activeTab === 'financeiro' ? null : (
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-neutral-500">Período:</span>
               <select
@@ -990,6 +993,12 @@ export function Dashboard() {
           );
         })}
       </div>
+
+      {activeTab === 'financeiro' && (
+        <Suspense fallback={<div className="py-8 text-center text-sm text-neutral-500">Carregando financeiro...</div>}>
+          <FinancialTab clientes={clientes} />
+        </Suspense>
+      )}
 
       {activeTab === 'comissoes' && (
         <Suspense fallback={<div className="py-8 text-center text-sm text-neutral-500">Carregando comissões...</div>}>
@@ -2494,3 +2503,4 @@ export function Dashboard() {
     </div>
   );
 }
+
