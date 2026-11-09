@@ -36,6 +36,7 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [choices, setChoices] = useState<Record<string, string>>({});
+  const [productSearch, setProductSearch] = useState<Record<string, string>>({});
   const [scopes, setScopes] = useState<Record<string, 'global' | 'cliente'>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -119,6 +120,7 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
   };
 
   const candidateNames = useMemo(() => new Map(products.map(p => [p.id, p.produto])), [products]);
+  const normalizeSearch = (value: string) => value.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().trim();
 
   return (
     <section className="rounded-2xl border border-violet-200 bg-white p-4">
@@ -163,6 +165,11 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                     const allOptions = new Map<string, string>();
                     (item.candidatos || []).forEach(c => allOptions.set(c.id, c.produto));
                     products.forEach(p => allOptions.set(p.id, p.produto));
+                    const term = normalizeSearch(productSearch[key] || '');
+                    const filteredOptions = [...allOptions.entries()]
+                      .filter(([id, name]) => id === selected || !term || normalizeSearch(name).includes(term))
+                      .sort((a,b) => Number(b[0] === selected) - Number(a[0] === selected) || a[1].localeCompare(b[1]))
+                      .slice(0, 50);
                     return (
                       <div key={key} className="rounded-lg bg-neutral-50 p-3">
                         <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
@@ -179,11 +186,29 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                           )}
                         </div>
                         <label htmlFor={key} className="mb-1 block text-xs font-bold text-neutral-600">Produto correto no CRM</label>
-                        <select id={key} value={selected} onChange={e => setChoices(s => ({ ...s, [key]: e.target.value }))}
-                          className="w-full rounded-lg border border-neutral-300 bg-white px-2 py-2 text-xs text-neutral-900">
-                          <option value="">Selecione um produto</option>
-                          {[...allOptions.entries()].map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-                        </select>
+                        <input
+                          id={key}
+                          type="search"
+                          autoComplete="off"
+                          value={productSearch[key] || ''}
+                          onChange={e => setProductSearch(s => ({ ...s, [key]: e.target.value }))}
+                          placeholder="Digite parte do nome, linha ou peso do produto..."
+                          className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900"
+                        />
+                        <div role="listbox" aria-label="Produtos encontrados" className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-neutral-200 bg-white">
+                          {filteredOptions.map(([id, name]) => (
+                            <button type="button" role="option" aria-selected={id === selected} key={id}
+                              onClick={() => {
+                                setChoices(s => ({ ...s, [key]: id }));
+                                setProductSearch(s => ({ ...s, [key]: name }));
+                              }}
+                              className={`block w-full border-b border-neutral-100 px-3 py-2 text-left text-xs last:border-b-0 hover:bg-violet-50 ${id === selected ? 'bg-violet-50 font-bold text-violet-800' : 'text-neutral-700'}`}>
+                              {name}
+                            </button>
+                          ))}
+                          {filteredOptions.length === 0 && <p className="p-3 text-xs text-neutral-500">Nenhum produto encontrado.</p>}
+                        </div>
+                        <p className="mt-1 text-[11px] text-neutral-400">Mostrando até 50 resultados. Refine a busca digitando mais caracteres.</p>
                         {selected && <p className="mt-1 text-[11px] text-neutral-500">{candidateNames.get(selected) || ''}</p>}
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                           <label className="flex items-center gap-2 text-xs text-neutral-600">
