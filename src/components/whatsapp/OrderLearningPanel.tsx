@@ -39,6 +39,7 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [choices, setChoices] = useState<Record<string, string>>({});
   const [productSearch, setProductSearch] = useState<Record<string, string>>({});
+  const [expandedSearch, setExpandedSearch] = useState<Record<string, boolean>>({});
   const [scopes, setScopes] = useState<Record<string, 'global' | 'cliente'>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -147,7 +148,20 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
   };
 
   const candidateNames = useMemo(() => new Map(products.map(p => [p.id, p.produto])), [products]);
-  const normalizeSearch = (value: string) => value.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().trim();
+  const normalizeSearch = (value: string) => value.normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const searchRank = (name: string, query: string) => {
+    const words = normalizeSearch(query).split(' ').filter(Boolean);
+    const candidate = normalizeSearch(name);
+    if (!words.length) return -1;
+    if (!words.every(word => candidate.includes(word))) return -1;
+    let score = candidate.startsWith(words[0]) ? 40 : 0;
+    if (candidate.includes(words.join(' '))) score += 50;
+    for (const word of words) {
+      if (candidate.split(' ').some(part => part.startsWith(word))) score += 12;
+    }
+    return score;
+  };
 
   return (
     <section className="rounded-2xl border border-violet-200 bg-white p-4">
@@ -200,11 +214,14 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                     const allOptions = new Map<string, string>();
                     (item.candidatos || []).forEach(c => allOptions.set(c.id, c.produto));
                     products.forEach(p => allOptions.set(p.id, p.produto));
-                    const term = normalizeSearch(productSearch[key] || '');
-                    const filteredOptions = [...allOptions.entries()]
-                      .filter(([id, name]) => id === selected || !term || normalizeSearch(name).includes(term))
-                      .sort((a,b) => Number(b[0] === selected) - Number(a[0] === selected) || a[1].localeCompare(b[1]))
-                      .slice(0, 50);
+                    const term = (productSearch[key] || '').trim();
+                    const filteredOptions = term
+                      ? [...allOptions.entries()]
+                          .map(([id,name]) => ({id,name,rank:searchRank(name,term)}))
+                          .filter(row => row.rank >= 0)
+                          .sort((a,b) => b.rank-a.rank || a.name.localeCompare(b.name))
+                          .slice(0, 30)
+                      : [];
                     return (
                       <div key={key} className="rounded-lg bg-neutral-50 p-3">
                         <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
@@ -220,31 +237,51 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                             <span className="text-xs font-semibold text-amber-700">Revisão necessária</span>
                           )}
                         </div>
-                        <label htmlFor={key} className="mb-1 block text-xs font-bold text-neutral-600">Produto correto no CRM</label>
-                        <input
-                          id={key}
-                          type="search"
-                          autoComplete="off"
-                          value={productSearch[key] || ''}
-                          onChange={e => setProductSearch(s => ({ ...s, [key]: e.target.value }))}
-                          placeholder="Digite parte do nome, linha ou peso do produto..."
-                          className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900"
-                        />
-                        <div role="listbox" aria-label="Produtos encontrados" className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-neutral-200 bg-white">
-                          {filteredOptions.map(([id, name]) => (
-                            <button type="button" role="option" aria-selected={id === selected} key={id}
-                              onClick={() => {
-                                setChoices(s => ({ ...s, [key]: id }));
-                                setProductSearch(s => ({ ...s, [key]: name }));
-                              }}
-                              className={`block w-full border-b border-neutral-100 px-3 py-2 text-left text-xs last:border-b-0 hover:bg-violet-50 ${id === selected ? 'bg-violet-50 font-bold text-violet-800' : 'text-neutral-700'}`}>
-                              {name}
-                            </button>
-                          ))}
-                          {filteredOptions.length === 0 && <p className="p-3 text-xs text-neutral-500">Nenhum produto encontrado.</p>}
+                        <div className="rounded-lg border border-neutral-200 bg-white p-3">
+                          <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-500">
+                            {item.resolvido ? 'Produto confirmado' : item.origem_sugestao === 'aprendizado_confirmado' ? 'Produto aprendido anteriormente' : 'Sugestão de produto'}
+                          </p>
+                          <p className="mt-1 text-sm font-bold text-neutral-800">
+                            {selected ? (candidateNames.get(selected) || (item.candidatos || []).find(c => c.id === selected)?.produto || 'Produto selecionado') : (item.candidatos?.[0]?.produto || 'Nenhum produto sugerido')}
+                          </p>
+                          <button type="button" onClick={() => {
+                              setExpandedSearch(s => ({...s,[key]: !s[key]}));
+                              setProductSearch(s => ({...s,[key]: ''}));
+                            }}
+                            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-violet-200 px-2.5 py-1.5 text-xs font-bold text-violet-700">
+                            {expandedSearch[key] ? 'Recolher busca' : 'Alterar produto'}
+                            <ChevronDown size={14} className={expandedSearch[key] ? 'rotate-180' : ''} />
+                          </button>
+                          {expandedSearch[key] && (
+                            <div className="mt-3">
+                              <label htmlFor={key} className="mb-1 block text-xs font-semibold text-neutral-700">Pesquisar produto no catálogo</label>
+                              <input id={key} type="search" autoComplete="off" autoFocus
+                                value={productSearch[key] || ''}
+                                onChange={e => setProductSearch(s => ({...s,[key]: e.target.value}))}
+                                placeholder="Digite nome, linha ou peso..."
+                                className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
+                              />
+                              {term ? (
+                                <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-neutral-200">
+                                  {filteredOptions.map(row => (
+                                    <button key={row.id} type="button" onClick={() => {
+                                      setChoices(s => ({...s,[key]:row.id}));
+                                      setExpandedSearch(s => ({...s,[key]:false}));
+                                      setProductSearch(s => ({...s,[key]:''}));
+                                    }}
+                                      className="block w-full border-b border-neutral-100 px-3 py-2.5 text-left text-xs text-neutral-800 last:border-0 hover:bg-violet-50">
+                                      {row.name}
+                                    </button>
+                                  ))}
+                                  {filteredOptions.length === 0 && (
+                                    <p className="px-3 py-3 text-xs text-neutral-500">Nenhum produto correspondente.</p>
+                                  )}
+                                </div>
+                              ) : <p className="mt-2 text-xs text-neutral-500">Comece a digitar para mostrar opções próximas da pesquisa.</p>}
+                            </div>
+                          )}
                         </div>
-                        <p className="mt-1 text-[11px] text-neutral-400">Mostrando até 50 resultados. Refine a busca digitando mais caracteres.</p>
-                        {selected && <p className="mt-1 text-[11px] text-neutral-500">{candidateNames.get(selected) || ''}</p>}
+                        {!selected && <p className="mt-2 text-xs text-amber-700">Selecione a sugestão no catálogo usando “Alterar produto”, se necessário, antes de confirmar.</p>}
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                           <label className="flex items-center gap-2 text-xs text-neutral-600">
                             Aplicar a
