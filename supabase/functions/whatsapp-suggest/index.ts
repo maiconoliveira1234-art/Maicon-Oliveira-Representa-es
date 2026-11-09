@@ -221,6 +221,15 @@ Deno.serve(async (req:Request) => {
       `${i+1}. ${s.faturamento || ''} | ${s.produtos || ''} | qtd ${n(s.qtd)} | valor ${money(n(s['r$_total']))} | desconto registrado ${(n(s.xdt)*100).toFixed(1)}%`
     ).join('\n');
 
+    // Greeting is based on the current São Paulo local time, never the UTC server clock.
+    const saoPauloHour = Number(new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Sao_Paulo', hour: '2-digit', hourCycle: 'h23',
+    }).format(new Date()));
+    const saudacaoAtual = saoPauloHour >= 5 && saoPauloHour < 12 ? 'Bom dia'
+      : saoPauloHour >= 12 && saoPauloHour < 18 ? 'Boa tarde' : 'Boa noite';
+    const agoraLocal = new Intl.DateTimeFormat('pt-BR', {
+      timeZone:'America/Sao_Paulo', dateStyle:'full', timeStyle:'short'
+    }).format(new Date());
     const finalMessage = message.transcricao_audio || message.mensagem;
     const prompt = `Você escreve respostas de WhatsApp Business em nome de Maicon, representante comercial da Adimax.
 
@@ -270,7 +279,10 @@ MENSAGEM QUE DEVE SER RESPONDIDA
 Retorne somente a resposta sugerida.`;
 
     const response = await ai.models.generateContent({ model:'gemini-3.5-flash-lite', contents:prompt });
-    const suggestion = String(response.text || '').trim();
+    let suggestion = String(response.text || '').trim();
+    // Enforce the greeting if the model begins with one from the wrong period.
+    suggestion = suggestion.replace(/^(bom dia|boa tarde|boa noite)(?=[!,.:;\\s]|$)/i,
+      () => saudacaoAtual);
     if (!suggestion) return json({ error:'empty_model_response' }, 502);
 
     const generatedAt = new Date().toISOString();
