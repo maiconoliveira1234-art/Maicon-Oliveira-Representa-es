@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { supabase } from './lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 import { Layout } from './components/Layout';
@@ -185,6 +185,45 @@ function ProtectedApp({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Tempo em segundo plano a partir do qual o app é tratado como "reaberto".
+const REOPEN_AFTER_MS = 30 * 60 * 1000;
+
+// O app sempre inicia pela Home: ao carregar e ao voltar de uma pausa longa
+// (o iPad costuma retomar o app na última tela em que ele ficou).
+function StartAtHome() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const initialCheckDone = useRef(false);
+
+  useEffect(() => {
+    if (initialCheckDone.current) return;
+    initialCheckDone.current = true;
+    // Retorno da conexão com o Google Agenda precisa manter a tela de destino.
+    const returningFromGoogle = new URLSearchParams(location.search).has('google_calendar');
+    if (location.pathname !== '/' && !returningFromGoogle) {
+      navigate('/', { replace: true });
+    }
+  }, [location.pathname, location.search, navigate]);
+
+  useEffect(() => {
+    let hiddenAt = 0;
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+        return;
+      }
+      if (hiddenAt && Date.now() - hiddenAt >= REOPEN_AFTER_MS) {
+        navigate('/', { replace: true });
+      }
+      hiddenAt = 0;
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [navigate]);
+
+  return null;
+}
+
 function AppContent() {
   const { loadInitialData } = useDataManager();
 
@@ -195,6 +234,7 @@ function AppContent() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
+        <StartAtHome />
         <Layout>
           <Suspense fallback={<RouteFallback />}>
             <Routes>
