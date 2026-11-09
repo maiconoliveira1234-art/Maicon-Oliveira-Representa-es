@@ -92,7 +92,7 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
 
   const confirm = async (analysis: Analysis, item: Item, index: number) => {
     const key = getKey(analysis.id, index);
-    const selected = choices[key] || item.produto_id || item.sugestao_produto_id || item.candidatos?.[0]?.id || '';
+    const selected = choices[key] || item.produto_id || item.sugestao_produto_id || '';
     if (!selected) {
       setError('Selecione um produto do catálogo.');
       return;
@@ -196,7 +196,7 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                   </div>
                   {analysis.itens.map((item, index) => {
                     const key = getKey(analysis.id, index);
-                    const selected = choices[key] || item.produto_id || item.sugestao_produto_id || item.candidatos?.[0]?.id || '';
+                    const selected = choices[key] || item.produto_id || item.sugestao_produto_id || '';
                     const allOptions = new Map<string, string>();
                     (item.candidatos || []).forEach(c => allOptions.set(c.id, c.produto));
                     products.forEach(p => allOptions.set(p.id, p.produto));
