@@ -9,24 +9,39 @@ const db = createClient(URL, SERVICE, {auth:{persistSession:false,autoRefreshTok
 const respond = (body: unknown, status=200) => new Response(JSON.stringify(body),{status,headers:{"content-type":"application/json","cache-control":"no-store"}});
 
 function norm(s:string):string {
-  return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()
-    .replace(/\bRAÇAS?\s+PEQUENAS?\b/g," PP ")
-    .replace(/\bPEQUENAS?\b/g," PP ")
-    .replace(/\bADULTO\b/g," AD ")
-    .replace(/\bTODO\s+DIA\b/g," TD ")
-    .replace(/[^A-Z0-9]+/g," ").trim();
+ return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()
+ .replace(/\bRAÇAS?\s+PEQUENAS?\b/g," PEQ PORTE ")
+ .replace(/\bPEQUENAS?\b/g," PEQ PORTE ")
+ .replace(/\bTODO\s+DIA\b/g," T D ")
+ .replace(/\bADULTO\b/g," AD ")
+ .replace(/[^A-Z0-9]+/g," ").trim().replace(/\s+/g," ");
 }
 function rankedProducts(query:string, products:any[]) {
-  const words=norm(query).split(/\s+/).filter(w=>w.length>1);
-  const scored=products.map(p=>{
-    const name=norm(p.produto);
-    const hit=words.reduce((s,w)=>s+(name.split(" ").includes(w)?3:0),0);
-    const weight=String(query).match(/\b(\d+(?:[,.]\d+)?)\s*KG\b/i);
-    const size=weight?Number(weight[1].replace(",",".")):null;
-    const weightMatch=size===null?0:(name.includes(norm(size+"KG"))?6:-4);
-    return {id:p.id,produto:p.produto,score:hit+weightMatch};
-  }).filter(p=>p.score>0).sort((a,b)=>b.score-a.score).slice(0,5);
-  return scored;
+ const nq=norm(query);
+ const rawWeight=query.match(/\b(\d+(?:[,.]\d+)?)\s*KG\b/i);
+ const wantedWeight=rawWeight?Number(rawWeight[1].replace(",",".")):null;
+ const lineTD=/\bT D\b/.test(nq);
+ const brandMagnus=/\bMAGNUS\b/.test(nq);
+ const wantsPP=/\bPEQ PORTE\b/.test(nq);
+ const terms=nq.split(" ").filter(w=>w.length>=2 && !["KG","DE","DO"].includes(w));
+ return products.filter(p=>{
+   const pn=norm(p.produto);
+   if(brandMagnus && !pn.includes("MAGNUS")) return false;
+   if(lineTD && !pn.includes("MAGNUS T D ")) return false;
+   if(wantedWeight!==null && !pn.includes(String(wantedWeight).replace(".",",")+"KG")
+      && !pn.includes(String(wantedWeight)+"KG")) return false;
+   if(wantsPP && !pn.includes("PEQ PORTE")) return false;
+   if(!wantsPP && lineTD && pn.includes("PEQ PORTE")) return false;
+   return true;
+ }).map(p=>{
+   const pn=norm(p.produto);
+   let score=terms.reduce((acc,w)=>acc+(pn.split(" ").includes(w)?3:0),0);
+   if(lineTD) score+=12;
+   if(wantsPP && pn.includes("PEQ PORTE")) score+=10;
+   if(wantedWeight!==null) score+=8;
+   if(!wantsPP && /\bAD\b/.test(nq) && pn.includes("SABOR CARNE")) score+=2;
+   return {id:p.id,produto:p.produto,score};
+ }).filter(p=>p.score>0).sort((a,b)=>b.score-a.score||a.produto.localeCompare(b.produto)).slice(0,5);
 }
 Deno.serve(async req=>{
   if(req.method!=="POST") return respond({error:"method_not_allowed"},405);
@@ -78,12 +93,32 @@ Não invente identificadores de produtos, preços, descontos ou quantidades. Dú
       products.push(...(data||[]));
       if((data||[]).length<1000) break;
     }
-    const items=extracted.map((x:any)=>({
-      ...x,
-      candidatos:rankedProducts([x.descricao,x.embalagem].filter(Boolean).join(" "),products),
-      produto_id:null,
-      resolvido:false
-    }));
+    // Memories are created only by explicit, authenticated human confirmations.
+    const {data: learned,error:learnedError}=await db.from("whatsapp_produtos_aprendizados")
+      .select("expressao_normalizada,cliente_id,produto_id,confirmacoes").eq("status","ativo");
+    if(learnedError) throw learnedError;
+    const learnedRows=(learned||[]) as any[];
+    const activeById=new Map(products.map((p:any)=>[p.id,p]));
+    const items=extracted.map((x:any)=>{
+      const expression=[x.descricao,x.embalagem].filter(Boolean).join(" ");
+      const normalized=norm(expression);
+      const remembered=learnedRows.filter((r:any)=>r.expressao_normalizada===normalized
+        && activeById.has(r.produto_id)
+        && (r.cliente_id===null||r.cliente_id===message.cliente_id))
+        .sort((a:any,b:any)=>Number(b.cliente_id!==null)-Number(a.cliente_id!==null))[0];
+      const candidates=rankedProducts(expression,products);
+      if(remembered && !candidates.some((c:any)=>c.id===remembered.produto_id)) {
+        const product=activeById.get(remembered.produto_id);
+        candidates.unshift({id:product.id,produto:product.produto,score:999});
+      }
+      return {
+        ...x,candidatos:candidates.slice(0,5),
+        sugestao_produto_id:remembered?.produto_id||null,
+        origem_sugestao:remembered?"aprendizado_confirmado":null,
+        confianca:remembered?"alta":"revisar",
+        produto_id:null,resolvido:false
+      };
+    });
     const status=isOrder && items.length?"revisar":"nao_pedido";
     const {error:writeError}=await db.from("whatsapp_pedidos_analise").update({
       status,itens:items,observacoes:String(parsed.observacoes||"").slice(0,2000),
