@@ -85,6 +85,7 @@ export function HomePage({ afterHeader }: { afterHeader?: React.ReactNode } = {}
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [taskFilter, setTaskFilter] = useState<TaskFilter>('TODAS');
+  const [showAllTasks, setShowAllTasks] = useState(false);
   const [data, setData] = useState<HomeData>({
     visitas: [],
     historico: [],
@@ -185,6 +186,7 @@ export function HomePage({ afterHeader }: { afterHeader?: React.ReactNode } = {}
     };
     return {
       all,
+      urgent: all.filter((item) => Boolean(item.data_prevista && item.data_prevista <= todayKey)),
       visible: all.filter((item) => matches(item.data_prevista)),
       overdue: all.filter((item) => item.data_prevista && item.data_prevista < todayKey).length,
       today: all.filter((item) => item.data_prevista === todayKey).length,
@@ -219,128 +221,79 @@ export function HomePage({ afterHeader }: { afterHeader?: React.ReactNode } = {}
   }
 
 
+  const todayKey = format(today, 'yyyy-MM-dd');
+  const formatMeta = (value: number) => formatWeight(Math.round(value)).replace(/,00 kg$/, ' kg');
+  const visitCount = summary.todayVisits.length;
+  const visibleTasks = showAllTasks ? taskSummary.visible : taskSummary.urgent.slice(0, 3);
+  const tasksCounter = showAllTasks ? taskSummary.all.length : taskSummary.urgent.length;
+
+  const renderTask = (item: (typeof taskSummary.all)[number]) => {
+    const cliente = clientes.find((current) => current.id === item.cliente_id);
+    const isOverdue = Boolean(item.data_prevista && item.data_prevista < todayKey);
+    const dateLabel = !item.data_prevista
+      ? 'Sem data'
+      : item.data_prevista === todayKey
+        ? 'Hoje'
+        : format(parseISO(item.data_prevista), 'dd/MM/yyyy');
+    return (
+      <div key={'task-list-' + item.id} className={cn(
+        'flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2',
+        isOverdue ? 'border-rose-100 bg-rose-50' : 'border-neutral-100 bg-neutral-50'
+      )}>
+        <ClipboardCheck size={17} className={cn('shrink-0', isOverdue ? 'text-rose-600' : 'text-sky-600')} />
+        <Link to="/agenda" state={{ selectedDate: item.data_prevista || todayKey }} className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <p className="truncate text-sm font-black text-neutral-900">{item.titulo}</p>
+            {item.prioridade !== 'NORMAL' && <span className={cn('shrink-0 text-[8px] font-black', item.prioridade === 'URGENTE' ? 'text-rose-600' : 'text-amber-600')}>{item.prioridade}</span>}
+          </div>
+          <p className={cn('truncate text-xs font-bold', isOverdue ? 'text-rose-600' : 'text-neutral-500')}>
+            {dateLabel}{item.horario_inicio ? ` · ${item.horario_inicio.slice(0, 5)}` : ''}{cliente ? ` · ${cliente.cliente}` : ''}
+          </p>
+        </Link>
+        <button
+          type="button"
+          onClick={() => updatePendenciaStatus(item.id, 'CONCLUIDA')}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-white text-emerald-600 hover:bg-emerald-50"
+          title="Concluir tarefa"
+        >
+          <CheckCircle2 size={16} />
+        </button>
+      </div>
+    );
+  };
+
   return (
-    <div className="mx-auto w-full max-w-6xl min-w-0 space-y-5 overflow-x-hidden">
+    <div className="mx-auto w-full max-w-6xl min-w-0 space-y-4 overflow-x-hidden">
       <section className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">
-            <p className="text-[10px] font-black text-orange-600 uppercase tracking-[0.24em]">Hoje</p>
-            <h1 className="mt-1 break-words text-2xl font-black capitalize tracking-tight text-neutral-950 md:text-3xl">
+            <h1 className="break-words text-2xl font-black capitalize tracking-tight text-neutral-950 md:text-3xl">
               {format(today, "EEEE, d 'de' MMMM", { locale: ptBR })}
             </h1>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <Badge>Semana {summary.currentWeek}</Badge>
-              <Badge>{summary.currentDay || 'Sem roteiro'}</Badge>
-              <Badge>{summary.loadLevel}</Badge>
-            </div>
+            <p className="mt-1 text-sm font-semibold text-neutral-500">
+              {['Semana ' + summary.currentWeek, summary.currentDay || 'Sem roteiro', summary.loadLevel].filter(Boolean).join(' · ')}
+            </p>
           </div>
-          <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:w-auto sm:shrink-0">
-            <Link to="/agenda" className="inline-flex min-w-0 items-center justify-center gap-2 rounded-lg bg-orange-600 px-3 py-3 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition-transform active:scale-95 sm:px-4">
-              Abrir Agenda
-              <ArrowRight className="shrink-0" size={18} />
-            </Link>
-            <Link to="/emprestimos" className="inline-flex min-w-0 items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-3 text-sm font-black text-neutral-800 transition-transform active:scale-95 sm:px-4">
-              Trocas
-            </Link>
-          </div>
+          <Link to="/agenda" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition-transform active:scale-95">
+            Abrir Agenda
+            <ArrowRight className="shrink-0" size={18} />
+          </Link>
         </div>
       </section>
 
       {afterHeader}
 
-      <section className="grid min-w-0 grid-cols-4 gap-1.5" aria-label="Indicadores do dia">
-        <MetricCard label="Visitas" value={summary.todayVisits.length.toString()} />
-        <MetricCard label="Meta do dia" value={formatWeight(Math.round(summary.targetWeight)).replace(/,00 kg$/, ' kg')} />
-        <MetricCard label="Realizado" value={formatWeight(Math.round(summary.realizedWeight)).replace(/,00 kg$/, ' kg')} />
-        <MetricCard label="Fora da agenda" value={data.unscheduledClients.toString()} />
-      </section>
-
       <CommercialPriorities agenda={agendaPendencias} />
 
       <section className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-        <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-neutral-400">Acompanhamento</p>
-            <h2 className="truncate text-lg font-black text-neutral-950">Tarefas pendentes</h2>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <span className="rounded-lg bg-sky-50 px-2 py-1 text-xs font-black text-sky-700">{taskSummary.all.length}</span>
-            <Link to="/agenda" className="text-xs font-black text-orange-600">Abrir agenda</Link>
-          </div>
-        </div>
-
-        <div className="mb-3 grid grid-cols-3 gap-1.5 sm:grid-cols-5">
-          {([
-            ['TODAS', 'Todas', taskSummary.all.length],
-            ['ATRASADAS', 'Atrasadas', taskSummary.overdue],
-            ['HOJE', 'Hoje', taskSummary.today],
-            ['FUTURAS', 'Futuras', taskSummary.future],
-            ['SEM_DATA', 'Sem data', taskSummary.undated]
-          ] as Array<[TaskFilter, string, number]>).map(([value, label, count]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setTaskFilter(value)}
-              className={cn(
-                'flex h-9 min-w-0 items-center justify-center gap-1 rounded-lg border px-1 text-[10px] font-black transition-colors',
-                taskFilter === value ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50',
-                value === 'SEM_DATA' && 'col-span-2 sm:col-span-1'
-              )}
-            >
-              <span className="truncate">{label}</span>
-              <span className={cn('shrink-0', taskFilter === value ? 'text-neutral-300' : 'text-neutral-400')}>{count}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="max-h-[360px] space-y-1.5 overflow-y-auto pr-0.5">
-          {taskSummary.visible.map((item) => {
-            const cliente = clientes.find((current) => current.id === item.cliente_id);
-            const isOverdue = Boolean(item.data_prevista && item.data_prevista < format(today, 'yyyy-MM-dd'));
-            const dateLabel = !item.data_prevista
-              ? 'Sem data'
-              : item.data_prevista === format(today, 'yyyy-MM-dd')
-                ? 'Hoje'
-                : format(parseISO(item.data_prevista), 'dd/MM/yyyy');
-            return (
-              <div key={'task-list-' + item.id} className={cn(
-                'flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2',
-                isOverdue ? 'border-rose-100 bg-rose-50' : 'border-neutral-100 bg-neutral-50'
-              )}>
-                <ClipboardCheck size={17} className={cn('shrink-0', isOverdue ? 'text-rose-600' : 'text-sky-600')} />
-                <Link to="/agenda" state={{ selectedDate: item.data_prevista || format(today, 'yyyy-MM-dd') }} className="min-w-0 flex-1">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <p className="truncate text-sm font-black text-neutral-900">{item.titulo}</p>
-                    {item.prioridade !== 'NORMAL' && <span className={cn('shrink-0 text-[8px] font-black', item.prioridade === 'URGENTE' ? 'text-rose-600' : 'text-amber-600')}>{item.prioridade}</span>}
-                  </div>
-                  <p className={cn('truncate text-[10px] font-bold', isOverdue ? 'text-rose-600' : 'text-neutral-500')}>
-                    {dateLabel}{item.horario_inicio ? ` · ${item.horario_inicio.slice(0, 5)}` : ''}{cliente ? ` · ${cliente.cliente}` : ''}
-                  </p>
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => updatePendenciaStatus(item.id, 'CONCLUIDA')}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-200 bg-white text-emerald-600 hover:bg-emerald-50"
-                  title="Concluir tarefa"
-                >
-                  <CheckCircle2 size={16} />
-                </button>
-              </div>
-            );
-          })}
-          {taskSummary.visible.length === 0 && (
-            <EmptyState icon={CheckCircle2} title="Nenhuma tarefa" text="Nao existem tarefas pendentes neste filtro." compact />
-          )}
-        </div>
-      </section>
-
-      <section className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <div className="min-w-0">
-            <p className="text-[10px] font-black text-neutral-400 uppercase tracking-[0.22em]">Resumo</p>
-            <h2 className="text-lg font-black text-neutral-950">Visitas de hoje</h2>
-          </div>
-          <Link to="/agenda" className="shrink-0 text-sm font-black text-orange-600">Ver agenda</Link>
+        <div className="mb-3 min-w-0">
+          <h2 className="text-lg font-black text-neutral-950">Visitas de hoje</h2>
+          <p className="mt-1 text-sm font-semibold text-neutral-500">
+            {visitCount} {visitCount === 1 ? 'visita' : 'visitas'}
+            {' · meta '}{formatMeta(summary.targetWeight)}
+            {' · realizado '}{formatMeta(summary.realizedWeight)}
+            {data.unscheduledClients > 0 ? ` · ${data.unscheduledClients} fora da agenda` : ''}
+          </p>
         </div>
         <div className="space-y-2">
           {summary.todayVisits.slice(0, 6).map((visita, index) => (
@@ -358,19 +311,60 @@ export function HomePage({ afterHeader }: { afterHeader?: React.ReactNode } = {}
           {summary.todayVisits.length === 0 && <EmptyState icon={MapIcon} title="Sem roteiro" text="Nao ha clientes programados para hoje." compact />}
         </div>
       </section>
-    </div>
-  );
-}
 
-function Badge({ children }: { children: React.ReactNode }) {
-  return <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-neutral-500">{children}</span>;
-}
+      <section className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="truncate text-lg font-black text-neutral-950">{showAllTasks ? 'Tarefas pendentes' : 'Tarefas de hoje e atrasadas'}</h2>
+            <span className="shrink-0 rounded-lg bg-sky-50 px-2 py-1 text-xs font-black text-sky-700">{tasksCounter}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAllTasks((current) => !current)}
+            className="shrink-0 text-sm font-black text-orange-600"
+          >
+            {showAllTasks ? 'Mostrar menos' : `Ver todas (${taskSummary.all.length})`}
+          </button>
+        </div>
 
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 rounded-md border border-neutral-200 bg-white px-1.5 py-2 text-center">
-      <p className="flex min-h-6 items-center justify-center text-[9px] font-semibold leading-3 text-neutral-500">{label}</p>
-      <p className="mt-0.5 break-words text-xs font-bold leading-4 tabular-nums text-neutral-700 sm:text-sm">{value}</p>
+        {showAllTasks && (
+          <div className="mb-3 grid grid-cols-3 gap-1.5 sm:grid-cols-5">
+            {([
+              ['TODAS', 'Todas', taskSummary.all.length],
+              ['ATRASADAS', 'Atrasadas', taskSummary.overdue],
+              ['HOJE', 'Hoje', taskSummary.today],
+              ['FUTURAS', 'Futuras', taskSummary.future],
+              ['SEM_DATA', 'Sem data', taskSummary.undated]
+            ] as Array<[TaskFilter, string, number]>).map(([value, label, count]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setTaskFilter(value)}
+                className={cn(
+                  'flex h-9 min-w-0 items-center justify-center gap-1 rounded-lg border px-1 text-xs font-black transition-colors',
+                  taskFilter === value ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50',
+                  value === 'SEM_DATA' && 'col-span-2 sm:col-span-1'
+                )}
+              >
+                <span className="truncate">{label}</span>
+                <span className={cn('shrink-0', taskFilter === value ? 'text-neutral-300' : 'text-neutral-400')}>{count}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className={cn('space-y-1.5', showAllTasks && 'max-h-[360px] overflow-y-auto pr-0.5')}>
+          {visibleTasks.map(renderTask)}
+          {visibleTasks.length === 0 && (
+            <EmptyState
+              icon={CheckCircle2}
+              title="Nenhuma tarefa"
+              text={showAllTasks ? 'Nao existem tarefas pendentes neste filtro.' : 'Nenhuma tarefa atrasada ou para hoje.'}
+              compact
+            />
+          )}
+        </div>
+      </section>
     </div>
   );
 }
