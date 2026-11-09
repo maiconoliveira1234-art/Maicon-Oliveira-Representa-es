@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ChevronDown, Loader2, LockKeyhole, RefreshCcw, Sparkles } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useNavigate } from 'react-router-dom';
 
 type Candidate = { id: string; produto: string; score: number };
 type Item = {
@@ -29,6 +30,7 @@ type ApiResult = { ok?: boolean; error?: string; analises?: Analysis[]; acao?: s
 const getKey = (analysisId: string, index: number) => `${analysisId}:${index}`;
 
 export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [authorized, setAuthorized] = useState(false);
   const [email, setEmail] = useState('');
@@ -119,6 +121,31 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
     }
   };
 
+  const approve = async (analysis: Analysis) => {
+    if (!analysis.cliente_id || analysis.itens.some(item => !item.resolvido || !item.produto_id)) {
+      setError('Vincule o cliente e confirme todos os produtos antes de criar o rascunho.');
+      return;
+    }
+    setSaving(analysis.id);
+    setError('');
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke<ApiResult & { cliente_id?: string }>('whatsapp-learning-review', {
+        body: { action: 'approve', analise_id: analysis.id },
+      });
+      if (invokeError) throw invokeError;
+      if (data?.error) throw new Error(data.error === 'existing_draft_must_be_reviewed_first'
+        ? 'Já existe um pedido em aberto para este cliente. Abra-o e confira antes de criar outro.'
+        : data.error);
+      setSuccess('Rascunho criado. Confira valores, campanhas e condições na tela Pedidos.');
+      if (data?.cliente_id) navigate(`/pedido/novo/${data.cliente_id}`);
+      else await load();
+    } catch (err: any) {
+      setError(err?.message || 'Não foi possível criar o rascunho.');
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const candidateNames = useMemo(() => new Map(products.map(p => [p.id, p.produto])), [products]);
   const normalizeSearch = (value: string) => value.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().trim();
 
@@ -126,11 +153,11 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
     <section className="rounded-2xl border border-violet-200 bg-white p-4">
       <button type="button" onClick={() => setOpen(v => !v)}
         className="flex w-full items-center justify-between gap-2 text-left text-sm font-black text-neutral-900">
-        <span className="inline-flex items-center gap-2"><Sparkles size={16} className="text-violet-700" /> Aprendizado de produtos dos pedidos</span>
+        <span className="inline-flex items-center gap-2"><Sparkles size={16} className="text-violet-700" /> Propostas de pedidos · reconhecimento de produtos</span>
         <ChevronDown size={17} className={open ? 'rotate-180' : ''} />
       </button>
       {!open ? (
-        <p className="mt-1 text-xs text-neutral-500">Revise os itens reconhecidos e ensine os nomes usados pelos clientes.</p>
+        <p className="mt-1 text-xs text-neutral-500">Revise os itens, confirme os produtos e envie o rascunho para a tela de Pedidos.</p>
       ) : (
         <div className="mt-4 space-y-4">
           {loading && <p className="flex items-center gap-2 text-sm text-neutral-500"><Loader2 size={15} className="animate-spin" /> Carregando análises...</p>}
@@ -149,7 +176,7 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
           {authorized && (
             <>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs text-neutral-500">Somente correspondências confirmadas serão memorizadas. Nenhum pedido é criado.</p>
+                <p className="text-xs text-neutral-500">As propostas ficam aqui para aprovação. Um rascunho só é criado após sua confirmação explícita.</p>
                 <button type="button" aria-label="Atualizar análises" onClick={() => void load()}
                   className="rounded-lg border border-neutral-200 p-2 text-neutral-600"><RefreshCcw size={15} /></button>
               </div>
@@ -159,6 +186,14 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
               {analyses.filter(a => a.status === 'revisar').map(analysis => (
                 <div key={analysis.id} className="space-y-3 rounded-xl border border-neutral-200 p-3">
                   <p className="text-xs font-bold text-neutral-500">Pedido identificado · {new Date(analysis.atualizado_em).toLocaleString('pt-BR')}</p>
+                  <div className="rounded-lg border border-violet-100 bg-violet-50 p-3">
+                    <p className="text-xs font-black uppercase text-violet-700">Proposta recebida do WhatsApp</p>
+                    <p className="mt-1 whitespace-pre-wrap text-xs text-neutral-700">{analysis.mensagem}</p>
+                    <p className="mt-2 text-xs font-semibold text-neutral-700">
+                      {analysis.itens.length} itens · {analysis.itens.reduce((sum, item) => sum + Number(item.quantidade || 0), 0)} embalagens solicitadas
+                    </p>
+                    <p className="mt-1 text-xs text-amber-700">Prévia sem precificação: valores e condições comerciais serão calculados na tela Pedidos.</p>
+                  </div>
                   {analysis.itens.map((item, index) => {
                     const key = getKey(analysis.id, index);
                     const selected = choices[key] || item.produto_id || item.sugestao_produto_id || item.candidatos?.[0]?.id || '';
@@ -228,6 +263,15 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                       </div>
                     );
                   })}
+                  <div className="rounded-lg border-t border-neutral-200 pt-3">
+                    {!analysis.cliente_id && <p className="mb-2 text-xs font-semibold text-amber-700">Vincule esta conversa a um cliente do CRM para habilitar a criação do rascunho.</p>}
+                    <button type="button" onClick={() => void approve(analysis)}
+                      disabled={saving === analysis.id || !analysis.cliente_id || !analysis.itens.length || analysis.itens.some(item => !item.resolvido || !item.produto_id)}
+                      className="w-full rounded-lg bg-green-700 px-3 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">
+                      {saving === analysis.id ? 'Criando rascunho...' : 'Aprovar itens e abrir rascunho em Pedidos'}
+                    </button>
+                    <p className="mt-2 text-[11px] text-neutral-500">Esta aprovação apenas cria um pedido em aberto para conferência. Não envia pedidos à empresa.</p>
+                  </div>
                 </div>
               ))}
             </>
