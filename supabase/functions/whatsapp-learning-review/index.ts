@@ -39,6 +39,40 @@ Deno.serve(async req=>{
     if(analysisError) return asJson({error:"lookup_failed"},500);
     return asJson({ok:true,analises:(analyses||[]).map(a=>({...a,mensagem:(messages||[]).find(m=>m.id===a.mensagem_id)?.mensagem||""}))});
  }
+ if(action==="approve") {
+   const analysisId=String(body.analise_id||"");
+   if(!isUuid(analysisId)) return asJson({error:"invalid_analysis"},400);
+   const {data:analysis,error:analysisError}=await admin.from("whatsapp_pedidos_analise")
+      .select("id,mensagem_id,cliente_id,itens,status,observacoes").eq("id",analysisId).maybeSingle();
+   if(analysisError||!analysis) return asJson({error:"analysis_not_found"},404);
+   if(analysis.status!=="revisar" || !analysis.cliente_id || !Array.isArray(analysis.itens)
+     || analysis.itens.length===0 || analysis.itens.some((x:any)=>!x.resolvido || !isUuid(String(x.produto_id||""))
+       || !Number.isFinite(Number(x.quantidade)) || Number(x.quantidade)<=0 || Number(x.quantidade)>100000))
+     return asJson({error:"review_or_client_link_required"},409);
+   const ids=[...new Set(analysis.itens.map((x:any)=>x.produto_id))];
+   const {data:catalog,error:catalogError}=await admin.from("produtos").select("id,ativo").in("id",ids);
+   if(catalogError || (catalog||[]).filter((x:any)=>x.ativo).length!==ids.length)
+     return asJson({error:"inactive_or_missing_product"},409);
+   const {data:existing,error:existingError}=await admin.from("pedidos_em_aberto")
+     .select("cliente_id").eq("cliente_id",analysis.cliente_id).maybeSingle();
+   if(existingError) return asJson({error:"draft_check_failed"},500);
+   if(existing) return asJson({error:"existing_draft_must_be_reviewed_first"},409);
+   const items=analysis.itens.map((x:any)=>({
+     produto_id:x.produto_id, quantidade:Number(x.quantidade),tipo_operacao:"VENDA",campanhas_aplicadas:[]
+   }));
+   const {error:createError}=await admin.from("pedidos_em_aberto").insert({
+      cliente_id:analysis.cliente_id,items,obs:[String(analysis.observacoes||""),
+       "Rascunho recebido via WhatsApp. Conferir preços, campanhas, limites e prazos antes de finalizar."]
+       .filter(Boolean).join("\\n")
+   });
+   if(createError) return asJson({error:createError.code==="23505"?"existing_draft_must_be_reviewed_first":"draft_creation_failed"},500);
+   const {error:markError}=await admin.from("whatsapp_pedidos_analise").update({
+      status:"aprovado",aprovado_por:identity.user.id,aprovado_em:new Date().toISOString(),
+      atualizado_em:new Date().toISOString()
+   }).eq("id",analysis.id).eq("status","revisar");
+   if(markError) console.error("analysis_mark_approved_failed",markError.message);
+   return asJson({ok:true,cliente_id:analysis.cliente_id,created_draft:true});
+ }
  if(action!=="confirm") return asJson({error:"unknown_action"},400);
  const analysisId=String(body.analise_id||"");
  const productId=String(body.produto_id||"");
