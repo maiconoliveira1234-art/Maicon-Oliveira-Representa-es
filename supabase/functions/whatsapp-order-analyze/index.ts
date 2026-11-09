@@ -10,7 +10,7 @@ const respond = (body: unknown, status=200) => new Response(JSON.stringify(body)
 
 function norm(s:string):string {
  return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()
- .replace(/\bRAÇAS?\s+PEQUENAS?\b/g," PEQ PORTE ")
+ .replace(/\bRACAS?\s+PEQUENAS?\b/g," PEQ PORTE ")
  .replace(/\bPEQUENAS?\b/g," PEQ PORTE ")
  .replace(/\bTODO\s+DIA\b/g," T D ")
  .replace(/\bADULTO\b/g," AD ")
