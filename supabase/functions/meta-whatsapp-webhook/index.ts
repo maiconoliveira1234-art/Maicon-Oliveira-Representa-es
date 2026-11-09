@@ -116,7 +116,7 @@ Deno.serve(async req => {
         received++;
         // Analyze apparent order requests asynchronously. This only writes to
         // whatsapp_pedidos_analise; never creates or updates actual orders.
-        if (/\\bpedido\\b|\\b\\d+\\s*(?:sacos?|caixas?|unidades?|un|kg)\\b/i.test(body)) {
+        if (/\bpedido\b|\b\d+\s*(?:sacos?|caixas?|unidades?|un|kg)\b/i.test(body)) {
           const analysis = fetch(dbUrl + "/functions/v1/whatsapp-order-analyze", {
             method: "POST",
             headers: {
