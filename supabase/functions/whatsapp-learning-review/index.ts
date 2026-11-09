@@ -5,7 +5,7 @@ const anon = Deno.env.get("SUPABASE_ANON_KEY") || "";
 const admin = createClient(url, service, {auth:{persistSession:false,autoRefreshToken:false}});
 const asJson=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{"content-type":"application/json","cache-control":"no-store","access-control-allow-origin":"https://maicon-oliveira-representa-es.vercel.app","access-control-allow-headers":"authorization,apikey,content-type,x-client-info","access-control-allow-methods":"POST,OPTIONS","vary":"Origin"}});
 function normalize(s:string) {return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase()
-.replace(/\bRAÇAS?\s+PEQUENAS?\b/g," PEQ PORTE ")
+.replace(/\bRACAS?\s+PEQUENAS?\b/g," PEQ PORTE ")
 .replace(/\bPEQUENAS?\b/g," PEQ PORTE ")
 .replace(/\bTODO\s+DIA\b/g," T D ")
 .replace(/\bADULTO\b/g," AD ")
