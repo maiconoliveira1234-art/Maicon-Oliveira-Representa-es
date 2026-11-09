@@ -156,17 +156,20 @@ export function CommercialPriorities({ agenda, clienteId }: { agenda: AgendaStat
         {!orders.ids && <p role="status" className="mt-3 text-xs text-amber-700">Pedidos em aberto indisponíveis. Exibindo apenas retornos combinados.</p>}
         {visible.map(item => (
           <article key={item.cliente.id} className="mt-3 min-w-0 rounded-lg border border-neutral-100 bg-neutral-50 p-3">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              {!clienteId && <h3 className="min-w-0 break-words text-sm font-black">{item.cliente.cliente}</h3>}
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              {!clienteId && (
+                <h3 className="min-w-0 flex-1 basis-40 break-words text-sm font-black">
+                  <Link to={'/cliente/' + item.cliente.id} className="text-neutral-950 underline-offset-2 hover:text-orange-600 hover:underline">{item.cliente.cliente}</Link>
+                </h3>
+              )}
+              <div className="ml-auto flex flex-wrap justify-end gap-2">
+                <button type="button" disabled={busy} aria-expanded={editing === item.cliente.id} onClick={() => startEdit(item.cliente.id)} className={buttonClass}>Registrar retorno</button>
+                {item.followUp && <button type="button" disabled={busy} onClick={() => complete(item.followUp!.id)} className={buttonClass}>Contato concluído</button>}
+              </div>
             </div>
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-600">
               <span>Próx. ped.: <strong>{item.purchaseGap === null ? '—' : `${item.purchaseGap > 0 ? '+' : ''}${item.purchaseGap} dias`}</strong></span>
               <span>Ciclo: <strong>{item.cycleDays > 0 ? `${item.cycleDays} dias` : '—'}</strong></span>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {!clienteId && <Link className={buttonClass} to={'/cliente/' + item.cliente.id}>Abrir cliente</Link>}
-              <button type="button" disabled={busy} aria-expanded={editing === item.cliente.id} onClick={() => startEdit(item.cliente.id)} className={buttonClass}>Registrar retorno</button>
-              {item.followUp && <button type="button" disabled={busy} onClick={() => complete(item.followUp!.id)} className={buttonClass}>Contato concluído</button>}
             </div>
             {editing === item.cliente.id && returnForm}
           </article>
