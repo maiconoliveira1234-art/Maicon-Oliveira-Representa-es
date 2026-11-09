@@ -37,7 +37,15 @@ Deno.serve(async req=>{
       .select("id,mensagem_id,cliente_id,status,itens,observacoes,atualizado_em")
       .in("mensagem_id",ids).order("criado_em",{ascending:false});
     if(analysisError) return asJson({error:"lookup_failed"},500);
-    return asJson({ok:true,analises:(analyses||[]).map(a=>({...a,mensagem:(messages||[]).find(m=>m.id===a.mensagem_id)?.mensagem||""}))});
+    const {data:currentMap,error:currentMapError}=await admin.from("whatsapp_contatos_map")
+      .select("id,cliente_id,status").eq("id",contactId).maybeSingle();
+    if(currentMapError) return asJson({error:"contact_lookup_failed"},500);
+    const currentClientId=currentMap?.status==="vinculado"?currentMap.cliente_id:null;
+    return asJson({ok:true,analises:(analyses||[]).map(a=>({
+      ...a,
+      cliente_id:currentClientId||null,
+      mensagem:(messages||[]).find(m=>m.id===a.mensagem_id)?.mensagem||""
+    }))});
  }
  if(action==="approve") {
    const analysisId=String(body.analise_id||"");
@@ -45,7 +53,16 @@ Deno.serve(async req=>{
    const {data:analysis,error:analysisError}=await admin.from("whatsapp_pedidos_analise")
       .select("id,mensagem_id,cliente_id,itens,status,observacoes").eq("id",analysisId).maybeSingle();
    if(analysisError||!analysis) return asJson({error:"analysis_not_found"},404);
-   if(analysis.status!=="revisar" || !analysis.cliente_id || !Array.isArray(analysis.itens)
+   // Always resolve the customer from the conversation's CURRENT approved mapping.
+   // An earlier order analysis may have been created before the customer was linked.
+   const {data:msg,error:msgError}=await admin.from("whatsapp_mensagens")
+      .select("contato_map_id").eq("id",analysis.mensagem_id).maybeSingle();
+   if(msgError || !msg?.contato_map_id) return asJson({error:"contact_not_found"},409);
+   const {data:map,error:mapError}=await admin.from("whatsapp_contatos_map")
+      .select("cliente_id,status").eq("id",msg.contato_map_id).maybeSingle();
+   if(mapError) return asJson({error:"contact_lookup_failed"},500);
+   const approvedClientId=map?.status==="vinculado"?map.cliente_id:null;
+   if(analysis.status!=="revisar" || !approvedClientId || !Array.isArray(analysis.itens)
      || analysis.itens.length===0 || analysis.itens.some((x:any)=>!x.resolvido || !isUuid(String(x.produto_id||""))
        || !Number.isFinite(Number(x.quantidade)) || Number(x.quantidade)<=0 || Number(x.quantidade)>100000))
      return asJson({error:"review_or_client_link_required"},409);
@@ -54,24 +71,24 @@ Deno.serve(async req=>{
    if(catalogError || (catalog||[]).filter((x:any)=>x.ativo).length!==ids.length)
      return asJson({error:"inactive_or_missing_product"},409);
    const {data:existing,error:existingError}=await admin.from("pedidos_em_aberto")
-     .select("cliente_id").eq("cliente_id",analysis.cliente_id).maybeSingle();
+     .select("cliente_id").eq("cliente_id",approvedClientId).maybeSingle();
    if(existingError) return asJson({error:"draft_check_failed"},500);
    if(existing) return asJson({error:"existing_draft_must_be_reviewed_first"},409);
    const items=analysis.itens.map((x:any)=>({
      produto_id:x.produto_id, quantidade:Number(x.quantidade),tipo_operacao:"VENDA",campanhas_aplicadas:[]
    }));
    const {error:createError}=await admin.from("pedidos_em_aberto").insert({
-      cliente_id:analysis.cliente_id,items,obs:[String(analysis.observacoes||""),
+      cliente_id:approvedClientId,items,obs:[String(analysis.observacoes||""),
        "Rascunho recebido via WhatsApp. Conferir preços, campanhas, limites e prazos antes de finalizar."]
        .filter(Boolean).join("\\n")
    });
    if(createError) return asJson({error:createError.code==="23505"?"existing_draft_must_be_reviewed_first":"draft_creation_failed"},500);
    const {error:markError}=await admin.from("whatsapp_pedidos_analise").update({
-      status:"aprovado",aprovado_por:identity.user.id,aprovado_em:new Date().toISOString(),
+      cliente_id:approvedClientId,status:"aprovado",aprovado_por:identity.user.id,aprovado_em:new Date().toISOString(),
       atualizado_em:new Date().toISOString()
    }).eq("id",analysis.id).eq("status","revisar");
    if(markError) console.error("analysis_mark_approved_failed",markError.message);
-   return asJson({ok:true,cliente_id:analysis.cliente_id,created_draft:true});
+   return asJson({ok:true,cliente_id:approvedClientId,created_draft:true});
  }
  if(action!=="confirm") return asJson({error:"unknown_action"},400);
  const analysisId=String(body.analise_id||"");
