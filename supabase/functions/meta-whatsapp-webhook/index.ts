@@ -66,6 +66,15 @@ Deno.serve(async req => {
         if (!body) continue;
         const receivedAt = /^\d{9,13}$/.test(String(message.timestamp || ""))
           ? new Date(Number(message.timestamp) * 1000).toISOString() : new Date().toISOString();
+        // Match only a unique phone; never guess by contact name.
+        const {data: customers, error: customerError} = await db.from("clientes")
+          .select("id,telefone").not("telefone", "is", null);
+        if (customerError) throw customerError;
+        const matches = (customers || []).filter((c: any) => {
+          const digits = String(c.telefone ?? "").replace(/\D/g, "");
+          return (digits.length === 10 || digits.length === 11 ? "55" + digits : digits) === phone;
+        });
+        const matchedClientId = matches.length === 1 ? matches[0].id : null;
         let {data: mapping, error: mapError} = await db.from("whatsapp_contatos_map")
           .select("id,cliente_id,status,total_mensagens")
           .eq("nome_normalizado", sender.toLowerCase()).maybeSingle();
@@ -80,6 +89,15 @@ Deno.serve(async req => {
             if (retry.error || !retry.data) throw insert.error;
             mapping = retry.data;
           } else mapping = insert.data;
+        }
+        // Keep existing manual links; never reassign an already linked contact.
+        if (mapping.status === "pendente" && matchedClientId) {
+          const updated = await db.from("whatsapp_contatos_map")
+            .update({cliente_id: matchedClientId, status: "vinculado"})
+            .eq("id", mapping.id).eq("status", "pendente")
+            .select("id,cliente_id,status,total_mensagens").maybeSingle();
+          if (updated.error) throw updated.error;
+          if (updated.data) mapping = updated.data;
         }
         const inserted = await db.from("whatsapp_mensagens").insert({
           contato_map_id: mapping.id,
