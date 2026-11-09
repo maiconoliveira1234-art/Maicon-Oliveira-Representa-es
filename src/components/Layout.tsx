@@ -44,49 +44,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const layoutRef = React.useRef<HTMLDivElement | null>(null);
-
-  React.useEffect(() => {
-    const viewport = window.visualViewport;
-    const element = layoutRef.current;
-    if (!viewport || !element) return;
-    let frame = 0;
-    let settleTimer: ReturnType<typeof setTimeout>;
-    const update = () => {
-      // Fixed positioning uses the layout viewport; the keyboard can shrink
-      // and pan only the visual viewport. Preserve normal pinch-zoom behavior.
-      const inset = viewport.scale === 1
-        ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
-        : 0;
-      element.style.setProperty('--visual-bottom-inset', inset + 'px');
-    };
-    const schedule = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(update);
-      clearTimeout(settleTimer);
-      settleTimer = setTimeout(update, 350);
-    };
-    update();
-    viewport.addEventListener('resize', schedule);
-    viewport.addEventListener('scroll', schedule);
-    window.addEventListener('resize', schedule);
-    window.addEventListener('orientationchange', schedule);
-    window.addEventListener('pageshow', schedule);
-    document.addEventListener('focusin', schedule);
-    document.addEventListener('focusout', schedule);
-    return () => {
-      cancelAnimationFrame(frame);
-      clearTimeout(settleTimer);
-      viewport.removeEventListener('resize', schedule);
-      viewport.removeEventListener('scroll', schedule);
-      window.removeEventListener('resize', schedule);
-      window.removeEventListener('orientationchange', schedule);
-      window.removeEventListener('pageshow', schedule);
-      document.removeEventListener('focusin', schedule);
-      document.removeEventListener('focusout', schedule);
-      element.style.removeProperty('--visual-bottom-inset');
-    };
-  }, []);
+  // O menu inferior fica sempre fixo no rodapé da tela. Quando o teclado
+  // aparece, ele é apenas coberto pelo teclado (não sobe junto com ele).
 
   // Diagnostic Refs
   const sidebarRef = React.useRef<HTMLElement | null>(null);
@@ -204,9 +163,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
   }, [location.pathname]); // Run diagnostic whenever the route path changes to trace navigator mounts
 
   return (
-    <div ref={layoutRef} data-mobile-density={mobileListMode} className={cn(
+    <div data-mobile-density={mobileListMode} className={cn(
       "min-h-dvh bg-neutral-100 flex flex-col md:pl-[calc(5rem+env(safe-area-inset-left,0px))] pr-[env(safe-area-inset-right,0px)] pl-[env(safe-area-inset-left,0px)] w-full max-w-full overflow-x-hidden",
-      hideBottomNav ? "pb-0 md:pb-0" : "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px)+var(--visual-bottom-inset,0px))] md:pb-0"
+      hideBottomNav ? "pb-0 md:pb-0" : "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:pb-0"
     )}>
       {/* Indicador de Conexão Inline (Não sobrepõe botões, flui no layout) */}
       <div className={cn(
@@ -285,7 +244,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           onClick={toggleMobileListMode}
           className={cn(
             'fixed right-3 z-[45] inline-flex h-10 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 text-xs font-black text-neutral-700 shadow-lg md:hidden',
-            hideBottomNav ? 'bottom-[calc(1rem+var(--visual-bottom-inset,0px))]' : 'bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px)+var(--visual-bottom-inset,0px))]'
+            hideBottomNav ? 'bottom-4' : 'bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))]'
           )}
           aria-label={mobileListMode === 'compact' ? 'Exibir informações completas' : 'Exibir lista resumida'}
         >
@@ -298,7 +257,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {!hideBottomNav && (
         <nav
           ref={bottomNavRef}
-          className="md:hidden fixed bottom-[var(--visual-bottom-inset,0px)] left-0 right-0 bg-white border-t border-neutral-200 flex justify-around items-center h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] z-50 px-2 overflow-x-hidden"
+          className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 flex justify-around items-center h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] z-50 px-2 overflow-x-hidden"
         >
           <MobileNavItem to="/" icon={<Home size={24} />} label="Hoje" />
           <MobileNavItem to="/agenda" icon={<Calendar size={24} />} label="Agenda" />
