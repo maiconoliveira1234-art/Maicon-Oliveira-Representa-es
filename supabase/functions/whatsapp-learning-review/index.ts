@@ -85,7 +85,7 @@ Deno.serve(async req=>{
  }
  const {error:historyError}=await admin.from("whatsapp_produtos_aprendizados_historico").insert({
    aprendizado_id:learningId,produto_anterior_id:prior?.produto_id||null,produto_novo_id:productId,
-   acao:actionName,mensagem_id:analysis.mensagem_id
+   acao:actionName,mensagem_id:analysis.mensagem_id,confirmado_por:identity.user.id
  });
  if(historyError) {console.error("learning_history_failed",historyError.message);return asJson({error:"history_write_failed"},500);}
  const items=analysis.itens.map((row:any,index:number)=>index===itemIndex?{
