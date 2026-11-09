@@ -114,6 +114,24 @@ Deno.serve(async req => {
           throw inserted.error;
         }
         received++;
+        // Analyze apparent order requests asynchronously. This only writes to
+        // whatsapp_pedidos_analise; never creates or updates actual orders.
+        if (/\\bpedido\\b|\\b\\d+\\s*(?:sacos?|caixas?|unidades?|un|kg)\\b/i.test(body)) {
+          const analysis = fetch(dbUrl + "/functions/v1/whatsapp-order-analyze", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "authorization": "Bearer " + dbSecret,
+              "apikey": dbSecret
+            },
+            body: JSON.stringify({message_id: inserted.data.id})
+          }).then(async response => {
+            if (!response.ok) console.warn("order analysis failed", response.status, (await response.text()).slice(0,250));
+          }).catch(error => console.warn("order analysis request error", String(error)));
+          const runtime = (globalThis as any).EdgeRuntime;
+          if (runtime?.waitUntil) runtime.waitUntil(analysis);
+          else await analysis;
+        }
         await db.from("whatsapp_contatos_map").update({
           total_mensagens: Number(mapping.total_mensagens || 0) + 1,
           ultima_vez_em: new Date().toISOString()
