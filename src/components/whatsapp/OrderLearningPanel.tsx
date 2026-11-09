@@ -1,0 +1,214 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, ChevronDown, Loader2, LockKeyhole, RefreshCcw, Sparkles } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+
+type Candidate = { id: string; produto: string; score: number };
+type Item = {
+  descricao: string;
+  quantidade: number;
+  unidade: string;
+  embalagem: string | null;
+  candidatos?: Candidate[];
+  produto_id?: string | null;
+  sugestao_produto_id?: string | null;
+  origem_sugestao?: string | null;
+  resolvido?: boolean;
+};
+type Analysis = {
+  id: string;
+  mensagem_id: string;
+  cliente_id: string | null;
+  status: string;
+  itens: Item[];
+  mensagem: string;
+  atualizado_em: string;
+};
+type Product = { id: string; produto: string };
+type ApiResult = { ok?: boolean; error?: string; analises?: Analysis[]; acao?: string };
+
+const getKey = (analysisId: string, index: number) => `${analysisId}:${index}`;
+
+export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
+  const [open, setOpen] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [analyses, setAnalyses] = useState<Analysis[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [choices, setChoices] = useState<Record<string, string>>({});
+  const [scopes, setScopes] = useState<Record<string, 'global' | 'cliente'>>({});
+  const [saving, setSaving] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { data, error: requestError } = await supabase.functions.invoke<ApiResult>('whatsapp-learning-review', {
+        body: { action: 'list', contato_map_id: contatoId },
+      });
+      if (requestError) throw requestError;
+      if (data?.error) throw new Error(data.error);
+      setAnalyses(data?.analises || []);
+      setAuthorized(true);
+      const { data: catalog, error: catalogError } = await supabase.from('produtos')
+        .select('id,produto').eq('ativo', true).order('produto').limit(1000);
+      if (catalogError) throw catalogError;
+      setProducts((catalog || []) as Product[]);
+    } catch (err: any) {
+      setAuthorized(false);
+      setError(err?.message || 'Não foi possível consultar análises. Entre com sua conta autorizada.');
+    } finally {
+      setLoading(false);
+    }
+  }, [contatoId]);
+
+  useEffect(() => {
+    if (!open) return;
+    void load();
+  }, [open, load]);
+
+  const signIn = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(), password,
+      });
+      if (signInError) throw signInError;
+      setPassword('');
+      await load();
+    } catch (err: any) {
+      setError(err?.message || 'Não foi possível autenticar.');
+      setLoading(false);
+    }
+  };
+
+  const confirm = async (analysis: Analysis, item: Item, index: number) => {
+    const key = getKey(analysis.id, index);
+    const selected = choices[key] || item.produto_id || item.sugestao_produto_id || item.candidatos?.[0]?.id || '';
+    if (!selected) {
+      setError('Selecione um produto do catálogo.');
+      return;
+    }
+    setSaving(key);
+    setError('');
+    setSuccess('');
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke<ApiResult>('whatsapp-learning-review', {
+        body: {
+          action: 'confirm',
+          analise_id: analysis.id,
+          item_index: index,
+          produto_id: selected,
+          escopo: scopes[key] || 'global',
+        },
+      });
+      if (invokeError) throw invokeError;
+      if (data?.error) throw new Error(data.error);
+      setSuccess('Correspondência registrada. O próximo pedido poderá reutilizar esta correção.');
+      await load();
+    } catch (err: any) {
+      setError(err?.message || 'Não foi possível salvar o aprendizado.');
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const candidateNames = useMemo(() => new Map(products.map(p => [p.id, p.produto])), [products]);
+
+  return (
+    <section className="rounded-2xl border border-violet-200 bg-white p-4">
+      <button type="button" onClick={() => setOpen(v => !v)}
+        className="flex w-full items-center justify-between gap-2 text-left text-sm font-black text-neutral-900">
+        <span className="inline-flex items-center gap-2"><Sparkles size={16} className="text-violet-700" /> Aprendizado de produtos dos pedidos</span>
+        <ChevronDown size={17} className={open ? 'rotate-180' : ''} />
+      </button>
+      {!open ? (
+        <p className="mt-1 text-xs text-neutral-500">Revise os itens reconhecidos e ensine os nomes usados pelos clientes.</p>
+      ) : (
+        <div className="mt-4 space-y-4">
+          {loading && <p className="flex items-center gap-2 text-sm text-neutral-500"><Loader2 size={15} className="animate-spin" /> Carregando análises...</p>}
+          {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-xs font-semibold text-red-700">{error}</p>}
+          {success && <p role="status" className="rounded-lg bg-green-50 p-3 text-xs font-semibold text-green-700">{success}</p>}
+          {!authorized && !loading && (
+            <form onSubmit={signIn} className="space-y-3 rounded-xl bg-neutral-50 p-3">
+              <p className="flex items-center gap-2 text-xs text-neutral-700"><LockKeyhole size={14} /> Para ensinar produtos, entre com uma conta autorizada do CRM.</p>
+              <input aria-label="E-mail" type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="E-mail" className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm" />
+              <input aria-label="Senha" type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)}
+                placeholder="Senha" className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm" />
+              <button type="submit" className="rounded-lg bg-violet-700 px-4 py-2 text-xs font-black text-white">Entrar para revisar</button>
+            </form>
+          )}
+          {authorized && (
+            <>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-neutral-500">Somente correspondências confirmadas serão memorizadas. Nenhum pedido é criado.</p>
+                <button type="button" aria-label="Atualizar análises" onClick={() => void load()}
+                  className="rounded-lg border border-neutral-200 p-2 text-neutral-600"><RefreshCcw size={15} /></button>
+              </div>
+              {analyses.filter(a => a.status === 'revisar').length === 0 && (
+                <p className="rounded-lg bg-neutral-50 p-4 text-sm text-neutral-500">Nenhum pedido aguardando revisão nesta conversa.</p>
+              )}
+              {analyses.filter(a => a.status === 'revisar').map(analysis => (
+                <div key={analysis.id} className="space-y-3 rounded-xl border border-neutral-200 p-3">
+                  <p className="text-xs font-bold text-neutral-500">Pedido identificado · {new Date(analysis.atualizado_em).toLocaleString('pt-BR')}</p>
+                  {analysis.itens.map((item, index) => {
+                    const key = getKey(analysis.id, index);
+                    const selected = choices[key] || item.produto_id || item.sugestao_produto_id || item.candidatos?.[0]?.id || '';
+                    const allOptions = new Map<string, string>();
+                    (item.candidatos || []).forEach(c => allOptions.set(c.id, c.produto));
+                    products.forEach(p => allOptions.set(p.id, p.produto));
+                    return (
+                      <div key={key} className="rounded-lg bg-neutral-50 p-3">
+                        <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-bold text-neutral-900">{item.descricao}</p>
+                            <p className="text-xs text-neutral-500">{item.quantidade} {item.unidade} · {item.embalagem || 'Embalagem não informada'}</p>
+                          </div>
+                          {item.resolvido ? (
+                            <span className="flex items-center gap-1 text-xs font-bold text-green-700"><CheckCircle2 size={14} /> Confirmado</span>
+                          ) : item.origem_sugestao === 'aprendizado_confirmado' ? (
+                            <span className="text-xs font-semibold text-violet-700">Aprendido anteriormente</span>
+                          ) : (
+                            <span className="text-xs font-semibold text-amber-700">Revisão necessária</span>
+                          )}
+                        </div>
+                        <label htmlFor={key} className="mb-1 block text-xs font-bold text-neutral-600">Produto correto no CRM</label>
+                        <select id={key} value={selected} onChange={e => setChoices(s => ({ ...s, [key]: e.target.value }))}
+                          className="w-full rounded-lg border border-neutral-300 bg-white px-2 py-2 text-xs text-neutral-900">
+                          <option value="">Selecione um produto</option>
+                          {[...allOptions.entries()].map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                        </select>
+                        {selected && <p className="mt-1 text-[11px] text-neutral-500">{candidateNames.get(selected) || ''}</p>}
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                          <label className="flex items-center gap-2 text-xs text-neutral-600">
+                            Aplicar a
+                            <select value={scopes[key] || 'global'} onChange={e => setScopes(s => ({...s,[key]: e.target.value as 'global' | 'cliente'}))}
+                              className="rounded-md border border-neutral-300 bg-white p-1.5 text-xs">
+                              <option value="global">Todos os clientes</option>
+                              {analysis.cliente_id && <option value="cliente">Apenas este cliente</option>}
+                            </select>
+                          </label>
+                          <button type="button" onClick={() => void confirm(analysis, item, index)}
+                            disabled={!selected || saving === key || loading}
+                            className="rounded-lg bg-violet-700 px-3 py-2 text-xs font-black text-white disabled:opacity-40">
+                            {saving === key ? 'Salvando...' : item.resolvido ? 'Corrigir associação' : 'Confirmar produto'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
