@@ -3,6 +3,7 @@ import { ArrowLeft, CheckSquare, Loader2, MessageCircle, RefreshCw, Send, Sparkl
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { PageHeader, Panel } from '../components/ui/AppChrome';
+import { OrderLearningPanel } from '../components/whatsapp/OrderLearningPanel';
 
 type WhatsAppMap = {
   id: string;
@@ -309,6 +310,8 @@ export function WhatsAppConversationPage() {
           </div>
         </Panel>
       )}
+
+      {contatoId && <OrderLearningPanel contatoId={contatoId} />}
 
       <div className="space-y-2">
         {messages.length === 0 ? (
