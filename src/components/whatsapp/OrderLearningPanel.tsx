@@ -239,11 +239,17 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                         </div>
                         <div className="rounded-lg border border-neutral-200 bg-white p-3">
                           <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-500">
-                            {item.resolvido ? 'Produto confirmado' : item.origem_sugestao === 'aprendizado_confirmado' ? 'Produto aprendido anteriormente' : 'Sugestão de produto'}
+                            {item.resolvido ? 'Produto confirmado' : item.origem_sugestao === 'aprendizado_confirmado' ? 'Produto aprendido anteriormente' : 'Sugestão inicial do catálogo'}
                           </p>
                           <p className="mt-1 text-sm font-bold text-neutral-800">
                             {selected ? (candidateNames.get(selected) || (item.candidatos || []).find(c => c.id === selected)?.produto || 'Produto selecionado') : (item.candidatos?.[0]?.produto || 'Nenhum produto sugerido')}
                           </p>
+                          {!selected && item.candidatos?.[0]?.id && (
+                            <button type="button" onClick={() => setChoices(s => ({...s,[key]: item.candidatos![0].id}))}
+                              className="mt-2 mr-2 inline-flex rounded-lg bg-violet-700 px-2.5 py-1.5 text-xs font-bold text-white">
+                              Usar sugestão
+                            </button>
+                          )}
                           <button type="button" onClick={() => {
                               setExpandedSearch(s => ({...s,[key]: !s[key]}));
                               setProductSearch(s => ({...s,[key]: ''}));
@@ -281,7 +287,7 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                             </div>
                           )}
                         </div>
-                        {!selected && <p className="mt-2 text-xs text-amber-700">Selecione a sugestão no catálogo usando “Alterar produto”, se necessário, antes de confirmar.</p>}
+                        {!selected && <p className="mt-2 text-xs text-amber-700">Use a sugestão inicial ou clique em “Alterar produto” para pesquisar. Confira o SKU antes de confirmar.</p>}
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                           <label className="flex items-center gap-2 text-xs text-neutral-600">
                             Aplicar a
