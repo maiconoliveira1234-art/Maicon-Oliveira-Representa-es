@@ -102,6 +102,64 @@ export function StockCountPage() {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const countedGraceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const draftRef = useRef<{valores:Record<string,number>;tocados:string[];revisao:number}|null>(null);
+  const draftTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
+  const sendingDraft = useRef(false);
+  const [draftState,setDraftState]=useState<'restoring'|'local'|'syncing'|'synced'|'error'>('restoring');
+  const draftKey = (id:string)=>`estoque_rascunho_v2_${id}`;
+  const syncDraft = async (id:string) => {
+    if(sendingDraft.current || navigator.onLine===false) return;
+    let saved: {valores:Record<string,number>;tocados:string[];revisao:number}|null=null;
+    try { const raw=localStorage.getItem(draftKey(id)); if(raw)saved=JSON.parse(raw); } catch {}
+    if(!saved || !saved.revisao) return;
+    sendingDraft.current=true;
+    setDraftState('syncing');
+    try {
+      const {data,error}=await supabase.rpc('salvar_rascunho_contagem',{
+        p_cliente_id:id,p_valores:saved.valores,p_tocados:saved.tocados,
+        p_revisao:saved.revisao,p_finalizado:false
+      });
+      if(error)throw error;
+      const row=Array.isArray(data)?data[0]:null;
+      if(!row || Number(row.revisao)!==saved.revisao || row.finalizado)throw new Error('Versão remota diferente');
+      setDraftState(draftRef.current?.revisao===saved.revisao?'synced':'local');
+    } catch(error){
+      console.error('[CONTAGEM] Falha ao sincronizar rascunho:',error);
+      setDraftState('error');
+    } finally {
+      sendingDraft.current=false;
+      if(draftRef.current?.revisao!==saved?.revisao)scheduleDraftSync(id);
+    }
+  };
+  const scheduleDraftSync=(id:string)=>{
+    if(draftTimer.current)clearTimeout(draftTimer.current);
+    draftTimer.current=setTimeout(()=>{draftTimer.current=null;void syncDraft(id)},700);
+  };
+  const persistDraft=(id:string,valores:Record<string,number>,tocados:string[])=>{
+    const revisao=Math.max(Date.now()*1000,(draftRef.current?.revisao||0)+1);
+    const payload={valores,tocados,revisao};
+    draftRef.current=payload;
+    try{
+      // Synchronous write before any React render or navigation.
+      localStorage.setItem(draftKey(id),JSON.stringify(payload));
+      localStorage.setItem(`estoque_${id}`,JSON.stringify(valores));
+      setDraftState('local');
+    }catch(error){
+      console.error('[CONTAGEM] CRITICAL: gravação local falhou',error);
+      setDraftState('error');
+      alert('Atenção: esta contagem não pôde ser gravada no dispositivo. Não feche a tela.');
+    }
+    scheduleDraftSync(id);
+  };
+  useEffect(()=>{
+    if(!clienteId)return;
+    const flush=()=>{if(draftTimer.current)clearTimeout(draftTimer.current);draftTimer.current=null;void syncDraft(clienteId)};
+    const visibility=()=>{if(document.visibilityState==='hidden'||document.visibilityState==='visible')flush()};
+    window.addEventListener('pagehide',flush);
+    window.addEventListener('online',flush);
+    document.addEventListener('visibilitychange',visibility);
+    return ()=>{window.removeEventListener('pagehide',flush);window.removeEventListener('online',flush);document.removeEventListener('visibilitychange',visibility);flush()};
+  },[clienteId]);
   
   // Derived state to avoid duplication, race conditions, or state-overwriting
   const cacheData = useMemo(() => {
@@ -261,6 +319,17 @@ export function StockCountPage() {
         initialEstoque[e.produto_id] = e.quantidade_atual;
       });
     }
+    let localRevision=0;
+    try{
+      const raw=localStorage.getItem(draftKey(clienteId));
+      if(raw){
+        const d=JSON.parse(raw);
+        if(d && Number(d.revisao)>0 && d.valores && typeof d.valores==='object' && Array.isArray(d.tocados)){
+          initialEstoque=d.valores;initialTouched=new Set(d.tocados);localRevision=Number(d.revisao);
+        }
+      }
+    }catch(error){console.warn('[CONTAGEM] Backup v2 inválido, usando backup anterior',error)}
+    draftRef.current={valores:initialEstoque,tocados:[...initialTouched],revisao:localRevision};
     setEstoqueMap(initialEstoque);
     setTouchedItems(initialTouched);
     setManualInactive(new Set(cacheData.estoque.filter(e => e.inativo_manualmente).map(e => e.produto_id)));
@@ -361,8 +430,35 @@ export function StockCountPage() {
         }));
       })
       .catch(error => console.warn('Erro ao carregar pedido na contagem:', error))
-      .finally(() => {
-        if (lastInitializedClientId.current === clienteId) setIsReady(true);
+      .finally(async()=>{
+        if(lastInitializedClientId.current!==clienteId)return;
+        try{
+          const {data:remote,error}=await supabase.from('estoque_contagem_rascunhos')
+            .select('valores,tocados,revisao,finalizado').eq('cliente_id',clienteId).maybeSingle();
+          if(error)throw error;
+          let local=draftRef.current;
+          try{const raw=localStorage.getItem(draftKey(clienteId));if(raw)local=JSON.parse(raw)}catch{}
+          if(remote && !remote.finalizado && Number(remote.revisao)>Number(local?.revisao||0)){
+            const valores=(remote.valores||{}) as Record<string,number>;
+            const tocados=Array.isArray(remote.tocados)?remote.tocados as string[]:[];
+            draftRef.current={valores,tocados,revisao:Number(remote.revisao)};
+            setEstoqueMap(valores);setTouchedItems(new Set(tocados));
+            localStorage.setItem(draftKey(clienteId),JSON.stringify(draftRef.current));
+            localStorage.setItem(`estoque_${clienteId}`,JSON.stringify(valores));
+            setDraftState('synced');
+          }else if(remote?.finalizado && Number(remote.revisao)>=Number(local?.revisao||0)){
+            localStorage.removeItem(draftKey(clienteId));
+            localStorage.removeItem(`estoque_${clienteId}`);
+            draftRef.current={valores:initialEstoque,tocados:[],revisao:Number(remote.revisao)};
+            setEstoqueMap(initialEstoque);setTouchedItems(new Set());
+            setDraftState('synced');
+          }else if(local && local.revisao>0){
+            setDraftState('local');scheduleDraftSync(clienteId);
+          }else setDraftState('synced');
+        }catch(error){
+          console.warn('[CONTAGEM] Recuperação remota falhou, backup local preservado',error);
+          setDraftState('error');
+        }finally{if(lastInitializedClientId.current===clienteId)setIsReady(true)}
       });
 
     lastInitializedClientId.current = clienteId;
@@ -589,11 +685,10 @@ export function StockCountPage() {
         return next;
       });
     }
-    setEstoqueMap(prev => ({
-      ...prev,
-      [produtoId]: isNaN(num) ? 0 : Math.max(0, num)
-    }));
-    setTouchedItems(prev => new Set(prev).add(produtoId));
+    const valores={...(draftRef.current?.valores||estoqueMap),[produtoId]:isNaN(num)?0:Math.max(0,num)};
+    const tocados=new Set(draftRef.current?.tocados||[...touchedItems]);tocados.add(produtoId);
+    if(clienteId)persistDraft(clienteId,valores,[...tocados]);
+    setEstoqueMap(valores);setTouchedItems(tocados);
 
     if (selectedFamily === 'Não Contados') {
       if (countedGraceTimers.current[produtoId]) {
@@ -745,12 +840,7 @@ export function StockCountPage() {
     });
   };
 
-  // Persist state to localStorage to survive navigation
-  useEffect(() => {
-    if (isReady && clienteId) {
-      localStorage.setItem(`estoque_${clienteId}`, JSON.stringify(estoqueMap));
-    }
-  }, [estoqueMap, clienteId, isReady]);
+  // Counts are written immediately in updateQuantity, not in a delayed render effect.
 
   useEffect(() => {
     if (isReady && clienteId) {
@@ -768,12 +858,8 @@ export function StockCountPage() {
   };
 
   const confirmClearAll = () => {
-    setEstoqueMap({});
-    setTouchedItems(new Set());
-    setShowClearConfirm(false);
-    if (clienteId) {
-      localStorage.setItem(`estoque_${clienteId}`, JSON.stringify({}));
-    }
+    if(clienteId)persistDraft(clienteId,{},[]);
+    setEstoqueMap({});setTouchedItems(new Set());setShowClearConfirm(false);
   };
 
   const handleSave = async () => {
@@ -811,9 +897,19 @@ export function StockCountPage() {
         return;
       }
 
-      // Clear the draft only after every item is confirmed by Supabase.
-      localStorage.removeItem(`estoque_${clienteId}`);
-
+      // Finalize backup only after all official stock rows were confirmed.
+      const revision=Math.max(Date.now()*1000,(draftRef.current?.revisao||0)+1);
+      const finalized=await supabase.rpc('salvar_rascunho_contagem',{
+        p_cliente_id:clienteId,p_valores:estoqueMap,p_tocados:[...touchedItems],
+        p_revisao:revision,p_finalizado:true
+      });
+      if(!finalized.error){
+        if(draftTimer.current)clearTimeout(draftTimer.current);
+        draftTimer.current=null;
+        draftRef.current={valores:estoqueMap,tocados:[],revisao:revision};
+        localStorage.removeItem(draftKey(clienteId));
+        localStorage.removeItem(`estoque_${clienteId}`);
+      }else console.warn('[CONTAGEM] Backup remoto não finalizado; cópia local preservada.',finalized.error);
       alert('Estoque atualizado com sucesso!');
       navigate(`/cliente/${clienteId}`);
     } catch (err) {
@@ -1074,12 +1170,15 @@ export function StockCountPage() {
     isReady
   ]);
 
-  if (loading) return <StockCountSkeleton />;
+  if (loading || !isReady) return <StockCountSkeleton />;
 
   const isOverdueGlobal = diasDesdeUltimoPedidoGlobal > mediaCicloGlobal;
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] pb-2 flex flex-col">
+      <div role="status" className={`px-3 py-1 text-xs font-bold ${draftState==='synced'?'bg-green-50 text-green-700':draftState==='error'?'bg-red-50 text-red-700':'bg-amber-50 text-amber-800'}`}>
+        {draftState==='synced'?'Contagem protegida no Supabase':draftState==='syncing'?'Salvando contagem na nuvem…':draftState==='local'?'Contagem salva neste dispositivo · sincronização pendente':draftState==='error'?'Atenção: cópia na nuvem não confirmada. Verifique sua conexão.':'Verificando backup da contagem…'}
+      </div>
       {/* Spreadsheet Header */}
       <div className="bg-white border-b border-neutral-200 shadow-sm">
         <div className="w-full px-2 py-1 md:py-1.5">
