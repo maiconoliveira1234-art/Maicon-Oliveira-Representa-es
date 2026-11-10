@@ -824,9 +824,19 @@ export function StockCountPage() {
     }
   };
 
-  const handleGoToPedido = async () => {
+  const handleGoToPedido = () => {
+    if (!clienteId) return;
     const itemsList = buildPedidoItemsList();
-    await savePedidoDraft(itemsList);
+
+    // Opening the order is navigation, not an explicit delete action.
+    // Preserve any existing order when this screen has no selected items.
+    if (itemsList.length > 0) {
+      // savePedidoDraft writes the local draft synchronously before awaiting
+      // Supabase. Let offline synchronization continue without blocking navigation.
+      void savePedidoDraft(itemsList).catch(error => {
+        console.error('[CONTAGEM] Falha ao sincronizar rascunho ao abrir pedido:', error);
+      });
+    }
 
     navigate(`/pedido/novo/${clienteId}`);
   };
