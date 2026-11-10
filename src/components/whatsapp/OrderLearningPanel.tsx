@@ -23,6 +23,7 @@ type Analysis = {
   itens: Item[];
   mensagem: string;
   atualizado_em: string;
+  observacoes?: string | null;
 };
 type Product = { id: string; produto: string };
 type ApiResult = { ok?: boolean; error?: string; analises?: Analysis[]; acao?: string };
@@ -88,6 +89,27 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
     } catch (err: any) {
       setError(err?.message || 'Não foi possível autenticar.');
       setLoading(false);
+    }
+  };
+
+  const reanalyze = async () => {
+    setSaving('reanalyze');
+    setError('');
+    setSuccess('');
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke<ApiResult>('whatsapp-learning-review', {
+        body: { action: 'analyze', contato_map_id: contatoId },
+      });
+      if (invokeError) throw invokeError;
+      if (data?.error) throw new Error(data.error === 'no_order_list_found'
+        ? 'Nenhuma lista de produtos com quantidades foi identificada nesta conversa.'
+        : 'Não foi possível reanalisar a conversa.');
+      setSuccess('Análise realizada. Confira todos os itens e alterações antes de aprovar.');
+      await load();
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao reanalisar a conversa.');
+    } finally {
+      setSaving(null);
     }
   };
 
@@ -191,6 +213,7 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
             <>
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs text-neutral-500">As propostas ficam aqui para aprovação. Um rascunho só é criado após sua confirmação explícita.</p>
+                <button type="button" disabled={saving === 'reanalyze'} onClick={() => void reanalyze()} className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 disabled:opacity-50">Analisar conversa</button>
                 <button type="button" aria-label="Atualizar análises" onClick={() => void load()}
                   className="rounded-lg border border-neutral-200 p-2 text-neutral-600"><RefreshCcw size={15} /></button>
               </div>
@@ -206,6 +229,7 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                     <p className="mt-2 text-xs font-semibold text-neutral-700">
                       {analysis.itens.length} itens · {analysis.itens.reduce((sum, item) => sum + Number(item.quantidade || 0), 0)} embalagens solicitadas
                     </p>
+                    {analysis.observacoes && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs font-semibold text-amber-800">Observações da análise: {analysis.observacoes}</p>}
                     <p className="mt-1 text-xs text-amber-700">Prévia sem precificação: valores e condições comerciais serão calculados na tela Pedidos.</p>
                   </div>
                   {analysis.itens.map((item, index) => {
