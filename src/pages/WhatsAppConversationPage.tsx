@@ -8,6 +8,7 @@ import { OrderLearningPanel } from '../components/whatsapp/OrderLearningPanel';
 type WhatsAppMap = {
   id: string;
   whatsapp_nome: string;
+  whatsapp_perfil_nome: string | null;
   cliente_id: string | null;
   status: 'pendente' | 'vinculado' | 'ignorado';
 };
@@ -53,7 +54,7 @@ export function WhatsAppConversationPage() {
     try {
       const { data: mapData, error: mapError } = await supabase
         .from('whatsapp_contatos_map')
-        .select('id, whatsapp_nome, cliente_id, status')
+        .select('id, whatsapp_nome, whatsapp_perfil_nome, cliente_id, status')
         .eq('id', contatoId)
         .maybeSingle();
       if (mapError) throw mapError;
@@ -244,7 +245,7 @@ export function WhatsAppConversationPage() {
       </button>
 
       <PageHeader
-        title={mapping?.whatsapp_nome || 'Conversa do WhatsApp'}
+        title={mapping?.whatsapp_perfil_nome || mapping?.whatsapp_nome || 'Conversa do WhatsApp'}
         subtitle={cliente ? `${cliente.cliente}${cliente.cidade ? ` · ${cliente.cidade}` : ''}` : 'Histórico capturado pelo CRM'}
         icon={<MessageCircle />}
       />
