@@ -126,6 +126,9 @@ export function StockCountPage() {
     } catch(error){
       console.error('[CONTAGEM] Falha ao sincronizar rascunho:',error);
       setDraftState('error');
+      // Retry transient Supabase failures without requiring another edit.
+      if(draftTimer.current)clearTimeout(draftTimer.current);
+      draftTimer.current=setTimeout(()=>{draftTimer.current=null;void syncDraft(id)},15000);
     } finally {
       sendingDraft.current=false;
       if(draftRef.current?.revisao!==saved?.revisao)scheduleDraftSync(id);
@@ -903,13 +906,14 @@ export function StockCountPage() {
         p_cliente_id:clienteId,p_valores:estoqueMap,p_tocados:[...touchedItems],
         p_revisao:revision,p_finalizado:true
       });
-      if(!finalized.error){
+      const finalizedRow=Array.isArray(finalized.data)?finalized.data[0]:null;
+      if(!finalized.error && finalizedRow?.finalizado === true && Number(finalizedRow.revisao)===revision){
         if(draftTimer.current)clearTimeout(draftTimer.current);
         draftTimer.current=null;
         draftRef.current={valores:estoqueMap,tocados:[],revisao:revision};
         localStorage.removeItem(draftKey(clienteId));
         localStorage.removeItem(`estoque_${clienteId}`);
-      }else console.warn('[CONTAGEM] Backup remoto não finalizado; cópia local preservada.',finalized.error);
+      }else console.warn('[CONTAGEM] Backup remoto não finalizado; cópia local preservada.',finalized.error||finalizedRow);
       alert('Estoque atualizado com sucesso!');
       navigate(`/cliente/${clienteId}`);
     } catch (err) {
