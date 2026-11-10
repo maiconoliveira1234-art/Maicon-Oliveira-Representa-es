@@ -25,7 +25,7 @@ type Analysis = {
   atualizado_em: string;
   observacoes?: string | null;
 };
-type Product = { id: string; produto: string };
+type Product = { id: string; produto: string; quant_embalagem: number; peso_embalagem: number };
 type ApiResult = { ok?: boolean; error?: string; analises?: Analysis[]; acao?: string };
 
 const getKey = (analysisId: string, index: number) => `${analysisId}:${index}`;
@@ -43,6 +43,7 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
   const [expandedSearch, setExpandedSearch] = useState<Record<string, boolean>>({});
   const [scopes, setScopes] = useState<Record<string, 'global' | 'cliente'>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [acceptBoxRounding, setAcceptBoxRounding] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -59,7 +60,7 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
       setAnalyses(data?.analises || []);
       setAuthorized(true);
       const { data: catalog, error: catalogError } = await supabase.from('produtos')
-        .select('id,produto').eq('ativo', true).order('produto').limit(1000);
+        .select('id,produto,quant_embalagem,peso_embalagem').eq('ativo', true).order('produto').limit(1000);
       if (catalogError) throw catalogError;
       setProducts((catalog || []) as Product[]);
     } catch (err: any) {
@@ -153,11 +154,13 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
     setError('');
     try {
       const { data, error: invokeError } = await supabase.functions.invoke<ApiResult & { cliente_id?: string }>('whatsapp-learning-review', {
-        body: { action: 'approve', analise_id: analysis.id },
+        body: { action: 'approve', analise_id: analysis.id, aceitar_arredondamento: Boolean(acceptBoxRounding[analysis.id]) },
       });
       if (invokeError) throw invokeError;
       if (data?.error) throw new Error(data.error === 'existing_draft_must_be_reviewed_first'
         ? 'Já existe um pedido em aberto para este cliente. Abra-o e confira antes de criar outro.'
+        : data.error === 'package_catalog_mismatch' ? 'Descrição e quantidade por caixa divergentes: corrija o cadastro do produto.'
+        : data.error === 'box_rounding_confirmation_required' ? 'Complete a caixa somente após marcar a confirmação das unidades extras.'
         : data.error);
       setSuccess('Rascunho criado. Confira valores, campanhas e condições na tela Pedidos.');
       if (data?.cliente_id) navigate(`/pedido/novo/${data.cliente_id}`);
@@ -170,6 +173,23 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
   };
 
   const candidateNames = useMemo(() => new Map(products.map(p => [p.id, p.produto])), [products]);
+  const catalogById = useMemo(() => new Map(products.map(p => [p.id, p])), [products]);
+  const packagingFor = (analysis: Analysis, item: Item, index: number) => {
+    const key = getKey(analysis.id,index);
+    const p = catalogById.get(choices[key] || item.produto_id || item.sugestao_produto_id || '');
+    if (!p) return null;
+    const perBox = Number(p.quant_embalagem);
+    if (!Number.isInteger(perBox) || perBox < 1) return null;
+    const nested = p.produto.match(/(\d+)\s*[xX×]\s*\(\s*(\d+)\s*[xX×]\s*\d+(?:[.,]\d+)?\s*(?:KG|G)\s*\)/i);
+    const simple = p.produto.match(/(?:^|[^\d])(\d+)\s*[xX×]\s*\d+(?:[.,]\d+)?\s*(?:KG|G)\b/i);
+    const inDescription = nested ? Number(nested[1])*Number(nested[2]) : simple ? Number(simple[1]) : null;
+    const mismatch = inDescription!==null && inDescription!==perBox;
+    const qty=Number(item.quantidade);
+    const isBox=/^(cx|cxs|caixa|caixas|box|boxes)$/.test(String(item.unidade||'').toLowerCase().trim());
+    const boxes=isBox||perBox===1?qty:Math.ceil(qty/perBox);
+    const requested=isBox?qty*perBox:qty;
+    return {boxes,perBox,requested,extra:boxes*perBox-requested,mismatch};
+  };
   const normalizeSearch = (value: string) => value.normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const searchRank = (name: string, query: string) => {
@@ -233,6 +253,7 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                     <p className="mt-1 text-xs text-amber-700">Prévia sem precificação: valores e condições comerciais serão calculados na tela Pedidos.</p>
                   </div>
                   {analysis.itens.map((item, index) => {
+                    const packaging = packagingFor(analysis,item,index);
                     const key = getKey(analysis.id, index);
                     const selected = choices[key] || item.produto_id || item.sugestao_produto_id || '';
                     const allOptions = new Map<string, string>();
@@ -252,6 +273,11 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                           <div>
                             <p className="text-sm font-bold text-neutral-900">{item.descricao}</p>
                             <p className="text-xs text-neutral-500">{item.quantidade} {item.unidade} · {item.embalagem || 'Embalagem não informada'}</p>
+                            {packaging && <p className={`mt-1 text-xs font-bold ${packaging.mismatch || packaging.extra ? 'text-amber-700':'text-emerald-700'}`}>
+                              {packaging.requested} unidades → {packaging.boxes} caixas de {packaging.perBox}
+                              {packaging.extra>0 && ` · +${packaging.extra} unidades para fechar caixas`}
+                              {packaging.mismatch && ' · Cadastro divergente: aprovação bloqueada'}
+                            </p>}
                           </div>
                           {item.resolvido ? (
                             <span className="flex items-center gap-1 text-xs font-bold text-green-700"><CheckCircle2 size={14} /> Confirmado</span>
@@ -331,6 +357,13 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                     );
                   })}
                   <div className="rounded-lg border-t border-neutral-200 pt-3">
+                    {analysis.itens.some((item, index) => (packagingFor(analysis,item,index)?.extra || 0)>0) && (
+                      <label className="mb-3 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-xs font-semibold text-amber-900">
+                        <input type="checkbox" checked={Boolean(acceptBoxRounding[analysis.id])}
+                          onChange={e => setAcceptBoxRounding(old => ({...old,[analysis.id]:e.target.checked}))} />
+                        Confirmo as unidades extras necessárias para completar as caixas. O cliente deverá concordar com a quantidade faturada.
+                      </label>
+                    )}
                     {!analysis.cliente_id && <p className="mb-2 text-xs font-semibold text-amber-700">Vincule esta conversa a um cliente do CRM para habilitar a criação do rascunho.</p>}
                     <button type="button" onClick={() => void approve(analysis)}
                       disabled={saving === analysis.id || !analysis.cliente_id || !analysis.itens.length || analysis.itens.some(item => !item.resolvido || !item.produto_id)}
