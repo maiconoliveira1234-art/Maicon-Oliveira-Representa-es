@@ -3,7 +3,10 @@ import { CheckCircle2, ChevronDown, Loader2, LockKeyhole, RefreshCcw, Sparkles }
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
-type Candidate = { id: string; produto: string; score: number };
+type Candidate = {
+  id: string; produto: string; score: number;
+  historico_compras?: { ocorrencias: number; ultima_compra: string } | null;
+};
 type Item = {
   descricao: string;
   quantidade: number;
@@ -14,6 +17,7 @@ type Item = {
   sugestao_produto_id?: string | null;
   origem_sugestao?: string | null;
   resolvido?: boolean;
+  origem_sugestao?: string | null;
 };
 type Analysis = {
   id: string;
@@ -254,6 +258,8 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                   </div>
                   {analysis.itens.map((item, index) => {
                     const packaging = packagingFor(analysis,item,index);
+                    const historicalCandidate = (item.candidatos || []).find(c=>c.id===item.sugestao_produto_id && c.historico_compras);
+                    const historical = historicalCandidate?.historico_compras;
                     const key = getKey(analysis.id, index);
                     const selected = choices[key] || item.produto_id || item.sugestao_produto_id || '';
                     const allOptions = new Map<string, string>();
@@ -283,17 +289,24 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                             <span className="flex items-center gap-1 text-xs font-bold text-green-700"><CheckCircle2 size={14} /> Confirmado</span>
                           ) : item.origem_sugestao === 'aprendizado_confirmado' ? (
                             <span className="text-xs font-semibold text-violet-700">Aprendido anteriormente</span>
+                          ) : item.origem_sugestao === 'historico_cliente' ? (
+                            <span className="text-xs font-semibold text-blue-700">Sugestão pelo histórico</span>
                           ) : (
                             <span className="text-xs font-semibold text-amber-700">Revisão necessária</span>
                           )}
                         </div>
                         <div className="rounded-lg border border-neutral-200 bg-white p-3">
                           <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-500">
-                            {item.resolvido ? 'Produto confirmado' : item.origem_sugestao === 'aprendizado_confirmado' ? 'Produto aprendido anteriormente' : 'Sugestão inicial do catálogo'}
+                            {item.resolvido ? 'Produto confirmado' : item.origem_sugestao === 'aprendizado_confirmado' ? 'Produto aprendido anteriormente' : item.origem_sugestao === 'historico_cliente' ? 'Produto sugerido pelo histórico de compras' : 'Sugestão inicial do catálogo'}
                           </p>
                           <p className="mt-1 text-sm font-bold text-neutral-800">
                             {selected ? (candidateNames.get(selected) || (item.candidatos || []).find(c => c.id === selected)?.produto || 'Produto selecionado') : (item.candidatos?.[0]?.produto || 'Nenhum produto sugerido')}
                           </p>
+                          {historical && item.origem_sugestao === 'historico_cliente' && (
+                            <p className="mt-1 text-xs font-semibold text-blue-700">
+                              Comprado {historical.ocorrencias} {historical.ocorrencias===1?'vez':'vezes'} · última compra em {new Date(historical.ultima_compra + 'T12:00:00').toLocaleDateString('pt-BR')}. Confirme a apresentação e o sabor.
+                            </p>
+                          )}
                           {!selected && item.candidatos?.[0]?.id && (
                             <button type="button" onClick={() => setChoices(s => ({...s,[key]: item.candidatos![0].id}))}
                               className="mt-2 mr-2 inline-flex rounded-lg bg-violet-700 px-2.5 py-1.5 text-xs font-bold text-white">
