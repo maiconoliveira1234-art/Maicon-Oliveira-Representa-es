@@ -9,6 +9,7 @@ type Status = 'pendente' | 'vinculado' | 'ignorado';
 type WhatsAppMap = {
   id: string;
   whatsapp_nome: string;
+  whatsapp_perfil_nome: string | null;
   cliente_id: string | null;
   status: Status;
   total_mensagens: number;
@@ -58,7 +59,7 @@ export function WhatsAppContactsPage() {
       const [{ data: mapData, error: mapError }, { data: clientData, error: clientError }, { data: messageData, error: messageError }] = await Promise.all([
         supabase
           .from('whatsapp_contatos_map')
-          .select('id, whatsapp_nome, cliente_id, status, total_mensagens, ultima_vez_em, oculto')
+          .select('id, whatsapp_nome, whatsapp_perfil_nome, cliente_id, status, total_mensagens, ultima_vez_em, oculto')
           .eq('oculto', false)
           .order('ultima_vez_em', { ascending: false }),
         supabase
@@ -301,7 +302,7 @@ export function WhatsAppContactsPage() {
                     >
                       <div className="flex items-center gap-2">
                         <MessageCircle size={17} className="shrink-0 text-green-600" />
-                        <h2 className="truncate font-black text-neutral-900">{map.whatsapp_nome}</h2>
+                        <h2 className="truncate font-black text-neutral-900">{map.whatsapp_perfil_nome || map.whatsapp_nome}</h2>
                       </div>
                       <p className="mt-1 text-xs font-semibold text-neutral-400">
                         {map.total_mensagens} {map.total_mensagens === 1 ? 'mensagem capturada' : 'mensagens capturadas'}
@@ -471,7 +472,7 @@ export function WhatsAppContactsPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">WhatsApp</p>
-                  <h3 className="font-black text-neutral-900">{selectedMap.whatsapp_nome}</h3>
+                  <h3 className="font-black text-neutral-900">{selectedMap.whatsapp_perfil_nome || selectedMap.whatsapp_nome}</h3>
                 </div>
                 <button type="button" onClick={() => setSelectedMap(null)} className="rounded-lg p-2 text-neutral-400 hover:bg-neutral-100">×</button>
               </div>
