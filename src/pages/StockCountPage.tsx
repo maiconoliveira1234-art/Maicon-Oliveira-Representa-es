@@ -457,6 +457,9 @@ export function StockCountPage() {
             setDraftState('synced');
           }else if(local && local.revisao>0){
             setDraftState('local');scheduleDraftSync(clienteId);
+          }else if(initialTouched.size>0){
+            // Upgrade preexisting browser-only work to a cloud-backed draft.
+            persistDraft(clienteId,initialEstoque,[...initialTouched]);
           }else setDraftState('synced');
         }catch(error){
           console.warn('[CONTAGEM] Recuperação remota falhou, backup local preservado',error);
