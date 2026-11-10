@@ -41,6 +41,8 @@ export function WhatsAppConversationPage() {
   const [targetMessageId, setTargetMessageId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [atendimentoStatus, setAtendimentoStatus] = useState<'resolvido' | 'em_negociacao' | 'aguardando_retorno'>('resolvido');
+  const [savingAtendimento, setSavingAtendimento] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadData = async (silent = false) => {
@@ -59,6 +61,12 @@ export function WhatsAppConversationPage() {
 
       const typedMap = mapData as WhatsAppMap;
       setMapping(typedMap);
+
+      const { data: retention, error: retentionError } = await supabase.functions.invoke('whatsapp-retencao-atendimento', {
+        body: { action: 'get', contato_map_id: contatoId },
+      });
+      if (retentionError || retention?.error) throw new Error('Não foi possível consultar a proteção deste atendimento.');
+      setAtendimentoStatus((retention?.status || 'resolvido') as typeof atendimentoStatus);
 
       const messagesQuery = supabase
         .from('whatsapp_mensagens')
@@ -105,6 +113,23 @@ export function WhatsAppConversationPage() {
       window.removeEventListener('focus', refresh);
     };
   }, [contatoId]);
+
+  const updateAtendimento = async (next: 'resolvido' | 'em_negociacao' | 'aguardando_retorno') => {
+    if (!contatoId || savingAtendimento) return;
+    setSavingAtendimento(true);
+    setError(null);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('whatsapp-retencao-atendimento', {
+        body: { action: 'set', contato_map_id: contatoId, status: next },
+      });
+      if (invokeError || data?.error) throw new Error('Não foi possível atualizar o atendimento.');
+      setAtendimentoStatus(next);
+    } catch (err: any) {
+      setError(err?.message || 'Falha ao atualizar o atendimento.');
+    } finally {
+      setSavingAtendimento(false);
+    }
+  };
 
   const latestMessage = messages.length ? messages[0] : null;
   const targetMessage = useMemo(
@@ -229,6 +254,24 @@ export function WhatsAppConversationPage() {
           {error}
         </div>
       )}
+
+      <Panel className="p-4">
+        <label htmlFor="atendimento-retencao" className="block text-sm font-black text-neutral-900">Situação do atendimento</label>
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <select
+            id="atendimento-retencao"
+            value={atendimentoStatus}
+            onChange={event => void updateAtendimento(event.target.value as 'resolvido' | 'em_negociacao' | 'aguardando_retorno')}
+            disabled={savingAtendimento}
+            className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm font-semibold text-neutral-800 disabled:opacity-50"
+          >
+            <option value="resolvido">Resolvido</option>
+            <option value="em_negociacao">Em negociação</option>
+            <option value="aguardando_retorno">Aguardando retorno</option>
+          </select>
+          <p className="text-xs text-neutral-500">Em negociação e Aguardando retorno protegem o histórico da limpeza automática. Resolvido libera as mensagens apenas quando excederem os limites definidos.</p>
+        </div>
+      </Panel>
 
       <Panel className="p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
