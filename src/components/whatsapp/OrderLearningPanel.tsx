@@ -105,9 +105,16 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
       const { data, error: invokeError } = await supabase.functions.invoke<ApiResult>('whatsapp-learning-review', {
         body: { action: 'analyze', contato_map_id: contatoId },
       });
-      if (invokeError) throw invokeError;
+      if (invokeError) {
+        const details = await invokeError.context?.json?.().catch(() => null);
+        if (details?.error === 'no_order_list_found')
+          throw new Error('Não foi possível localizar a lista de itens. Confira a mensagem mais recente do cliente.');
+        if (details?.error === 'analysis_failed')
+          throw new Error('O reconhecimento de pedidos está temporariamente indisponível. Tente Analisar conversa novamente.');
+        throw new Error('Falha de comunicação com a análise de pedidos. Atualize a página e tente novamente.');
+      }
       if (data?.error) throw new Error(data.error === 'no_order_list_found'
-        ? 'Nenhuma lista de produtos com quantidades foi identificada nesta conversa.'
+        ? 'Não foi possível localizar a lista de itens.'
         : 'Não foi possível reanalisar a conversa.');
       setSuccess('Análise realizada. Confira todos os itens e alterações antes de aprovar.');
       await load();
