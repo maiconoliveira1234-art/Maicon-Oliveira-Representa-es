@@ -17,7 +17,7 @@ async function loadTitles(id: string): Promise<CreditTitle[]> {
   const titles: CreditTitle[] = [];
   for (let offset = 0; ; offset += 500) {
     const { data, error } = await supabase.from('titulos_credito')
-      .select('id, vencimento, valor, baixado_em').eq('entidade_financeira_id', id)
+      .select('id, vencimento, valor').eq('entidade_financeira_id', id)
       .order('vencimento').order('id').range(offset, offset + 499);
     if (error) throw error;
     titles.push(...(data || []).map(t => ({ ...t, valor: Number(t.valor) })));
@@ -129,7 +129,7 @@ function StoreReview({ store, onSaved }: { store: Store; onSaved: (store: Store)
       <h4 className="font-bold">Boletos</h4>
       <label className="text-xs">Situação
         <select className={inputClass} value={filter} onChange={e => setFilter(e.target.value)}>
-          {['Todos', 'Pagamento presumido', 'A vencer', 'Baixado'].map(s => <option key={s}>{s}</option>)}
+          {['Todos', 'Pagamento presumido', 'A vencer'].map(s => <option key={s}>{s}</option>)}
         </select>
       </label>
     </div>
@@ -137,13 +137,13 @@ function StoreReview({ store, onSaved }: { store: Store; onSaved: (store: Store)
       <><p className="text-xs text-neutral-600">{visible.length} boleto(s) • {formatCurrency(visible.reduce((sum, t) => sum + t.valor, 0))}</p>
         {visible.length === 0 ? <p className="text-sm text-neutral-500">Nenhum boleto encontrado nesta consulta.</p> :
           <div className="max-h-96 overflow-auto"><table className="w-full text-left text-sm">
-            <thead className="sticky top-0 bg-neutral-100"><tr><th className="p-2">Vencimento</th><th className="p-2">Valor</th><th className="p-2">Situação</th><th className="p-2">Baixa registrada</th></tr></thead>
+            <thead className="sticky top-0 bg-neutral-100"><tr><th className="p-2">Vencimento</th><th className="p-2">Valor</th><th className="p-2">Situação</th></tr></thead>
             <tbody>{visible.map(t => <tr key={t.id} className="border-b border-neutral-100">
               <td className="whitespace-nowrap p-2">{dateLabel(t.vencimento)}</td><td className="whitespace-nowrap p-2">{formatCurrency(t.valor)}</td>
-              <td className="p-2">{titleStatus(t, today)}</td><td className="p-2">{dateLabel(t.baixado_em)}</td>
+              <td className="p-2">{titleStatus(t, today)}</td>
             </tr>)}</tbody>
           </table></div>}
-        <p className="text-xs text-neutral-500">No vencimento, o CRM presume o pagamento e libera o crédito automaticamente. “Baixado” indica baixa registrada. O pagamento presumido não é confirmação bancária.</p>
+        <p className="text-xs text-neutral-500">No vencimento, o CRM considera o pagamento presumido para liberar crédito na projeção. Essa estimativa não confirma que o cliente pagou o boleto.</p>
       </>}
   </article>;
 }
