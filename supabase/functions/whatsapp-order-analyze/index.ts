@@ -91,7 +91,7 @@ Deno.serve(async req=>{
     .lte("recebida_em",message.recebida_em)
     .order("recebida_em",{ascending:true}).limit(60);
   if(recentError)return respond({error:"context_lookup_failed"},500);
-  const orderLine=(text:string)=>(String(text).split(/\r?\n/).filter(line=>/^\s*\d{1,4}\s+[^\s]/.test(line)).length>=2);
+  const orderLine=(text:string)=>(String(text).split(/\r?\n/).filter(line=>/^\s*\d{1,4}\s*(?:(?:cxs?|caixas?|unidades?|un)\s*)?[-.)]?\s+\S/i.test(line)).length>=2);
   const anchor=[...(recent||[])].reverse().find(row=>orderLine(row.mensagem));
   const anchorId=anchor?.id||message.id;
   const anchorTime=new Date(anchor?.recebida_em||message.recebida_em).getTime();
@@ -122,11 +122,32 @@ Responda exclusivamente JSON válido: {"e_pedido":boolean,"itens":[{"descricao":
 Extraia apenas quantidades efetivamente pedidas, não as confunda com o peso de embalagem.\nLinhas como "05 Shitzu adulto 1kg" significam 5 unidades do produto Shitzu adulto embalagem 1kg.\nMensagens posteriores complementam ou alteram a lista anterior. Se o cliente disser que aumentou quantidade sem informar o novo número, não invente: preserve a quantidade anterior, sinalize explicitamente nas observacoes que a quantidade precisa ser confirmada antes da aprovação.
 Exemplo "Raças Pequenas: 6 de 15 kg" significa quantidade 6 sacos, embalagem 15 kg.
 O pedido do cliente de produtos pequenos geralmente informa quantidade de unidades soltas, não caixas; preserve quantidade solicitada e indique unidade "un" quando vier apenas o número, como "05 Shitzu adulto 1kg".\nSe mencionar explicitamente "caixa(s)" ou "cx", informe unidade "caixa". Não converta nem arredonde para caixas nesta extração. Essa conversão depende do produto aprovado e do cadastro quant_embalagem.\nNão invente identificadores de produtos, preços, descontos ou quantidades. Dúvidas em observacoes.`;
-    const response=await ai.models.generateContent({
-      model:MODEL,
-      contents:system+"\n\nMENSAGEM RECEBIDA:\n"+String(contextText).slice(0,12000),
-      config:{responseMimeType:"application/json",temperature:0}
-    });
+    // A temporary provider outage must not prevent a customer order from being reviewed.
+    // Retry transient capacity failures, then use a second model if necessary.
+    let response:any=null;
+    let lastAiError:unknown=null;
+    for(const model of [MODEL,"gemini-2.5-flash"]){
+      for(let attempt=0;attempt<2;attempt++){
+        try {
+          response=await ai.models.generateContent({
+            model,
+            contents:system+"\n\nMENSAGEM RECEBIDA:\n"+String(contextText).slice(0,12000),
+            config:{responseMimeType:"application/json",temperature:0}
+          });
+          lastAiError=null;
+          break;
+        }catch(err){
+          lastAiError=err;
+          const summary=String(err instanceof Error?err.message:err);
+          const transient=/\b(429|500|502|503|504)\b|UNAVAILABLE|high demand|RESOURCE_EXHAUSTED|overloaded/i.test(summary);
+          if(!transient)throw err;
+          console.warn("order AI capacity retry",model,attempt+1);
+          if(attempt===0)await new Promise(resolve=>setTimeout(resolve,1200));
+        }
+      }
+      if(response)break;
+    }
+    if(!response)throw lastAiError||new Error("model_unavailable");
     const parsed=JSON.parse(String(response.text||"{}"));
     const isOrder=parsed.e_pedido===true;
     const rawItems=Array.isArray(parsed.itens)?parsed.itens.slice(0,50):[];
