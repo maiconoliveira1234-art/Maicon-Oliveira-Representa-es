@@ -41,7 +41,7 @@ Deno.serve(async(req)=>{
   }
   if(!mediaToken || !gemini){
     const missing=!mediaToken?"Credencial da Meta para download de mídia não configurada.":"Credencial de transcrição não configurada.";
-    await markError(messageId,missing,true);
+    await markError(messageId,missing);
     return json({error:"not_configured",detail:missing},503);
   }
   const {data:claimed,error:claimError}=await db.from("whatsapp_mensagens")
