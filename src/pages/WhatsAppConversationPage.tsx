@@ -27,6 +27,8 @@ type Message = {
   recebida_em: string;
   tipo_mensagem: string | null;
   transcricao_audio: string | null;
+  audio_status: string | null;
+  transcricao_erro: string | null;
   sugestao_resposta: string | null;
   sugestao_gerada_em: string | null;
   sugestao_erro: string | null;
@@ -71,7 +73,7 @@ export function WhatsAppConversationPage() {
 
       const messagesQuery = supabase
         .from('whatsapp_mensagens')
-        .select('id, mensagem, recebida_em, tipo_mensagem, transcricao_audio, sugestao_resposta, sugestao_gerada_em, sugestao_erro')
+        .select('id, mensagem, recebida_em, tipo_mensagem, transcricao_audio, audio_status, transcricao_erro, sugestao_resposta, sugestao_gerada_em, sugestao_erro')
         .eq('contato_map_id', contatoId)
         .order('recebida_em', { ascending: false })
         .limit(200);
@@ -397,7 +399,10 @@ export function WhatsAppConversationPage() {
 
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-neutral-800">{displayText(message)}</p>
                   {audioWaiting && (
-                    <p className="mt-1 text-xs font-semibold text-amber-600">Aguardando transcrição do áudio.</p>
+                    <p className={`mt-1 text-xs font-semibold ${message.audio_status === 'erro' || message.transcricao_erro ? 'text-red-700' : 'text-amber-600'}`}>
+                      {message.transcricao_erro || (message.audio_status === 'transcrevendo'
+                        ? 'Transcrevendo áudio…' : 'Áudio identificado. Aguardando transcrição.')}
+                    </p>
                   )}
 
                   <div className="mt-3 flex flex-wrap items-center gap-2">
