@@ -1,7 +1,6 @@
-export type CreditTitle = { id: string; vencimento: string; valor: number; baixado_em: string | null };
+export type CreditTitle = { id: string; vencimento: string; valor: number };
 
-export function titleStatus(title: Pick<CreditTitle, 'vencimento' | 'baixado_em'>, today: string): string {
-  if (title.baixado_em && title.baixado_em.slice(0, 10) <= today) return 'Baixado';
+export function titleStatus(title: Pick<CreditTitle, 'vencimento'>, today: string): string {
   if (title.vencimento <= today) return 'Pagamento presumido';
   return 'A vencer';
 }
