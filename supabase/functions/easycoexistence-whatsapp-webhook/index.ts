@@ -151,7 +151,7 @@ Deno.serve(async req => {
         }
         // Analyze apparent order requests asynchronously. This only writes to
         // whatsapp_pedidos_analise; never creates or updates actual orders.
-        const productLines = body.split(/\r?\n/).filter(line => /^\s*\d{1,4}\s+\S/.test(line)).length;
+        const productLines = body.split(/\r?\n/).filter(line => /^\s*\d{1,4}\s*(?:(?:cxs?|caixas?|unidades?|un)\s*)?[-.)]?\s+\S/i.test(line)).length;
         const hasOrderList = productLines >= 2;
         const likelyCorrection = /\b(aumentei|diminui|reduzi|altere[ia]|corrigi|troquei|acrescentei|faltou)\b/i.test(body);
         let correctionToList = false;
@@ -162,7 +162,7 @@ Deno.serve(async req => {
             .lte("recebida_em",receivedAt).order("recebida_em",{ascending:false}).limit(12);
           if (contextError) throw contextError;
           correctionToList = (previous||[]).some((row:any) =>
-            String(row.mensagem).split(/\r?\n/).filter((line:string)=>/^\s*\d{1,4}\s+\S/.test(line)).length>=2);
+            String(row.mensagem).split(/\r?\n/).filter((line:string)=>/^\s*\d{1,4}\s*(?:(?:cxs?|caixas?|unidades?|un)\s*)?[-.)]?\s+\S/i.test(line)).length>=2);
         }
         if (isText && (hasOrderList || correctionToList || /\bpedido\b|\b\d+\s*(?:sacos?|caixas?|unidades?|un|kg)\b/i.test(body))) {
           const analysis = fetch(dbUrl + "/functions/v1/whatsapp-order-analyze", {
