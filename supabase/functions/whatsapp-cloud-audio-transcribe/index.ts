@@ -53,7 +53,7 @@ Deno.serve(async(req)=>{
   let uploadedName="";
   try {
     const authHeader={Authorization:`Bearer ${mediaToken}`};
-    const meta=await fetch(`https://graph.facebook.com/v26.0/${mediaId}`,{headers:authHeader});
+    const meta=await fetch(`https://graph.facebook.com/v25.0/${mediaId}`,{headers:authHeader});
     if(!meta.ok)throw new Error(`media_lookup_http_${meta.status}`);
     const info=await meta.json();
     const mediaUrl=new URL(String(info.url||""));
