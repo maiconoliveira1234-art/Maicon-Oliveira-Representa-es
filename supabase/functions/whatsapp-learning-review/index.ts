@@ -29,7 +29,7 @@ Deno.serve(async req=>{
    if(!isUuid(contactId)) return asJson({error:"invalid_contact"},400);
    const {data:messages,error:messageError}=await admin.from("whatsapp_mensagens")
      .select("id,mensagem,recebida_em,tipo_mensagem").eq("contato_map_id",contactId)
-     .eq("tipo_mensagem","texto").order("recebida_em",{ascending:false}).limit(60);
+     .eq("tipo_mensagem","texto").eq("direcao","recebida").order("recebida_em",{ascending:false}).limit(60);
    if(messageError) return asJson({error:"lookup_failed"},500);
    const sorted=[...(messages||[])].sort((a,b)=>new Date(a.recebida_em).getTime()-new Date(b.recebida_em).getTime());
    const validOrder=(s:string)=>String(s).split(/\r?\n/).filter(line=>/^\s*\d{1,4}\s*(?:(?:cxs?|caixas?|unidades?|un)\s*)?[-.)]?\s+\S/i.test(line)).length>=2;

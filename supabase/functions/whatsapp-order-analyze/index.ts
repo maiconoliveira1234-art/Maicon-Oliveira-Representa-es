@@ -87,6 +87,7 @@ Deno.serve(async req=>{
     .select("id,mensagem,recebida_em,tipo_mensagem")
     .eq("contato_map_id",message.contato_map_id)
     .eq("tipo_mensagem","texto")
+    .eq("direcao","recebida")
     .gte("recebida_em",new Date(new Date(message.recebida_em).getTime()-10*60*1000).toISOString())
     .lte("recebida_em",message.recebida_em)
     .order("recebida_em",{ascending:true}).limit(60);

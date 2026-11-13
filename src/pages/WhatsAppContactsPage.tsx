@@ -22,11 +22,12 @@ type PreviewMessage = {
   recebida_em: string;
   tipo_mensagem: string | null;
   transcricao_audio: string | null;
+  direcao: string | null;
 };
 
 type Summary = { last: PreviewMessage | null; unseen: number };
 
-const MESSAGE_FIELDS = 'id, contato_map_id, mensagem, recebida_em, tipo_mensagem, transcricao_audio';
+const MESSAGE_FIELDS = 'id, contato_map_id, mensagem, recebida_em, tipo_mensagem, transcricao_audio, direcao';
 const FILTER_KEY = 'whatsapp.filter';
 const QUERY_KEY = 'whatsapp.query';
 const POLL_MS = 20000;
@@ -36,10 +37,11 @@ let cache: { maps: WhatsAppMap[]; summaries: Record<string, Summary> } | null = 
 
 function previewText(message: PreviewMessage | null): { text: string; audio: boolean } {
   if (!message) return { text: 'Sem mensagens recentes', audio: false };
+  const prefix = message.direcao === 'enviada' ? 'Você: ' : '';
   if (message.tipo_mensagem === 'audio') {
-    return { text: message.transcricao_audio ? message.transcricao_audio : 'Áudio sem texto', audio: true };
+    return { text: prefix + (message.transcricao_audio ? message.transcricao_audio : 'Áudio sem texto'), audio: true };
   }
-  return { text: message.mensagem, audio: false };
+  return { text: prefix + message.mensagem, audio: false };
 }
 
 const FILTER_LABELS: Record<Filter, string> = {

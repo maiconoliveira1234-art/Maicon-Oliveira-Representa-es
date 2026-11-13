@@ -40,12 +40,71 @@ Deno.serve(async req => {
   try {
     let received = 0;
     let unsupported = 0;
+    let echoes = 0;
+    let echoesSkipped = 0;
     for (const entry of payload.entry || []) for (const change of entry.changes || []) {
-      if (change.field !== "messages") continue;
+      if (change.field !== "messages" && change.field !== "smb_message_echoes") continue;
       const value = change.value || {};
       if (String(value.metadata?.phone_number_id || "") !== expectedPhoneId) continue;
-      // Statuses and other echo/history events require their own processing;
-      // do not treat them as incoming customer messages.
+      // Messages the business sends from the phone/app (coexistence echoes). They are stored as
+      // "enviada" for the conversation view and AI context only: never analyzed as orders.
+      for (const echo of value.message_echoes || []) {
+        if (!echo?.id || !echo?.to) continue;
+        const echoText = echo.type === "text" && typeof echo.text?.body === "string";
+        const echoAudio = echo.type === "audio" && typeof echo.audio?.id === "string";
+        if (!echoText && !echoAudio) { unsupported++; continue; }
+        const echoPhone = String(echo.to).replace(/\D/g, "");
+        if (!echoPhone) continue;
+        const echoSender = "WA " + echoPhone;
+        const echoBody = echoAudio ? "🎤 Áudio enviado — aguardando transcrição" : String(echo.text.body).trim();
+        if (!echoBody) continue;
+        const sentAt = /^\d{9,13}$/.test(String(echo.timestamp || ""))
+          ? new Date(Number(echo.timestamp) * 1000).toISOString() : new Date().toISOString();
+        // Only conversations that already exist: sending to a number never creates a pending contact.
+        const {data: echoPhoneMap, error: echoPhoneError} = await db.from("whatsapp_numeros_map")
+          .select("contato_map_id").eq("phone_e164", echoPhone).maybeSingle();
+        if (echoPhoneError) throw echoPhoneError;
+        const {data: echoMapping, error: echoMapError} = await db.from("whatsapp_contatos_map")
+          .select("id,cliente_id,status,total_mensagens")
+          .eq(echoPhoneMap?.contato_map_id ? "id" : "nome_normalizado",
+            echoPhoneMap?.contato_map_id || echoSender.toLowerCase()).maybeSingle();
+        if (echoMapError) throw echoMapError;
+        if (!echoMapping) { echoesSkipped++; continue; }
+        const echoInserted = await db.from("whatsapp_mensagens").insert({
+          contato_map_id: echoMapping.id,
+          cliente_id: echoMapping.status === "vinculado" ? echoMapping.cliente_id : null,
+          whatsapp_nome: echoSender,
+          mensagem: echoBody,
+          app_package: "easycoexistence.cloud_api",
+          tipo_mensagem: echoAudio ? "audio" : "texto",
+          direcao: "enviada",
+          visualizada_em: new Date().toISOString(),
+          ...(echoAudio ? {audio_status: "pendente", audio_arquivo_nome: "meta-media:" + String(echo.audio.id).slice(0,200)} : {}),
+          dedupe_key: await digest("easycoexistence-echo:" + String(echo.id)),
+          recebida_em: sentAt
+        }).select("id").single();
+        if (echoInserted.error) {
+          if (echoInserted.error.code === "23505") continue;
+          throw echoInserted.error;
+        }
+        echoes++;
+        if (echoAudio) {
+          const echoTranscription = fetch(dbUrl + "/functions/v1/whatsapp-cloud-audio-transcribe", {
+            method: "POST",
+            headers: {"content-type": "application/json", "authorization": "Bearer " + dbSecret, "apikey": dbSecret},
+            body: JSON.stringify({message_id: echoInserted.data.id})
+          }).then(async response => {
+            if (!response.ok) console.warn("sent audio transcription status", response.status);
+          }).catch(error => console.warn("sent audio request failed", String(error)));
+          const echoRuntime = (globalThis as any).EdgeRuntime;
+          if (echoRuntime?.waitUntil) echoRuntime.waitUntil(echoTranscription);
+          else await echoTranscription;
+        }
+        await db.from("whatsapp_contatos_map").update({
+          total_mensagens: Number(echoMapping.total_mensagens || 0) + 1,
+          ultima_vez_em: new Date().toISOString()
+        }).eq("id", echoMapping.id);
+      }
       for (const message of value.messages || []) {
         if (!message?.id || !message?.from) continue;
         const isText = message.type === "text" && typeof message.text?.body === "string";
@@ -157,7 +216,7 @@ Deno.serve(async req => {
         let correctionToList = false;
         if (isText && !hasOrderList && likelyCorrection) {
           const {data: previous, error: contextError} = await db.from("whatsapp_mensagens")
-            .select("mensagem").eq("contato_map_id",mapping.id).eq("tipo_mensagem","texto")
+            .select("mensagem").eq("contato_map_id",mapping.id).eq("tipo_mensagem","texto").eq("direcao","recebida")
             .gte("recebida_em",new Date(new Date(receivedAt).getTime()-10*60*1000).toISOString())
             .lte("recebida_em",receivedAt).order("recebida_em",{ascending:false}).limit(12);
           if (contextError) throw contextError;
@@ -186,7 +245,7 @@ Deno.serve(async req => {
         }).eq("id", mapping.id);
       }
     }
-    return json({ok: true, received, unsupported});
+    return json({ok: true, received, unsupported, echoes, echoes_skipped: echoesSkipped});
   } catch (e) {
     console.error("easycoexistence-whatsapp-webhook:", e instanceof Error ? e.message : JSON.stringify(e));
     // Non-2xx tells Meta to retry transient failures.

@@ -4,6 +4,7 @@ import {
   groupIntoBursts,
   isSuggestionStale,
   matchesQuery,
+  replyContext,
   messageForErrorCode,
   normalizeBrPhone,
   phoneFromWhatsAppName,
@@ -19,6 +20,20 @@ const msg = (id: string, hhmm: string) => ({ id, recebida_em: at(hhmm) });
 const bursts = groupIntoBursts([msg('c', '15:20'), msg('a', '15:00'), msg('b', '15:03'), msg('d', '15:24')]);
 assert.deepEqual(bursts.map(b => b.map(m => m.id)), [['a', 'b'], ['c', 'd']], 'bursts split on gaps over 5 minutes, in chronological order');
 assert.deepEqual(groupIntoBursts([]), []);
+
+const sides = groupIntoBursts(
+  [{ id: 'a', recebida_em: at('15:00'), direcao: 'recebida' }, { id: 'b', recebida_em: at('15:01'), direcao: 'enviada' }, { id: 'c', recebida_em: at('15:02'), direcao: 'enviada' }],
+  undefined,
+  (x, y) => x.direcao === y.direcao
+);
+assert.deepEqual(sides.map(b => b.map(m => m.id)), [['a'], ['b', 'c']], 'a change of sender starts a new burst');
+
+const chat = (id: string, hhmm: string, direcao: 'recebida' | 'enviada') => ({ id, recebida_em: at(hhmm), direcao });
+assert.deepEqual(replyContext([chat('1', '10:00', 'recebida'), chat('2', '10:05', 'enviada'), chat('3', '11:00', 'recebida'), chat('4', '11:01', 'recebida')]).messages.map(m => m.id), ['3', '4'], 'only what came after the last reply');
+const answered = replyContext([chat('1', '10:00', 'recebida'), chat('2', '10:01', 'recebida'), chat('3', '10:30', 'enviada')]);
+assert.deepEqual([answered.messages.map(m => m.id), answered.answered], [['1', '2'], true], 'already answered falls back to the last customer burst');
+assert.deepEqual(replyContext([chat('1', '10:00', 'recebida')]), { messages: [chat('1', '10:00', 'recebida')], answered: false });
+assert.deepEqual(replyContext([]), { messages: [], answered: false });
 
 assert.equal(normalizeBrPhone('(47) 99999-1234'), '5547999991234');
 assert.equal(normalizeBrPhone('5547999991234'), '5547999991234');

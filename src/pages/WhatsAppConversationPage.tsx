@@ -11,10 +11,12 @@ import {
   clockTime,
   dayLabel,
   groupIntoBursts,
+  isSent,
   isSuggestionStale,
   readDraft,
   readFunctionError,
   relativeTime,
+  replyContext,
   resolveReplyPhone,
   whatsAppLink,
   writeDraft,
@@ -50,10 +52,11 @@ type Message = {
   sugestao_gerada_em: string | null;
   sugestao_erro: string | null;
   visualizada_em: string | null;
+  direcao: string | null;
 };
 
 const MESSAGE_FIELDS =
-  'id, mensagem, recebida_em, tipo_mensagem, transcricao_audio, audio_status, transcricao_erro, sugestao_resposta, sugestao_gerada_em, sugestao_erro, visualizada_em';
+  'id, mensagem, recebida_em, tipo_mensagem, transcricao_audio, audio_status, transcricao_erro, sugestao_resposta, sugestao_gerada_em, sugestao_erro, visualizada_em, direcao';
 const POLL_MS = 15000;
 
 export function WhatsAppConversationPage() {
@@ -175,12 +178,15 @@ export function WhatsAppConversationPage() {
     };
   }, [contatoId]);
 
-  const bursts = useMemo(() => groupIntoBursts(messages), [messages]);
-  const lastBurst = bursts.length ? bursts[bursts.length - 1] : [];
+  const bursts = useMemo(() => groupIntoBursts(messages, undefined, (a, b) => isSent(a) === isSent(b)), [messages]);
+  const autoContext = useMemo(() => replyContext(messages), [messages]);
+  const lastBurst = autoContext.messages;
   const latest = messages.length ? messages[messages.length - 1] : null;
+  // Stale/"há X" only care about what the customer wrote.
+  const latestIncoming = useMemo(() => [...messages].reverse().find(item => !isSent(item)) || null, [messages]);
 
   const contextMessages = useMemo(() => {
-    if (manualIds) return messages.filter(item => manualIds.has(item.id));
+    if (manualIds) return messages.filter(item => manualIds.has(item.id) && !isSent(item));
     return lastBurst;
   }, [manualIds, messages, lastBurst]);
   const target = contextMessages.length ? contextMessages[contextMessages.length - 1] : null;
@@ -201,12 +207,12 @@ export function WhatsAppConversationPage() {
       setSuggestionAt(new Date(saved.savedAt).toISOString());
     } else {
       const withSuggestion = [...messages].reverse().find(item => item.sugestao_resposta);
-      if (withSuggestion && latest && withSuggestion.id === latest.id) {
+      if (withSuggestion && latestIncoming && withSuggestion.id === latestIncoming.id && !autoContext.answered) {
         setDraft(withSuggestion.sugestao_resposta || '');
         setSuggestionAt(withSuggestion.sugestao_gerada_em);
       }
     }
-  }, [loading, contatoId, messages, lastBurst, latest]);
+  }, [loading, contatoId, messages, lastBurst, latestIncoming, autoContext.answered]);
 
   useEffect(() => {
     if (!contatoId || !draftReady.current) return;
@@ -219,7 +225,7 @@ export function WhatsAppConversationPage() {
     bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [loading, messages.length]);
 
-  const stale = Boolean(draft.trim()) && isSuggestionStale(suggestionAt, latest?.recebida_em);
+  const stale = Boolean(draft.trim()) && isSuggestionStale(suggestionAt, latestIncoming?.recebida_em);
 
   const generate = async () => {
     if (!target) return;
@@ -454,24 +460,27 @@ export function WhatsAppConversationPage() {
                 {burst.map((message, index) => {
                   const state = audioState(message, now);
                   const isAudio = message.tipo_mensagem === 'audio';
-                  const inContext = contextIdSet.has(message.id);
-                  const isTarget = target?.id === message.id;
+                  const sent = isSent(message);
+                  const inContext = !sent && contextIdSet.has(message.id);
+                  const isTarget = !sent && target?.id === message.id;
                   const text = isAudio ? message.transcricao_audio : message.mensagem;
                   const lastInBurst = index === burst.length - 1;
                   return (
-                    <div key={message.id} className="mb-0.5 flex">
+                    <div key={message.id} className={`mb-0.5 flex ${sent ? 'justify-end' : ''}`}>
                       <button
                         type="button"
-                        disabled={!selecting}
+                        disabled={!selecting || sent}
                         onClick={() => toggleManual(message)}
                         aria-pressed={selecting ? inContext : undefined}
-                        className={`max-w-[88%] rounded-2xl rounded-tl-md px-3 py-2 text-left shadow-sm transition ${
-                          selecting ? 'min-h-[44px] cursor-pointer' : 'cursor-default'
-                        } ${inContext ? 'bg-violet-100 ring-2 ring-violet-400' : 'bg-white'}`}
+                        className={`max-w-[88%] px-3 py-2 text-left shadow-sm transition ${
+                          sent ? 'rounded-2xl rounded-tr-md' : 'rounded-2xl rounded-tl-md'
+                        } ${selecting && !sent ? 'min-h-[44px] cursor-pointer' : 'cursor-default'} ${
+                          inContext ? 'bg-violet-100 ring-2 ring-violet-400' : sent ? 'bg-green-100' : 'bg-white'
+                        }`}
                       >
                         {isAudio && (
                           <span className="mb-0.5 flex items-center gap-1 text-xs font-bold text-neutral-500">
-                            <Mic size={13} /> Áudio
+                            <Mic size={13} /> {sent ? 'Seu áudio' : 'Áudio'}
                           </span>
                         )}
                         {text ? (
@@ -501,7 +510,7 @@ export function WhatsAppConversationPage() {
         <div className="flex items-center gap-2">
           <Sparkles size={16} className="text-violet-600" />
           <h2 className="flex-1 text-sm font-black text-violet-800">Resposta</h2>
-          {latest && <span className="text-xs font-semibold text-violet-500">última mensagem há {relativeTime(latest.recebida_em, now)}</span>}
+          {latestIncoming && <span className="text-xs font-semibold text-violet-500">cliente escreveu há {relativeTime(latestIncoming.recebida_em, now)}</span>}
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-violet-700">
@@ -510,6 +519,8 @@ export function WhatsAppConversationPage() {
               ? 'Sem mensagens para responder.'
               : selecting
                 ? `${contextMessages.length} ${contextMessages.length === 1 ? 'mensagem escolhida' : 'mensagens escolhidas'}. Toque nas mensagens para ajustar.`
+                : autoContext.answered
+                ? 'Você já respondeu. Gerar de novo usa a última sequência do cliente.'
                 : `Respondendo ${contextMessages.length === 1 ? 'à última mensagem' : `às últimas ${contextMessages.length} mensagens`}.`}
           </span>
           {messages.length > 0 &&

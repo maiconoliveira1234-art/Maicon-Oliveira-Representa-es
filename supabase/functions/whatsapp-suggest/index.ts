@@ -25,7 +25,7 @@ type AiRule = {
 };
 type ContextMessage = {
   id:string; contato_map_id:string|null; mensagem:string; recebida_em:string;
-  tipo_mensagem:string|null; transcricao_audio:string|null;
+  tipo_mensagem:string|null; transcricao_audio:string|null; direcao?:string|null;
 };
 type Product = {
   id:string; produto:string; familia:string|null; ativo:boolean|null;
@@ -105,10 +105,11 @@ Deno.serve(async (req:Request) => {
     if (!messageId) return json({ error:'message_id_required' }, 400);
 
     const { data:message, error:messageError } = await db.from('whatsapp_mensagens')
-      .select('id, contato_map_id, cliente_id, whatsapp_nome, mensagem, recebida_em, tipo_mensagem, transcricao_audio')
+      .select('id, contato_map_id, cliente_id, whatsapp_nome, mensagem, recebida_em, tipo_mensagem, transcricao_audio, direcao')
       .eq('id', messageId).maybeSingle();
     if (messageError) throw messageError;
     if (!message) return json({ error:'message_not_found' }, 404);
+    if (message.direcao === 'enviada') return json({ error:'message_not_inbound' }, 409);
     if (!message.cliente_id) return json({ error:'contact_not_linked' }, 409);
     if (message.tipo_mensagem === 'audio' && !message.transcricao_audio) return json({ error:'audio_not_transcribed' }, 409);
 
@@ -120,13 +121,27 @@ Deno.serve(async (req:Request) => {
     if (requestedContextIds.length) {
       const ids = [...new Set([...requestedContextIds, message.id])].slice(0,20);
       const { data:selected, error } = await db.from('whatsapp_mensagens')
-        .select('id, contato_map_id, mensagem, recebida_em, tipo_mensagem, transcricao_audio')
+        .select('id, contato_map_id, mensagem, recebida_em, tipo_mensagem, transcricao_audio, direcao')
         .in('id', ids);
       if (error) throw error;
       if ((selected || []).length !== ids.length) return json({ error:'context_message_not_found' }, 400);
-      if ((selected || []).some((x:any) => x.contato_map_id !== message.contato_map_id)) return json({ error:'invalid_context_contact' }, 400);
+      if ((selected || []).some((x:any) => x.contato_map_id !== message.contato_map_id || x.direcao === 'enviada')) return json({ error:'invalid_context_contact' }, 400);
       contextMessages = (selected as ContextMessage[]).sort((a,b) => new Date(a.recebida_em).getTime() - new Date(b.recebida_em).getTime());
     }
+
+    // Recent conversation (both sides) so the reply stays consistent with what Maicon already said.
+    const contextIdSet = new Set(contextMessages.map(m => m.id));
+    const { data:recentRows, error:recentError } = await db.from('whatsapp_mensagens')
+      .select('id, mensagem, recebida_em, tipo_mensagem, transcricao_audio, direcao')
+      .eq('contato_map_id', message.contato_map_id)
+      .lte('recebida_em', message.recebida_em)
+      .order('recebida_em', { ascending:false }).limit(24);
+    if (recentError) throw recentError;
+    const recentConversation = ((recentRows || []) as ContextMessage[])
+      .filter(m => !contextIdSet.has(m.id))
+      .slice(0,14).reverse()
+      .map(m => `[${m.recebida_em}] ${m.direcao === 'enviada' ? 'Maicon' : 'Cliente'}: ${m.transcricao_audio || m.mensagem}`)
+      .join('\n');
 
     const [clientResult, salesResult, rulesResult, productsResult, stockResult] = await Promise.all([
       db.from('clientes').select('cliente, contato, cidade, bairro, flex_saldo, ativo').eq('id', message.cliente_id).maybeSingle(),
@@ -242,8 +257,8 @@ REGRAS DE RESPOSTA:
 - A faixa comercial disponível do cliente já foi calculada pelo CRM. Use-a. Se a recompra de 28 dias expirou, a faixa disponível será livre.
 - Para sugestão de pedido: use SOMENTE a seção SUGESTÃO/ESTOQUE. A quantidade sugerida é uma estimativa baseada em compras dos últimos 90 dias menos o estoque contado; se o estoque estiver sem contagem, não invente quantidade.
 - Respeite pedido mínimo, boleto mínimo, campanhas e demais regras editáveis.
-- Use exclusivamente as mensagens selecionadas para interpretar a conversa; não misture outras mensagens.
-- O histórico contém mensagens recebidas e pode não conter respostas já enviadas.
+- Responda às mensagens selecionadas. Use a CONVERSA RECENTE apenas para manter coerência com o que Maicon já respondeu ou prometeu: não repita informações que ele já deu e não contradiga o que ele disse.
+- A conversa recente pode estar incompleta (respostas enviadas só aparecem quando capturadas).
 - Transcrições de áudio podem conter pequenas imprecisões.
 
 DADOS DO CLIENTE
@@ -260,6 +275,9 @@ FAIXA COMERCIAL DISPONÍVEL AGORA: ${availableTier}
 
 REGRAS COMERCIAIS ATIVAS
 ${rulesText}
+
+CONVERSA RECENTE (apenas contexto; não responda a estas)
+${recentConversation || 'Sem mensagens anteriores capturadas.'}
 
 MENSAGENS SELECIONADAS COMO CONTEXTO
 ${contextText}

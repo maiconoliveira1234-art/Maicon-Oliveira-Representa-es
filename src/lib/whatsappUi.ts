@@ -6,18 +6,43 @@ const SAO_PAULO = 'America/Sao_Paulo';
 
 type Timed = { id: string; recebida_em: string };
 
-/** Groups messages (any order) into bursts: a new burst starts after a gap longer than `gapMs`. */
-export function groupIntoBursts<T extends Timed>(messages: T[], gapMs = BURST_GAP_MS): T[][] {
+/**
+ * Groups messages (any order) into bursts: a new burst starts after a gap longer than `gapMs`, or when
+ * the sender changes (`sameSide` returns false), so customer and own messages never share a burst.
+ */
+export function groupIntoBursts<T extends Timed>(messages: T[], gapMs = BURST_GAP_MS, sameSide?: (a: T, b: T) => boolean): T[][] {
   const sorted = [...messages].sort((a, b) => new Date(a.recebida_em).getTime() - new Date(b.recebida_em).getTime());
   const bursts: T[][] = [];
   for (const message of sorted) {
     const current = bursts[bursts.length - 1];
     const previous = current?.[current.length - 1];
     const gap = previous ? new Date(message.recebida_em).getTime() - new Date(previous.recebida_em).getTime() : Infinity;
-    if (current && gap <= gapMs) current.push(message);
+    if (current && previous && gap <= gapMs && (!sameSide || sameSide(previous, message))) current.push(message);
     else bursts.push([message]);
   }
   return bursts;
+}
+
+export const isSent = (message: { direcao?: string | null }) => message.direcao === 'enviada';
+
+export type ReplyContext<T> = { messages: T[]; answered: boolean };
+
+/**
+ * Which customer messages the next reply is about: everything the customer wrote after the last message
+ * sent by the user (capped). When the user already answered, falls back to the customer's last burst so a
+ * new suggestion is still possible.
+ */
+export function replyContext<T extends Timed & { direcao?: string | null }>(messages: T[], cap = 10): ReplyContext<T> {
+  const sorted = [...messages].sort((a, b) => new Date(a.recebida_em).getTime() - new Date(b.recebida_em).getTime());
+  let lastSent = -1;
+  sorted.forEach((message, index) => {
+    if (isSent(message)) lastSent = index;
+  });
+  const pending = sorted.slice(lastSent + 1).filter(message => !isSent(message));
+  if (pending.length > 0) return { messages: pending.slice(-cap), answered: false };
+  const received = sorted.filter(message => !isSent(message));
+  const bursts = groupIntoBursts(received);
+  return { messages: bursts.length ? bursts[bursts.length - 1].slice(-cap) : [], answered: lastSent >= 0 };
 }
 
 function dayKey(iso: string) {
@@ -88,6 +113,7 @@ export function whatsAppLink(phone: string, text: string): string {
 }
 
 const ERROR_MESSAGES: Record<string, string> = {
+  message_not_inbound: 'Escolha uma mensagem do cliente para responder.',
   contact_not_linked: 'Vincule este contato a um cliente do CRM antes de gerar a sugestão.',
   audio_not_transcribed: 'Este áudio ainda não tem texto. Ouça no WhatsApp ou escolha outra mensagem.',
   message_not_found: 'Mensagem não encontrada. Atualize a tela.',
