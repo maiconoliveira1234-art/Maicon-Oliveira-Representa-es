@@ -85,6 +85,7 @@ export function WhatsAppConversationPage() {
   const [clientesLoading, setClientesLoading] = useState(false);
   const [linkBusy, setLinkBusy] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const messagesRef = useRef<HTMLElement | null>(null);
   const scrolled = useRef(false);
 
   const loadData = useCallback(
@@ -222,7 +223,11 @@ export function WhatsAppConversationPage() {
   useEffect(() => {
     if (loading || scrolled.current || messages.length === 0) return;
     scrolled.current = true;
-    bottomRef.current?.scrollIntoView({ block: 'end' });
+    const box = messagesRef.current;
+    // When the conversation has its own scroll (iPad/desktop), open it at the latest message
+    // without moving the page; on phones the page itself scrolls to the end.
+    if (box && box.scrollHeight > box.clientHeight + 1) box.scrollTop = box.scrollHeight;
+    else bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [loading, messages.length]);
 
   const stale = Boolean(draft.trim()) && isSuggestionStale(suggestionAt, latestIncoming?.recebida_em);
@@ -365,7 +370,7 @@ export function WhatsAppConversationPage() {
   const now = new Date();
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
+    <div className="mx-auto flex max-w-3xl flex-col pb-[calc(1rem+env(safe-area-inset-bottom,0px))] lg:max-w-none">
       <header className="mb-2 flex items-center gap-1">
         <button
           type="button"
@@ -422,27 +427,14 @@ export function WhatsAppConversationPage() {
         </div>
       )}
 
-      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2">
-        <label htmlFor="atendimento-retencao" className="text-sm font-black text-neutral-800">Atendimento</label>
-        {atendimentoState === 'unavailable' ? (
-          <span className="text-xs font-semibold text-amber-700">Situação indisponível agora. A conversa segue funcionando.</span>
-        ) : (
-          <select
-            id="atendimento-retencao"
-            value={atendimento}
-            onChange={event => void updateAtendimento(event.target.value as Atendimento)}
-            disabled={savingAtendimento || atendimentoState === 'loading'}
-            className="h-11 rounded-lg border border-neutral-300 bg-white px-3 text-base font-semibold text-neutral-800 disabled:opacity-50"
-          >
-            <option value="resolvido">Resolvido</option>
-            <option value="em_negociacao">Em negociação</option>
-            <option value="aguardando_retorno">Aguardando retorno</option>
-          </select>
-        )}
-        <p className="basis-full text-xs text-neutral-500">Em negociação e Aguardando retorno protegem o histórico da limpeza automática.</p>
-      </div>
-
-      <section aria-label="Mensagens" className="space-y-1 rounded-2xl bg-neutral-100/70 p-3">
+      {/* Phone: one column. iPad portrait: conversation scrolls on its own so the cards stay close.
+          iPad landscape / desktop (lg): conversation on the left, reply and order cards side by side. */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(360px,440px)] lg:items-start lg:gap-4">
+      <section
+        ref={messagesRef}
+        aria-label="Mensagens"
+        className="space-y-1 rounded-2xl bg-neutral-100/70 p-3 md:max-h-[55dvh] md:overflow-y-auto md:overscroll-contain lg:sticky lg:top-4 lg:max-h-[calc(100dvh-8rem)]"
+      >
         {messages.length === 0 ? (
           <p className="p-8 text-center text-sm text-neutral-500">Nenhuma mensagem capturada nesta conversa.</p>
         ) : (
@@ -506,6 +498,28 @@ export function WhatsAppConversationPage() {
         <div ref={bottomRef} />
       </section>
 
+      <div className="lg:sticky lg:top-4 lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
+      <div className="mt-3 flex flex-wrap lg:mt-0 items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2">
+        <label htmlFor="atendimento-retencao" className="text-sm font-black text-neutral-800">Atendimento</label>
+        {atendimentoState === 'unavailable' ? (
+          <span className="text-xs font-semibold text-amber-700">Situação indisponível agora. A conversa segue funcionando.</span>
+        ) : (
+          <select
+            id="atendimento-retencao"
+            value={atendimento}
+            onChange={event => void updateAtendimento(event.target.value as Atendimento)}
+            disabled={savingAtendimento || atendimentoState === 'loading'}
+            className="h-11 rounded-lg border border-neutral-300 bg-white px-3 text-base font-semibold text-neutral-800 disabled:opacity-50"
+          >
+            <option value="resolvido">Resolvido</option>
+            <option value="em_negociacao">Em negociação</option>
+            <option value="aguardando_retorno">Aguardando retorno</option>
+          </select>
+        )}
+        <p className="basis-full text-xs text-neutral-500">Em negociação e Aguardando retorno protegem o histórico da limpeza automática.</p>
+      </div>
+
+
       <section aria-label="Resposta" className="mt-3 rounded-2xl border border-violet-100 bg-violet-50/60 p-3">
         <div className="flex items-center gap-2">
           <Sparkles size={16} className="text-violet-600" />
@@ -554,7 +568,7 @@ export function WhatsAppConversationPage() {
           </div>
         )}
 
-        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-2">
           <button
             type="button"
             onClick={() => void copyDraft()}
@@ -575,7 +589,7 @@ export function WhatsAppConversationPage() {
             type="button"
             onClick={() => void generate()}
             disabled={!target || generating || !mapping?.cliente_id}
-            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-4 text-sm font-black text-violet-700 disabled:opacity-40"
+            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-4 text-sm font-black text-violet-700 disabled:opacity-40 lg:order-first lg:col-span-2"
           >
             {generating ? <Loader2 size={17} className="animate-spin" /> : draft.trim() ? <RefreshCw size={17} /> : <Sparkles size={17} />}
             {draft.trim() ? 'Gerar de novo' : 'Gerar sugestão'}
@@ -596,6 +610,8 @@ export function WhatsAppConversationPage() {
           <OrderLearningPanel contatoId={contatoId} />
         </div>
       )}
+      </div>
+      </div>
 
       {sheetOpen && (
         <ClientLinkSheet
