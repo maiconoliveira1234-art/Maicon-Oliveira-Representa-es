@@ -1,15 +1,19 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Search, PackageSearch, BarChart3, Settings, FileUp, ShoppingCart, Calendar, ArrowLeftRight, Home, RefreshCw, Cloud, CloudOff, List, Rows3, Megaphone } from 'lucide-react';
+import { LayoutDashboard, Users, Search, PackageSearch, BarChart3, Settings, FileUp, ShoppingCart, Calendar, ArrowLeftRight, Home, RefreshCw, Cloud, CloudOff, List, Rows3, Megaphone, MessageCircle, MoreHorizontal, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useDataManager } from '../lib/dataManager';
+import { useWhatsAppSummary } from '../hooks/useWhatsAppSummary';
 
 // Diagnostic mode toggle. Keep false in normal use.
 const DEBUG_LAYOUT = false;
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const hideBottomNav = location.pathname.includes('/pedido/') || location.pathname.includes('/estoque/');
+  const hideBottomNav = location.pathname.includes('/pedido/') || location.pathname.includes('/estoque/') || location.pathname.includes('/whatsapp/conversa/');
+  const { unseen: whatsappUnseen } = useWhatsAppSummary();
+  const [moreOpen, setMoreOpen] = React.useState(false);
+  React.useEffect(() => setMoreOpen(false), [location.pathname]);
   const { isSyncing, pendingQueueCount, syncAllData, lastSyncedTime } = useDataManager();
   const [isOnline, setIsOnline] = React.useState(navigator.onLine);
   const [mobileListMode, setMobileListMode] = React.useState<'compact' | 'complete'>(() => {
@@ -218,6 +222,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <NavItem to="/" icon={<Home size={24} />} label="" />
           <NavItem to="/agenda" icon={<Calendar size={24} />} label="" />
           <NavItem to="/clientes" icon={<Users size={24} />} label="" />
+          <NavItem to="/whatsapp" icon={<MessageCircle size={24} />} label="" badge={whatsappUnseen} />
           <NavItem to="/consulta-preco" icon={<PackageSearch size={24} />} label="" />
           <NavItem to="/metas" icon={<BarChart3 size={24} />} label="" />
            <NavItem to="/campanhas" icon={<Megaphone size={24} />} label="" />
@@ -262,19 +267,71 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <MobileNavItem to="/" icon={<Home size={24} />} label="Hoje" />
           <MobileNavItem to="/agenda" icon={<Calendar size={24} />} label="Agenda" />
           <MobileNavItem to="/clientes" icon={<Users size={24} />} label="Clientes" />
+          <MobileNavItem to="/whatsapp" icon={<MessageCircle size={24} />} label="WhatsApp" badge={whatsappUnseen} />
           <MobileNavItem to="/consulta-preco" icon={<Search size={24} />} label="Preços" />
-          <MobileNavItem to="/metas" icon={<BarChart3 size={24} />} label="Metas" />
-          <MobileNavItem to="/emprestimos" icon={<ArrowLeftRight size={24} />} label="Trocas" />
-          <MobileNavItem to="/campanhas" icon={<Megaphone size={24} />} label="Camp." />
-           <MobileNavItem to="/settings" icon={<Settings size={24} />} label="Config" />
+          <button
+            type="button"
+            onClick={() => setMoreOpen(open => !open)}
+            aria-expanded={moreOpen}
+            className={cn('flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 transition-colors', moreOpen ? 'text-orange-600' : 'text-neutral-400')}
+          >
+            <MoreHorizontal size={24} />
+            <span className="w-full truncate text-center text-[10px] font-medium">Mais</span>
+          </button>
         </nav>
+      )}
+
+      {moreOpen && !hideBottomNav && (
+        <div className="fixed inset-0 z-[60] md:hidden" onClick={() => setMoreOpen(false)}>
+          <div className="absolute inset-0 bg-black/30" />
+          <div
+            className="absolute inset-x-0 bottom-0 rounded-t-2xl bg-white p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] shadow-2xl"
+            onClick={event => event.stopPropagation()}
+          >
+            <div className="mb-1 flex items-center justify-between px-2">
+              <p className="text-sm font-black text-neutral-900">Mais</p>
+              <button type="button" onClick={() => setMoreOpen(false)} aria-label="Fechar" className="flex h-11 w-11 items-center justify-center rounded-lg text-neutral-500">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { to: '/metas', icon: <BarChart3 size={24} />, label: 'Metas' },
+                { to: '/emprestimos', icon: <ArrowLeftRight size={24} />, label: 'Trocas' },
+                { to: '/campanhas', icon: <Megaphone size={24} />, label: 'Campanhas' },
+                { to: '/settings', icon: <Settings size={24} />, label: 'Config' },
+              ].map(item => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) => cn(
+                    'flex min-h-[64px] flex-col items-center justify-center gap-1 rounded-xl text-xs font-bold',
+                    isActive ? 'bg-orange-50 text-orange-600' : 'text-neutral-600'
+                  )}
+                >
+                  {item.icon}
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-function NavItem({ to, icon, label }: { to: string, icon: React.ReactNode, label: string }) {
-  const accessibleLabel = to === '/consulta-preco' ? 'Produto' : label;
+function Badge({ count }: { count?: number }) {
+  if (!count) return null;
+  return (
+    <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-green-600 px-1 text-[10px] font-black leading-none text-white">
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
+function NavItem({ to, icon, label, badge }: { to: string, icon: React.ReactNode, label: string, badge?: number }) {
+  const accessibleLabel = to === '/consulta-preco' ? 'Produto' : to === '/whatsapp' ? 'WhatsApp' : label;
   return (
     <NavLink
       to={to}
@@ -288,13 +345,16 @@ function NavItem({ to, icon, label }: { to: string, icon: React.ReactNode, label
           : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"
       )}
     >
-      {icon}
+      <span className="relative">
+        {icon}
+        <Badge count={badge} />
+      </span>
       {label}
     </NavLink>
   );
 }
 
-function MobileNavItem({ to, icon, label }: { to: string, icon: React.ReactNode, label: string }) {
+function MobileNavItem({ to, icon, label, badge }: { to: string, icon: React.ReactNode, label: string, badge?: number }) {
   const productItem = to === '/consulta-preco';
   return (
     <NavLink
@@ -304,7 +364,7 @@ function MobileNavItem({ to, icon, label }: { to: string, icon: React.ReactNode,
         isActive ? "text-orange-600" : "text-neutral-400"
       )}
     >
-      <div className="flex-shrink-0">{productItem ? <PackageSearch size={24} /> : icon}</div>
+      <div className="relative flex-shrink-0">{productItem ? <PackageSearch size={24} /> : icon}<Badge count={badge} /></div>
       <span className="text-[10px] font-medium truncate w-full text-center">{productItem ? 'Produto' : label}</span>
     </NavLink>
   );

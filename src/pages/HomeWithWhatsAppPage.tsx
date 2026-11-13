@@ -1,71 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import { ArrowRight, MessageCircle, UserRoundSearch } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { useWhatsAppSummary } from '../hooks/useWhatsAppSummary';
 import { HomePage } from './HomePage';
 
-type WhatsAppSummary = {
-  newMessages: number;
-  pendingContacts: number;
-  loading: boolean;
-};
-
 export function HomeWithWhatsAppPage() {
-  const [summary, setSummary] = useState<WhatsAppSummary>({
-    newMessages: 0,
-    pendingContacts: 0,
-    loading: true,
-  });
-
-  const refreshWhatsAppSummary = useCallback(async () => {
-    const { data: visibleContacts, error: visibleError } = await supabase
-      .from('whatsapp_contatos_map')
-      .select('id, status')
-      .eq('oculto', false);
-
-    if (visibleError) {
-      console.warn('Não foi possível carregar contatos visíveis do WhatsApp:', visibleError);
-      setSummary(current => ({ ...current, loading: false }));
-      return;
-    }
-
-    const visibleIds = (visibleContacts || []).map(item => item.id);
-    const pendingContacts = (visibleContacts || []).filter(item => item.status === 'pendente').length;
-
-    let newMessages = 0;
-    if (visibleIds.length > 0) {
-      const { count, error: messagesError } = await supabase
-        .from('whatsapp_mensagens')
-        .select('id', { count: 'exact', head: true })
-        .is('visualizada_em', null)
-        .in('contato_map_id', visibleIds);
-
-      if (messagesError) {
-        console.warn('Não foi possível contar novas mensagens do WhatsApp:', messagesError);
-      } else {
-        newMessages = count ?? 0;
-      }
-    }
-
-    setSummary({
-      newMessages,
-      pendingContacts,
-      loading: false,
-    });
-  }, []);
-
-  useEffect(() => {
-    void refreshWhatsAppSummary();
-
-    const onFocus = () => void refreshWhatsAppSummary();
-    window.addEventListener('focus', onFocus);
-    const intervalId = window.setInterval(() => void refreshWhatsAppSummary(), 30000);
-
-    return () => {
-      window.removeEventListener('focus', onFocus);
-      window.clearInterval(intervalId);
-    };
-  }, [refreshWhatsAppSummary]);
+  const { unseen, conversationsWithNews, pendingContacts, loading } = useWhatsAppSummary();
+  const summary = { newMessages: unseen, conversations: conversationsWithNews, pendingContacts, loading };
 
   const hasNewMessages = summary.newMessages > 0;
   const hasPendingContacts = summary.pendingContacts > 0;
@@ -101,10 +42,10 @@ export function HomeWithWhatsAppPage() {
         </div>
         <p className="mt-0.5 truncate text-xs font-semibold text-neutral-500">
           {summary.loading
-            ? 'Verificando mensagens capturadas...'
+            ? 'Verificando mensagens...'
             : hasNewMessages
-              ? `${summary.newMessages} ${summary.newMessages === 1 ? 'nova mensagem capturada' : 'novas mensagens capturadas'}`
-              : 'Nenhuma nova mensagem capturada'}
+              ? `${summary.newMessages} ${summary.newMessages === 1 ? 'mensagem nova' : 'mensagens novas'} em ${summary.conversations} ${summary.conversations === 1 ? 'conversa' : 'conversas'}`
+              : 'Nenhuma mensagem nova'}
         </p>
         {hasPendingContacts && (
           <p className="mt-1 flex items-center gap-1 text-[10px] font-black text-amber-700">
@@ -115,7 +56,7 @@ export function HomeWithWhatsAppPage() {
       </div>
 
       <div className="flex shrink-0 items-center gap-1 text-xs font-black text-emerald-700">
-        <span className="hidden sm:inline">Abrir</span>
+        <span className="hidden sm:inline">{hasNewMessages ? 'Responder' : 'Abrir'}</span>
         <ArrowRight size={17} className="transition-transform group-hover:translate-x-0.5" />
       </div>
     </Link>
