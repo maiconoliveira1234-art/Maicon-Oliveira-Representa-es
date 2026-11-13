@@ -4,7 +4,9 @@ import { GoogleGenAI } from "npm:@google/genai";
 const url = Deno.env.get("SUPABASE_URL") || "";
 const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const gemini = Deno.env.get("GEMINI_API_KEY") || "";
+// The secret was registered as EASYCOEXISTENCE_ACCCESS_TOKEN (three C); accept it until it is renamed.
 const mediaToken = (Deno.env.get("EASYCOEXISTENCE_ACCESS_TOKEN") ||
+  Deno.env.get("EASYCOEXISTENCE_ACCCESS_TOKEN") ||
   Deno.env.get("META_WHATSAPP_ACCESS_TOKEN") ||
   Deno.env.get("WHATSAPP_CLOUD_ACCESS_TOKEN") ||
   Deno.env.get("META_ACCESS_TOKEN") || "").trim();
@@ -71,23 +73,36 @@ Deno.serve(async(req)=>{
     if(!/^audio\/(ogg|mp4|mpeg|aac|wav|webm|amr|3gpp|x-wav)$/.test(normalizedMime))
       throw new Error("unsupported_mime");
     const file = new File([bytes],`whatsapp-voice-${messageId}.ogg`,{type:normalizedMime});
-    const ai=new GoogleGenAI({apiKey:gemini});
+    const ai=new GoogleGenAI({apiKey:gemini,httpOptions:{apiVersion:"v1beta"}});
     const uploaded=await ai.files.upload({file,config:{mime_type:normalizedMime}} as any);
     uploadedName=String((uploaded as any).name||"");
-    const interaction=await ai.interactions.create({
-      model:"gemini-3.5-transcribe",
-      input:[{type:"audio",uri:(uploaded as any).uri,mime_type:(uploaded as any).mimeType||normalizedMime}],
-      generation_config:{transcription_config:{
-        language_codes:["pt-BR"],
-        custom_vocabulary:["Adimax","Fórmula Natural","Magnus","Origens","Fresh Meat","pet shop","agropecuária"]
-      }}
-    } as any);
-    const transcript=String((interaction as any).output_text||"").trim();
-    if(!transcript)throw new Error("empty_transcription");
+    // gemini-3.5-transcribe is served by generateContent on v1beta only (the SDK default v1 and the
+    // interactions endpoint return 404). If it returns nothing, fall back to a general audio model.
+    const prompt="Transcreva fielmente este áudio em português do Brasil. Vocabulário provável: Adimax, Fórmula Natural, Magnus, Origens, Fresh Meat, pet shop, agropecuária. Responda somente com a transcrição, sem comentários.";
+    let transcript="";
+    let usedModel="";
+    let lastDetail="";
+    for(const model of ["gemini-3.5-transcribe","gemini-3.5-flash"]){
+      try {
+        const result=await ai.models.generateContent({
+          model,
+          contents:[{role:"user",parts:[
+            {fileData:{fileUri:(uploaded as any).uri,mimeType:(uploaded as any).mimeType||normalizedMime}},
+            {text:prompt}
+          ]}]
+        } as any);
+        transcript=String((result as any).text||"").trim();
+        if(transcript){usedModel=model;break;}
+        lastDetail=`empty_transcription_${model}_${String((result as any).candidates?.[0]?.finishReason||"")}`;
+      } catch(modelError) {
+        lastDetail=`${model}: ${modelError instanceof Error?modelError.message:String(modelError)}`.slice(0,200);
+      }
+    }
+    if(!transcript)throw new Error(lastDetail||"empty_transcription");
     const now=new Date().toISOString();
     const {error:writeError}=await db.from("whatsapp_mensagens")
       .update({mensagem:`🎤 ${transcript}`,transcricao_audio:transcript,
-        transcricao_modelo:"gemini-3.5-transcribe",transcricao_gerada_em:now,
+        transcricao_modelo:usedModel,transcricao_gerada_em:now,
         audio_status:"transcrito",transcricao_erro:null,audio_tamanho_bytes:bytes.byteLength})
       .eq("id",messageId);
     if(writeError)throw new Error(`transcription_save_failed_${writeError.code}`);
@@ -100,7 +115,7 @@ Deno.serve(async(req)=>{
     return json({error:"transcription_failed",reason:detail},502);
   }finally {
     if(uploadedName){
-      try {await new GoogleGenAI({apiKey:gemini}).files.delete({name:uploadedName} as any);}
+      try {await new GoogleGenAI({apiKey:gemini,httpOptions:{apiVersion:"v1beta"}}).files.delete({name:uploadedName} as any);}
       catch {console.warn("temporary gemini audio cleanup failed")}
     }
   }
