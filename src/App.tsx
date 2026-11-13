@@ -75,6 +75,7 @@ const hasValidKey =
 
 // Ativação controlada: nunca ligar sem validar permissões e credenciais.
 const authRequired = (import.meta as any).env?.VITE_REQUIRE_AUTH === 'true';
+const AUTHORIZED_CACHE_PREFIX = 'crm_authorized_user_';
 
 function ProtectedApp({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -108,26 +109,43 @@ function ProtectedApp({ children }: { children: React.ReactNode }) {
     return () => { active = false; subscription.unsubscribe(); };
   }, []);
 
+  const userId = session?.user.id;
   useEffect(() => {
-    if (!authRequired || !session) {
+    if (!authRequired || !userId) {
       setAccessStatus('checking');
       return;
     }
     let active = true;
-    setAccessStatus('checking');
+    // Um usuário já liberado neste aparelho entra direto; a confirmação no
+    // servidor roda em segundo plano (os dados continuam protegidos pelo RLS).
+    const cacheKey = `${AUTHORIZED_CACHE_PREFIX}${userId}`;
+    let cachedAuthorized = false;
+    try { cachedAuthorized = localStorage.getItem(cacheKey) === '1'; } catch { /* sem cache */ }
+    setAccessStatus(cachedAuthorized ? 'authorized' : 'checking');
     void (async () => {
       try {
         const { data, error: permissionError } = await supabase.from('crm_usuarios_autorizados')
           .select('user_id')
-          .eq('user_id', session.user.id)
+          .eq('user_id', userId)
           .maybeSingle();
-        if (active) setAccessStatus(!permissionError && data ? 'authorized' : 'denied');
+        if (!active) return;
+        if (!permissionError && data) {
+          try { localStorage.setItem(cacheKey, '1'); } catch { /* opcional */ }
+          setAccessStatus('authorized');
+        } else if (!permissionError) {
+          // Resposta definitiva do servidor: usuário não cadastrado.
+          try { localStorage.removeItem(cacheKey); } catch { /* opcional */ }
+          setAccessStatus('denied');
+        } else if (!cachedAuthorized) {
+          setAccessStatus('denied');
+        }
       } catch {
-        if (active) setAccessStatus('denied');
+        // Falha de rede: mantém quem já estava liberado trabalhando.
+        if (active && !cachedAuthorized) setAccessStatus('denied');
       }
     })();
     return () => { active = false; };
-  }, [session?.user.id, session?.access_token]);
+  }, [userId]);
 
   if (!authRequired) return <>{children}</>;
   if (sessionLoading || (session && accessStatus === 'checking')) {

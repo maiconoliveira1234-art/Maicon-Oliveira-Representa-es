@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { createResilientAuthStorage } from './authStorage';
 
 // Use Vite-standard environment variables with fallbacks.
 // We check both import.meta.env and process.env (mapped in vite.config.ts).
@@ -20,4 +21,10 @@ if (!supabaseUrl.startsWith('http')) {
   console.warn('Supabase URL is invalid. Check your environment variables.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    storage: createResilientAuthStorage(),
+  },
+});

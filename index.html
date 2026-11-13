@@ -53,9 +53,9 @@
         };
 
         try {
-          var storage = window.localStorage;
-          storage.setItem('__test_storage__', '1');
-          storage.removeItem('__test_storage__');
+          // Só leitura: um setItem falha também quando a cota está cheia, e
+          // trocar o storage real por memória apagaria a sessão de login.
+          window.localStorage.getItem('__test_storage__');
         } catch (e) {
           console.warn('LocalStorage is blocked or throwing in this sandboxed environment. Polyfilling in-memory...');
           var mockStorage = {
@@ -79,9 +79,7 @@
           }
         }
         try {
-          var session = window.sessionStorage;
-          session.setItem('__test_session__', '1');
-          session.removeItem('__test_session__');
+          window.sessionStorage.getItem('__test_session__');
         } catch (e) {
           console.warn('SessionStorage is blocked or throwing in this sandboxed environment. Polyfilling in-memory...');
           var mockSession = {
