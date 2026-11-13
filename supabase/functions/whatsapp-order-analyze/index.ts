@@ -108,7 +108,9 @@ Deno.serve(async req=>{
       && new Date(message.recebida_em).getTime()>new Date(existing.criado_em).getTime()
       && Date.now()-new Date(existing.criado_em).getTime()<5*60*1000
       && anchorId!==message.id;
-    if(!safeRefresh) return respond({ok:true,already_processed:true,status:existing.status});
+    // A manual "Analisar conversa" may retry a list the AI previously judged as not an order.
+    const manualRetry=body.reanalisar===true && existing.status==="nao_pedido";
+    if(!safeRefresh && !manualRetry) return respond({ok:true,already_processed:true,status:existing.status,atualizado_em:existing.atualizado_em});
   }
   const {error:upsertError}=await db.from("whatsapp_pedidos_analise").upsert({
     mensagem_id:anchorId,cliente_id:message.cliente_id,status:"analisando",erro:null,

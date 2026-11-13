@@ -40,7 +40,7 @@ Deno.serve(async req=>{
    const last=newer[newer.length-1]||anchor;
    const response=await fetch(url+"/functions/v1/whatsapp-order-analyze",{
      method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+service,"apikey":service},
-     body:JSON.stringify({message_id:last.id})
+     body:JSON.stringify({message_id:last.id,reanalisar:true})
    });
    const result=await response.json().catch(()=>({}));
    if(!response.ok) return asJson({error:"analysis_failed",detail:result?.error||response.status},response.status>=500?503:502);
@@ -56,7 +56,7 @@ Deno.serve(async req=>{
     const ids=(messages||[]).map(m=>m.id);
     if(!ids.length) return asJson({ok:true,analises:[]});
     const {data:analyses,error:analysisError}=await admin.from("whatsapp_pedidos_analise")
-      .select("id,mensagem_id,cliente_id,status,itens,observacoes,atualizado_em")
+      .select("id,mensagem_id,cliente_id,status,itens,observacoes,atualizado_em,aprovado_em")
       .in("mensagem_id",ids).order("criado_em",{ascending:false});
     if(analysisError) return asJson({error:"lookup_failed"},500);
     const {data:currentMap,error:currentMapError}=await admin.from("whatsapp_contatos_map")

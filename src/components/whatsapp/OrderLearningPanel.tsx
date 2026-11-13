@@ -17,7 +17,6 @@ type Item = {
   sugestao_produto_id?: string | null;
   origem_sugestao?: string | null;
   resolvido?: boolean;
-  origem_sugestao?: string | null;
 };
 type Analysis = {
   id: string;
@@ -28,9 +27,26 @@ type Analysis = {
   mensagem: string;
   atualizado_em: string;
   observacoes?: string | null;
+  aprovado_em?: string | null;
 };
 type Product = { id: string; produto: string; quant_embalagem: number; peso_embalagem: number };
-type ApiResult = { ok?: boolean; error?: string; analises?: Analysis[]; acao?: string };
+type AnalyzeResult = { already_processed?: boolean; status?: string; atualizado_em?: string; itens?: number };
+type ApiResult = { ok?: boolean; error?: string; analises?: Analysis[]; acao?: string; resultado?: AnalyzeResult };
+
+const formatDateTime = (value?: string | null) => (value ? new Date(value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '');
+
+// Explains, in the panel, why there is nothing left to review.
+function describeAnalysis(analysis: Analysis): { tone: 'ok' | 'warn' | 'info'; text: string } {
+  if (analysis.status === 'aprovado')
+    return { tone: 'ok', text: `Este pedido já foi aprovado${analysis.aprovado_em ? ` em ${formatDateTime(analysis.aprovado_em)}` : ''} e virou rascunho na tela Pedidos. Uma nova lista do cliente gera uma nova análise.` };
+  if (analysis.status === 'nao_pedido')
+    return { tone: 'warn', text: 'A análise não reconheceu itens de pedido nesta lista. Toque em Analisar conversa para tentar novamente.' };
+  if (analysis.status === 'analisando')
+    return { tone: 'info', text: 'A análise ainda está em andamento. Atualize em alguns segundos.' };
+  if (analysis.status === 'erro')
+    return { tone: 'warn', text: 'A análise anterior falhou. Toque em Analisar conversa para tentar novamente.' };
+  return { tone: 'info', text: `Situação da análise: ${analysis.status}.` };
+}
 
 const getKey = (analysisId: string, index: number) => `${analysisId}:${index}`;
 
@@ -116,8 +132,17 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
       if (data?.error) throw new Error(data.error === 'no_order_list_found'
         ? 'Não foi possível localizar a lista de itens.'
         : 'Não foi possível reanalisar a conversa.');
-      setSuccess('Análise realizada. Confira todos os itens e alterações antes de aprovar.');
       await load();
+      const result = data?.resultado || {};
+      if (result.already_processed && result.status === 'aprovado')
+        setSuccess('A lista mais recente deste cliente já foi aprovada e virou rascunho na tela Pedidos. Não há pedido novo para revisar.');
+      else if (result.already_processed && result.status === 'analisando')
+        setSuccess('A análise desta lista ainda está em andamento. Atualize em alguns segundos.');
+      else if (result.already_processed && result.status === 'revisar')
+        setSuccess('Este pedido já está abaixo, aguardando sua revisão.');
+      else if (result.status === 'nao_pedido')
+        setError('A análise não reconheceu itens de pedido na lista mais recente. Confira se a mensagem do cliente tem uma quantidade por linha.');
+      else setSuccess('Análise realizada. Confira todos os itens e alterações antes de aprovar.');
     } catch (err: any) {
       setError(err?.message || 'Falha ao reanalisar a conversa.');
     } finally {
@@ -248,9 +273,25 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                 <button type="button" aria-label="Atualizar análises" onClick={() => void load()}
                   className="rounded-lg border border-neutral-200 p-2 text-neutral-600"><RefreshCcw size={15} /></button>
               </div>
-              {analyses.filter(a => a.status === 'revisar').length === 0 && (
-                <p className="rounded-lg bg-neutral-50 p-4 text-sm text-neutral-500">Nenhum pedido aguardando revisão nesta conversa.</p>
-              )}
+              {analyses.filter(a => a.status === 'revisar').length === 0 && (() => {
+                const latest = analyses[0];
+                if (!latest) return (
+                  <p className="rounded-lg bg-neutral-50 p-4 text-sm text-neutral-500">Nenhum pedido analisado nesta conversa ainda. Toque em Analisar conversa para ler a lista mais recente do cliente.</p>
+                );
+                const info = describeAnalysis(latest);
+                const toneClass = info.tone === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : info.tone === 'warn' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-neutral-200 bg-neutral-50 text-neutral-700';
+                return (
+                  <div className={`space-y-2 rounded-xl border p-3 ${toneClass}`}>
+                    <p className="text-xs font-bold">Último pedido identificado · {formatDateTime(latest.atualizado_em)}</p>
+                    <p className="text-xs font-semibold">{info.text}</p>
+                    {latest.mensagem && <p className="whitespace-pre-wrap rounded-lg bg-white/70 p-2 text-xs text-neutral-700">{latest.mensagem}</p>}
+                    {latest.status === 'aprovado' && latest.itens.length > 0 && (
+                      <p className="text-xs">{latest.itens.length} itens · {latest.itens.reduce((sum, item) => sum + Number(item.quantidade || 0), 0)} embalagens</p>
+                    )}
+                  </div>
+                );
+              })()}
               {analyses.filter(a => a.status === 'revisar').map(analysis => (
                 <div key={analysis.id} className="space-y-3 rounded-xl border border-neutral-200 p-3">
                   <p className="text-xs font-bold text-neutral-500">Pedido identificado · {new Date(analysis.atualizado_em).toLocaleString('pt-BR')}</p>
