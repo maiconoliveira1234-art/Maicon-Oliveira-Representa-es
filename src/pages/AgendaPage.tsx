@@ -484,39 +484,33 @@ export function AgendaPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-neutral-50 pb-0 selection:bg-orange-500 selection:text-white">
+    <div className="flex flex-col pb-0 selection:bg-orange-500 selection:text-white">
       <GoogleCalendarResult />
       {/* Top Header */}
-      <header className="sticky top-0 z-40 px-4 py-4 md:px-6 md:py-6">
+      <header className="sticky top-0 z-40 pb-4">
         <div className="max-w-4xl mx-auto">
           {/* Main Control Card */}
-          <div className="bg-white rounded-lg border border-neutral-200 shadow-lg shadow-neutral-200/50 p-4 md:p-5 relative">
-            {/* Background Accent */}
-            <div className="absolute top-0 right-0 w-24 h-24 bg-orange-50 rounded-bl-lg -z-10 opacity-50" />
+          <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-4 md:p-5 relative">
             
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               {/* Left: Title & Info */}
               <div className="flex flex-col">
-                <h1 className="text-lg md:text-xl font-black text-neutral-900 tracking-tighter uppercase leading-none">
+                <h1 className="text-xl md:text-2xl font-semibold text-neutral-900 tracking-tight leading-tight first-letter:uppercase">
                   {format(selectedDate, "EEEE, d 'de' MMMM", { locale: ptBR })}
                 </h1>
                 <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                  <div className="px-2 py-0.5 bg-neutral-100 rounded-full text-[9px] font-black text-neutral-500 uppercase tracking-widest">
-                    Ciclo: Semana {getCycleWeek(selectedDate)}
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                    <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Sistema Ativo</span>
+                  <div className="px-2.5 py-1 bg-neutral-100 rounded-full text-xs font-medium text-neutral-600">
+                    Ciclo · Semana {getCycleWeek(selectedDate)}
                   </div>
                   {unscheduledClientCount > 0 && (
                     <button
                       onClick={handleManualSync}
                       disabled={syncingNewClients}
-                      className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 border border-amber-200 hover:bg-amber-100 active:scale-95 disabled:opacity-55 disabled:scale-100 rounded-full text-[9px] font-black text-amber-700 uppercase tracking-widest transition-all shadow-sm cursor-pointer"
+                      className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 border border-amber-200 hover:bg-amber-100 active:scale-95 disabled:opacity-55 disabled:scale-100 rounded-full text-xs font-medium text-amber-800 transition-all cursor-pointer"
                       title="Novos clientes cadastrados serão geocodificados e integrados à agenda automaticamente no Sábado da Semana 2, ou clique aqui para processar imediatamente."
                     >
                       <RefreshCw size={10} className={syncingNewClients ? "animate-spin" : "animate-pulse"} />
-                      {syncingNewClients ? "Integrando..." : `${unscheduledClientCount} Novo(s) Cliente(s) Pendente(s)`}
+                      {syncingNewClients ? "Integrando..." : `${unscheduledClientCount} cliente(s) novo(s) para integrar`}
                     </button>
                   )}
                 </div>
@@ -533,7 +527,7 @@ export function AgendaPage() {
                   </button>
                   <button 
                     onClick={() => setSelectedDate(startOfToday())}
-                    className="px-3 h-8 text-[9px] font-black text-neutral-600 bg-white border border-neutral-200 rounded-lg shadow-sm active:scale-95 transition-all uppercase tracking-widest"
+                    className="px-3 h-8 text-xs font-semibold text-neutral-700 bg-white border border-neutral-200 rounded-md shadow-sm active:scale-95 transition-all"
                   >
                     Hoje
                   </button>
@@ -550,8 +544,8 @@ export function AgendaPage() {
             {/* Bottom Row: Secondary Tools */}
             <div className="mt-4 pt-4 border-t border-neutral-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                 <div className="text-[10px] font-bold text-neutral-400">
-                   {filteredVisitas.length} VISITAS PROGRAMADAS
+                 <div className="text-sm text-neutral-500">
+                   <span className="font-semibold text-neutral-900">{filteredVisitas.length}</span> visitas<span className="hidden sm:inline"> programadas</span>
                  </div>
               </div>
 
@@ -563,20 +557,20 @@ export function AgendaPage() {
                     setViewType('list');
                   }}
                   className={cn(
-                    'flex h-11 items-center justify-center gap-2 rounded-lg border px-3 text-[10px] font-black uppercase transition-all',
-                    showCompleted ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50'
+                    'flex h-10 items-center justify-center gap-2 rounded-lg border px-3 text-sm font-semibold transition-all',
+                    showCompleted ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white text-neutral-700 shadow-sm hover:bg-neutral-50'
                   )}
                   title={showCompleted ? 'Voltar para a agenda' : 'Consultar concluidos'}
                 >
                   <History size={18} />
-                  <span className="hidden sm:inline">{showCompleted ? 'Agenda' : 'Concluidos'}</span>
+                  <span className="hidden sm:inline">{showCompleted ? 'Agenda' : 'Concluídos'}</span>
                 </button>
                 <button
                   onClick={() => {
                     setEditingPendencia(null);
                     setPendenciaModalOpen(true);
                   }}
-                  className="flex h-11 items-center justify-center gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 text-[10px] font-black uppercase text-orange-700 transition-all hover:bg-orange-100"
+                  className="flex h-10 items-center justify-center gap-2 rounded-lg border border-orange-600 bg-orange-600 px-3.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-orange-700"
                   title="Adicionar visita extra ou tarefa"
                 >
                   <Plus size={18} />
@@ -586,8 +580,8 @@ export function AgendaPage() {
                   <button 
                     onClick={() => setShowDatePicker(!showDatePicker)}
                     className={cn(
-                      "w-11 h-11 rounded-lg flex items-center justify-center border transition-all",
-                      showDatePicker ? "bg-neutral-900 text-white border-neutral-900" : "text-neutral-400 border-neutral-200 bg-white hover:bg-neutral-50"
+                      "w-10 h-10 rounded-lg flex items-center justify-center border transition-all",
+                      showDatePicker ? "bg-neutral-900 text-white border-neutral-900" : "text-neutral-600 border-neutral-300 bg-white shadow-sm hover:bg-neutral-50"
                     )}
                   >
                     <CalendarIcon size={20} />
@@ -603,8 +597,8 @@ export function AgendaPage() {
                 <button 
                    onClick={() => setShowFilters(!showFilters)}
                    className={cn(
-                     "w-11 h-11 rounded-lg flex items-center justify-center border transition-all",
-                     showFilters ? "bg-neutral-900 text-white border-neutral-900" : "text-neutral-400 border-neutral-200 bg-white hover:bg-neutral-50"
+                     "w-10 h-10 rounded-lg flex items-center justify-center border transition-all",
+                     showFilters ? "bg-neutral-900 text-white border-neutral-900" : "text-neutral-600 border-neutral-300 bg-white shadow-sm hover:bg-neutral-50"
                    )}
                 >
                   <Filter size={20} />
@@ -612,8 +606,8 @@ export function AgendaPage() {
                 <button 
                    onClick={() => setViewType(viewType === 'list' ? 'map' : 'list')}
                    className={cn(
-                     "w-11 h-11 rounded-lg flex items-center justify-center border transition-all",
-                     viewType === 'map' ? "bg-orange-600 text-white border-orange-600 shadow-lg shadow-orange-500/20" : "text-neutral-400 border-neutral-200 bg-white hover:bg-neutral-50"
+                     "w-10 h-10 rounded-lg flex items-center justify-center border transition-all",
+                     viewType === 'map' ? "bg-neutral-900 text-white border-neutral-900" : "text-neutral-600 border-neutral-300 bg-white shadow-sm hover:bg-neutral-50"
                    )}
                 >
                   <MapIcon size={20} />
@@ -625,27 +619,27 @@ export function AgendaPage() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-3 sm:px-6 mt-4">
+      <main className="flex-1 flex flex-col max-w-4xl mx-auto w-full">
         {showCompleted ? (
           <section className="min-w-0 space-y-3">
             <div className="flex items-center gap-3 px-2">
               <div className="h-px flex-1 bg-neutral-200" />
-              <div className="text-[9px] font-black uppercase tracking-[0.3em] text-neutral-400">Historico de concluidos</div>
+              <div className="text-xs font-medium text-neutral-500">Histórico de concluídos</div>
               <div className="h-px flex-1 bg-neutral-200" />
             </div>
 
-            <div className="grid grid-cols-1 gap-2 rounded-lg border border-neutral-200 bg-white p-3 shadow-sm sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2 rounded-xl border border-neutral-200 bg-white p-3 shadow-sm sm:grid-cols-2">
               <label>
-                <span className="mb-1 block text-[9px] font-black uppercase text-neutral-400">Tipo</span>
-                <select value={completedType} onChange={(event) => setCompletedType(event.target.value as typeof completedType)} className="h-10 w-full rounded-lg border border-neutral-200 bg-white px-3 text-xs font-black text-neutral-700 outline-none focus:border-orange-500">
+                <span className="mb-1 block text-[10px] font-black uppercase text-neutral-400">Tipo</span>
+                <select value={completedType} onChange={(event) => setCompletedType(event.target.value as typeof completedType)} className="h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-xs font-black text-neutral-700 outline-none focus:border-orange-500">
                   <option value="TODOS">Tarefas e visitas extras</option>
                   <option value="TAREFA">Somente tarefas</option>
                   <option value="VISITA_EXTRA">Somente visitas extras</option>
                 </select>
               </label>
               <label>
-                <span className="mb-1 block text-[9px] font-black uppercase text-neutral-400">Periodo da conclusao</span>
-                <select value={completedPeriod} onChange={(event) => setCompletedPeriod(event.target.value as typeof completedPeriod)} className="h-10 w-full rounded-lg border border-neutral-200 bg-white px-3 text-xs font-black text-neutral-700 outline-none focus:border-orange-500">
+                <span className="mb-1 block text-[10px] font-black uppercase text-neutral-400">Periodo da conclusao</span>
+                <select value={completedPeriod} onChange={(event) => setCompletedPeriod(event.target.value as typeof completedPeriod)} className="h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-xs font-black text-neutral-700 outline-none focus:border-orange-500">
                   <option value="30">Ultimos 30 dias</option>
                   <option value="90">Ultimos 90 dias</option>
                   <option value="TODOS">Todo o historico</option>
@@ -658,7 +652,7 @@ export function AgendaPage() {
                 const cliente = clientes.find((current) => current.id === item.cliente_id);
                 const completedAt = item.concluida_em || item.updated_at;
                 return (
-                  <div key={item.id} className="flex min-w-0 items-center gap-2 rounded-lg border border-neutral-200 bg-white px-2.5 py-2 shadow-sm">
+                  <div key={item.id} className="flex min-w-0 items-center gap-2 rounded-xl border border-neutral-200 bg-white px-2.5 py-2 shadow-sm">
                     <div className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', item.tipo === 'VISITA_EXTRA' ? 'bg-orange-50 text-orange-600' : 'bg-sky-50 text-sky-600')}>
                       {item.tipo === 'VISITA_EXTRA' ? <MapPin size={16} /> : <ClipboardCheck size={16} />}
                     </div>
@@ -727,7 +721,7 @@ export function AgendaPage() {
                   />
 
                   {showSearchSuggestions && clientSearchSuggestions.length > 0 && (
-                    <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl shadow-neutral-900/10">
+                    <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl shadow-neutral-900/10">
                       {clientSearchSuggestions.map(({ visita, nextDate }) => (
                         <button
                           key={visita.id}
@@ -769,7 +763,7 @@ export function AgendaPage() {
                   />
 
                   {showAddressSuggestions && addressSearchSuggestions.length > 0 && (
-                    <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl shadow-neutral-900/10">
+                    <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl shadow-neutral-900/10">
                       {addressSearchSuggestions.map((visita) => (
                         <button
                           key={`${visita.id}-address`}
@@ -820,8 +814,8 @@ export function AgendaPage() {
               <div className="flex items-center gap-3 px-2 py-1">
                 <div className="h-px flex-1 bg-neutral-200" />
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-black uppercase tracking-[0.3em] text-neutral-400">Visitas extras e tarefas</span>
-                  <span className="text-[9px] font-black text-orange-600">{dayPendencias.length}</span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-400">Visitas extras e tarefas</span>
+                  <span className="text-[10px] font-black text-orange-600">{dayPendencias.length}</span>
                 </div>
                 <div className="h-px flex-1 bg-neutral-200" />
               </div>
@@ -843,7 +837,7 @@ export function AgendaPage() {
         {/* Timeline Header */}
         <div className="flex items-center gap-3 mb-4 px-2">
            <div className="h-px bg-neutral-200 flex-1" />
-           <div className="text-[9px] font-black text-neutral-400 uppercase tracking-[0.3em]">Timeline do Dia</div>
+           <div className="text-xs font-medium text-neutral-500">Linha do tempo do dia</div>
            <div className="h-px bg-neutral-200 flex-1" />
         </div>
 
@@ -887,7 +881,7 @@ export function AgendaPage() {
 
           {backlogPendencias.length > 0 && (
             <section className="mt-3 space-y-2">
-              <div className="px-1 text-[9px] font-black uppercase tracking-[0.2em] text-neutral-400">Tarefas sem data</div>
+              <div className="px-1 text-[10px] font-black uppercase tracking-[0.2em] text-neutral-400">Tarefas sem data</div>
               {backlogPendencias.map((item) => (
                 <AgendaPendenciaCard
                   key={item.id}
@@ -907,7 +901,7 @@ export function AgendaPage() {
             <div className="mt-auto pt-2 pb-2 flex items-center justify-center">
                <div className="flex flex-col items-center gap-1">
                   <div className="w-1 h-3 bg-gradient-to-b from-neutral-200 to-transparent rounded-full" />
-                  <span className="text-[9px] font-black text-neutral-300 uppercase tracking-widest">Fim da Agenda</span>
+                  <span className="text-[10px] font-black text-neutral-300 uppercase tracking-widest">Fim da Agenda</span>
                </div>
             </div>
           )}

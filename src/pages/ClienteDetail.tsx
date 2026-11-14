@@ -705,7 +705,7 @@ export function ClienteDetail() {
               onClick={() => setShowLoans(true)}
               aria-label={`Itens emprestados do cliente: ${emprestimos.length}`}
               title="Itens emprestados"
-              className="flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600"
             >
               <ArrowLeftRight size={20} aria-hidden="true" />
             </button>
@@ -1112,7 +1112,7 @@ export function ClienteDetail() {
         <button
           type="button"
           onClick={() => setShowFlex(true)}
-          className="flex h-12 w-full items-center justify-between rounded-lg border border-neutral-200 bg-white px-4 text-sm font-black text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50"
+          className="flex h-12 w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 text-sm font-black text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50"
         >
           <span className="flex items-center gap-2">
             <Coins className="text-orange-600" size={19} />
@@ -1142,7 +1142,7 @@ export function ClienteDetail() {
             <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Saldo Comercial Disponível</p>
             <p className="text-2xl font-black text-neutral-900 mt-1">{formatCurrency(cliente?.flex_saldo || 0)}</p>
           </div>
-          <span className="text-[9px] font-black uppercase text-neutral-400 border border-neutral-200 bg-white shadow-xs px-2.5 py-1 rounded-lg">
+          <span className="text-[10px] font-black uppercase text-neutral-400 border border-neutral-200 bg-white shadow-xs px-2.5 py-1 rounded-lg">
             COMENTÁRIO INTERNO
           </span>
         </div>
@@ -1179,7 +1179,7 @@ export function ClienteDetail() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={cn("text-[8px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-md border", badgeColor)}>
+                      <span className={cn("text-[10px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-md border", badgeColor)}>
                         {badgeTxt}
                       </span>
                       <span className={valColor}>
@@ -1248,7 +1248,7 @@ export function ClienteDetail() {
                     <span 
                       key={c.type} 
                       className={cn(
-                        "text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border border-neutral-100/60",
+                        "text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border border-neutral-100/60",
                         c.type === 'VENDA' && "bg-blue-50 text-blue-700",
                         c.type === 'BONIFICACAO_COMERCIAL' && "bg-orange-50 text-orange-700",
                         c.type === 'MERCHANDISING' && "bg-purple-50 text-purple-700"
@@ -1323,7 +1323,7 @@ export function ClienteDetail() {
                         <span className="font-bold text-neutral-900">{item.produtos}</span>
                         {classification.tipoOperacao !== 'VENDA' && (
                           <span className={cn(
-                            "text-[9px] font-bold px-2 py-0.5 rounded-full border shrink-0 uppercase tracking-wider",
+                            "text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 uppercase tracking-wider",
                             classification.badgeStyle
                           )}>
                             {classification.label}
@@ -1419,7 +1419,7 @@ export function ClienteDetail() {
                         <span 
                           key={c.type} 
                           className={cn(
-                            "text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border border-neutral-100/60",
+                            "text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border border-neutral-100/60",
                             c.type === 'VENDA' && "bg-blue-50 text-blue-700",
                             c.type === 'BONIFICACAO_COMERCIAL' && "bg-orange-50 text-orange-700",
                             c.type === 'MERCHANDISING' && "bg-purple-50 text-purple-700"

@@ -56,7 +56,7 @@ export function AgendaDashboard({ visitas, currentWeek }: AgendaDashboardProps) 
           </div>
           <p className="text-2xl font-black text-neutral-900">{stat.value}</p>
           <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">{stat.label}</p>
-          <p className="text-[9px] text-neutral-400 mt-1">{stat.description}</p>
+          <p className="text-[10px] text-neutral-400 mt-1">{stat.description}</p>
         </div>
       ))}
     </div>

@@ -1,5 +1,76 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
 @import "leaflet/dist/leaflet.css";
+
+/*
+ * Design system ProMax
+ * - Tipografia: Inter (servida localmente, funciona offline no iPad).
+ * - Neutros frios (tom grafite) no lugar do cinza puro.
+ * - Laranja da marca um pouco mais sóbrio, reservado para ações e destaque.
+ * - Pesos de fonte moderados: o "black" (900) passa a 700 e o "bold" a 600,
+ *   deixando a leitura mais limpa sem alterar cada tela.
+ */
+@theme {
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --font-weight-black: 700;
+  --font-weight-extrabold: 700;
+  --font-weight-bold: 600;
+
+  --color-neutral-50: #f8f9fb;
+  --color-neutral-100: #f1f3f6;
+  --color-neutral-200: #e4e7ec;
+  --color-neutral-300: #d0d5dd;
+  --color-neutral-400: #98a2b3;
+  --color-neutral-500: #667085;
+  --color-neutral-600: #475467;
+  --color-neutral-700: #344054;
+  --color-neutral-800: #1d2939;
+  --color-neutral-900: #101828;
+  --color-neutral-950: #0a0f1a;
+
+  --color-orange-50: #fff6ed;
+  --color-orange-100: #ffead5;
+  --color-orange-200: #fddcab;
+  --color-orange-300: #feb273;
+  --color-orange-400: #fd853a;
+  --color-orange-500: #f56a1b;
+  --color-orange-600: #e0530b;
+  --color-orange-700: #b93f0c;
+  --color-orange-800: #933312;
+  --color-orange-900: #772b12;
+  --color-orange-950: #431407;
+
+  --shadow-sm: 0 1px 2px 0 rgb(16 24 40 / 0.05);
+  --shadow-md: 0 4px 8px -2px rgb(16 24 40 / 0.08), 0 2px 4px -2px rgb(16 24 40 / 0.04);
+  --shadow-lg: 0 12px 16px -4px rgb(16 24 40 / 0.08), 0 4px 6px -2px rgb(16 24 40 / 0.03);
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01", "ss03";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    color: var(--color-neutral-900);
+  }
+
+  body {
+    background: var(--color-neutral-100);
+  }
+
+  table td,
+  table th,
+  input[type='number'] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-orange-500);
+    outline-offset: 2px;
+  }
+}
 
 html,
 body,

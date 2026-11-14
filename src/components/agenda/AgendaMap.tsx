@@ -94,7 +94,7 @@ const VisitaMarker: React.FC<{
             <p className="text-[10px] text-neutral-500 m-0">{visita.cidade}</p>
             <div className="mt-2 flex items-center justify-between gap-2 border-t border-neutral-100 pt-1.5">
               <span className={cn(
-                "text-[8px] font-black tracking-tight px-1.5 py-0.5 rounded border uppercase",
+                "text-[10px] font-black tracking-tight px-1.5 py-0.5 rounded border uppercase",
                 getStatusBadgeClass(visita.status)
               )}>
                 {getStatusLabel(visita.status)}

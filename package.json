@@ -1,7 +1,7 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "1.20.202",
+  "version": "1.20.203",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0",
@@ -13,6 +13,7 @@
     "test:priorities": "node --import tsx src/tests/commercialPriorities.test.ts"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
     "@google/genai": "^1.29.0",
     "@supabase/supabase-js": "^2.101.1",
     "@tailwindcss/vite": "^4.1.14",
@@ -52,4 +53,3 @@
     "vite": "^6.2.0"
   }
 }
-

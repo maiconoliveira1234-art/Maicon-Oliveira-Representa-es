@@ -28,7 +28,7 @@ export function AgendaPendenciaCard({ item, cliente, onEdit, onComplete }: Props
           <span className="truncate text-sm font-black text-neutral-950">{item.titulo}</span>
           {item.prioridade !== 'NORMAL' && (
             <span className={cn(
-              'shrink-0 text-[8px] font-black uppercase',
+              'shrink-0 text-[10px] font-black uppercase',
               item.prioridade === 'URGENTE' ? 'text-rose-600' : 'text-amber-600'
             )}>{item.prioridade}</span>
           )}

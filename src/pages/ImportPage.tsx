@@ -1471,7 +1471,7 @@ export function ImportPage() {
                     <ShieldAlert size={14} />
                     Auditoria de Custos
                     {activeAuditAlerts.length > 0 && (
-                      <span className="bg-white text-orange-600 px-1.5 py-0.5 rounded-full text-[9px] font-black leading-none animate-pulse">
+                      <span className="bg-white text-orange-600 px-1.5 py-0.5 rounded-full text-[10px] font-black leading-none animate-pulse">
                         {activeAuditAlerts.length}
                       </span>
                     )}
@@ -1740,7 +1740,7 @@ export function ImportPage() {
                                     <div className="flex flex-col gap-0.5">
                                       <span>{item.produtoNome}</span>
                                       {isBonif && (
-                                        <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full w-max uppercase tracking-wider font-extrabold">
+                                        <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full w-max uppercase tracking-wider font-extrabold">
                                           Bonificação Comercial
                                         </span>
                                       )}

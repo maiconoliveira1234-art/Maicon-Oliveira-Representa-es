@@ -969,7 +969,7 @@ export function Dashboard() {
       />
 
       {/* Main Navigation Tabs */}
-      <div className="grid grid-flow-col auto-cols-[minmax(112px,1fr)] gap-1.5 overflow-x-auto pb-1 border-b border-neutral-200 scrollbar-none sm:auto-cols-fr lg:flex lg:items-stretch">
+      <div className="-mx-1 flex gap-1 overflow-x-auto border-b border-neutral-200 px-1 scrollbar-none">
         {tabsConfig.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -981,14 +981,14 @@ export function Dashboard() {
               type="button"
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "flex min-h-[42px] items-center justify-center gap-1.5 rounded-lg border px-2.5 py-2 text-center text-[11px] font-black leading-tight transition-all sm:gap-2 sm:px-3 sm:text-xs lg:flex-1",
+                "-mb-px flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap border-b-2 px-3 text-sm font-medium transition-colors",
                 isActive
-                  ? "bg-orange-600 text-white border-orange-600 shadow-sm"
-                  : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50 hover:text-neutral-900"
+                  ? "border-orange-600 text-neutral-900"
+                  : "border-transparent text-neutral-500 hover:border-neutral-300 hover:text-neutral-800"
               )}
             >
-              <Icon size={15} className="shrink-0" />
-              <span className="min-w-0 whitespace-normal break-words">{tab.label}</span>
+              <Icon size={16} className={cn("shrink-0", isActive ? "text-orange-600" : "text-neutral-400")} />
+              <span className="min-w-0">{tab.label}</span>
             </button>
           );
         })}
@@ -1093,7 +1093,7 @@ export function Dashboard() {
                     >
                       <span className="text-sm">{catInfo.emoji}</span>
                       <span className="text-xs font-black mt-0.5">{count}</span>
-                      <span className="text-[9px] font-bold text-neutral-400 truncate w-full">
+                      <span className="text-[10px] font-bold text-neutral-400 truncate w-full">
                         {catInfo.shortLabel}
                       </span>
                     </button>
@@ -1115,7 +1115,7 @@ export function Dashboard() {
                 >
                   <span className="text-sm">⚠️</span>
                   <span className="text-xs font-black mt-0.5 text-amber-900">{recentAlertCount}</span>
-                  <span className="text-[9px] font-bold text-amber-700 truncate w-full">
+                  <span className="text-[10px] font-bold text-amber-700 truncate w-full">
                     Alerta
                   </span>
                 </button>

@@ -23,7 +23,7 @@ const blankCampaign = (): Campanha => ({
   inicio: today(), fim: today(), imagem_data: null, regras: [blankRule()],
 });
 const normalize = (v: string) => (v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-const inputClass = 'w-full rounded-lg border border-neutral-200 bg-white p-2.5 text-sm outline-none focus:border-orange-500';
+const inputClass = 'w-full rounded-xl border border-neutral-200 bg-white p-2.5 text-sm outline-none focus:border-orange-500';
 const labelClass = 'block space-y-1 text-xs font-semibold text-neutral-700';
 
 export function CampaignPage() {

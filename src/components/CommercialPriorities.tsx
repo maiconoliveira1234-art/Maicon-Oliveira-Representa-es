@@ -124,7 +124,7 @@ export function CommercialPriorities({ agenda, clienteId }: { agenda: AgendaStat
       setError('Não foi possível atualizar as prioridades. Tente novamente.');
     } finally { setRefreshing(false); }
   };
-  const buttonClass = 'rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-700 disabled:opacity-50';
+  const buttonClass = 'rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-700 disabled:opacity-50';
   const returnForm = <form onSubmit={save} className="mt-4 space-y-3 rounded-lg border border-orange-200 p-3">
         <p className="text-sm font-bold">Registrar contato · {clientes.find(c => c.id === editing)?.cliente}</p>
         <label className="block text-xs font-bold">Resultado
@@ -142,7 +142,7 @@ export function CommercialPriorities({ agenda, clienteId }: { agenda: AgendaStat
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       </form>;
   return (
-    <section className="min-w-0 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm" aria-label={clienteId ? 'Próxima ação comercial' : 'Prioridades de hoje'}>
+    <section className="min-w-0 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm" aria-label={clienteId ? 'Próxima ação comercial' : 'Prioridades de hoje'}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-black text-neutral-950">{clienteId ? 'Próxima ação' : 'Prioridades de hoje'}</h2>

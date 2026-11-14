@@ -578,13 +578,13 @@ export function OrderEditModal({
 
                         {/* Unit Price Calc */}
                         <div className="bg-neutral-50/60 p-1.5 rounded-md flex flex-col justify-center">
-                          <span className="text-[9px] font-bold text-neutral-400 uppercase">Preço Unit.</span>
+                          <span className="text-[10px] font-bold text-neutral-400 uppercase">Preço Unit.</span>
                           <span className="font-bold text-neutral-700 truncate">{formatCurrency(unitPrice)}</span>
                         </div>
 
                         {/* Weight Calc */}
                         <div className="bg-neutral-50/60 p-1.5 rounded-md flex flex-col justify-center">
-                          <span className="text-[9px] font-bold text-neutral-400 uppercase">Peso Total</span>
+                          <span className="text-[10px] font-bold text-neutral-400 uppercase">Peso Total</span>
                           <span className="font-bold text-neutral-700 truncate">{formatWeight(pesoLinha)}</span>
                         </div>
                       </div>

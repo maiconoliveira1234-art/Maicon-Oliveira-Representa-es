@@ -108,7 +108,7 @@ export function CampaignSkuSearch({
               if (activeOption >= 0) choose(options[activeOption]);
             }
           }}
-          className="w-full min-w-0 rounded-lg border border-neutral-200 bg-white py-2.5 pl-9 pr-9 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-orange-500 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+          className="w-full min-w-0 rounded-xl border border-neutral-200 bg-white py-2.5 pl-9 pr-9 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-orange-500 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
         />
         {selected && !disabled ? (
           <button

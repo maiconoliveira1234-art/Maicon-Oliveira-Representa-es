@@ -343,7 +343,7 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                             <span className="text-xs font-semibold text-amber-700">Revisão necessária</span>
                           )}
                         </div>
-                        <div className="rounded-lg border border-neutral-200 bg-white p-3">
+                        <div className="rounded-xl border border-neutral-200 bg-white p-3">
                           <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-500">
                             {item.resolvido ? 'Produto confirmado' : item.origem_sugestao === 'aprendizado_confirmado' ? 'Produto aprendido anteriormente' : item.origem_sugestao === 'historico_cliente' ? 'Produto sugerido pelo histórico de compras' : 'Sugestão inicial do catálogo'}
                           </p>

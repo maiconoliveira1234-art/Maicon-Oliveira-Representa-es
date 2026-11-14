@@ -432,15 +432,15 @@ export function MetasPage() {
       />
 
       {/* Executive Summary */}
-      <div className="w-full min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm">
-        <div className="grid min-w-0 grid-cols-1 gap-2 p-2 lg:grid-cols-[minmax(0,1fr)_270px]">
+      <div className="w-full min-w-0 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm">
+        <div className="grid min-w-0 grid-cols-1 gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_270px]">
           <div className="min-w-0 space-y-2">
-            <div className="grid min-w-0 grid-cols-1 gap-1.5 md:grid-cols-[repeat(2,minmax(0,1fr))]">
+            <div className="grid min-w-0 grid-cols-1 gap-x-6 gap-y-2 md:grid-cols-[repeat(2,minmax(0,1fr))]">
               <ProgressBar label="Esperado" value={stats.esperadoPercent} tone="blue" />
               <ProgressBar label="Atual" value={stats.percentualAtual} tone={stats.percentualAtual >= stats.esperadoPercent ? "green" : "orange"} />
             </div>
 
-            <div className="grid min-w-0 grid-cols-[repeat(2,minmax(0,1fr))] gap-1.5 sm:grid-cols-[repeat(4,minmax(0,1fr))]">
+            <div className="grid min-w-0 grid-cols-[repeat(2,minmax(0,1fr))] gap-2 sm:grid-cols-[repeat(4,minmax(0,1fr))]">
               <SummaryMetric label="Projetado" value={formatWeight(stats.projetadoHoje)} />
               <SummaryMetric
                 label="Realizado"
@@ -450,11 +450,11 @@ export function MetasPage() {
               />
               <SummaryMetric label="Meta" value={formatWeight(stats.metaTotal)} />
               <div className={cn(
-                "min-w-0 overflow-hidden rounded-md border px-2 py-1",
-                stats.gapTotal >= 0 ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-red-100 bg-red-50 text-red-700"
+                "min-w-0 overflow-hidden rounded-lg border px-3 py-2",
+                stats.gapTotal >= 0 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"
               )}>
-                <p className="block max-w-full truncate text-[9px] font-black uppercase leading-none opacity-70">GAP</p>
-                <p className="mt-0.5 block max-w-full truncate whitespace-nowrap text-[11px] font-black leading-tight sm:text-xs">{formatWeight(stats.gapTotal)}</p>
+                <p className="block max-w-full truncate text-[11px] font-medium leading-none opacity-80">Gap</p>
+                <p className="mt-1.5 block max-w-full truncate whitespace-nowrap text-sm font-semibold leading-tight tabular-nums sm:text-base">{formatWeight(stats.gapTotal)}</p>
               </div>
             </div>
           </div>
@@ -687,15 +687,19 @@ export function MetasPage() {
                   data-mobile-summary
                   title={`Faturado: ${row.faturado.toFixed(1)} kg | Em aberto: ${row.aberto.toFixed(1)} kg`}
                   className={cn(
-                  "px-2 py-3 border-b border-neutral-100 text-right text-[12px] font-black transition-colors duration-300",
-                  row.vend === 0 
-                    ? "bg-red-600 text-white" 
-                    : row.vend >= row.meta 
-                      ? "bg-green-600 text-white"
-                      : "bg-orange-500 text-white"
+                  "px-2 py-2 border-b border-neutral-100 text-right text-[12px] font-semibold",
                   )}
                 >
-                  {row.vend.toFixed(1)}
+                  <span className={cn(
+                    "inline-flex min-w-[3.75rem] justify-end rounded-md px-2 py-1 ring-1 ring-inset",
+                    row.vend === 0
+                      ? "bg-red-50 text-red-700 ring-red-200"
+                      : row.vend >= row.meta
+                        ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
+                        : "bg-amber-50 text-amber-800 ring-amber-200"
+                  )}>
+                    {row.vend.toFixed(1)}
+                  </span>
                 </td>
               </tr>
             ))}
@@ -709,17 +713,19 @@ export function MetasPage() {
 
 function ProgressBar({ label, value, tone }: { label: string; value: number; tone: 'blue' | 'green' | 'orange' }) {
   const toneClasses = {
-    blue: 'bg-blue-500',
+    blue: 'bg-neutral-400',
     green: 'bg-emerald-500',
     orange: 'bg-orange-500'
   };
 
   return (
-    <div className="relative h-[26px] min-w-0 overflow-hidden rounded-md bg-neutral-100">
-      <div className={cn("absolute inset-y-0 left-0 transition-all duration-500", toneClasses[tone])} style={{ width: `${Math.min(100, value)}%` }} />
-      <div className="absolute inset-0 flex items-center justify-between gap-2 px-2.5 text-[10px] font-black">
-        <span className="min-w-0 truncate text-neutral-800 mix-blend-multiply">{label}</span>
-        <span className="shrink-0 rounded bg-white/85 px-1.5 py-0.5 text-[9px] text-neutral-900 shadow-sm">{value.toFixed(2)}%</span>
+    <div className="min-w-0 px-1 py-1">
+      <div className="mb-1.5 flex items-baseline justify-between gap-2">
+        <span className="min-w-0 truncate text-xs font-medium text-neutral-500">{label}</span>
+        <span className="shrink-0 text-sm font-semibold tabular-nums text-neutral-900">{value.toFixed(1)}%</span>
+      </div>
+      <div className="relative h-2 overflow-hidden rounded-full bg-neutral-100">
+        <div className={cn("absolute inset-y-0 left-0 rounded-full transition-all duration-500", toneClasses[tone])} style={{ width: `${Math.min(100, value)}%` }} />
       </div>
     </div>
   );
@@ -727,9 +733,9 @@ function ProgressBar({ label, value, tone }: { label: string; value: number; ton
 
 function SummaryMetric({ label, value, strong = false, title }: { label: string; value: string; strong?: boolean; title?: string }) {
   return (
-    <div title={title} className="min-w-0 overflow-hidden rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1">
-      <p className="block max-w-full truncate text-[9px] font-black uppercase leading-none text-neutral-400">{label}</p>
-      <p className={cn("mt-0.5 block max-w-full truncate whitespace-nowrap text-[11px] font-black leading-tight sm:text-xs", strong ? "text-orange-600" : "text-neutral-900")}>{value}</p>
+    <div title={title} className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white px-3 py-2">
+      <p className="block max-w-full truncate text-[11px] font-medium leading-none text-neutral-500">{label}</p>
+      <p className={cn("mt-1.5 block max-w-full truncate whitespace-nowrap text-sm font-semibold leading-tight tabular-nums sm:text-base", strong ? "text-orange-600" : "text-neutral-900")}>{value}</p>
     </div>
   );
 }

@@ -136,7 +136,7 @@ export const AgendaDatePicker: React.FC<AgendaDatePickerProps> = ({
                     showYearPicker && "rotate-180"
                   )} size={14} />
                 </button>
-                <span className="text-[9px] font-black text-neutral-400 uppercase tracking-widest mt-1">
+                <span className="text-[10px] font-black text-neutral-400 uppercase tracking-widest mt-1">
                   {format(currentMonth, 'yyyy')}
                 </span>
               </div>
@@ -194,7 +194,7 @@ export const AgendaDatePicker: React.FC<AgendaDatePickerProps> = ({
                   {weekDays.map((day, idx) => (
                     <div 
                       key={idx} 
-                      className="text-[9px] font-black text-neutral-300 text-center uppercase tracking-widest"
+                      className="text-[10px] font-black text-neutral-300 text-center uppercase tracking-widest"
                     >
                       {day}
                     </div>
@@ -247,7 +247,7 @@ export const AgendaDatePicker: React.FC<AgendaDatePickerProps> = ({
                   onSelect(startOfToday());
                   onClose();
                 }}
-                className="text-[9px] font-black text-neutral-400 hover:text-orange-600 uppercase tracking-widest transition-colors"
+                className="text-[10px] font-black text-neutral-400 hover:text-orange-600 uppercase tracking-widest transition-colors"
               >
                 Voltar para Hoje
               </button>

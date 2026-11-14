@@ -360,12 +360,12 @@ export function ClientsPage() {
 
   return (
     <div className={cn("space-y-4", filterOpenOrders ? "pb-32 md:pb-24" : "pb-12")}>
-      <div className="sticky top-0 z-40 -mx-3 px-3 pt-3 pb-3 bg-neutral-50/95 backdrop-blur border-b border-neutral-200/80 shadow-sm sm:-mx-4 sm:px-4">
+      <div className="sticky top-0 z-40 -mx-4 px-4 pt-3 pb-3 bg-neutral-100/90 backdrop-blur border-b border-neutral-200/70 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8 lg:-mx-10 lg:px-10">
         <header className="space-y-3">
           <div className="flex items-end justify-between gap-3">
             <div className="min-w-0">
-              <h1 className="text-xl font-black text-neutral-900 leading-tight">Clientes</h1>
-              <p className="text-neutral-500 text-xs truncate">Gerencie sua carteira</p>
+              <h1 className="text-xl font-semibold tracking-tight text-neutral-900 md:text-2xl">Clientes</h1>
+              <p className="text-neutral-500 text-sm truncate">Gerencie sua carteira</p>
             </div>
             <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-neutral-500 border border-neutral-200">
               {filteredClientes.length}
@@ -435,7 +435,7 @@ export function ClientsPage() {
             </button>
 
             {isActionsMenuOpen && (
-              <div className="absolute right-1 top-11 z-50 w-56 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl" role="menu">
+              <div className="absolute right-1 top-11 z-50 w-56 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl" role="menu">
                 <button
                   onClick={() => {
                     setIsModalOpen(true);
@@ -516,8 +516,8 @@ export function ClientsPage() {
                 <div className="flex items-center gap-4 min-w-0 flex-1">
                   <div className="relative shrink-0">
                     <div className={cn(
-                      "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm",
-                      cliente.ativo ? "bg-orange-100 text-orange-600" : "bg-neutral-100 text-neutral-400"
+                      "w-10 h-10 rounded-full flex items-center justify-center font-semibold text-[13px]",
+                      cliente.ativo ? "bg-neutral-100 text-neutral-700 ring-1 ring-inset ring-neutral-200" : "bg-neutral-50 text-neutral-400"
                     )}>
                       {cliente.cliente.substring(0, 2).toUpperCase()}
                     </div>
@@ -662,13 +662,13 @@ export function ClientsPage() {
             </div>
             <div className="flex items-center gap-3 sm:gap-6 text-right shrink-0">
               <div>
-                <p className="text-[9px] sm:text-[10px] uppercase font-bold text-neutral-400">Peso Total</p>
+                <p className="text-[10px] sm:text-[10px] uppercase font-bold text-neutral-400">Peso Total</p>
                 <p className="text-xs sm:text-base font-black text-orange-400 leading-tight">
                   {formatWeight(totalOpenOrdersPeso)}
                 </p>
               </div>
               <div className="border-l border-neutral-700 pl-3 sm:pl-6">
-                <p className="text-[9px] sm:text-[10px] uppercase font-bold text-neutral-400">Valor Total</p>
+                <p className="text-[10px] sm:text-[10px] uppercase font-bold text-neutral-400">Valor Total</p>
                 <p className="text-xs sm:text-base font-black text-green-400 leading-tight">
                   {formatCurrency(totalOpenOrdersValor)}
                 </p>

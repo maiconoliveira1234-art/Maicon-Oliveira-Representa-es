@@ -72,7 +72,7 @@ export function AgendaPendenciaModal({ open, item, defaultDate, clientes, saving
       <form onSubmit={submit} className="max-h-[92dvh] w-full overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-w-xl sm:rounded-lg">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-200 bg-white px-4 py-3">
           <div>
-            <p className="text-[9px] font-black uppercase tracking-[0.2em] text-orange-600">{item ? 'Editar registro' : 'Novo registro'}</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-600">{item ? 'Editar registro' : 'Novo registro'}</p>
             <h2 className="text-lg font-black text-neutral-950">{tipo === 'VISITA_EXTRA' ? 'Visita extra' : 'Tarefa'}</h2>
           </div>
           <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100" title="Fechar"><X size={20} /></button>
@@ -96,7 +96,7 @@ export function AgendaPendenciaModal({ open, item, defaultDate, clientes, saving
               <ChevronDown size={16} className="shrink-0 text-neutral-400" />
             </button>
             {clientOpen && (
-              <div className="absolute z-30 mt-1 w-full rounded-lg border border-neutral-200 bg-white p-2 shadow-xl">
+              <div className="absolute z-30 mt-1 w-full rounded-xl border border-neutral-200 bg-white p-2 shadow-xl">
                 <div className="relative mb-2">
                   <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
                   <input autoFocus value={clientSearch} onChange={(event) => setClientSearch(event.target.value)} placeholder="Buscar cliente" className="h-10 w-full rounded-lg border border-neutral-200 pl-9 pr-3 text-sm outline-none focus:border-orange-500" />

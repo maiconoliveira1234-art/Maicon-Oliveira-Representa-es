@@ -85,7 +85,7 @@ export const VisitaCardCompact: React.FC<VisitaCardCompactProps> = ({ visita, ga
           <div className="flex items-center gap-1.5 shrink-0">
             {noteAlert && (
               <span className={cn(
-                "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-tight",
+                "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-black uppercase tracking-tight",
                 noteAlert.level === 'note' && "border-sky-100 bg-sky-50 text-sky-700",
                 noteAlert.level === 'attention' && "border-orange-100 bg-orange-50 text-orange-700",
                 noteAlert.level === 'pending' && "border-rose-100 bg-rose-50 text-rose-700"
@@ -96,7 +96,7 @@ export const VisitaCardCompact: React.FC<VisitaCardCompactProps> = ({ visita, ga
             )}
             {gap !== undefined && (
               <div className={cn(
-                "text-[9px] font-black px-1.5 py-0.5 rounded-md border",
+                "text-[10px] font-black px-1.5 py-0.5 rounded-md border",
                 gap > 0 
                   ? "text-rose-600 bg-rose-50 border-rose-100" 
                   : gap >= -14
@@ -107,7 +107,7 @@ export const VisitaCardCompact: React.FC<VisitaCardCompactProps> = ({ visita, ga
               </div>
             )}
             <span className={cn(
-              "text-[8px] font-black tracking-tight px-1.5 py-0.5 rounded-md border",
+              "text-[10px] font-black tracking-tight px-1.5 py-0.5 rounded-md border",
               getStatusBadgeClass(visita.status)
             )}>
               {getStatusLabel(visita.status)}
@@ -121,11 +121,11 @@ export const VisitaCardCompact: React.FC<VisitaCardCompactProps> = ({ visita, ga
             <span className="truncate">{visita.bairro}, {visita.cidade}</span>
           </div>
           <div className="flex items-center gap-3">
-             <div className="flex items-center gap-1 text-[9px] text-neutral-400 font-bold uppercase tracking-tight">
+             <div className="flex items-center gap-1 text-[10px] text-neutral-400 font-bold uppercase tracking-tight">
                <User size={10} className="text-neutral-300" />
                <span className="truncate max-w-[80px]">{visita.contato}</span>
              </div>
-             <div className="flex items-center gap-1 text-[9px] text-neutral-400 font-bold uppercase tracking-tight">
+             <div className="flex items-center gap-1 text-[10px] text-neutral-400 font-bold uppercase tracking-tight">
                <Phone size={10} className="text-neutral-300" />
                <span>{visita.telefone}</span>
              </div>

@@ -350,7 +350,7 @@ export function LoansPage() {
       />
 
       {/* Filters Bar */}
-      <div className="rounded-lg border border-neutral-200 bg-white p-3 shadow-sm md:p-3.5">
+      <div className="rounded-xl border border-neutral-200 bg-white p-3 shadow-sm md:p-3.5">
         <div className="flex flex-col md:flex-row gap-3 md:items-center">
           <div className="flex-1 relative group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-orange-500 transition-colors" size={20} />
@@ -515,7 +515,7 @@ export function LoansPage() {
                           <button
                             type="button"
                             onClick={() => toggleStatus(loan)}
-                            className={cn('shrink-0 rounded px-2 py-1 text-[9px] font-black uppercase', loan.status === 'pago' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-100 text-amber-800')}
+                            className={cn('shrink-0 rounded px-2 py-1 text-[10px] font-black uppercase', loan.status === 'pago' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-100 text-amber-800')}
                           >
                             {loan.status === 'pago' ? 'Pago' : 'Pendente'}
                           </button>
@@ -529,7 +529,7 @@ export function LoansPage() {
                         <div className="text-sm font-bold text-neutral-900">{format(parseISO(loan.data_emprestimo), 'dd/MM/yyyy')}</div>
                         {loan.status === 'pendente' && (
                           <div className={cn(
-                            "text-[9px] font-black uppercase tracking-tighter mt-0.5",
+                            "text-[10px] font-black uppercase tracking-tighter mt-0.5",
                             daysSince >= 30 ? "text-rose-600" : daysSince >= 10 ? "text-orange-600" : "text-neutral-400"
                           )}>
                             Há {daysSince} dias
@@ -564,7 +564,7 @@ export function LoansPage() {
                           {loan.status === 'pago' ? 'Pago' : 'Pagar'}
                         </button>
                         {loan.data_devolucao && (
-                          <div className="text-[8px] font-bold text-neutral-400 mt-1.5 ml-1 uppercase tracking-tighter">
+                          <div className="text-[10px] font-bold text-neutral-400 mt-1.5 ml-1 uppercase tracking-tighter">
                             Devolvido em {format(parseISO(loan.data_devolucao), 'dd/MM/yyyy')}
                           </div>
                         )}
@@ -607,7 +607,7 @@ export function LoansPage() {
                   </h3>
                   <div className="flex items-center gap-2 mt-1.5 md:mt-2 ml-10 md:ml-[52px]">
                     <div className="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                    <p className="text-[8px] md:text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Painel de Registro</p>
+                    <p className="text-[10px] md:text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Painel de Registro</p>
                   </div>
                 </div>
                 <button 
@@ -718,7 +718,7 @@ export function LoansPage() {
                                 >
                                   <span>{c.cliente}</span>
                                   {!c.ativo && (
-                                    <span className="text-[8px] bg-rose-50 px-2 py-0.5 rounded-full text-rose-500 font-black">INATIVO</span>
+                                    <span className="text-[10px] bg-rose-50 px-2 py-0.5 rounded-full text-rose-500 font-black">INATIVO</span>
                                   )}
                                 </button>
                               ))}
@@ -800,7 +800,7 @@ export function LoansPage() {
                                 >
                                   <span>{c.cliente}</span>
                                   {!c.ativo && (
-                                    <span className="text-[8px] bg-rose-50 px-2 py-0.5 rounded-full text-rose-500 font-black">INATIVO</span>
+                                    <span className="text-[10px] bg-rose-50 px-2 py-0.5 rounded-full text-rose-500 font-black">INATIVO</span>
                                   )}
                                 </button>
                               ))}

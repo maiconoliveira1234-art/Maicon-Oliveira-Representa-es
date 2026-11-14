@@ -1478,11 +1478,11 @@ export function OrderPage() {
                 className="grid grid-cols-2 gap-3 p-3 bg-orange-50 border border-orange-100 rounded-lg"
               >
                 <div>
-                  <p className="text-[9px] font-black text-orange-600 uppercase tracking-wider">Valor Boleto</p>
+                  <p className="text-[10px] font-black text-orange-600 uppercase tracking-wider">Valor Boleto</p>
                   <p className="text-sm font-black text-neutral-900">{formatCurrency(installmentDetails.valorBoleto)}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[9px] font-black text-orange-600 uppercase tracking-wider">1º Venc. Est.</p>
+                  <p className="text-[10px] font-black text-orange-600 uppercase tracking-wider">1º Venc. Est.</p>
                   <p className="text-sm font-black text-neutral-900">
                     {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
                   </p>
@@ -1729,11 +1729,11 @@ export function OrderPage() {
                       className="grid grid-cols-2 gap-3 p-3 bg-orange-50 border border-orange-100 rounded-lg"
                     >
                       <div>
-                        <p className="text-[9px] font-black text-orange-600 uppercase tracking-wider">Valor Boleto</p>
+                        <p className="text-[10px] font-black text-orange-600 uppercase tracking-wider">Valor Boleto</p>
                         <p className="text-sm font-black text-neutral-900">{formatCurrency(installmentDetails.valorBoleto)}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-[9px] font-black text-orange-600 uppercase tracking-wider">1º Venc. Est.</p>
+                        <p className="text-[10px] font-black text-orange-600 uppercase tracking-wider">1º Venc. Est.</p>
                         <p className="text-sm font-black text-neutral-900">
                           {installmentDetails.dataVencimento ? format(installmentDetails.dataVencimento, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
                         </p>
@@ -1806,7 +1806,7 @@ export function OrderPage() {
                         <div key={item.produto_id + ('campanha_regra_id' in item ? String(item.campanha_regra_id) : '')} className="flex items-center justify-between p-2.5 bg-white border border-neutral-200/50 rounded-lg">
                           <div className="flex-1 min-w-0 pr-2">
                             <p className="text-[11px] font-bold text-neutral-800 truncate">{produto.produto}</p>
-                            <p className="text-[9px] text-neutral-400 font-medium">
+                            <p className="text-[10px] text-neutral-400 font-medium">
                               {item.quantidade} x R$ {(item.valor_unitario || 0).toFixed(2)} | Peso: {formatWeight(item.peso_total || 0)}
                                {'campanha_regra_id' in item && <span className="ml-2 font-bold text-green-700">Campanha — sem Flex</span>}
                             </p>
@@ -1868,7 +1868,7 @@ export function OrderPage() {
               </div>
             </div>
 
-            <p className="text-[9px] font-semibold text-neutral-400 italic text-center leading-tight">
+            <p className="text-[10px] font-semibold text-neutral-400 italic text-center leading-tight">
               *Saldo sujeito a alteração devido a pedidos ainda não faturados pelo ERP.
             </p>
           </div>
@@ -1919,19 +1919,19 @@ export function OrderPage() {
             avaliacaoCredito?.situacao === 'insuficiente' ? "bg-red-700" : "bg-orange-600"
           )}>
             <div className="min-w-0 px-0.5 text-center">
-              <p className="text-[9px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Peso kg</p>
+              <p className="text-[10px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Peso kg</p>
               <p className="truncate text-[11px] font-black tabular-nums tracking-tight leading-tight min-[375px]:text-xs sm:text-sm">{formatNumeroRodape(pesoTotal)}</p>
             </div>
             <div className="min-w-0 border-l border-white/20 px-0.5 text-center">
-              <p className="text-[9px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Faixa kg</p>
+              <p className="text-[10px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Faixa kg</p>
               <p className="truncate text-[11px] font-black tabular-nums tracking-tight leading-tight min-[375px]:text-xs sm:text-sm">{currentFaixa.replace(/\s*kg$/i, '')}</p>
             </div>
             <div className="min-w-0 border-l border-white/20 px-0.5 text-center">
-              <p className="text-[9px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Recompra kg</p>
+              <p className="text-[10px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Recompra kg</p>
               <p className="truncate text-[11px] font-black tabular-nums tracking-tight leading-tight min-[375px]:text-xs sm:text-sm">{pesoConquistado > 0 ? formatNumeroRodape(pesoConquistado) : '—'}</p>
             </div>
             <div className="min-w-0 border-l border-white/20 px-0.5 text-center" title="Crédito disponível projetado para o cadastro financeiro selecionado">
-              <p className="text-[9px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Limite R$</p>
+              <p className="text-[10px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Limite R$</p>
               <p className="truncate text-[11px] font-black tabular-nums tracking-tight leading-tight min-[375px]:text-xs sm:text-sm">
                 {creditoCadastroStatus === 'loading' || (entidadeCreditoId && creditoSaldoStatus === 'loading')
                   ? '…'
@@ -1939,7 +1939,7 @@ export function OrderPage() {
               </p>
             </div>
             <div className="min-w-0 border-l border-white/20 px-0.5 text-center">
-              <p className="text-[9px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Total R$</p>
+              <p className="text-[10px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Total R$</p>
               <p className="truncate text-[11px] font-black tabular-nums tracking-tight leading-tight min-[375px]:text-xs sm:text-sm">{formatNumeroRodape(valorTotal)}</p>
             </div>
           </div>
@@ -2135,12 +2135,12 @@ export function OrderPage() {
                         {pageIdx === 0 && (
                           <div className="grid grid-cols-2 gap-4 mb-6">
                             <div className="p-3 bg-[#fafafa] rounded-lg border border-[#f5f5f5]">
-                              <p className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest mb-0.5">Cliente</p>
+                              <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-0.5">Cliente</p>
                               <p className="text-sm font-black text-[#171717] leading-tight">{cliente?.cliente}</p>
                               <p className="text-[10px] font-bold text-[#737373] mt-0.5">{cliente?.cidade}</p>
                             </div>
                             <div className="p-3 bg-[#fafafa] rounded-lg border border-[#f5f5f5]">
-                              <p className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest mb-0.5">Vendedor</p>
+                              <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-0.5">Vendedor</p>
                               <p className="text-sm font-black text-[#171717] leading-tight">MAICON OLIVEIRA</p>
                               <p className="text-[10px] font-bold text-[#737373] mt-0.5">Representante Comercial</p>
                             </div>
@@ -2152,11 +2152,11 @@ export function OrderPage() {
                           <table className="w-full border-collapse">
                             <thead>
                               <tr className="bg-[#171717] text-[#ffffff]">
-                                <th className="py-2 px-3 text-left text-[8px] font-black uppercase tracking-widest rounded-tl-md">Produto</th>
-                                <th className="py-2 px-3 text-center text-[8px] font-black uppercase tracking-widest">Qtd</th>
-                                <th className="py-2 px-3 text-center text-[8px] font-black uppercase tracking-widest">Peso</th>
-                                <th className="py-2 px-3 text-right text-[8px] font-black uppercase tracking-widest">Unitário</th>
-                                <th className="py-2 px-3 text-right text-[8px] font-black uppercase tracking-widest rounded-tr-md">Subtotal</th>
+                                <th className="py-2 px-3 text-left text-[10px] font-black uppercase tracking-widest rounded-tl-md">Produto</th>
+                                <th className="py-2 px-3 text-center text-[10px] font-black uppercase tracking-widest">Qtd</th>
+                                <th className="py-2 px-3 text-center text-[10px] font-black uppercase tracking-widest">Peso</th>
+                                <th className="py-2 px-3 text-right text-[10px] font-black uppercase tracking-widest">Unitário</th>
+                                <th className="py-2 px-3 text-right text-[10px] font-black uppercase tracking-widest rounded-tr-md">Subtotal</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-[#f5f5f5]">
@@ -2170,7 +2170,7 @@ export function OrderPage() {
                                     <td className="py-2 px-3 font-bold text-[#262626] leading-tight max-w-[200px] break-words">
                                       <div>{produto?.produto}</div>
                                       {item.tipo_operacao === 'MERCHANDISING' && (
-                                        <div className="text-[8px] font-black tracking-widest text-[#ea580c] uppercase mt-0.5">
+                                        <div className="text-[10px] font-black tracking-widest text-[#ea580c] uppercase mt-0.5">
                                           • Merchandising
                                         </div>
                                       )}
@@ -2201,7 +2201,7 @@ export function OrderPage() {
                             <div className="grid grid-cols-2 gap-8 items-stretch">
                               <div className="flex flex-col gap-3">
                                 <div className="p-3 border border-[#e5e5e5] rounded-lg">
-                                  <p className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest mb-1.5">Condições de Pagamento</p>
+                                  <p className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest mb-1.5">Condições de Pagamento</p>
                                   <div className="space-y-1">
                                     <div className="flex justify-between">
                                       <span className="text-[10px] font-bold text-[#525252]">Condição:</span>
@@ -2226,7 +2226,7 @@ export function OrderPage() {
                                 
                                 {observacoes && (
                                   <div className="p-4 border-2 rounded-lg" style={{ borderColor: '#ffedd5', backgroundColor: 'rgba(255, 247, 237, 0.3)' }}>
-                                    <p className="text-[8px] font-black uppercase tracking-widest mb-1.5" style={{ color: '#ea580c' }}>Observações Importantes</p>
+                                    <p className="text-[10px] font-black uppercase tracking-widest mb-1.5" style={{ color: '#ea580c' }}>Observações Importantes</p>
                                     <p className="text-[11px] font-black text-[#171717] leading-relaxed whitespace-pre-wrap uppercase">{observacoes}</p>
                                   </div>
                                 )}
@@ -2241,7 +2241,7 @@ export function OrderPage() {
                                     </div>
                                   )}
                                   <div className="flex justify-between items-center p-3 bg-[#fafafa] rounded-lg border border-[#f5f5f5]">
-                                    <span className="text-[8px] font-black text-[#a3a3a3] uppercase tracking-widest">Peso do Pedido</span>
+                                    <span className="text-[10px] font-black text-[#a3a3a3] uppercase tracking-widest">Peso do Pedido</span>
                                     <span className="text-sm font-black text-[#171717]">{formatWeight(pesoTotal)}</span>
                                   </div>
                                 </div>
@@ -2256,9 +2256,9 @@ export function OrderPage() {
 
                         {/* Footer */}
                         <div className={cn("text-center", pageIdx === chunks.length - 1 ? "mt-3" : "mt-auto")}>
-                          <p className="text-[8px] font-black text-[#d4d4d4] uppercase tracking-[0.2em]">MAICON OLIVEIRA REPRESENTAÇÕES</p>
-                          <p className="text-[8px] font-bold text-[#a3a3a3] mt-1 italic uppercase tracking-wider">Este documento é um orçamento e não possui validade fiscal.</p>
-                          <p className="text-[8px] font-bold text-[#a3a3a3] mt-2">Página {pageIdx + 1} de {chunks.length}</p>
+                          <p className="text-[10px] font-black text-[#d4d4d4] uppercase tracking-[0.2em]">MAICON OLIVEIRA REPRESENTAÇÕES</p>
+                          <p className="text-[10px] font-bold text-[#a3a3a3] mt-1 italic uppercase tracking-wider">Este documento é um orçamento e não possui validade fiscal.</p>
+                          <p className="text-[10px] font-bold text-[#a3a3a3] mt-2">Página {pageIdx + 1} de {chunks.length}</p>
                         </div>
                       </div>
                     ));
@@ -2399,7 +2399,7 @@ export function OrderPage() {
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <span className="px-2 py-0.5 bg-neutral-100 text-neutral-500 text-[8px] font-bold rounded uppercase">
+                          <span className="px-2 py-0.5 bg-neutral-100 text-neutral-500 text-[10px] font-bold rounded uppercase">
                             {produto.familia}
                           </span>
                           {lastPurchase && (

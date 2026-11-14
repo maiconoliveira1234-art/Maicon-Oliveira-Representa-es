@@ -35,7 +35,7 @@ export function HomeWithWhatsAppPage() {
         <div className="flex min-w-0 items-center gap-2">
           <p className="truncate text-sm font-black text-neutral-950">WhatsApp Business</p>
           {hasNewMessages && (
-            <span className="shrink-0 rounded-full bg-rose-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-rose-700">
+            <span className="shrink-0 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-rose-700">
               Nova
             </span>
           )}

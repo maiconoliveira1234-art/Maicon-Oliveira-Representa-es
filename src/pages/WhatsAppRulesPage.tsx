@@ -296,7 +296,7 @@ export function WhatsAppRulesPage() {
           </label>
 
           <div className="mt-4 flex justify-end gap-2">
-            <button type="button" onClick={() => setShowForm(false)} className="rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-xs font-black text-neutral-600">Cancelar</button>
+            <button type="button" onClick={() => setShowForm(false)} className="rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-xs font-black text-neutral-600">Cancelar</button>
             <button type="button" onClick={() => void saveRule()} disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50">
               {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Salvar regra
             </button>
@@ -320,8 +320,8 @@ export function WhatsAppRulesPage() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="font-black text-neutral-900">{rule.titulo}</h2>
-                    <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase ${rule.ativo ? 'bg-green-50 text-green-700' : 'bg-neutral-100 text-neutral-500'}`}>{rule.ativo ? 'Ativa' : 'Inativa'}</span>
-                    <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[9px] font-black uppercase text-violet-700">{priorityLabel[rule.prioridade] || 'Média'}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${rule.ativo ? 'bg-green-50 text-green-700' : 'bg-neutral-100 text-neutral-500'}`}>{rule.ativo ? 'Ativa' : 'Inativa'}</span>
+                    <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-black uppercase text-violet-700">{priorityLabel[rule.prioridade] || 'Média'}</span>
                   </div>
                   <p className="mt-1 text-[10px] font-black uppercase tracking-wide text-neutral-400">{rule.categoria} · {scopeLabel(rule)}</p>
                 </div>
@@ -329,8 +329,8 @@ export function WhatsAppRulesPage() {
               <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-neutral-700">{rule.regra}</p>
               {(rule.valido_de || rule.valido_ate) && <p className="mt-2 text-[10px] font-semibold text-neutral-400">Validade: {rule.valido_de || 'sem início'} até {rule.valido_ate || 'sem término'}</p>}
               <div className="mt-4 flex flex-wrap gap-2 border-t border-neutral-100 pt-3">
-                <button type="button" onClick={() => openEdit(rule)} className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-black text-neutral-700"><Edit3 size={14} /> Editar</button>
-                <button type="button" onClick={() => void toggleRule(rule)} className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-black text-neutral-700"><Check size={14} /> {rule.ativo ? 'Desativar' : 'Ativar'}</button>
+                <button type="button" onClick={() => openEdit(rule)} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-black text-neutral-700"><Edit3 size={14} /> Editar</button>
+                <button type="button" onClick={() => void toggleRule(rule)} className="inline-flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-black text-neutral-700"><Check size={14} /> {rule.ativo ? 'Desativar' : 'Ativar'}</button>
                 <button type="button" onClick={() => void deleteRule(rule)} className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-700"><Trash2 size={14} /> Excluir</button>
               </div>
             </Panel>

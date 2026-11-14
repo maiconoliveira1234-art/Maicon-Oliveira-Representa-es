@@ -1200,25 +1200,25 @@ export function StockCountPage() {
               </h1>
               <div className="flex items-center gap-3 shrink-0 text-[10px]">
                 <div className="text-center">
-                  <span className="text-[8px] font-bold text-neutral-400 uppercase block leading-none">Ult. Ped</span>
+                  <span className="text-[10px] font-bold text-neutral-400 uppercase block leading-none">Ult. Ped</span>
                   <span className={cn("text-xs font-black", isOverdueGlobal ? "text-red-600" : "text-neutral-800")}>
                     {diasDesdeUltimoPedidoGlobal}d
                   </span>
                 </div>
                 <div className="text-center">
-                  <span className="text-[8px] font-bold text-neutral-400 uppercase block leading-none">Ciclo</span>
+                  <span className="text-[10px] font-bold text-neutral-400 uppercase block leading-none">Ciclo</span>
                   <span className="text-xs font-black text-neutral-800 bg-neutral-100 px-1 rounded">
                     {mediaCicloGlobal}d
                   </span>
                 </div>
                 <div className="text-center">
-                  <span className="text-[8px] font-bold text-neutral-400 uppercase block leading-none">Peso Ped.</span>
+                  <span className="text-[10px] font-bold text-neutral-400 uppercase block leading-none">Peso Ped.</span>
                   <span className="text-[10px] font-black text-orange-600 bg-orange-50 px-1 py-0.2 rounded whitespace-nowrap">
                     {formatWeight(totalPesoPedido)}
                   </span>
                 </div>
                 <div className="text-center">
-                  <span className="text-[8px] font-bold text-neutral-400 uppercase block leading-none">Valor Ped.</span>
+                  <span className="text-[10px] font-bold text-neutral-400 uppercase block leading-none">Valor Ped.</span>
                   <span className="text-[10px] font-black text-green-700 bg-green-50 px-1 py-0.2 rounded whitespace-nowrap">
                     {formatCurrency(totalValorPedido)}
                   </span>
@@ -1323,25 +1323,25 @@ export function StockCountPage() {
             <div className="grid grid-cols-4 gap-0.5 bg-neutral-50 py-0.5 px-1 rounded border border-neutral-100 text-center">
               <div className="border-r border-neutral-200">
                 <p className="text-[7.5px] font-black text-neutral-400 uppercase leading-none">Ult. Pedido</p>
-                <p className={cn("text-[9px] font-black leading-tight", isOverdueGlobal ? "text-red-600" : "text-neutral-800")}>
+                <p className={cn("text-[10px] font-black leading-tight", isOverdueGlobal ? "text-red-600" : "text-neutral-800")}>
                   {diasDesdeUltimoPedidoGlobal}d
                 </p>
               </div>
               <div className="border-r border-neutral-200">
                 <p className="text-[7.5px] font-black text-neutral-400 uppercase leading-none">Ciclo Médio</p>
-                <p className="text-[9px] font-black text-neutral-800 leading-tight">
+                <p className="text-[10px] font-black text-neutral-800 leading-tight">
                   {mediaCicloGlobal}d
                 </p>
               </div>
               <div className="border-r border-neutral-200">
                 <p className="text-[7.5px] font-black text-neutral-400 uppercase leading-none">Peso Pedido</p>
-                <p className="text-[9px] font-black text-orange-600 leading-tight">
+                <p className="text-[10px] font-black text-orange-600 leading-tight">
                   {formatWeight(totalPesoPedido)}
                 </p>
               </div>
               <div>
                 <p className="text-[7.5px] font-black text-neutral-400 uppercase leading-none">Valor Ped.</p>
-                <p className="text-[9px] font-black text-green-700 leading-tight whitespace-nowrap">
+                <p className="text-[10px] font-black text-green-700 leading-tight whitespace-nowrap">
                   {formatCurrency(totalValorPedido)}
                 </p>
               </div>
@@ -1373,7 +1373,7 @@ export function StockCountPage() {
                 <button
                   onClick={() => setViewMode('contagem')}
                   className={cn(
-                    "px-1.5 sm:px-2 md:px-4 rounded text-[9px] sm:text-[10px] md:text-[11px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
+                    "px-1.5 sm:px-2 md:px-4 rounded text-[10px] sm:text-[10px] md:text-[11px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
                     viewMode === 'contagem' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
                   )}
                 >
@@ -1382,7 +1382,7 @@ export function StockCountPage() {
                 <button
                   onClick={() => setViewMode('pedido')}
                   className={cn(
-                    "px-1.5 sm:px-2 md:px-4 rounded text-[9px] sm:text-[10px] md:text-[11px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
+                    "px-1.5 sm:px-2 md:px-4 rounded text-[10px] sm:text-[10px] md:text-[11px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
                     viewMode === 'pedido' ? "bg-white text-green-600 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
                   )}
                 >
@@ -1394,7 +1394,7 @@ export function StockCountPage() {
                 <button
                   onClick={() => setIsActionsMenuOpen(open => !open)}
                   className={cn(
-                    "flex h-7 md:h-8 items-center gap-1 rounded border px-1.5 md:px-2.5 text-[9px] sm:text-[10px] md:text-[11px] font-black transition-colors",
+                    "flex h-7 md:h-8 items-center gap-1 rounded border px-1.5 md:px-2.5 text-[10px] sm:text-[10px] md:text-[11px] font-black transition-colors",
                     isActionsMenuOpen || showInactive || showAverages
                       ? "border-neutral-900 bg-neutral-900 text-white"
                       : "border-neutral-200 bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
@@ -1407,7 +1407,7 @@ export function StockCountPage() {
                 </button>
 
                 {isActionsMenuOpen && (
-                  <div className="absolute right-0 top-9 z-[130] w-56 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-xl" role="menu">
+                  <div className="absolute right-0 top-9 z-[130] w-56 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl" role="menu">
                     <button
                       onClick={() => {
                         setIsActionsMenuOpen(false);
@@ -1449,7 +1449,7 @@ export function StockCountPage() {
                 <select
                   value={selectedWeight}
                   onChange={(e) => setSelectedWeight(e.target.value)}
-                  className="w-[58px] sm:w-[70px] md:w-auto pl-1.5 md:pl-2 pr-4 md:pr-5 h-7 md:h-8 bg-neutral-100 rounded outline-none text-[9px] sm:text-[9.5px] md:text-[11px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer md:max-w-[100px] truncate"
+                  className="w-[58px] sm:w-[70px] md:w-auto pl-1.5 md:pl-2 pr-4 md:pr-5 h-7 md:h-8 bg-neutral-100 rounded outline-none text-[10px] sm:text-[9.5px] md:text-[11px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer md:max-w-[100px] truncate"
                 >
                   {weights.map(w => (
                     <option key={w} value={w}>
@@ -1466,7 +1466,7 @@ export function StockCountPage() {
                 <select
                   value={selectedFamily}
                   onChange={(e) => setSelectedFamily(e.target.value)}
-                  className="w-full md:w-auto pl-1.5 md:pl-2 pr-4 md:pr-5 h-7 md:h-8 bg-neutral-100 rounded outline-none text-[9px] sm:text-[9.5px] md:text-[11px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer md:max-w-[135px] truncate"
+                  className="w-full md:w-auto pl-1.5 md:pl-2 pr-4 md:pr-5 h-7 md:h-8 bg-neutral-100 rounded outline-none text-[10px] sm:text-[9.5px] md:text-[11px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer md:max-w-[135px] truncate"
                 >
                   {families.map(f => (
                     <option key={f} value={f}>{f === 'Todas' ? 'Fam: Todas' : f}</option>
@@ -1784,7 +1784,7 @@ export function StockCountPage() {
               <div className="mt-5 flex gap-3">
                 <button
                   onClick={() => setShowClearConfirm(false)}
-                  className="flex-1 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-sm font-black text-neutral-700 transition-colors hover:bg-neutral-50"
+                  className="flex-1 rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-black text-neutral-700 transition-colors hover:bg-neutral-50"
                 >
                   Cancelar
                 </button>

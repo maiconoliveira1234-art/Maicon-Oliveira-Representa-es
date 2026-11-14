@@ -244,7 +244,7 @@ export function HomePage({ afterHeader }: { afterHeader?: React.ReactNode } = {}
         <Link to="/agenda" state={{ selectedDate: item.data_prevista || todayKey }} className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
             <p className="truncate text-sm font-black text-neutral-900">{item.titulo}</p>
-            {item.prioridade !== 'NORMAL' && <span className={cn('shrink-0 text-[8px] font-black', item.prioridade === 'URGENTE' ? 'text-rose-600' : 'text-amber-600')}>{item.prioridade}</span>}
+            {item.prioridade !== 'NORMAL' && <span className={cn('shrink-0 text-[10px] font-black', item.prioridade === 'URGENTE' ? 'text-rose-600' : 'text-amber-600')}>{item.prioridade}</span>}
           </div>
           <p className={cn('truncate text-xs font-bold', isOverdue ? 'text-rose-600' : 'text-neutral-500')}>
             {dateLabel}{item.horario_inicio ? ` · ${item.horario_inicio.slice(0, 5)}` : ''}{cliente ? ` · ${cliente.cliente}` : ''}
@@ -264,28 +264,31 @@ export function HomePage({ afterHeader }: { afterHeader?: React.ReactNode } = {}
 
   return (
     <div className="mx-auto w-full max-w-6xl min-w-0 space-y-4 overflow-x-hidden">
-      <section className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="min-w-0">
-            <h1 className="break-words text-2xl font-black capitalize tracking-tight text-neutral-950 md:text-3xl">
-              {format(today, "EEEE, d 'de' MMMM", { locale: ptBR })}
-            </h1>
-            <p className="mt-1 text-sm font-semibold text-neutral-500">
-              {['Semana ' + summary.currentWeek, summary.currentDay || 'Sem roteiro', summary.loadLevel].filter(Boolean).join(' · ')}
-            </p>
+      <header className="flex min-w-0 flex-col gap-4 pb-1 pt-1 md:flex-row md:items-end md:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-orange-600 first-letter:uppercase">
+            {format(today, 'EEEE', { locale: ptBR })}
+          </p>
+          <h1 className="mt-0.5 break-words text-2xl font-semibold tracking-tight text-neutral-900 md:text-3xl">
+            {format(today, "d 'de' MMMM", { locale: ptBR })}
+          </h1>
+          <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-medium text-neutral-600">
+            {['Semana ' + summary.currentWeek, summary.currentDay || 'Sem roteiro', summary.loadLevel].filter(Boolean).map(item => (
+              <span key={item} className="rounded-full border border-neutral-200 bg-white px-2.5 py-1">{item}</span>
+            ))}
           </div>
-          <Link to="/agenda" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-3 text-sm font-black text-white shadow-lg shadow-orange-600/20 transition-transform active:scale-95">
-            Abrir Agenda
-            <ArrowRight className="shrink-0" size={18} />
-          </Link>
         </div>
-      </section>
+        <Link to="/agenda" className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-orange-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-700 active:scale-[0.98]">
+          Abrir agenda
+          <ArrowRight className="shrink-0" size={18} />
+        </Link>
+      </header>
 
       {afterHeader}
 
       <CommercialPriorities agenda={agendaPendencias} />
 
-      <section className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+      <section className="min-w-0 overflow-hidden rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
         <div className="mb-3 min-w-0">
           <h2 className="text-lg font-black text-neutral-950">Visitas de hoje</h2>
           <p className="mt-1 text-sm font-semibold text-neutral-500">
@@ -298,7 +301,7 @@ export function HomePage({ afterHeader }: { afterHeader?: React.ReactNode } = {}
         <div className="space-y-2">
           {summary.todayVisits.slice(0, 6).map((visita, index) => (
             <div key={visita.id} className="flex min-w-0 items-center gap-3 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-xs font-black text-neutral-500">{index + 1}</div>
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-white text-xs font-black text-neutral-500">{index + 1}</div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-black text-neutral-950 truncate">{visita.cliente_nome}</p>
                 <p className="text-xs font-bold text-neutral-400 truncate">{[visita.bairro, visita.cidade].filter(Boolean).join(' - ')}</p>
@@ -312,7 +315,7 @@ export function HomePage({ afterHeader }: { afterHeader?: React.ReactNode } = {}
         </div>
       </section>
 
-      <section className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+      <section className="min-w-0 overflow-hidden rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
         <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <h2 className="truncate text-lg font-black text-neutral-950">{showAllTasks ? 'Tarefas pendentes' : 'Tarefas de hoje e atrasadas'}</h2>

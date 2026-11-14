@@ -600,7 +600,7 @@ export function PriceReportsPage() {
           <p className="mt-1 text-sm text-neutral-500">Consulte produtos, compare tabelas e gere relatorios comerciais.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => setShowNewProduct(true)} className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">
+          <button onClick={() => setShowNewProduct(true)} className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">
             <PackagePlus size={17} /> Novo produto
           </button>
           <button
@@ -617,7 +617,7 @@ export function PriceReportsPage() {
         exportMessage.startsWith('Não') ? 'border-red-200 bg-red-50 text-red-700' : 'border-green-200 bg-green-50 text-green-700'
       )}>{exportMessage}</div>}
 
-      <div className="inline-flex w-full overflow-x-auto rounded-lg border border-neutral-200 bg-white p-1 md:w-auto">
+      <div className="inline-flex w-full overflow-x-auto rounded-xl border border-neutral-200 bg-white p-1 md:w-auto">
         {([
           ['comparison', 'Comparar preços', SlidersHorizontal],
           ['history', 'Histórico do produto', History],
@@ -632,7 +632,7 @@ export function PriceReportsPage() {
         ))}
       </div>
 
-      <section className="overflow-hidden rounded-lg border border-neutral-200 bg-white p-4">
+      <section className="overflow-hidden rounded-xl border border-neutral-200 bg-white p-4">
         <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-12">
           <label className="relative min-w-0 xl:col-span-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={17} />
@@ -757,12 +757,12 @@ function SearchableSelect({ value, onChange, label, options }: { value: string; 
   const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR');
   const filtered = options.filter(([, optionLabel], index) => index === 0 || !normalizedQuery || optionLabel.toLocaleLowerCase('pt-BR').includes(normalizedQuery));
   return <div ref={rootRef} className="relative min-w-0">
-    <button type="button" onClick={openDropdown} aria-label={label} aria-expanded={open} className="flex w-full items-center rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-left text-sm font-semibold text-neutral-700 outline-none hover:border-neutral-300 focus:border-orange-400">
+    <button type="button" onClick={openDropdown} aria-label={label} aria-expanded={open} className="flex w-full items-center rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-left text-sm font-semibold text-neutral-700 outline-none hover:border-neutral-300 focus:border-orange-400">
       <span className="min-w-0 flex-1 truncate">{selectedLabel || label}</span>
       {value !== options[0]?.[0] && <span role="button" tabIndex={0} onClick={event => { event.stopPropagation(); onChange(options[0]?.[0] || ''); }} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onChange(options[0]?.[0] || ''); } }} className="mr-1 flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700" title="Limpar cliente" aria-label="Limpar cliente"><X size={14}/></span>}
       <ChevronDown size={16} className={cn('shrink-0 text-neutral-400 transition-transform', open && 'rotate-180')}/>
     </button>
-    {open && createPortal(<div ref={popupRef} style={{ position: 'fixed', top: popupPosition.top, left: popupPosition.left, width: popupPosition.width }} className="z-[300] overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-2xl">
+    {open && createPortal(<div ref={popupRef} style={{ position: 'fixed', top: popupPosition.top, left: popupPosition.left, width: popupPosition.width }} className="z-[300] overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl">
       <div className="border-b border-neutral-100 p-2"><ClearableTextInput value={query} onChange={setQuery} ariaLabel="Buscar cliente" placeholder="Buscar cliente" className="w-full rounded-lg border border-neutral-200 px-3 py-2 pr-10 text-sm outline-none focus:border-orange-400" /></div>
       <div className="max-h-64 overflow-y-auto p-1">
         {filtered.map(([optionValue, optionLabel]) => <button key={optionValue} type="button" onClick={() => { onChange(optionValue); setOpen(false); }} className={cn('block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-orange-50', value === optionValue ? 'bg-orange-50 font-bold text-orange-700' : 'text-neutral-700')}>{optionLabel}</button>)}
@@ -776,7 +776,7 @@ function Select({ value, onChange, label, options }: { value: string; onChange: 
   if (label.toLocaleLowerCase('pt-BR').includes('cliente')) return <SearchableSelect value={value} onChange={onChange} label={label} options={options} />;
   return <label className="relative block min-w-0 max-w-full">
     <span className="sr-only">{label}</span>
-    <select value={value} onChange={event => onChange(event.target.value)} className="block w-full min-w-0 max-w-full appearance-none truncate rounded-lg border border-neutral-200 bg-white px-3 py-2.5 pr-9 text-sm font-semibold text-neutral-700 outline-none focus:border-orange-400">
+    <select value={value} onChange={event => onChange(event.target.value)} className="block w-full min-w-0 max-w-full appearance-none truncate rounded-xl border border-neutral-200 bg-white px-3 py-2.5 pr-9 text-sm font-semibold text-neutral-700 outline-none focus:border-orange-400">
       {options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}
     </select>
     <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400" size={16} />
@@ -829,8 +829,8 @@ function ColumnSelector({ draft, onChange, savingsTables, onSavingsTablesChange,
     return () => document.removeEventListener('mousedown', close);
   }, []);
   return <div className="self-end">
-    <button ref={triggerRef} type="button" onClick={toggle} aria-expanded={open} className="flex w-full items-center justify-between gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-sm font-bold text-neutral-700">Colunas do relatorio <ChevronDown size={16} className={cn('shrink-0 transition-transform', open && 'rotate-180')}/></button>
-    {open && createPortal(<div ref={popupRef} style={{ position: 'fixed', top: position.top, left: position.left, width: position.width, maxHeight: `calc(100vh - ${position.top + 12}px)` }} className="z-[300] overflow-y-auto rounded-lg border border-neutral-200 bg-white p-3 shadow-2xl">
+    <button ref={triggerRef} type="button" onClick={toggle} aria-expanded={open} className="flex w-full items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm font-bold text-neutral-700">Colunas do relatorio <ChevronDown size={16} className={cn('shrink-0 transition-transform', open && 'rotate-180')}/></button>
+    {open && createPortal(<div ref={popupRef} style={{ position: 'fixed', top: position.top, left: position.left, width: position.width, maxHeight: `calc(100vh - ${position.top + 12}px)` }} className="z-[300] overflow-y-auto rounded-xl border border-neutral-200 bg-white p-3 shadow-2xl">
       <div className="space-y-4">{CUSTOM_COLUMN_GROUPS.map(group => {
         const allGroupSelected = group.options.every(([key]) => draft.has(key));
         return <section key={group.title} className="border-b border-neutral-100 pb-3 last:border-b-0 last:pb-0">
@@ -873,7 +873,7 @@ function ComparisonReport({ products, selectedIds, selectedTables, priceStats, c
     </div>
     <div className="mobile-card-table overflow-x-auto border-y border-neutral-200 bg-white p-2 md:p-0">
       <table className="w-full min-w-[900px] border-collapse text-sm">
-        <thead className="sticky top-0 z-10 bg-neutral-900 text-white"><tr>
+        <thead className="sticky top-0 z-10 bg-neutral-50 text-[11px] font-semibold uppercase tracking-wide text-neutral-500 shadow-[inset_0_-1px_0_var(--color-neutral-200)]"><tr>
           <th className="w-16 px-3 py-3"><span className="sr-only">Selecionar</span></th>{(!custom || customColumns?.has('product')) && <th className="px-3 py-3 text-left">Produto</th>}
           {/* Legacy fixed custom columns replaced by the confirmed selection.
           {custom && <><th className="px-3 py-3 text-right">Último preço</th><th className="px-3 py-3 text-right">Custo médio</th></>}
@@ -892,11 +892,11 @@ function ComparisonReport({ products, selectedIds, selectedTables, priceStats, c
             {customColumns?.has('monthlyAverage') && <th className="px-3 py-3 text-right">Media mensal</th>}
             {customColumns?.has('daysSincePurchase') && <th className="px-3 py-3 text-right">Sem comprar</th>}
           </>}
-          {activeTables.map(table => <React.Fragment key={table.key}><th className="border-l-2 border-neutral-600 px-3 py-3 text-right">{table.label}</th>{showTableMarkup && <th className="bg-neutral-800 px-3 py-3 text-right text-neutral-200">Markup</th>}</React.Fragment>)}
+          {activeTables.map(table => <React.Fragment key={table.key}><th className="border-l border-neutral-200 px-3 py-3 text-right">{table.label}</th>{showTableMarkup && <th className="bg-neutral-100 px-3 py-3 text-right text-neutral-500">Markup</th>}</React.Fragment>)}
           {custom && customColumns?.has('tableSavings') && <th className="px-3 py-3 text-right">Economia</th>}
           {custom && customColumns?.has('markup') && <th className="px-3 py-3 text-right">Markup medio</th>}
-          {custom && customColumns?.has('negotiatedPrice') && <><th className="border-l-2 border-neutral-600 px-3 py-3 text-right">Preco negociado</th>{showTableMarkup && <th className="bg-neutral-800 px-3 py-3 text-right text-neutral-200">Markup</th>}</>}
-          {custom && customColumns?.has('extraDiscount') && <><th className="border-l-2 border-neutral-600 px-3 py-3 text-right">Desconto extra</th>{showTableMarkup && <th className="bg-neutral-800 px-3 py-3 text-right text-neutral-200">Markup</th>}</>}
+          {custom && customColumns?.has('negotiatedPrice') && <><th className="border-l border-neutral-200 px-3 py-3 text-right">Preco negociado</th>{showTableMarkup && <th className="bg-neutral-100 px-3 py-3 text-right text-neutral-500">Markup</th>}</>}
+          {custom && customColumns?.has('extraDiscount') && <><th className="border-l border-neutral-200 px-3 py-3 text-right">Desconto extra</th>{showTableMarkup && <th className="bg-neutral-100 px-3 py-3 text-right text-neutral-500">Markup</th>}</>}
           {(!custom || customColumns?.has('suggested')) && <th className="px-3 py-3 text-right">Sugerido</th>}
         </tr></thead>
         <tbody className="divide-y divide-neutral-100">{products.map(product => {
@@ -966,12 +966,12 @@ function ComparisonReport({ products, selectedIds, selectedTables, priceStats, c
               {customColumns?.has('monthlyAverage') && <td data-label="Media mensal" className="px-3 py-3 text-right">{stat ? stat.monthlyAverage.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '-'}</td>}
               {customColumns?.has('daysSincePurchase') && <td data-label="Sem comprar" className="px-3 py-3 text-right">{stat ? `${stat.daysSince} dias` : '-'}</td>}
             </>}
-            {activeTables.map(table => { const tableMarkup = markup(product.sugestao, priceForTable(product, table.key)); return <React.Fragment key={table.key}><td data-label={table.label} data-mobile-summary className="border-l-2 border-neutral-200 px-3 py-3 text-right font-bold text-neutral-800">{formatCurrency(priceForTable(product, table.key))}</td>{showTableMarkup && <td data-label={`Markup ${table.label}`} className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{tableMarkup === null ? '-' : `${tableMarkup.toFixed(1)}%`}</td>}</React.Fragment>; })}
+            {activeTables.map(table => { const tableMarkup = markup(product.sugestao, priceForTable(product, table.key)); return <React.Fragment key={table.key}><td data-label={table.label} data-mobile-summary className="border-l border-neutral-200 px-3 py-3 text-right font-bold text-neutral-800">{formatCurrency(priceForTable(product, table.key))}</td>{showTableMarkup && <td data-label={`Markup ${table.label}`} className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{tableMarkup === null ? '-' : `${tableMarkup.toFixed(1)}%`}</td>}</React.Fragment>; })}
             {custom && customColumns?.has('tableSavings') && <td data-label="Economia" className="px-3 py-3 text-right font-semibold">{formatCurrency(Math.abs(priceForTable(product, savingsTables[0]) - priceForTable(product, savingsTables[1])))}</td>}
             {custom && customColumns?.has('markup') && <td data-label="Markup medio" className="px-3 py-3 text-right font-black">{averageMarkup === null ? '-' : `${averageMarkup.toFixed(1)}%`}</td>}
-            {custom && customColumns?.has('negotiatedPrice') && <><td data-label="Preco negociado" data-mobile-summary className="border-l-2 border-neutral-200 px-3 py-2"><input type="number" min="0" step="0.01" value={negotiatedPrice || ''} onClick={event => event.stopPropagation()} onChange={event => onNegotiatedPriceChange(product.id, Number(event.target.value))} className="w-28 rounded-md border border-neutral-200 px-2 py-1.5 text-right" placeholder="R$ 0,00" /></td>{showTableMarkup && <td data-label="Markup negociado" className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{negotiatedMarkup === null ? '-' : `${negotiatedMarkup.toFixed(1)}%`}</td>}</>}
-            {custom && customColumns?.has('extraDiscount') && <><td data-label="Desconto extra" data-mobile-summary className="border-l-2 border-neutral-200 px-3 py-2" onClick={event => event.stopPropagation()}><div className="flex min-w-36 items-center gap-2"><input type="number" min="0" max="100" step="0.01" value={extraDiscounts[product.id] || ''} onChange={event => onExtraDiscountChange(product.id, Number(event.target.value))} className="w-20 rounded-md border border-neutral-200 px-2 py-1.5 text-right" placeholder="0"/><span className="text-xs font-bold text-neutral-400">%</span><span className="ml-auto text-sm font-black text-orange-700">{formatCurrency(discountedCost)}</span></div></td>{showTableMarkup && <td data-label="Markup desconto" className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{discountedMarkup === null ? '-' : `${discountedMarkup.toFixed(1)}%`}</td>}</>}
-            {(!custom || customColumns?.has('suggested')) && <td data-label="Sugerido" data-mobile-summary className="px-3 py-3 text-right font-black text-orange-700">{formatCurrency(product.sugestao)}</td>}
+            {custom && customColumns?.has('negotiatedPrice') && <><td data-label="Preco negociado" data-mobile-summary className="border-l border-neutral-200 px-3 py-2"><input type="number" min="0" step="0.01" value={negotiatedPrice || ''} onClick={event => event.stopPropagation()} onChange={event => onNegotiatedPriceChange(product.id, Number(event.target.value))} className="w-28 rounded-md border border-neutral-200 px-2 py-1.5 text-right" placeholder="R$ 0,00" /></td>{showTableMarkup && <td data-label="Markup negociado" className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{negotiatedMarkup === null ? '-' : `${negotiatedMarkup.toFixed(1)}%`}</td>}</>}
+            {custom && customColumns?.has('extraDiscount') && <><td data-label="Desconto extra" data-mobile-summary className="border-l border-neutral-200 px-3 py-2" onClick={event => event.stopPropagation()}><div className="flex min-w-36 items-center gap-2"><input type="number" min="0" max="100" step="0.01" value={extraDiscounts[product.id] || ''} onChange={event => onExtraDiscountChange(product.id, Number(event.target.value))} className="w-20 rounded-md border border-neutral-200 px-2 py-1.5 text-right" placeholder="0"/><span className="text-xs font-bold text-neutral-400">%</span><span className="ml-auto text-sm font-black text-orange-700">{formatCurrency(discountedCost)}</span></div></td>{showTableMarkup && <td data-label="Markup desconto" className="bg-neutral-50 px-3 py-3 text-right font-semibold text-neutral-600">{discountedMarkup === null ? '-' : `${discountedMarkup.toFixed(1)}%`}</td>}</>}
+            {(!custom || customColumns?.has('suggested')) && <td data-label="Sugerido" data-mobile-summary className="px-3 py-3 text-right font-semibold text-neutral-900">{formatCurrency(product.sugestao)}</td>}
           </tr>;
         })}</tbody>
       </table>
@@ -992,9 +992,9 @@ function HistoryReport({ products, selectedId, onSelect, rows, orderWeightMap }:
           ['Preço médio', formatCurrency(summary.averagePrice)], ['Pedidos', String(summary.distinctDates)], ['Clientes', String(summary.distinctClients)]
         ].map(([label, value]) => <div key={label} className="bg-white px-4 py-3"><p className="text-[10px] font-bold uppercase text-neutral-400">{label}</p><p className="mt-1 text-lg font-black text-neutral-900">{value}</p></div>)}
       </div>
-      <div className="overflow-x-auto border-y border-neutral-200 bg-white"><table className="w-full min-w-[850px] text-sm"><thead className="bg-neutral-900 text-white"><tr>{['Data','Cliente','Quantidade','Peso','Tabela','Preço médio','Total'].map(label => <th key={label} className="px-3 py-3 text-left">{label}</th>)}</tr></thead>
+      <div className="overflow-x-auto border-y border-neutral-200 bg-white"><table className="w-full min-w-[850px] text-sm"><thead className="bg-neutral-50 text-[11px] font-semibold uppercase tracking-wide text-neutral-500 shadow-[inset_0_-1px_0_var(--color-neutral-200)]"><tr>{['Data','Cliente','Quantidade','Peso','Tabela','Preço médio','Total'].map(label => <th key={label} className="px-3 py-3 text-left">{label}</th>)}</tr></thead>
       */}
-      <div className="mobile-card-table overflow-x-auto border-y border-neutral-200 bg-white p-2 md:p-0"><table className="w-full min-w-[720px] text-sm"><thead className="bg-neutral-900 text-white"><tr>{historyColumns.map(label => <th key={label} className="px-3 py-3 text-left">{label}</th>)}</tr></thead>
+      <div className="mobile-card-table overflow-x-auto border-y border-neutral-200 bg-white p-2 md:p-0"><table className="w-full min-w-[720px] text-sm"><thead className="bg-neutral-50 text-[11px] font-semibold uppercase tracking-wide text-neutral-500 shadow-[inset_0_-1px_0_var(--color-neutral-200)]"><tr>{historyColumns.map(label => <th key={label} className="px-3 py-3 text-left">{label}</th>)}</tr></thead>
         <tbody className="divide-y divide-neutral-100">{rows.map(sale => <tr key={sale.id}><td className="mobile-compact-row" colSpan={7}><div className="mobile-compact-line"><span className="shrink-0 text-[10px] font-black text-neutral-500">{format(parseISO(sale.faturamento), 'dd/MM')}</span><span className="mobile-compact-primary">{sale.cliente}</span><span className="mobile-compact-value">{formatCurrency((Number(sale['r$_total']) || 0) / Math.max(1, Number(sale.qtd) || 1))}</span></div><div className="mobile-compact-line"><span className="mobile-compact-secondary">{sale.qtd} un. · Pedido {formatWeight(orderWeightMap.get(saleOrderKey(sale)) || 0)}</span><span className="mobile-compact-value">Total {formatCurrency(sale['r$_total'])}</span></div></td><td data-label="Data" data-mobile-summary className="px-3 py-3 font-semibold">{format(parseISO(sale.faturamento), 'dd/MM/yyyy')}</td><td data-label="Cliente" data-mobile-summary data-mobile-title className="px-3 py-3 font-bold">{sale.cliente}</td><td data-label="Qtd" className="px-3 py-3">{sale.qtd}</td><td data-label="Peso" className="px-3 py-3">{formatWeight((Number(sale.qtd) || 0) * product.peso_embalagem)}</td><td data-label="Peso pedido" data-mobile-summary className="px-3 py-3 font-semibold">{formatWeight(orderWeightMap.get(saleOrderKey(sale)) || 0)}</td><td data-label="Preco pago" data-mobile-summary className="px-3 py-3 font-semibold">{formatCurrency((Number(sale['r$_total']) || 0) / Math.max(1, Number(sale.qtd) || 1))}</td><td data-label="Total" data-mobile-summary className="px-3 py-3 font-black">{formatCurrency(sale['r$_total'])}</td></tr>)}</tbody>
       </table>{!rows.length && <div className="py-16 text-center font-bold text-neutral-400">Nenhuma venda encontrada no periodo selecionado.</div>}</div>
     </>}
@@ -1011,7 +1011,7 @@ function ProductDrawer({ product, form, saving, families, onEdit, onChange, onCa
   const calculatedWeight = (Number(current.peso_embalagem) || 0) / quantity;
   const changed = form ? Object.keys(product).some(key => product[key as keyof Produto] !== form[key as keyof Produto]) : false;
   const setNumber = (key: keyof Produto, value: string) => form && onChange({ ...form, [key]: Number(value) });
-  const fieldClass = 'mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-sm font-semibold text-neutral-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100';
+  const fieldClass = 'mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm font-semibold text-neutral-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100';
 
   return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-neutral-900/45 p-3 lg:justify-end lg:p-0" onMouseDown={event => event.target === event.currentTarget && onClose()}>
     <aside className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl animate-in zoom-in-95 duration-200 lg:h-full lg:max-h-none lg:max-w-xl lg:rounded-none lg:animate-in lg:slide-in-from-right">
@@ -1047,7 +1047,7 @@ function ProductDrawer({ product, form, saving, families, onEdit, onChange, onCa
       </div>
 
       <footer className="border-t border-neutral-200 bg-neutral-50 px-5 py-4">
-        {!form ? <button type="button" onClick={onEdit} className="flex w-full items-center justify-center rounded-lg bg-orange-600 px-4 py-3 text-sm font-bold text-white hover:bg-orange-700">Editar produto</button> : <div className="flex items-center justify-end gap-2"><button type="button" onClick={onCancelEdit} disabled={saving} className="rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-sm font-bold text-neutral-700">Cancelar</button><button type="button" onClick={onSave} disabled={saving || !changed || !form.produto.trim() || !form.familia.trim()} className="flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">{saving ? <Loader2 className="animate-spin" size={17}/> : <Save size={17}/>} {saving ? 'Salvando...' : 'Salvar alteracoes'}</button></div>}
+        {!form ? <button type="button" onClick={onEdit} className="flex w-full items-center justify-center rounded-lg bg-orange-600 px-4 py-3 text-sm font-bold text-white hover:bg-orange-700">Editar produto</button> : <div className="flex items-center justify-end gap-2"><button type="button" onClick={onCancelEdit} disabled={saving} className="rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-bold text-neutral-700">Cancelar</button><button type="button" onClick={onSave} disabled={saving || !changed || !form.produto.trim() || !form.familia.trim()} className="flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">{saving ? <Loader2 className="animate-spin" size={17}/> : <Save size={17}/>} {saving ? 'Salvando...' : 'Salvar alteracoes'}</button></div>}
       </footer>
     </aside>
   </div>;
@@ -1062,7 +1062,7 @@ function NewProductModal({ form, saving, families, products, onChange, onClose, 
   return <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 p-0 md:items-center md:p-4"><div className="max-h-[92dvh] w-full max-w-3xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl md:rounded-lg md:p-6">
     <div className="mb-5 flex items-center justify-between"><div><h2 className="text-xl font-black">Novo produto</h2><p className="text-sm text-neutral-500">O item ficara disponivel tambem na importacao e nos pedidos.</p></div><button onClick={onClose} className="p-2 text-neutral-400 hover:text-neutral-700"><X size={22}/></button></div>
     <div className="grid gap-4 md:grid-cols-2"><label className="text-xs font-bold text-neutral-500 md:col-span-2">Nome do produto<ClearableTextInput value={form.produto} onChange={value => onChange({ ...form, produto: value })} ariaLabel="Nome do produto" className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 pr-10 text-sm text-neutral-900 outline-none focus:border-orange-400" /></label>
-      <label className="text-xs font-bold text-neutral-500">Família<select value={form.familia} onChange={event => onChange({ ...form, familia: event.target.value })} className="mt-1 w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-orange-400"><option value="">Selecione uma família</option>{families.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
+      <label className="text-xs font-bold text-neutral-500">Família<select value={form.familia} onChange={event => onChange({ ...form, familia: event.target.value })} className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-orange-400"><option value="">Selecione uma família</option>{families.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
       {numberField('sugestao','Preço sugerido')}{numberField('custo_total','Custo total da embalagem')}{numberField('peso_embalagem','Peso total da embalagem')}{numberField('quant_embalagem','Quantidade de unidades na embalagem')}
     </div>
     <div className="mt-5 grid gap-px overflow-hidden rounded-lg border border-neutral-200 bg-neutral-200 sm:grid-cols-2">

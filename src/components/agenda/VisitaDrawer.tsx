@@ -248,7 +248,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                         {!isEditingNote && (
                           <button 
                             onClick={() => setIsEditingNote(true)}
-                            className="text-[9px] font-black text-orange-600 uppercase tracking-widest hover:underline"
+                            className="text-[10px] font-black text-orange-600 uppercase tracking-widest hover:underline"
                           >
                             Editar
                           </button>
@@ -268,7 +268,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                                 type="button"
                                 onClick={() => setNoteLevel(level)}
                                 className={cn(
-                                  "h-8 rounded-lg border text-[9px] font-black uppercase tracking-tight transition-all",
+                                  "h-8 rounded-lg border text-[10px] font-black uppercase tracking-tight transition-all",
                                   tempNoteAlert?.level === level
                                     ? level === 'note'
                                       ? "border-sky-300 bg-sky-50 text-sky-700"
@@ -298,7 +298,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                                 setIsEditingNote(false);
                               }}
                               disabled={isSavingNote}
-                              className="px-3 py-1.5 bg-orange-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-orange-700 transition-all disabled:opacity-50"
+                              className="px-3 py-1.5 bg-orange-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-orange-700 transition-all disabled:opacity-50"
                             >
                               {isSavingNote ? 'Salvando...' : 'Salvar'}
                             </button>
@@ -308,7 +308,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                                 setIsEditingNote(false);
                               }}
                               disabled={isSavingNote}
-                              className="px-3 py-1.5 bg-neutral-200 text-neutral-600 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-neutral-300 transition-all disabled:opacity-50"
+                              className="px-3 py-1.5 bg-neutral-200 text-neutral-600 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-neutral-300 transition-all disabled:opacity-50"
                             >
                               Cancelar
                             </button>
@@ -322,7 +322,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                             noteAlert.level === 'attention' && "border-orange-100 bg-orange-50 text-orange-800",
                             noteAlert.level === 'pending' && "border-rose-100 bg-rose-50 text-rose-800"
                           )}>
-                            <div className="mb-1 text-[9px] font-black uppercase tracking-widest">{noteAlert.label}</div>
+                            <div className="mb-1 text-[10px] font-black uppercase tracking-widest">{noteAlert.label}</div>
                             <p className="text-sm font-semibold leading-relaxed">{noteAlert.text || visita.observacoes}</p>
                           </div>
                         ) : (
@@ -381,7 +381,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                      {!isEditingSchedule && (
                        <button 
                          onClick={() => setIsEditingSchedule(true)}
-                         className="text-[9px] font-black text-orange-600 uppercase tracking-widest hover:underline"
+                         className="text-[10px] font-black text-orange-600 uppercase tracking-widest hover:underline"
                        >
                          Editar
                        </button>
@@ -392,7 +392,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                      <div className="space-y-3 pb-2">
                        <div className="grid grid-cols-2 gap-2">
                          <div className="space-y-1">
-                           <label className="text-[8px] font-black text-neutral-400 uppercase">Semana</label>
+                           <label className="text-[10px] font-black text-neutral-400 uppercase">Semana</label>
                            <select 
                              value={tempSchedule.semana}
                              onChange={(e) => setTempSchedule({...tempSchedule, semana: parseInt(e.target.value) as 1 | 2})}
@@ -403,7 +403,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                            </select>
                          </div>
                          <div className="space-y-1">
-                           <label className="text-[8px] font-black text-neutral-400 uppercase">Dia</label>
+                           <label className="text-[10px] font-black text-neutral-400 uppercase">Dia</label>
                            <select 
                              value={tempSchedule.dia_semana}
                              onChange={(e) => setTempSchedule({...tempSchedule, dia_semana: e.target.value})}
@@ -428,7 +428,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                              setIsEditingSchedule(false);
                            }}
                            disabled={isSavingSchedule}
-                           className="flex-1 py-1.5 bg-orange-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest disabled:opacity-50"
+                           className="flex-1 py-1.5 bg-orange-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
                          >
                            {isSavingSchedule ? 'Salvando...' : 'Confirmar'}
                          </button>
@@ -443,7 +443,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                              setIsEditingSchedule(false);
                            }}
                            disabled={isSavingSchedule}
-                           className="px-3 py-1.5 bg-neutral-100 text-neutral-500 rounded-lg text-[9px] font-black uppercase tracking-widest"
+                           className="px-3 py-1.5 bg-neutral-100 text-neutral-500 rounded-lg text-[10px] font-black uppercase tracking-widest"
                          >
                            X
                          </button>
@@ -456,7 +456,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                          <p className="text-[10px] font-bold text-neutral-500 mt-1 uppercase">{visita.dia_semana} • Semana {visita.semana}</p>
                        </div>
                        <div className="pt-2 border-t border-neutral-100">
-                          <span className="text-[9px] font-black text-[#f54900] uppercase tracking-widest">Ordem: {visita.ordem_visita}º do dia</span>
+                          <span className="text-[10px] font-black text-[#f54900] uppercase tracking-widest">Ordem: {visita.ordem_visita}º do dia</span>
                        </div>
                      </>
                    )}

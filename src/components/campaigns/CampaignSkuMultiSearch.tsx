@@ -82,7 +82,7 @@ export function CampaignSkuMultiSearch({
             if (e.key === 'Escape') { setOpen(false); inputRef.current?.blur(); }
             if (e.key === 'Enter' && open) { e.preventDefault(); }
           }}
-          className="w-full min-w-0 rounded-lg border border-neutral-200 bg-white py-2.5 pl-9 pr-9 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-orange-500 disabled:bg-neutral-100 disabled:text-neutral-400"
+          className="w-full min-w-0 rounded-xl border border-neutral-200 bg-white py-2.5 pl-9 pr-9 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-orange-500 disabled:bg-neutral-100 disabled:text-neutral-400"
         />
         <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400" />
       </div>

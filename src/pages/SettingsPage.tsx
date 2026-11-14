@@ -218,7 +218,7 @@ export function SettingsPage() {
               type="button"
               onClick={handleSignOut}
               disabled={isSigningOut}
-              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-white px-4 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50 disabled:opacity-50"
             >
               {isSigningOut ? <Loader2 size={16} className="animate-spin" /> : <LogOut size={16} />}
               {isSigningOut ? 'Saindo...' : 'Sair da conta'}

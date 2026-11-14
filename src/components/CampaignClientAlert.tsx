@@ -70,7 +70,7 @@ export function CampaignClientAlert({ cliente, historico, produtos, iconOnly = f
           Nenhuma campanha disponível para este cliente no momento.
         </p>
       )}
-      {elegiveis.map(c => <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-white p-3">
+      {elegiveis.map(c => <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-3">
         <div className="min-w-0 flex-1"><p className="text-sm font-bold text-neutral-900">{c.titulo}</p>
           <p className="text-xs text-neutral-500">Válida até {new Date(c.fim + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
         </div>

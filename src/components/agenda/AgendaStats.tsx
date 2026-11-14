@@ -60,7 +60,7 @@ export const AgendaStats: React.FC<AgendaStatsProps> = ({
                  {stat.isWeight ? formatWeight(stat.value) : stat.value}
                </div>
             </div>
-            <p className="text-[9px] font-black text-neutral-400 uppercase tracking-[0.1em]">
+            <p className="text-[10px] font-black text-neutral-400 uppercase tracking-[0.1em]">
               {stat.label}
             </p>
           </div>
