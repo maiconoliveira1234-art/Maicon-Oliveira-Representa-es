@@ -675,13 +675,14 @@ export function ClienteDetail() {
               navigate('/');
             }
           }} 
-          className="shrink-0 p-2 hover:bg-white rounded-full transition-colors"
+          aria-label="Voltar"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
         >
-          <ArrowLeft size={24} />
+          <ArrowLeft size={20} />
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-          <h2 className="min-w-0 flex-1 truncate text-xl font-bold leading-tight text-neutral-900" id="cliente-nome-header">
+          <h2 className="min-w-0 flex-1 truncate text-xl font-semibold tracking-tight leading-tight text-neutral-900 md:text-2xl" id="cliente-nome-header">
             {cliente.cliente}
           </h2>
           <div className="flex shrink-0 flex-row items-center gap-1.5" role="group" aria-label="Atalhos do cliente">
@@ -690,7 +691,7 @@ export function ClienteDetail() {
               onClick={() => setShowCredito(true)}
               aria-label="Dados financeiros do cliente"
               title="Dados financeiros"
-              className="flex h-10 w-10 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 text-orange-700 shadow-sm transition-colors hover:bg-orange-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600"
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600"
             >
               <Coins size={20} aria-hidden="true" />
             </button>
@@ -705,13 +706,13 @@ export function ClienteDetail() {
               onClick={() => setShowLoans(true)}
               aria-label={`Itens emprestados do cliente: ${emprestimos.length}`}
               title="Itens emprestados"
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-neutral-200 bg-white text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600"
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600"
             >
               <ArrowLeftRight size={20} aria-hidden="true" />
             </button>
           </div>
           </div>
-          <div className="mt-1 flex flex-col gap-1.5" id="cliente-contact-info">
+          <div className="mt-3 flex flex-wrap gap-2" id="cliente-contact-info">
             {cliente.endereco && (
               <a 
                 href={
@@ -721,11 +722,11 @@ export function ClienteDetail() {
                 }
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-xs text-neutral-600 hover:text-orange-600 transition-colors group cursor-pointer"
+                className="flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 shadow-sm hover:border-neutral-300 hover:bg-neutral-50 transition-colors group cursor-pointer"
                 id="link-gps-navegacao"
               >
-                <MapPin size={14} className="text-orange-500 shrink-0 group-hover:scale-110 transition-transform" />
-                <span className="underline decoration-neutral-300 group-hover:decoration-orange-400 truncate">
+                <MapPin size={14} className="text-neutral-400 shrink-0" />
+                <span className="truncate">
                   {cliente.endereco}
                 </span>
               </a>
@@ -745,11 +746,11 @@ export function ClienteDetail() {
                 })()}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-xs text-neutral-600 hover:text-orange-600 transition-colors group cursor-pointer"
+                className="flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 shadow-sm hover:border-neutral-300 hover:bg-neutral-50 transition-colors group cursor-pointer"
                 id="link-whatsapp-mensagem"
               >
-                <Phone size={14} className="text-emerald-500 shrink-0 group-hover:scale-110 transition-transform" />
-                <span className="underline decoration-neutral-300 group-hover:decoration-orange-400">
+                <Phone size={14} className="text-emerald-600 shrink-0" />
+                <span className="truncate">
                   {String(cliente.telefone)} {cliente.contato ? `(${cliente.contato})` : ''}
                 </span>
               </a>
@@ -757,11 +758,11 @@ export function ClienteDetail() {
 
             <button 
               onClick={handleNextVisitClick}
-              className="flex items-center gap-1.5 text-xs text-neutral-600 hover:text-orange-600 transition-colors group cursor-pointer text-left font-medium w-full sm:w-auto"
+              className="flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 shadow-sm hover:border-neutral-300 hover:bg-neutral-50 transition-colors group cursor-pointer text-left"
               id="link-proxima-visita"
             >
-              <Calendar size={14} className="text-orange-500 shrink-0 group-hover:scale-110 transition-transform" />
-              <span className="underline decoration-neutral-300 group-hover:decoration-orange-400">
+              <Calendar size={14} className="text-neutral-400 shrink-0" />
+              <span className="truncate">
                 {formattedNextVisit 
                   ? `Próxima visita: ${formattedNextVisit.label}`
                   : 'Próxima visita: Não agendada'}
@@ -885,18 +886,18 @@ export function ClienteDetail() {
         <button 
           onClick={() => navigate(`/pedido/novo/${cliente.id}`)}
           onMouseEnter={() => prefetchClientData(cliente.id)}
-          className="bg-orange-600 text-white py-2 px-4 rounded-lg font-bold flex flex-row items-center justify-center gap-2 shadow-md active:scale-95 transition-all text-sm"
+          className="h-12 bg-orange-600 text-white px-4 rounded-lg font-semibold flex flex-row items-center justify-center gap-2 shadow-sm hover:bg-orange-700 active:scale-[0.98] transition-all text-sm"
         >
-          <ShoppingCart size={16} />
-          <span>Novo Pedido</span>
+          <ShoppingCart size={18} />
+          <span>Novo pedido</span>
         </button>
         <button 
           onClick={() => navigate(`/estoque/${cliente.id}`)}
           onMouseEnter={() => prefetchClientData(cliente.id)}
-          className="bg-white text-neutral-700 py-2 px-4 rounded-lg font-bold flex flex-row items-center justify-center gap-2 border border-neutral-200 shadow-xs active:scale-95 transition-all text-sm"
+          className="h-12 bg-white text-neutral-800 px-4 rounded-lg font-semibold flex flex-row items-center justify-center gap-2 border border-neutral-300 shadow-sm hover:bg-neutral-50 active:scale-[0.98] transition-all text-sm"
         >
-          <Package size={16} className="text-orange-600" />
-          <span>Contar Estoque</span>
+          <Package size={18} className="text-neutral-500" />
+          <span>Contar estoque</span>
         </button>
       </div>
 
@@ -1057,52 +1058,52 @@ export function ClienteDetail() {
         </div>
 
         {/* Goal / Realizado summary cards */}
-        <div className="mt-4 p-4 bg-neutral-50 rounded-xl flex justify-between items-center border border-neutral-100">
-          <div>
-            <p className="text-[10px] font-bold text-neutral-400 uppercase">Mês Atual (Realizado)</p>
-            <p className="text-lg font-black text-neutral-800">{formatWeight(realizado)}</p>
+        <div className="mt-5 grid grid-cols-3 divide-x divide-neutral-200 rounded-xl border border-neutral-200">
+          <div className="p-3 sm:p-4">
+            <p className="text-xs font-medium text-neutral-500">Realizado no mês</p>
+            <p className="mt-1 text-base font-semibold tabular-nums text-neutral-900 sm:text-lg">{formatWeight(realizado)}</p>
           </div>
-          <div className="text-center">
-            <p className="text-[10px] font-bold text-neutral-400 uppercase">Meta Mensal</p>
-            <p className="text-lg font-black text-neutral-800">{formatWeight(cliente.meta)}</p>
+          <div className="p-3 sm:p-4">
+            <p className="text-xs font-medium text-neutral-500">Meta mensal</p>
+            <p className="mt-1 text-base font-semibold tabular-nums text-neutral-900 sm:text-lg">{formatWeight(cliente.meta)}</p>
           </div>
-          <div className="text-right">
-            <p className="text-[10px] font-bold text-neutral-400 uppercase">Progresso Mês</p>
+          <div className="p-3 sm:p-4">
+            <p className="text-xs font-medium text-neutral-500">Progresso</p>
             <p className={cn(
-              "text-lg font-black",
-              progresso >= 100 ? "text-green-600" : "text-orange-600"
+              "mt-1 text-base font-semibold tabular-nums sm:text-lg",
+              progresso >= 100 ? "text-emerald-700" : "text-neutral-900"
             )}>
               {progresso}%
             </p>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-neutral-100">
+              <div className={cn("h-full rounded-full", progresso >= 100 ? "bg-emerald-500" : "bg-orange-500")} style={{ width: `${Math.min(100, Math.max(0, progresso))}%` }} />
+            </div>
           </div>
         </div>
       </section>
 
       {/* Purchase Cycle */}
-      <section className="bg-white p-6 rounded-lg border border-neutral-200 shadow-sm">
-        <h3 className="font-bold text-neutral-800 mb-4 flex items-center gap-2">
-          <Calendar className="text-orange-600" size={20} />
-          Recompra
-        </h3>
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div>
-            <p className="text-[10px] font-bold text-neutral-400 uppercase">Média</p>
-            <p className="text-xl font-bold text-neutral-800">{mediaCiclo}</p>
-            <p className="text-[10px] text-neutral-400">dias</p>
+      <section className="bg-white p-5 sm:p-6 rounded-xl border border-neutral-200 shadow-sm">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h3 className="font-semibold text-neutral-900 flex items-center gap-2">
+            <Calendar className="text-neutral-400" size={18} />
+            Recompra
+          </h3>
+          <span className={cn(
+            "rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset",
+            statusCiclo === "Válido" ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-red-50 text-red-700 ring-red-200"
+          )}>
+            {statusCiclo === "Válido" ? "Dentro do ciclo" : "Fora do ciclo"}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 divide-x divide-neutral-200 rounded-xl border border-neutral-200">
+          <div className="p-3 sm:p-4">
+            <p className="text-xs font-medium text-neutral-500">Ciclo médio</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums text-neutral-900">{mediaCiclo} <span className="text-sm font-normal text-neutral-500">dias</span></p>
           </div>
-          <div className="border-x border-neutral-100">
-            <p className="text-[10px] font-bold text-neutral-400 uppercase">Última</p>
-            <p className="text-xl font-bold text-neutral-800">{diasUltima}</p>
-            <p className="text-[10px] text-neutral-400">dias atrás</p>
-          </div>
-          <div>
-            <p className="text-[10px] font-bold text-neutral-400 uppercase">Recompra</p>
-            <p className={cn(
-              "text-sm font-bold mt-2 uppercase tracking-tighter",
-              statusCiclo === "Válido" ? "text-green-600" : "text-red-600"
-            )}>
-              {statusCiclo}
-            </p>
+          <div className="p-3 sm:p-4">
+            <p className="text-xs font-medium text-neutral-500">Último pedido</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums text-neutral-900">{diasUltima} <span className="text-sm font-normal text-neutral-500">dias atrás</span></p>
           </div>
         </div>
       </section>
@@ -1112,10 +1113,10 @@ export function ClienteDetail() {
         <button
           type="button"
           onClick={() => setShowFlex(true)}
-          className="flex h-12 w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 text-sm font-black text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50"
+          className="flex h-12 w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 text-sm font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-50"
         >
           <span className="flex items-center gap-2">
-            <Coins className="text-orange-600" size={19} />
+            <Coins className="text-neutral-400" size={19} />
             Conta Flex
           </span>
           <Eye size={18} className="text-neutral-400" />
@@ -1198,15 +1199,15 @@ export function ClienteDetail() {
       {/* Recent History */}
       <section className="space-y-3">
         <div className="flex justify-between items-center px-1">
-          <h3 className="font-bold text-neutral-800 flex items-center gap-2">
-            <History className="text-orange-600" size={20} />
-            Últimos Pedidos
+          <h3 className="font-semibold text-neutral-900 flex items-center gap-2">
+            <History className="text-neutral-400" size={18} />
+            Últimos pedidos
           </h3>
           <button 
             onClick={() => setShowAllHistory(true)}
-            className="text-orange-600 text-xs font-bold"
+            className="text-orange-700 text-sm font-semibold hover:underline underline-offset-4"
           >
-            Ver Tudo
+            Ver todos
           </button>
         </div>
         
@@ -1216,10 +1217,10 @@ export function ClienteDetail() {
             <button 
               key={order.key} 
               onClick={() => setSelectedOrderKey(order.key)}
-              className="w-full bg-white p-4 pl-6 rounded-lg border border-neutral-200 shadow-sm flex justify-between items-center transition-all text-left relative overflow-hidden hover:bg-neutral-50/80 active:scale-[0.99]"
+              className="w-full bg-white p-4 pl-5 rounded-xl border border-neutral-200 shadow-sm flex justify-between items-center transition-all text-left relative overflow-hidden hover:bg-neutral-50/80 active:scale-[0.99]"
             >
               {/* Custom multi-color indicator side bar */}
-              <div className="absolute left-0 top-0 bottom-0 w-1.5 flex flex-col overflow-hidden rounded-l-2xl">
+              <div className="absolute left-0 top-3 bottom-3 w-1 flex flex-col overflow-hidden rounded-r-full">
                 {classifs.map((c) => (
                   <div key={c.type} className={cn("flex-1", c.barBgColor)} />
                 ))}
@@ -1236,7 +1237,7 @@ export function ClienteDetail() {
                       />
                     ))}
                   </div>
-                  <p className="font-bold text-neutral-950">Pedido em {order.date ? format(parseISO(order.date), 'dd/MM/yyyy') : 'Sem data'}</p>
+                  <p className="font-semibold text-neutral-900">Pedido em {order.date ? format(parseISO(order.date), 'dd/MM/yyyy') : 'Sem data'}</p>
                   {order.numeroPedidoErp && (
                     <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.2 bg-neutral-100 text-neutral-600 rounded">
                       ERP: {order.numeroPedidoErp}
@@ -1248,7 +1249,7 @@ export function ClienteDetail() {
                     <span 
                       key={c.type} 
                       className={cn(
-                        "text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border border-neutral-100/60",
+                        "text-[11px] font-medium px-2 py-0.5 rounded-full",
                         c.type === 'VENDA' && "bg-blue-50 text-blue-700",
                         c.type === 'BONIFICACAO_COMERCIAL' && "bg-orange-50 text-orange-700",
                         c.type === 'MERCHANDISING' && "bg-purple-50 text-purple-700"
@@ -1390,7 +1391,7 @@ export function ClienteDetail() {
                   className="w-full bg-white p-4 pl-6 rounded-lg border border-neutral-200 shadow-sm flex justify-between items-center text-left transition-all relative overflow-hidden hover:bg-neutral-50/80 active:scale-[0.99]"
                 >
                   {/* Custom multi-color indicator side bar */}
-                  <div className="absolute left-0 top-0 bottom-0 w-1.5 flex flex-col overflow-hidden rounded-l-2xl">
+                  <div className="absolute left-0 top-3 bottom-3 w-1 flex flex-col overflow-hidden rounded-r-full">
                     {classifs.map((c) => (
                       <div key={c.type} className={cn("flex-1", c.barBgColor)} />
                     ))}
@@ -1407,7 +1408,7 @@ export function ClienteDetail() {
                           />
                         ))}
                       </div>
-                      <p className="font-bold text-neutral-950">Pedido em {order.date ? format(parseISO(order.date), 'dd/MM/yyyy') : 'Sem data'}</p>
+                      <p className="font-semibold text-neutral-900">Pedido em {order.date ? format(parseISO(order.date), 'dd/MM/yyyy') : 'Sem data'}</p>
                       {order.numeroPedidoErp && (
                         <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.2 bg-neutral-100 text-neutral-600 rounded">
                           ERP: {order.numeroPedidoErp}
@@ -1419,7 +1420,7 @@ export function ClienteDetail() {
                         <span 
                           key={c.type} 
                           className={cn(
-                            "text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border border-neutral-100/60",
+                            "text-[11px] font-medium px-2 py-0.5 rounded-full",
                             c.type === 'VENDA' && "bg-blue-50 text-blue-700",
                             c.type === 'BONIFICACAO_COMERCIAL' && "bg-orange-50 text-orange-700",
                             c.type === 'MERCHANDISING' && "bg-purple-50 text-purple-700"

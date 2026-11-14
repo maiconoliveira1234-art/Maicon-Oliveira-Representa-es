@@ -1182,44 +1182,45 @@ export function StockCountPage() {
   const isOverdueGlobal = diasDesdeUltimoPedidoGlobal > mediaCicloGlobal;
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] pb-2 flex flex-col">
-      <div role="status" className={`px-3 py-1 text-xs font-bold ${draftState==='synced'?'bg-green-50 text-green-700':draftState==='error'?'bg-red-50 text-red-700':'bg-amber-50 text-amber-800'}`}>
-        {draftState==='synced'?'Contagem protegida no Supabase':draftState==='syncing'?'Salvando contagem na nuvem…':draftState==='local'?'Contagem salva neste dispositivo · sincronização pendente':draftState==='error'?'Atenção: cópia na nuvem não confirmada. Verifique sua conexão.':'Verificando backup da contagem…'}
+    <div className="min-h-screen pb-2 flex flex-col gap-3">
+      <div role="status" className={`flex items-center gap-2 self-start rounded-full border px-3 py-1 text-xs font-medium ${draftState==='synced'?'border-emerald-200 bg-emerald-50 text-emerald-800':draftState==='error'?'border-red-200 bg-red-50 text-red-800':'border-amber-200 bg-amber-50 text-amber-900'}`}>
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${draftState==='synced'?'bg-emerald-500':draftState==='error'?'bg-red-500':'bg-amber-500 animate-pulse'}`} />
+        {draftState==='synced'?'Contagem salva na nuvem':draftState==='syncing'?'Salvando contagem na nuvem…':draftState==='local'?'Contagem salva neste dispositivo · sincronização pendente':draftState==='error'?'Atenção: cópia na nuvem não confirmada. Verifique sua conexão.':'Verificando backup da contagem…'}
       </div>
       {/* Spreadsheet Header */}
-      <div className="bg-white border-b border-neutral-200 shadow-sm">
-        <div className="w-full px-2 py-1 md:py-1.5">
+      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm">
+        <div className="w-full px-3 py-2 md:px-4 md:py-3">
           {/* Desktop/Tablet Header */}
-          <div className="hidden md:grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] gap-x-3 gap-y-1 mb-1">
-            <div className="flex items-center gap-2 min-w-0">
-              <button onClick={() => navigate(-1)} className="p-1 hover:bg-neutral-100 rounded-full transition-colors shrink-0">
-                <ArrowLeft size={16} />
+          <div className="hidden md:grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[auto_auto] gap-x-4 gap-y-3 mb-3">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-2 min-w-0">
+              <button onClick={() => navigate(-1)} aria-label="Voltar" className="flex h-9 w-9 items-center justify-center rounded-lg border border-neutral-200 text-neutral-700 hover:bg-neutral-50 transition-colors shrink-0">
+                <ArrowLeft size={18} />
               </button>
-              <h1 className="text-xs font-black text-neutral-800 flex-1 leading-none truncate min-w-0">
+              <h1 className="text-base font-semibold tracking-tight text-neutral-900 flex-1 basis-[calc(100%-2.75rem)] lg:basis-0 leading-tight truncate min-w-0">
                 {cliente?.cliente}
               </h1>
-              <div className="flex items-center gap-3 shrink-0 text-[10px]">
-                <div className="text-center">
-                  <span className="text-[10px] font-bold text-neutral-400 uppercase block leading-none">Ult. Ped</span>
-                  <span className={cn("text-xs font-black", isOverdueGlobal ? "text-red-600" : "text-neutral-800")}>
+              <div className="flex items-center divide-x divide-neutral-200 shrink-0 rounded-lg border border-neutral-200 bg-neutral-50 py-1.5">
+                <div className="px-3 text-center">
+                  <span className="text-[11px] font-medium text-neutral-500 block leading-none">Últ. pedido</span>
+                  <span className={cn("mt-1 block text-sm font-semibold tabular-nums", isOverdueGlobal ? "text-red-600" : "text-neutral-900")}>
                     {diasDesdeUltimoPedidoGlobal}d
                   </span>
                 </div>
-                <div className="text-center">
-                  <span className="text-[10px] font-bold text-neutral-400 uppercase block leading-none">Ciclo</span>
-                  <span className="text-xs font-black text-neutral-800 bg-neutral-100 px-1 rounded">
+                <div className="px-3 text-center">
+                  <span className="text-[11px] font-medium text-neutral-500 block leading-none">Ciclo</span>
+                  <span className="mt-1 block text-sm font-semibold tabular-nums text-neutral-900">
                     {mediaCicloGlobal}d
                   </span>
                 </div>
-                <div className="text-center">
-                  <span className="text-[10px] font-bold text-neutral-400 uppercase block leading-none">Peso Ped.</span>
-                  <span className="text-[10px] font-black text-orange-600 bg-orange-50 px-1 py-0.2 rounded whitespace-nowrap">
+                <div className="px-3 text-center">
+                  <span className="text-[11px] font-medium text-neutral-500 block leading-none">Peso pedido</span>
+                  <span className="mt-1 block text-sm font-semibold tabular-nums text-neutral-900 whitespace-nowrap">
                     {formatWeight(totalPesoPedido)}
                   </span>
                 </div>
-                <div className="text-center">
-                  <span className="text-[10px] font-bold text-neutral-400 uppercase block leading-none">Valor Ped.</span>
-                  <span className="text-[10px] font-black text-green-700 bg-green-50 px-1 py-0.2 rounded whitespace-nowrap">
+                <div className="px-3 text-center">
+                  <span className="text-[11px] font-medium text-neutral-500 block leading-none">Valor pedido</span>
+                  <span className="mt-1 block text-sm font-semibold tabular-nums text-neutral-900 whitespace-nowrap">
                     {formatCurrency(totalValorPedido)}
                   </span>
                 </div>
@@ -1230,7 +1231,7 @@ export function StockCountPage() {
               <button 
                 id="stock-count-export-pdf-desktop-btn"
                 onClick={handleOpenExportModal}
-                className="w-10 h-10 flex items-center justify-center bg-white text-neutral-700 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
+                className="w-10 h-10 flex items-center justify-center bg-white text-neutral-600 rounded-lg shadow-sm border border-neutral-300 hover:bg-neutral-50 transition-all active:scale-95"
                 title="Exportar PDF"
               >
                 <Share2 size={20} />
@@ -1238,33 +1239,34 @@ export function StockCountPage() {
               <button 
                 onClick={handleSave}
                 disabled={saving}
-                className="w-10 h-10 flex items-center justify-center bg-white text-green-600 rounded-full shadow-sm border border-neutral-200 hover:bg-green-50 disabled:opacity-50 transition-all active:scale-95"
+                className="w-10 h-10 flex items-center justify-center bg-white text-neutral-600 rounded-lg shadow-sm border border-neutral-300 hover:bg-neutral-50 disabled:opacity-50 transition-all active:scale-95"
                 title={saving ? 'Salvando...' : 'Salvar Contagem'}
               >
                 <Save size={20} />
               </button>
               <button 
                 onClick={handleGoToPedido}
-                className="w-10 h-10 flex items-center justify-center bg-orange-600 text-white rounded-full shadow-sm border border-orange-700 hover:bg-orange-700 transition-all active:scale-95"
+                className="h-10 px-3.5 flex items-center justify-center gap-2 bg-orange-600 text-white text-sm font-semibold rounded-lg shadow-sm border border-orange-600 hover:bg-orange-700 transition-all active:scale-95"
                 title="Ir para Pedido"
               >
-                <ShoppingCart size={20} />
+                <ShoppingCart size={18} />
+                Pedido
               </button>
               <button 
                 onClick={() => navigate(`/cliente/${clienteId}`)}
-                className="w-10 h-10 flex items-center justify-center bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95"
-                title="Home do Cliente"
+                className="w-10 h-10 flex items-center justify-center bg-white text-neutral-600 rounded-lg shadow-sm border border-neutral-300 hover:bg-neutral-50 transition-all active:scale-95"
+                title="Ficha do cliente"
               >
                 <Home size={20} />
               </button>
             </div>
 
             <div className="relative min-w-0">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400" size={12} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={16} />
               <input 
                 type="text" 
                 placeholder="Buscar produto..."
-                className="w-full pl-6 pr-6 bg-neutral-100 rounded-md outline-none text-[10px] font-bold text-neutral-800 border border-neutral-200 focus:ring-1 focus:ring-orange-500 transition-all h-7"
+                className="w-full pl-9 pr-8 bg-white rounded-lg outline-none text-sm text-neutral-900 border border-neutral-300 shadow-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all h-10"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -1280,18 +1282,18 @@ export function StockCountPage() {
           </div>
 
           {/* Mobile Header */}
-          <div className="flex md:hidden flex-col gap-0.5 mb-1 px-1">
+          <div className="flex md:hidden flex-col gap-2 mb-2">
             <div className="flex items-center gap-1">
-              <button onClick={() => navigate(-1)} className="p-0.5 hover:bg-neutral-100 rounded-full transition-colors shrink-0">
-                <ArrowLeft size={14} />
+              <button onClick={() => navigate(-1)} aria-label="Voltar" className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-700 hover:bg-neutral-100 transition-colors shrink-0">
+                <ArrowLeft size={18} />
               </button>
-              <h1 className="text-[11px] font-black text-neutral-800 flex-1 leading-none line-clamp-1">
+              <h1 className="text-sm font-semibold text-neutral-900 flex-1 leading-tight line-clamp-1">
                 {cliente?.cliente}
               </h1>
               <button 
                 id="stock-count-export-pdf-mobile-btn"
                 onClick={handleOpenExportModal}
-                className="w-8 h-8 flex items-center justify-center bg-white text-neutral-700 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95 shrink-0"
+                className="w-8 h-8 flex items-center justify-center bg-white text-neutral-700 rounded-lg border border-neutral-300 hover:bg-neutral-50 transition-all active:scale-95 shrink-0"
                 title="Exportar PDF"
               >
                 <Share2 size={17} />
@@ -1299,49 +1301,49 @@ export function StockCountPage() {
               <button 
                 onClick={handleSave}
                 disabled={saving}
-                className="w-8 h-8 flex items-center justify-center bg-white text-green-600 rounded-full shadow-sm border border-neutral-200 hover:bg-green-50 disabled:opacity-50 transition-all active:scale-95 shrink-0"
+                className="w-8 h-8 flex items-center justify-center bg-white text-neutral-600 rounded-lg border border-neutral-300 hover:bg-neutral-50 disabled:opacity-50 transition-all active:scale-95 shrink-0"
                 title={saving ? 'Salvando...' : 'Salvar Contagem'}
               >
                 <Save size={17} />
               </button>
               <button 
                 onClick={handleGoToPedido}
-                className="w-8 h-8 flex items-center justify-center bg-orange-600 text-white rounded-full shadow-sm border border-orange-700 hover:bg-orange-700 transition-all active:scale-95 shrink-0"
+                className="w-8 h-8 flex items-center justify-center bg-orange-600 text-white rounded-lg border border-orange-600 hover:bg-orange-700 transition-all active:scale-95 shrink-0"
                 title="Ir para Pedido"
               >
                 <ShoppingCart size={17} />
               </button>
               <button 
                 onClick={() => navigate(`/cliente/${clienteId}`)}
-                className="w-8 h-8 flex items-center justify-center bg-white text-orange-600 rounded-full shadow-sm border border-neutral-200 hover:bg-neutral-50 transition-all active:scale-95 shrink-0"
-                title="Home do Cliente"
+                className="w-8 h-8 flex items-center justify-center bg-white text-neutral-600 rounded-lg border border-neutral-300 hover:bg-neutral-50 transition-all active:scale-95 shrink-0"
+                title="Ficha do cliente"
               >
                 <Home size={17} />
               </button>
             </div>
 
-            <div className="grid grid-cols-4 gap-0.5 bg-neutral-50 py-0.5 px-1 rounded border border-neutral-100 text-center">
-              <div className="border-r border-neutral-200">
-                <p className="text-[7.5px] font-black text-neutral-400 uppercase leading-none">Ult. Pedido</p>
-                <p className={cn("text-[10px] font-black leading-tight", isOverdueGlobal ? "text-red-600" : "text-neutral-800")}>
+            <div className="grid grid-cols-4 bg-neutral-50 py-1.5 rounded-lg border border-neutral-200 text-center divide-x divide-neutral-200">
+              <div>
+                <p className="text-[10px] font-medium text-neutral-500 leading-none">Últ. pedido</p>
+                <p className={cn("mt-1 text-xs font-semibold tabular-nums leading-tight", isOverdueGlobal ? "text-red-600" : "text-neutral-900")}>
                   {diasDesdeUltimoPedidoGlobal}d
                 </p>
               </div>
-              <div className="border-r border-neutral-200">
-                <p className="text-[7.5px] font-black text-neutral-400 uppercase leading-none">Ciclo Médio</p>
-                <p className="text-[10px] font-black text-neutral-800 leading-tight">
+              <div>
+                <p className="text-[10px] font-medium text-neutral-500 leading-none">Ciclo médio</p>
+                <p className="mt-1 text-xs font-semibold tabular-nums text-neutral-900 leading-tight">
                   {mediaCicloGlobal}d
                 </p>
               </div>
-              <div className="border-r border-neutral-200">
-                <p className="text-[7.5px] font-black text-neutral-400 uppercase leading-none">Peso Pedido</p>
-                <p className="text-[10px] font-black text-orange-600 leading-tight">
+              <div>
+                <p className="text-[10px] font-medium text-neutral-500 leading-none">Peso pedido</p>
+                <p className="mt-1 text-xs font-semibold tabular-nums text-neutral-900 leading-tight">
                   {formatWeight(totalPesoPedido)}
                 </p>
               </div>
               <div>
-                <p className="text-[7.5px] font-black text-neutral-400 uppercase leading-none">Valor Ped.</p>
-                <p className="text-[10px] font-black text-green-700 leading-tight whitespace-nowrap">
+                <p className="text-[10px] font-medium text-neutral-500 leading-none">Valor pedido</p>
+                <p className="mt-1 text-xs font-semibold tabular-nums text-neutral-900 leading-tight whitespace-nowrap">
                   {formatCurrency(totalValorPedido)}
                 </p>
               </div>
@@ -1350,11 +1352,11 @@ export function StockCountPage() {
 
           <div className="space-y-1 md:space-y-0">
             <div className="relative md:hidden">
-              <Search className="absolute left-2 top-1/2 -translate-y-1/2 text-neutral-400" size={12} />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" size={15} />
               <input 
                 type="text" 
                 placeholder="Buscar produto..."
-                className="w-full pl-6 pr-6 bg-neutral-100 rounded-md outline-none text-[11px] font-bold text-neutral-800 border border-neutral-200 focus:ring-1 focus:ring-orange-500 transition-all h-7"
+                className="w-full pl-8 pr-7 bg-white rounded-lg outline-none text-base sm:text-sm text-neutral-900 border border-neutral-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all h-9"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -1369,12 +1371,12 @@ export function StockCountPage() {
             </div>
 
             <div className="flex flex-nowrap items-center justify-start md:justify-end gap-0.5 md:gap-1.5 w-full min-w-0 pb-0.5">
-              <div className="flex bg-neutral-100 p-0.5 rounded border border-neutral-200 shrink-0 h-7 md:h-8">
+              <div className="flex bg-neutral-100 p-0.5 rounded-lg border border-neutral-200 shrink-0 h-8 md:h-9">
                 <button
                   onClick={() => setViewMode('contagem')}
                   className={cn(
-                    "px-1.5 sm:px-2 md:px-4 rounded text-[10px] sm:text-[10px] md:text-[11px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
-                    viewMode === 'contagem' ? "bg-white text-orange-600 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
+                    "px-2 md:px-4 rounded-md text-[11px] md:text-xs font-semibold transition-all cursor-pointer whitespace-nowrap text-center",
+                    viewMode === 'contagem' ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
                   )}
                 >
                   Contagem
@@ -1382,8 +1384,8 @@ export function StockCountPage() {
                 <button
                   onClick={() => setViewMode('pedido')}
                   className={cn(
-                    "px-1.5 sm:px-2 md:px-4 rounded text-[10px] sm:text-[10px] md:text-[11px] font-black transition-all cursor-pointer whitespace-nowrap text-center",
-                    viewMode === 'pedido' ? "bg-white text-green-600 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
+                    "px-2 md:px-4 rounded-md text-[11px] md:text-xs font-semibold transition-all cursor-pointer whitespace-nowrap text-center",
+                    viewMode === 'pedido' ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500 hover:text-neutral-800"
                   )}
                 >
                   Pedido
@@ -1394,10 +1396,10 @@ export function StockCountPage() {
                 <button
                   onClick={() => setIsActionsMenuOpen(open => !open)}
                   className={cn(
-                    "flex h-7 md:h-8 items-center gap-1 rounded border px-1.5 md:px-2.5 text-[10px] sm:text-[10px] md:text-[11px] font-black transition-colors",
+                    "flex h-8 md:h-9 items-center gap-1 rounded-lg border px-2 md:px-3 text-[11px] md:text-xs font-semibold transition-colors",
                     isActionsMenuOpen || showInactive || showAverages
                       ? "border-neutral-900 bg-neutral-900 text-white"
-                      : "border-neutral-200 bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                      : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
                   )}
                   aria-expanded={isActionsMenuOpen}
                   aria-haspopup="menu"
@@ -1449,7 +1451,7 @@ export function StockCountPage() {
                 <select
                   value={selectedWeight}
                   onChange={(e) => setSelectedWeight(e.target.value)}
-                  className="w-[58px] sm:w-[70px] md:w-auto pl-1.5 md:pl-2 pr-4 md:pr-5 h-7 md:h-8 bg-neutral-100 rounded outline-none text-[10px] sm:text-[9.5px] md:text-[11px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer md:max-w-[100px] truncate"
+                  className="w-[58px] sm:w-[70px] md:w-auto pl-1.5 md:pl-2 pr-4 md:pr-5 h-8 md:h-9 bg-white rounded-lg outline-none text-[11px] md:text-xs font-semibold text-neutral-700 appearance-none border border-neutral-300 cursor-pointer md:max-w-[100px] truncate"
                 >
                   {weights.map(w => (
                     <option key={w} value={w}>
@@ -1466,7 +1468,7 @@ export function StockCountPage() {
                 <select
                   value={selectedFamily}
                   onChange={(e) => setSelectedFamily(e.target.value)}
-                  className="w-full md:w-auto pl-1.5 md:pl-2 pr-4 md:pr-5 h-7 md:h-8 bg-neutral-100 rounded outline-none text-[10px] sm:text-[9.5px] md:text-[11px] font-black text-neutral-600 appearance-none border border-neutral-200 cursor-pointer md:max-w-[135px] truncate"
+                  className="w-full md:w-auto pl-1.5 md:pl-2 pr-4 md:pr-5 h-8 md:h-9 bg-white rounded-lg outline-none text-[11px] md:text-xs font-semibold text-neutral-700 appearance-none border border-neutral-300 cursor-pointer md:max-w-[135px] truncate"
                 >
                   {families.map(f => (
                     <option key={f} value={f}>{f === 'Todas' ? 'Fam: Todas' : f}</option>
@@ -1535,27 +1537,27 @@ export function StockCountPage() {
         ) : (
           <>
             {/* Spreadsheet Table Container */}
-            <div className="flex bg-white rounded-lg shadow-sm border border-neutral-200 flex-col overflow-hidden max-h-[80vh] min-h-[300px] w-full">
+            <div className="flex bg-white rounded-xl shadow-sm border border-neutral-200 flex-col overflow-hidden max-h-[80vh] min-h-[300px] w-full">
           <div className="overflow-y-auto overflow-x-hidden flex-1 w-full">
             <div className="w-full">
               <div 
                 className={cn(
-                  "grid bg-neutral-100 border-b border-neutral-200 text-[10px] md:text-[11px] font-bold text-neutral-500 uppercase tracking-tight sticky top-0 z-10 shadow-sm",
+                  "grid bg-neutral-50 border-b border-neutral-200 text-[10px] md:text-[11px] font-semibold text-neutral-500 uppercase tracking-wide sticky top-0 z-10",
                   gridCols
                 )}
               >
                 {viewMode === 'contagem' && (
                   <>
-                    <div className="px-1.5 border-r border-neutral-200 flex items-center h-8">Produto</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Cont.</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped.</div>
-                    <div className="p-0.5 border-r-2 border-neutral-300 text-center flex items-center justify-center h-8">Qtd</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8">Est.</div>
-                    <div className="p-0.5 border-r-2 border-neutral-300 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
+                    <div className="px-1.5 border-r border-neutral-200 flex items-center h-9">Produto</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Ult.<br/>Cont.</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Ult.<br/>Ped.</div>
+                    <div className="p-0.5 border-r border-neutral-300 text-center flex items-center justify-center h-9">Qtd</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9">Est.</div>
+                    <div className="p-0.5 border-r border-neutral-300 text-center flex items-center justify-center h-9 leading-none">Ideal</div>
                     {showAverages && (
                       <>
-                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Méd.<br/>Qtd</div>
-                        <div className="p-0.5 text-center flex items-center justify-center h-8 leading-none">Méd.<br/>Dias</div>
+                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Méd.<br/>Qtd</div>
+                        <div className="p-0.5 text-center flex items-center justify-center h-9 leading-none">Méd.<br/>Dias</div>
                       </>
                     )}
                   </>
@@ -1563,19 +1565,19 @@ export function StockCountPage() {
 
                 {viewMode === 'pedido' && (
                   <>
-                    <div className="px-1.5 border-r border-neutral-200 flex items-center h-8">Produto</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Cont.</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Ult.<br/>Ped.</div>
-                    <div className="p-0.5 border-r-2 border-neutral-300 text-center flex items-center justify-center h-8">Qtd</div>
-                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Est.</div>
-                    <div className="p-0.5 border-r-2 border-neutral-300 text-center flex items-center justify-center h-8 leading-none">Ideal</div>
+                    <div className="px-1.5 border-r border-neutral-200 flex items-center h-9">Produto</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Ult.<br/>Cont.</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Ult.<br/>Ped.</div>
+                    <div className="p-0.5 border-r border-neutral-300 text-center flex items-center justify-center h-9">Qtd</div>
+                    <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Est.</div>
+                    <div className="p-0.5 border-r border-neutral-300 text-center flex items-center justify-center h-9 leading-none">Ideal</div>
                     {showAverages && (
                       <>
-                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Méd.<br/>Qtd</div>
-                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-8 leading-none">Méd.<br/>Dias</div>
+                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Méd.<br/>Qtd</div>
+                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center h-9 leading-none">Méd.<br/>Dias</div>
                       </>
                     )}
-                    <div className="p-0.5 text-center flex items-center justify-center h-8">Pedido</div>
+                    <div className="p-0.5 text-center flex items-center justify-center h-9">Pedido</div>
                   </>
                 )}
               </div>
@@ -1595,7 +1597,7 @@ export function StockCountPage() {
                   <div 
                     key={item.produto_id} 
                     className={cn(
-                       "grid items-stretch text-[12px] md:text-[13px] transition-colors cursor-pointer even:bg-neutral-200/40",
+                       "grid items-stretch text-[12px] md:text-[13px] transition-colors cursor-pointer even:bg-neutral-50",
                       gridCols,
                       rowStyle,
                       "hover:bg-orange-50/30"
@@ -1606,7 +1608,7 @@ export function StockCountPage() {
                       <>
                         <div className="px-1.5 py-1 border-r border-neutral-100 flex items-center min-h-10 leading-tight min-w-0">
                           <div className="min-w-0">
-                          <span className="block font-bold text-[11px] md:text-[12px] whitespace-normal break-words line-clamp-2 md:line-clamp-none">{item.produto_nome}</span>
+                          <span className="block font-medium text-[12px] md:text-[13px] whitespace-normal break-words line-clamp-2 md:line-clamp-none">{item.produto_nome}</span>
                           {loansByProduct.has(item.produto_id) && <button type="button"
                             onClick={event => { event.stopPropagation(); setSelectedProductHistory(item); }}
                             aria-label={`${loansByProduct.get(item.produto_id)!.quantidade.toLocaleString('pt-BR')} unidades emprestadas para outros clientes. Ver detalhes`}
@@ -1629,7 +1631,7 @@ export function StockCountPage() {
                         )}>
                           {item.dias_ult_compra}
                         </div>
-                        <div className="p-0.5 border-r-2 border-neutral-200 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
+                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
                           {item.qtd_ult_compra}
                         </div>
                         <div className={cn(
@@ -1638,7 +1640,7 @@ export function StockCountPage() {
                         )} onClick={(e) => e.stopPropagation()}>
                           <button 
                             onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) - 1)}
-                            className="w-7 h-7 flex items-center justify-center bg-white border border-orange-200 rounded text-orange-600 hover:bg-orange-50 active:scale-90 transition-transform cursor-pointer shrink-0"
+                            className="w-7 h-7 flex items-center justify-center bg-white border border-neutral-300 rounded-md text-neutral-600 hover:bg-neutral-50 active:scale-90 transition-transform cursor-pointer shrink-0"
                           >
                             <Minus size={12} />
                           </button>
@@ -1647,21 +1649,21 @@ export function StockCountPage() {
                             inputMode="numeric"
                             pattern="[0-9]*"
                             className={cn(
-                              "w-8 md:w-9 border rounded py-0.5 text-center font-black outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px] md:text-[12px]",
-                              isBelowIdeal ? "bg-red-100 border-red-200 text-red-700" : "bg-orange-50 border-orange-100 text-orange-700"
+                              "w-8 md:w-9 h-7 border rounded-md text-center font-semibold tabular-nums outline-none focus:ring-1 focus:ring-orange-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-[11px] md:text-[12px]",
+                              isBelowIdeal ? "bg-red-50 border-red-200 text-red-700" : "bg-white border-neutral-300 text-neutral-900"
                             )}
                             value={estoqueMap[item.produto_id] ?? ''}
                             onChange={(e) => updateQuantity(item.produto_id, e.target.value)}
                           />
                           <button 
                             onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) + 1)}
-                            className="w-7 h-7 flex items-center justify-center bg-orange-600 border border-orange-700 rounded text-white hover:bg-orange-700 active:scale-90 transition-transform cursor-pointer shrink-0"
+                            className="w-7 h-7 flex items-center justify-center bg-neutral-900 border border-neutral-900 rounded-md text-white hover:bg-neutral-700 active:scale-90 transition-transform cursor-pointer shrink-0"
                           >
                             <Plus size={12} />
                           </button>
                         </div>
                         <div className={cn(
-                          "p-0.5 border-r-2 border-neutral-200 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
+                          "p-0.5 border-r border-neutral-200 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
                           isBelowIdeal ? "text-red-600 font-black bg-red-50/30" : "font-bold"
                         )}>
                           {item.estoque_ideal}
@@ -1683,7 +1685,7 @@ export function StockCountPage() {
                       <>
                         <div className="px-1.5 py-1 border-r border-neutral-100 flex items-center min-h-10 leading-tight min-w-0">
                           <div className="min-w-0">
-                          <span className="block font-bold text-[11px] md:text-[12px] whitespace-normal break-words line-clamp-2 md:line-clamp-none">{item.produto_nome}</span>
+                          <span className="block font-medium text-[12px] md:text-[13px] whitespace-normal break-words line-clamp-2 md:line-clamp-none">{item.produto_nome}</span>
                           {loansByProduct.has(item.produto_id) && <button type="button"
                             onClick={event => { event.stopPropagation(); setSelectedProductHistory(item); }}
                             aria-label={`${loansByProduct.get(item.produto_id)!.quantidade.toLocaleString('pt-BR')} unidades emprestadas para outros clientes. Ver detalhes`}
@@ -1706,14 +1708,14 @@ export function StockCountPage() {
                         )}>
                           {item.dias_ult_compra}
                         </div>
-                        <div className="p-0.5 border-r-2 border-neutral-200 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
+                        <div className="p-0.5 border-r border-neutral-200 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] opacity-70">
                           {item.qtd_ult_compra}
                         </div>
                         <div className="p-0.5 border-r border-neutral-100 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px] font-bold text-orange-700 bg-orange-50/40">
                           {estoqueMap[item.produto_id] ?? 0}
                         </div>
                         <div className={cn(
-                          "p-0.5 border-r-2 border-neutral-200 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
+                          "p-0.5 border-r border-neutral-200 text-center flex items-center justify-center min-h-10 text-[11px] md:text-[12px]",
                           isBelowIdeal ? "text-red-600 font-black bg-red-50/30" : "font-bold"
                         )}>
                           {item.estoque_ideal}

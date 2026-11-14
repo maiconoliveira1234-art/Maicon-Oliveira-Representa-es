@@ -1150,19 +1150,18 @@ export function OrderPage() {
 
   return (
     <div className="space-y-6 pb-44 md:pb-48">
-      <header className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="p-2 hover:bg-white rounded-full transition-colors">
-            <ArrowLeft size={24} />
+      <header className="flex justify-between items-center gap-3 mb-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <button onClick={() => navigate(-1)} aria-label="Voltar" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors">
+            <ArrowLeft size={20} />
           </button>
-          <div>
-            <h2 className="text-xl font-bold text-neutral-900">Novo Pedido</h2>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-sm text-neutral-500">
-              <span className="font-semibold">{cliente?.cliente}</span>
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-orange-600">Novo pedido</p>
+            <h2 className="truncate text-xl font-semibold tracking-tight text-neutral-900">{cliente?.cliente}</h2>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-xs text-neutral-500">
               {startedAt && (
                 <>
-                  <span className="hidden sm:inline text-neutral-300">|</span>
-                  <span className="text-orange-600 font-extrabold flex items-center gap-1">
+                  <span className="flex items-center gap-1 tabular-nums">
                     Iniciado em: {(() => {
                       try {
                         const d = new Date(startedAt);
@@ -1186,17 +1185,17 @@ export function OrderPage() {
         <div className="flex items-center gap-2">
           <button 
             onClick={() => navigate(`/cliente/${clienteId}`)}
-            className="flex items-center gap-2 px-4 py-2 bg-white text-neutral-700 rounded-lg font-bold text-sm border border-neutral-200 shadow-sm hover:bg-neutral-50 transition-all active:scale-95"
+            className="flex h-10 items-center gap-2 px-3.5 bg-white text-neutral-700 rounded-lg font-semibold text-sm border border-neutral-300 shadow-sm hover:bg-neutral-50 transition-all active:scale-[0.98]"
           >
-            <Home size={18} className="text-orange-600" />
-            <span>Home</span>
+            <Home size={17} className="text-neutral-500" />
+            <span className="hidden sm:inline">Ficha</span>
           </button>
           <button 
             onClick={() => navigate(`/estoque/${clienteId}`)}
-            className="flex items-center gap-2 px-4 py-2 bg-white text-neutral-700 rounded-lg font-bold text-sm border border-neutral-200 shadow-sm hover:bg-neutral-50 transition-all active:scale-95"
+            className="flex h-10 items-center gap-2 px-3.5 bg-white text-neutral-700 rounded-lg font-semibold text-sm border border-neutral-300 shadow-sm hover:bg-neutral-50 transition-all active:scale-[0.98]"
           >
-            <Package size={18} className="text-orange-600" />
-            <span>Contagem</span>
+            <Package size={17} className="text-neutral-500" />
+            <span className="hidden sm:inline">Contagem</span>
           </button>
         </div>
       </header>
@@ -1503,13 +1502,14 @@ export function OrderPage() {
         </div>
       )}
       <div className="space-y-3">
-        <div className="px-1 py-3 border-b border-neutral-200">
-          <h3 className="font-bold text-neutral-800">Itens do Orçamento</h3>
+        <div className="flex items-baseline justify-between px-1 pt-2">
+          <h3 className="text-base font-semibold text-neutral-900">Itens do orçamento</h3>
+          <span className="text-xs font-medium text-neutral-500">{itens.filter(item => !item.tipo_operacao || item.tipo_operacao === 'VENDA').length} item(ns)</span>
         </div>
 
         {itens.filter(item => !item.tipo_operacao || item.tipo_operacao === 'VENDA').length === 0 ? (
-          <div className="bg-white p-12 rounded-lg border border-dashed border-neutral-300 text-center text-neutral-400 font-bold text-xs uppercase tracking-wider">
-            Nenhum item de venda adicionado.
+          <div className="bg-white px-6 py-10 rounded-xl border border-dashed border-neutral-300 text-center text-sm text-neutral-500">
+            Nenhum produto no orçamento ainda. Use "Adicionar produto" para começar.
           </div>
         ) : (
           <div className="space-y-3">
@@ -1522,22 +1522,22 @@ export function OrderPage() {
                 const opType = item.tipo_operacao || 'VENDA';
 
                 return (
-                  <div key={`${item.produto_id}_${opType}`} className="bg-white p-4 rounded-lg border border-neutral-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 transition-all border-l-4 border-l-blue-500">
+                  <div key={`${item.produto_id}_${opType}`} className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 transition-all">
                     <div className="flex-1">
-                      <h4 className="font-bold text-neutral-900">{produto.produto}</h4>
-                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                      <h4 className="font-semibold text-neutral-900">{produto.produto}</h4>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-neutral-500 tabular-nums">
                         <span>{(produto.peso_embalagem / (produto.quant_embalagem || 1)).toFixed(2)}kg / un</span>
                         <span className="text-neutral-300">|</span>
                         <span>Total: {formatWeight(item.peso_total || 0)}</span>
                         <span className="text-neutral-300">|</span>
                         <span>{formatCurrency(item.valor_unitario || 0)} / un</span>
                       </div>
-                      <p className="text-orange-600 font-bold mt-1">{formatCurrency(item.valor_total || 0)}</p>
+                      <p className="text-neutral-900 text-base font-semibold tabular-nums mt-1.5">{formatCurrency(item.valor_total || 0)}</p>
                     </div>
                     <div className="flex items-center gap-2 self-end md:self-auto">
                       <button 
                         onClick={() => updateItem(item.produto_id!, 0, opType)}
-                        className="w-8 h-8 flex items-center justify-center bg-red-50 rounded-lg text-red-600 hover:bg-red-100 transition-colors"
+                        className="w-9 h-9 flex items-center justify-center rounded-lg text-neutral-400 hover:bg-red-50 hover:text-red-600 transition-colors"
                         title="Remover item"
                       >
                         <Trash2 size={16} />
@@ -1663,9 +1663,9 @@ export function OrderPage() {
             setConsultaFaixa(currentFaixa);
             setShowProductSelector(true);
           }}
-          className="w-full py-4 bg-white rounded-lg border-2 border-dashed border-orange-200 text-orange-600 font-bold flex items-center justify-center gap-2 hover:bg-orange-50 transition-all active:scale-95 mt-4"
+          className="w-full h-12 bg-white rounded-xl border border-orange-300 text-orange-700 font-semibold flex items-center justify-center gap-2 shadow-sm hover:bg-orange-50 transition-all active:scale-[0.99] mt-4"
         >
-          <Plus size={20} /> Adicionar Produto
+          <Plus size={20} /> Adicionar produto
         </button>
 
         <AnimatePresence>
@@ -1880,7 +1880,7 @@ export function OrderPage() {
       {/* Bottom Section (Fixed) */}
       {createPortal(<div
         ref={orderFooterRef}
-        className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-neutral-200 shadow-[0_-8px_18px_rgba(0,0,0,0.08)] p-2 pb-[calc(8px+env(safe-area-inset-bottom))] md:p-3 md:pb-[calc(12px+env(safe-area-inset-bottom))] will-change-transform"
+        className="fixed bottom-0 left-0 md:left-[calc(5rem+env(safe-area-inset-left,0px))] lg:left-[calc(15rem+env(safe-area-inset-left,0px))] right-0 z-50 bg-white/95 backdrop-blur-md border-t border-neutral-200 shadow-[0_-4px_12px_rgba(16,24,40,0.06)] p-2 pb-[calc(8px+env(safe-area-inset-bottom))] md:p-3 md:pb-[calc(12px+env(safe-area-inset-bottom))] will-change-transform"
       >
         <div className="max-w-4xl mx-auto space-y-2">
           {creditoCadastroStatus === 'ready' && entidadesCredito.length > 1 && (
@@ -1915,32 +1915,32 @@ export function OrderPage() {
             </div>
           )}
           <div className={cn(
-            "grid grid-cols-5 items-center gap-0 rounded-lg px-1.5 py-2 text-white shadow-sm transition-colors sm:px-2",
-            avaliacaoCredito?.situacao === 'insuficiente' ? "bg-red-700" : "bg-orange-600"
+            "grid grid-cols-5 items-center gap-0 rounded-xl px-1.5 py-2.5 text-white transition-colors sm:px-2",
+            avaliacaoCredito?.situacao === 'insuficiente' ? "bg-red-700" : "bg-neutral-900"
           )}>
             <div className="min-w-0 px-0.5 text-center">
-              <p className="text-[10px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Peso kg</p>
-              <p className="truncate text-[11px] font-black tabular-nums tracking-tight leading-tight min-[375px]:text-xs sm:text-sm">{formatNumeroRodape(pesoTotal)}</p>
+              <p className="text-[10px] font-medium leading-tight text-white/60 sm:text-[11px]">Peso (kg)</p>
+              <p className="mt-0.5 truncate text-xs font-semibold tabular-nums leading-tight min-[375px]:text-[13px] sm:text-base">{formatNumeroRodape(pesoTotal)}</p>
             </div>
             <div className="min-w-0 border-l border-white/20 px-0.5 text-center">
-              <p className="text-[10px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Faixa kg</p>
-              <p className="truncate text-[11px] font-black tabular-nums tracking-tight leading-tight min-[375px]:text-xs sm:text-sm">{currentFaixa.replace(/\s*kg$/i, '')}</p>
+              <p className="text-[10px] font-medium leading-tight text-white/60 sm:text-[11px]">Faixa (kg)</p>
+              <p className="mt-0.5 truncate text-xs font-semibold tabular-nums leading-tight min-[375px]:text-[13px] sm:text-base">{currentFaixa.replace(/\s*kg$/i, '')}</p>
             </div>
             <div className="min-w-0 border-l border-white/20 px-0.5 text-center">
-              <p className="text-[10px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Recompra kg</p>
-              <p className="truncate text-[11px] font-black tabular-nums tracking-tight leading-tight min-[375px]:text-xs sm:text-sm">{pesoConquistado > 0 ? formatNumeroRodape(pesoConquistado) : '—'}</p>
+              <p className="text-[10px] font-medium leading-tight text-white/60 sm:text-[11px]">Recompra (kg)</p>
+              <p className="mt-0.5 truncate text-xs font-semibold tabular-nums leading-tight min-[375px]:text-[13px] sm:text-base">{pesoConquistado > 0 ? formatNumeroRodape(pesoConquistado) : '—'}</p>
             </div>
             <div className="min-w-0 border-l border-white/20 px-0.5 text-center" title="Crédito disponível projetado para o cadastro financeiro selecionado">
-              <p className="text-[10px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Limite R$</p>
-              <p className="truncate text-[11px] font-black tabular-nums tracking-tight leading-tight min-[375px]:text-xs sm:text-sm">
+              <p className="text-[10px] font-medium leading-tight text-white/60 sm:text-[11px]">Limite (R$)</p>
+              <p className="mt-0.5 truncate text-xs font-semibold tabular-nums leading-tight min-[375px]:text-[13px] sm:text-base">
                 {creditoCadastroStatus === 'loading' || (entidadeCreditoId && creditoSaldoStatus === 'loading')
                   ? '…'
                   : avaliacaoCredito ? formatNumeroRodape(avaliacaoCredito.disponivelProjetado) : '—'}
               </p>
             </div>
             <div className="min-w-0 border-l border-white/20 px-0.5 text-center">
-              <p className="text-[10px] font-bold uppercase leading-tight opacity-85 min-[375px]:text-[10px] sm:text-xs">Total R$</p>
-              <p className="truncate text-[11px] font-black tabular-nums tracking-tight leading-tight min-[375px]:text-xs sm:text-sm">{formatNumeroRodape(valorTotal)}</p>
+              <p className="text-[10px] font-medium leading-tight text-white/60 sm:text-[11px]">Total (R$)</p>
+              <p className="mt-0.5 truncate text-xs font-semibold tabular-nums leading-tight text-orange-300 min-[375px]:text-[13px] sm:text-base">{formatNumeroRodape(valorTotal)}</p>
             </div>
           </div>
 
@@ -1976,10 +1976,10 @@ export function OrderPage() {
                     });
                   }}
                   className={cn(
-                    "flex-1 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all text-[11px]",
+                    "flex-1 h-10 rounded-lg font-semibold flex items-center justify-center gap-1.5 transition-all text-xs",
                     showOrderDetails
-                      ? "bg-orange-600 text-white ring-2 ring-orange-300"
-                      : "bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50"
+                      ? "bg-neutral-900 text-white"
+                      : "bg-white border border-neutral-300 text-neutral-700 shadow-sm hover:bg-neutral-50"
                   )}
                 >
                   <FileText size={15} /> Dados
@@ -1987,10 +1987,10 @@ export function OrderPage() {
                 <button 
                   onClick={() => setShowFlexCard(!showFlexCard)}
                   className={cn(
-                    "px-3 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all text-[11px] shadow-sm",
+                    "px-3 h-10 rounded-lg font-semibold flex items-center justify-center gap-1.5 transition-all text-xs",
                     showFlexCard 
-                      ? "bg-orange-600 text-white ring-2 ring-orange-300" 
-                      : "bg-orange-50 border border-orange-200 text-orange-700 hover:bg-orange-100"
+                      ? "bg-neutral-900 text-white" 
+                      : "bg-white border border-neutral-300 text-neutral-700 shadow-sm hover:bg-neutral-50"
                   )}
                   title="Verba Flex"
                 >
@@ -2003,27 +2003,29 @@ export function OrderPage() {
                   aria-expanded={showCampaigns}
                   aria-label={`Campanhas: ${campanhasAtingidas} atingidas de ${new Set(oportunidadesCampanha.map(o => o.campanha.id)).size} disponíveis`}
                   className={cn(
-                    "px-3 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all text-[11px]",
-                    campanhasAtingidas > 0
-                      ? showCampaigns ? "bg-orange-700 text-white ring-2 ring-orange-300" : "bg-orange-600 text-white border border-orange-700 shadow-md hover:bg-orange-700"
-                      : showCampaigns ? "bg-orange-600 text-white ring-2 ring-orange-300" : "bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50"
+                    "px-3 h-10 rounded-lg font-semibold flex items-center justify-center gap-1.5 transition-all text-xs",
+                    showCampaigns
+                      ? "bg-neutral-900 text-white"
+                      : campanhasAtingidas > 0
+                        ? "bg-emerald-50 border border-emerald-300 text-emerald-800 shadow-sm hover:bg-emerald-100"
+                        : "bg-white border border-neutral-300 text-neutral-700 shadow-sm hover:bg-neutral-50"
                   )}
                   title="Campanhas disponíveis"
                 >
                   <span>Campanhas</span>
-                  {campanhasAtingidas > 0 && <span aria-label={`${campanhasAtingidas} campanhas atingidas`} className="rounded-full bg-white text-orange-800 px-2 py-0.5 text-xs font-black min-w-6 text-center">{campanhasAtingidas}</span>}
+                  {campanhasAtingidas > 0 && <span aria-label={`${campanhasAtingidas} campanhas atingidas`} className="rounded-full bg-emerald-600 text-white px-1.5 py-0.5 text-[11px] font-semibold min-w-5 text-center">{campanhasAtingidas}</span>}
                 </button>
                 <button 
                   onClick={() => setShowClearConfirm(true)}
-                  className="flex-1 bg-neutral-100 text-neutral-600 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-neutral-200 transition-all text-[11px]"
+                  className="flex-1 h-10 bg-transparent text-neutral-600 rounded-lg font-semibold flex items-center justify-center gap-1.5 hover:bg-red-50 hover:text-red-700 transition-all text-xs"
                 >
                   <Trash2 size={15} /> Limpar
                 </button>
                 <button 
                   onClick={() => setShowPreview(true)}
-                  className="flex-1 bg-white border border-neutral-200 text-neutral-700 py-2.5 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-neutral-50 transition-all text-[11px]"
+                  className="flex-1 h-10 bg-orange-600 border border-orange-600 text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 shadow-sm hover:bg-orange-700 transition-all text-xs"
                 >
-                  <Eye size={15} /> Ver
+                  <Eye size={15} /> Ver orçamento
                 </button>
               </>
             )}
