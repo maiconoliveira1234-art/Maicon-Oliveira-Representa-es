@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { RefreshCw } from 'lucide-react';
 import { format, startOfToday } from 'date-fns';
 import { useDataManager } from '../lib/dataManager';
 import { useAgendaPendencias } from '../hooks/useAgendaPendencias';
@@ -74,6 +75,11 @@ export function CommercialPriorities({ agenda, clienteId }: { agenda: AgendaStat
       openClientIds: ids, today: new Date(todayKey + 'T00:00:00') });
   }, [clientes, hist_vendas, agenda.pendencias, orders.ids, todayKey, pendingQueueCount]);
   const visible = clienteId ? priorities.filter(p => p.cliente.id === clienteId) : priorities.slice(0, 5);
+  // Na Home, mostra 3 de início para a tela ficar mais leve.
+  const COLLAPSED_COUNT = 3;
+  const [expanded, setExpanded] = useState(false);
+  const shown = clienteId || expanded ? visible : visible.slice(0, COLLAPSED_COUNT);
+  const hiddenCount = visible.length - shown.length;
   const future = clienteId ? agenda.pendencias.filter(p => p.cliente_id === clienteId && isCommercialFollowUp(p)
     && isAgendaPendenciaAtiva(p) && p.data_prevista && p.data_prevista > todayKey)
     .sort((a, b) => a.data_prevista!.localeCompare(b.data_prevista!))[0] : undefined;
@@ -124,9 +130,10 @@ export function CommercialPriorities({ agenda, clienteId }: { agenda: AgendaStat
       setError('Não foi possível atualizar as prioridades. Tente novamente.');
     } finally { setRefreshing(false); }
   };
-  const buttonClass = 'rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-bold text-neutral-700 disabled:opacity-50';
-  const returnForm = <form onSubmit={save} className="mt-4 space-y-3 rounded-lg border border-orange-200 p-3">
-        <p className="text-sm font-bold">Registrar contato · {clientes.find(c => c.id === editing)?.cliente}</p>
+  const buttonClass = 'rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-sm hover:bg-neutral-50 disabled:opacity-50';
+  const rowButtonClass = 'h-8 shrink-0 rounded-lg border border-neutral-300 bg-white px-2.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50';
+  const returnForm = <form onSubmit={save} className="mt-3 space-y-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+        <p className="text-sm font-semibold">Registrar contato · {clientes.find(c => c.id === editing)?.cliente}</p>
         <label className="block text-xs font-bold">Resultado
           <select disabled={busy} value={outcome} onChange={e => setOutcome(e.target.value)} className="mt-1 block w-full rounded-lg border border-neutral-300 p-2 text-base">
             <option value="RETORNO">Retorno combinado</option><option value="SEM_NECESSIDADE">Sem necessidade agora</option>
@@ -138,46 +145,77 @@ export function CommercialPriorities({ agenda, clienteId }: { agenda: AgendaStat
         <label className="block text-xs font-bold">O que deve ser feito? (opcional)
           <textarea disabled={busy} maxLength={1000} value={note} onChange={e => setNote(e.target.value)} rows={2} className="mt-1 block w-full rounded-lg border border-neutral-300 p-2 text-base" />
         </label>
-        <div className="flex flex-wrap gap-2"><button disabled={busy} type="submit" className={buttonClass}>{busy ? 'Salvando…' : 'Salvar retorno'}</button><button disabled={busy} type="button" className={buttonClass} onClick={() => setEditing(null)}>Cancelar</button></div>
+        <div className="flex flex-wrap gap-2"><button disabled={busy} type="submit" className="rounded-lg border border-orange-600 bg-orange-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-orange-700 disabled:opacity-50">{busy ? 'Salvando…' : 'Salvar retorno'}</button><button disabled={busy} type="button" className={buttonClass} onClick={() => setEditing(null)}>Cancelar</button></div>
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       </form>;
   return (
-    <section className="min-w-0 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm" aria-label={clienteId ? 'Próxima ação comercial' : 'Prioridades de hoje'}>
+    <section className="min-w-0 rounded-xl border border-neutral-200 bg-white px-4 py-3 shadow-sm" aria-label={clienteId ? 'Próxima ação comercial' : 'Prioridades de hoje'}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-lg font-black text-neutral-950">{clienteId ? 'Próxima ação' : 'Prioridades de hoje'}</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-semibold text-neutral-900">{clienteId ? 'Próxima ação' : 'Prioridades de hoje'}</h2>
+          {!clienteId && !loading && !refreshing && visible.length > 0 && (
+            <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-semibold text-orange-700 ring-1 ring-inset ring-orange-200">{visible.length}</span>
+          )}
         </div>
-        {!clienteId && <button type="button" onClick={refreshPriorities} disabled={refreshing || busy || loading} className={buttonClass}>{refreshing ? 'Atualizando…' : 'Atualizar'}</button>}
+        {!clienteId && (
+          <button
+            type="button"
+            onClick={refreshPriorities}
+            disabled={refreshing || busy || loading}
+            aria-label={refreshing ? 'Atualizando prioridades' : 'Atualizar prioridades'}
+            title="Atualizar"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+          </button>
+        )}
         {clienteId && visible.length === 0 && <button type="button" disabled={busy || loading || !!agenda.error} onClick={() => startEdit(clienteId)} className={buttonClass}>{future ? 'Alterar retorno' : 'Registrar retorno'}</button>}
       </div>
       {(loading || refreshing) ? <p className="mt-3 text-sm text-neutral-500">Conferindo prioridades…</p> : agenda.error ? (
         <div role="alert" className="mt-3 text-sm text-amber-700">Não foi possível atualizar os retornos. <button type="button" onClick={() => agenda.refresh()} className="underline">Tentar novamente</button></div>
       ) : <>
         {!orders.ids && <p role="status" className="mt-3 text-xs text-amber-700">Pedidos em aberto indisponíveis. Exibindo apenas retornos combinados.</p>}
-        {visible.map(item => (
-          <article key={item.cliente.id} className="mt-3 min-w-0 rounded-lg border border-neutral-100 bg-neutral-50 p-3">
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-              {!clienteId && (
-                <h3 className="min-w-0 flex-1 basis-40 break-words text-sm font-black">
-                  <Link to={'/cliente/' + item.cliente.id} className="text-neutral-950 underline-offset-2 hover:text-orange-600 hover:underline">{item.cliente.cliente}</Link>
-                </h3>
-              )}
-              <div className="ml-auto flex flex-wrap justify-end gap-2">
-                <button type="button" disabled={busy} aria-expanded={editing === item.cliente.id} onClick={() => startEdit(item.cliente.id)} className={buttonClass}>Registrar retorno</button>
-                {item.followUp && <button type="button" disabled={busy} onClick={() => complete(item.followUp!.id)} className={buttonClass}>Contato concluído</button>}
-              </div>
-            </div>
-            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-600">
-              <span>Próx. ped.: <strong>{item.purchaseGap === null ? '—' : `${item.purchaseGap > 0 ? '+' : ''}${item.purchaseGap} dias`}</strong></span>
-              <span>Ciclo: <strong>{item.cycleDays > 0 ? `${item.cycleDays} dias` : '—'}</strong></span>
-            </div>
-            {editing === item.cliente.id && returnForm}
-          </article>
-        ))}
+        {shown.length > 0 && (
+          <ul className="mt-2 divide-y divide-neutral-100">
+            {shown.map(item => (
+              <li key={item.cliente.id} className="min-w-0 py-2.5 first:pt-1 last:pb-0">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    {!clienteId && (
+                      <h3 className="truncate text-sm font-semibold">
+                        <Link to={'/cliente/' + item.cliente.id} className="text-neutral-900 underline-offset-2 hover:text-orange-700 hover:underline">{item.cliente.cliente}</Link>
+                      </h3>
+                    )}
+                    <p className="truncate text-xs tabular-nums text-neutral-500">
+                      Próx. ped. <strong className="font-semibold text-neutral-700">{item.purchaseGap === null ? '—' : `${item.purchaseGap > 0 ? '+' : ''}${item.purchaseGap} dias`}</strong>
+                      <span className="mx-1.5 text-neutral-300">·</span>
+                      Ciclo <strong className="font-semibold text-neutral-700">{item.cycleDays > 0 ? `${item.cycleDays} dias` : '—'}</strong>
+                    </p>
+                  </div>
+                  <button type="button" disabled={busy} aria-expanded={editing === item.cliente.id} onClick={() => startEdit(item.cliente.id)} className={rowButtonClass}>
+                    Registrar<span className="hidden sm:inline"> retorno</span>
+                  </button>
+                  {item.followUp && <button type="button" disabled={busy} onClick={() => complete(item.followUp!.id)} className={rowButtonClass}>Concluído</button>}
+                </div>
+                {editing === item.cliente.id && returnForm}
+              </li>
+            ))}
+          </ul>
+        )}
+        {!clienteId && visible.length > COLLAPSED_COUNT && (
+          <button
+            type="button"
+            onClick={() => setExpanded(value => !value)}
+            aria-expanded={expanded}
+            className="mt-2 text-xs font-semibold text-orange-700 hover:underline underline-offset-4"
+          >
+            {expanded ? 'Mostrar menos' : `Ver mais ${hiddenCount}`}
+          </button>
+        )}
         {future && <p className="mt-3 break-words text-sm text-neutral-600">{future.titulo}: {format(new Date(future.data_prevista + 'T00:00:00'), 'dd/MM/yyyy')}{future.descricao ? ` · ${future.descricao}` : ''}</p>}
         {visible.length === 0 && !future && <p className="mt-3 text-sm text-neutral-500">{orders.ids ? 'Nenhuma prioridade para hoje.' : 'Nenhum retorno vencido ou previsto para hoje.'}</p>}
       </>}
-      {editing && !visible.some(item => item.cliente.id === editing) && returnForm}
+      {editing && !shown.some(item => item.cliente.id === editing) && returnForm}
       {error && !editing && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
       {message && <p role="status" className="mt-3 text-sm text-emerald-700">{message}</p>}
     </section>
