@@ -22,8 +22,6 @@ import {
   writeDraft,
 } from '../lib/whatsappUi';
 
-type Atendimento = 'resolvido' | 'em_negociacao' | 'aguardando_retorno';
-
 type MapRow = {
   id: string;
   whatsapp_nome: string;
@@ -75,9 +73,6 @@ export function WhatsAppConversationPage() {
   const [copied, setCopied] = useState(false);
   const draftReady = useRef(false);
 
-  const [atendimento, setAtendimento] = useState<Atendimento>('resolvido');
-  const [atendimentoState, setAtendimentoState] = useState<'loading' | 'ok' | 'unavailable'>('loading');
-  const [savingAtendimento, setSavingAtendimento] = useState(false);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -156,28 +151,6 @@ export function WhatsAppConversationPage() {
       document.removeEventListener('visibilitychange', tick);
     };
   }, [contatoId, loadData]);
-
-  // The "situação do atendimento" is read once; a failure no longer blocks the whole conversation.
-  useEffect(() => {
-    if (!contatoId) return;
-    let cancelled = false;
-    setAtendimentoState('loading');
-    void (async () => {
-      const { data, error: invokeError } = await supabase.functions.invoke('whatsapp-retencao-atendimento', {
-        body: { action: 'get', contato_map_id: contatoId },
-      });
-      if (cancelled) return;
-      if (invokeError || data?.error) {
-        setAtendimentoState('unavailable');
-        return;
-      }
-      setAtendimento((data?.status || 'resolvido') as Atendimento);
-      setAtendimentoState('ok');
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [contatoId]);
 
   const bursts = useMemo(() => groupIntoBursts(messages, undefined, (a, b) => isSent(a) === isSent(b)), [messages]);
   const autoContext = useMemo(() => replyContext(messages), [messages]);
@@ -294,24 +267,6 @@ export function WhatsAppConversationPage() {
       else next.add(message.id);
       return next;
     });
-  };
-
-  const updateAtendimento = async (next: Atendimento) => {
-    if (!contatoId || savingAtendimento) return;
-    const previous = atendimento;
-    setAtendimento(next);
-    setSavingAtendimento(true);
-    try {
-      const { data, error: invokeError } = await supabase.functions.invoke('whatsapp-retencao-atendimento', {
-        body: { action: 'set', contato_map_id: contatoId, status: next },
-      });
-      if (invokeError || data?.error) throw new Error('Não foi possível atualizar o atendimento.');
-    } catch (err: any) {
-      setAtendimento(previous);
-      setError(err?.message || 'Falha ao atualizar o atendimento.');
-    } finally {
-      setSavingAtendimento(false);
-    }
   };
 
   const openSheet = async () => {
@@ -499,28 +454,7 @@ export function WhatsAppConversationPage() {
       </section>
 
       <div className="lg:sticky lg:top-4 lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
-      <div className="mt-3 flex flex-wrap lg:mt-0 items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2">
-        <label htmlFor="atendimento-retencao" className="text-sm font-black text-neutral-800">Atendimento</label>
-        {atendimentoState === 'unavailable' ? (
-          <span className="text-xs font-semibold text-amber-700">Situação indisponível agora. A conversa segue funcionando.</span>
-        ) : (
-          <select
-            id="atendimento-retencao"
-            value={atendimento}
-            onChange={event => void updateAtendimento(event.target.value as Atendimento)}
-            disabled={savingAtendimento || atendimentoState === 'loading'}
-            className="h-11 rounded-lg border border-neutral-300 bg-white px-3 text-base font-semibold text-neutral-800 disabled:opacity-50"
-          >
-            <option value="resolvido">Resolvido</option>
-            <option value="em_negociacao">Em negociação</option>
-            <option value="aguardando_retorno">Aguardando retorno</option>
-          </select>
-        )}
-        <p className="basis-full text-xs text-neutral-500">Em negociação e Aguardando retorno protegem o histórico da limpeza automática.</p>
-      </div>
-
-
-      <section aria-label="Resposta" className="mt-3 rounded-2xl border border-violet-100 bg-violet-50/60 p-3">
+      <section aria-label="Resposta" className="mt-3 rounded-2xl lg:mt-0 border border-violet-100 bg-violet-50/60 p-3">
         <div className="flex items-center gap-2">
           <Sparkles size={16} className="text-violet-600" />
           <h2 className="flex-1 text-sm font-black text-violet-800">Resposta</h2>
