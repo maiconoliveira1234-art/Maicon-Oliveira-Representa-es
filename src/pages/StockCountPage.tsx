@@ -1,3 +1,5 @@
+import { readDraftLocally, saveDraftLocally } from '../lib/draftStorage';
+import { clearStockDraft, legacyStockDraftKey, newerStockDraft, readStockDraft, readStockDraftFromStorage, saveStockDraft, type StockDraft } from '../lib/stockCountDraftStore';
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { 
@@ -102,16 +104,19 @@ export function StockCountPage() {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const countedGraceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const draftRef = useRef<{valores:Record<string,number>;tocados:string[];revisao:number}|null>(null);
+  const draftRef = useRef<StockDraft|null>(null);
+  // Última versão ainda não confirmada pela nuvem.
+  const pendingDraft = useRef<StockDraft|null>(null);
+  // true quando nem o IndexedDB nem o localStorage conseguiram gravar a última versão.
+  const localSaveFailed = useRef(false);
   const draftTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
   const sendingDraft = useRef(false);
-  const [draftState,setDraftState]=useState<'restoring'|'local'|'syncing'|'synced'|'error'>('restoring');
-  const draftKey = (id:string)=>`estoque_rascunho_v2_${id}`;
+  const [draftState,setDraftState]=useState<'restoring'|'pending'|'syncing'|'offline'|'synced'|'error'>('restoring');
+  const markNotSent=()=>setDraftState(localSaveFailed.current?'error':'offline');
   const syncDraft = async (id:string) => {
-    if(sendingDraft.current || navigator.onLine===false) return;
-    let saved: {valores:Record<string,number>;tocados:string[];revisao:number}|null=null;
-    try { const raw=localStorage.getItem(draftKey(id)); if(raw)saved=JSON.parse(raw); } catch {}
-    if(!saved || !saved.revisao) return;
+    const saved=pendingDraft.current;
+    if(sendingDraft.current || !saved) return;
+    if(navigator.onLine===false){markNotSent();return;}
     sendingDraft.current=true;
     setDraftState('syncing');
     try {
@@ -122,16 +127,19 @@ export function StockCountPage() {
       if(error)throw error;
       const row=Array.isArray(data)?data[0]:null;
       if(!row || Number(row.revisao)!==saved.revisao || row.finalizado)throw new Error('Versão remota diferente');
-      setDraftState(draftRef.current?.revisao===saved.revisao?'synced':'local');
+      if(pendingDraft.current?.revisao===saved.revisao){
+        pendingDraft.current=null;
+        setDraftState('synced');
+      }else setDraftState('pending');
     } catch(error){
       console.error('[CONTAGEM] Falha ao sincronizar rascunho:',error);
-      setDraftState('error');
-      // Retry transient Supabase failures without requiring another edit.
+      markNotSent();
+      // Nova tentativa automática, sem exigir outra edição.
       if(draftTimer.current)clearTimeout(draftTimer.current);
       draftTimer.current=setTimeout(()=>{draftTimer.current=null;void syncDraft(id)},15000);
     } finally {
       sendingDraft.current=false;
-      if(draftRef.current?.revisao!==saved?.revisao)scheduleDraftSync(id);
+      if(pendingDraft.current && pendingDraft.current.revisao!==saved.revisao)scheduleDraftSync(id);
     }
   };
   const scheduleDraftSync=(id:string)=>{
@@ -142,16 +150,16 @@ export function StockCountPage() {
     const revisao=Math.max(Date.now()*1000,(draftRef.current?.revisao||0)+1);
     const payload={valores,tocados,revisao};
     draftRef.current=payload;
-    try{
-      // Synchronous write before any React render or navigation.
-      localStorage.setItem(draftKey(id),JSON.stringify(payload));
-      localStorage.setItem(`estoque_${id}`,JSON.stringify(valores));
-      setDraftState('local');
-    }catch(error){
-      console.error('[CONTAGEM] CRITICAL: gravação local falhou',error);
-      setDraftState('error');
-      alert('Atenção: esta contagem não pôde ser gravada no dispositivo. Não feche a tela.');
-    }
+    pendingDraft.current=payload;
+    setDraftState(current=>current==='syncing'?current:'pending');
+    void saveStockDraft(id,payload).then(ok=>{
+      if(draftRef.current?.revisao!==revisao)return;
+      localSaveFailed.current=!ok;
+      if(!ok){
+        console.error('[CONTAGEM] Rascunho não pôde ser gravado no aparelho; depende do envio à nuvem.');
+        setDraftState(current=>current==='synced'?current:'error');
+      }
+    });
     scheduleDraftSync(id);
   };
   useEffect(()=>{
@@ -302,7 +310,8 @@ export function StockCountPage() {
 
     // A local draft is authoritative. This keeps a cleared count empty when the
     // user leaves and returns, instead of reloading the previous stock count.
-    const savedEstoque = localStorage.getItem(`estoque_${clienteId}`);
+    let savedEstoque: string | null = null;
+    try { savedEstoque = localStorage.getItem(legacyStockDraftKey(clienteId)); } catch { /* sem cópia antiga */ }
     if (savedEstoque !== null) {
       try {
         const parsed = JSON.parse(savedEstoque);
@@ -323,16 +332,12 @@ export function StockCountPage() {
       });
     }
     let localRevision=0;
-    try{
-      const raw=localStorage.getItem(draftKey(clienteId));
-      if(raw){
-        const d=JSON.parse(raw);
-        if(d && Number(d.revisao)>0 && d.valores && typeof d.valores==='object' && Array.isArray(d.tocados)){
-          initialEstoque=d.valores;initialTouched=new Set(d.tocados);localRevision=Number(d.revisao);
-        }
-      }
-    }catch(error){console.warn('[CONTAGEM] Backup v2 inválido, usando backup anterior',error)}
+    const storedDraft=readStockDraftFromStorage(clienteId);
+    if(storedDraft){
+      initialEstoque=storedDraft.valores;initialTouched=new Set(storedDraft.tocados);localRevision=Number(storedDraft.revisao);
+    }
     draftRef.current={valores:initialEstoque,tocados:[...initialTouched],revisao:localRevision};
+    pendingDraft.current=null;
     setEstoqueMap(initialEstoque);
     setTouchedItems(initialTouched);
     setManualInactive(new Set(cacheData.estoque.filter(e => e.inativo_manualmente).map(e => e.produto_id)));
@@ -423,7 +428,7 @@ export function StockCountPage() {
 
         const mergedItems = data.items.filter((item: any) => item?.produto_id && Number(item.quantidade) > 0);
 
-        localStorage.setItem(`pedido_${clienteId}`, JSON.stringify({
+        saveDraftLocally(`pedido_${clienteId}`, JSON.stringify({
           prazo: data.prazo ?? '',
           obs: data.obs ?? '',
           manualFaixa: data.manual_faixa ?? null,
@@ -439,31 +444,43 @@ export function StockCountPage() {
           const {data:remote,error}=await supabase.from('estoque_contagem_rascunhos')
             .select('valores,tocados,revisao,finalizado').eq('cliente_id',clienteId).maybeSingle();
           if(error)throw error;
-          let local=draftRef.current;
-          try{const raw=localStorage.getItem(draftKey(clienteId));if(raw)local=JSON.parse(raw)}catch{}
+          // A cópia do IndexedDB pode ser mais nova que a do localStorage (cota cheia).
+          const local=newerStockDraft(draftRef.current,await readStockDraft(clienteId));
+          if(lastInitializedClientId.current!==clienteId)return;
+          if(local && draftRef.current && local.revisao>draftRef.current.revisao){
+            draftRef.current=local;
+            setEstoqueMap(local.valores);setTouchedItems(new Set(local.tocados));
+          }
           if(remote && !remote.finalizado && Number(remote.revisao)>Number(local?.revisao||0)){
             const valores=(remote.valores||{}) as Record<string,number>;
             const tocados=Array.isArray(remote.tocados)?remote.tocados as string[]:[];
             draftRef.current={valores,tocados,revisao:Number(remote.revisao)};
             setEstoqueMap(valores);setTouchedItems(new Set(tocados));
-            localStorage.setItem(draftKey(clienteId),JSON.stringify(draftRef.current));
-            localStorage.setItem(`estoque_${clienteId}`,JSON.stringify(valores));
+            void saveStockDraft(clienteId,draftRef.current);
             setDraftState('synced');
           }else if(remote?.finalizado && Number(remote.revisao)>=Number(local?.revisao||0)){
-            localStorage.removeItem(draftKey(clienteId));
-            localStorage.removeItem(`estoque_${clienteId}`);
+            void clearStockDraft(clienteId);
             draftRef.current={valores:initialEstoque,tocados:[],revisao:Number(remote.revisao)};
             setEstoqueMap(initialEstoque);setTouchedItems(new Set());
             setDraftState('synced');
+          }else if(local && local.revisao>0 && (!remote || local.revisao>Number(remote.revisao))){
+            pendingDraft.current=local;
+            setDraftState('pending');scheduleDraftSync(clienteId);
           }else if(local && local.revisao>0){
-            setDraftState('local');scheduleDraftSync(clienteId);
+            setDraftState('synced');
           }else if(initialTouched.size>0){
             // Upgrade preexisting browser-only work to a cloud-backed draft.
             persistDraft(clienteId,initialEstoque,[...initialTouched]);
           }else setDraftState('synced');
         }catch(error){
           console.warn('[CONTAGEM] Recuperação remota falhou, backup local preservado',error);
-          setDraftState('error');
+          const local=newerStockDraft(draftRef.current,await readStockDraft(clienteId).catch(()=>null));
+          if(local && draftRef.current && local.revisao>draftRef.current.revisao){
+            draftRef.current=local;
+            setEstoqueMap(local.valores);setTouchedItems(new Set(local.tocados));
+          }
+          if(local && local.revisao>0){pendingDraft.current=local;scheduleDraftSync(clienteId);}
+          setDraftState(local && local.revisao>0?'offline':'synced');
         }finally{if(lastInitializedClientId.current===clienteId)setIsReady(true)}
       });
 
@@ -812,8 +829,8 @@ export function StockCountPage() {
   const savePedidoDraft = async (itemsList: Array<{ produto_id: string, quantidade: number, tipo_operacao: string }>) => {
     if (!clienteId) return;
 
-    const saved = localStorage.getItem(`pedido_${clienteId}`);
-    let dataToSave = { items: itemsList, prazo: '', obs: '', manualFaixa: null as string | null, startedAt: null as string | null };
+    const saved = await readDraftLocally(`pedido_${clienteId}`);
+    let dataToSave = { items: itemsList, prazo: '', obs: '', manualFaixa: null as string | null, startedAt: null as string | null, updatedAt: '' };
 
     if (saved) {
       try {
@@ -827,7 +844,8 @@ export function StockCountPage() {
       }
     }
 
-    localStorage.setItem(`pedido_${clienteId}`, JSON.stringify(dataToSave));
+    dataToSave.updatedAt = new Date().toISOString();
+    saveDraftLocally(`pedido_${clienteId}`, JSON.stringify(dataToSave));
 
     if (itemsList.length === 0) {
       await deleteOpenOrder(clienteId);
@@ -914,8 +932,8 @@ export function StockCountPage() {
         if(draftTimer.current)clearTimeout(draftTimer.current);
         draftTimer.current=null;
         draftRef.current={valores:estoqueMap,tocados:[],revisao:revision};
-        localStorage.removeItem(draftKey(clienteId));
-        localStorage.removeItem(`estoque_${clienteId}`);
+        pendingDraft.current=null;
+        await clearStockDraft(clienteId);
       }else console.warn('[CONTAGEM] Backup remoto não finalizado; cópia local preservada.',finalized.error||finalizedRow);
       alert('Estoque atualizado com sucesso!');
       navigate(`/cliente/${clienteId}`);
@@ -1183,9 +1201,33 @@ export function StockCountPage() {
 
   return (
     <div className="min-h-screen pb-2 flex flex-col gap-3">
-      <div role="status" className={`flex items-center gap-2 self-start rounded-full border px-3 py-1 text-xs font-medium ${draftState==='synced'?'border-emerald-200 bg-emerald-50 text-emerald-800':draftState==='error'?'border-red-200 bg-red-50 text-red-800':'border-amber-200 bg-amber-50 text-amber-900'}`}>
-        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${draftState==='synced'?'bg-emerald-500':draftState==='error'?'bg-red-500':'bg-amber-500 animate-pulse'}`} />
-        {draftState==='synced'?'Contagem salva na nuvem':draftState==='syncing'?'Salvando contagem na nuvem…':draftState==='local'?'Contagem salva neste dispositivo · sincronização pendente':draftState==='error'?'Atenção: cópia na nuvem não confirmada. Verifique sua conexão.':'Verificando backup da contagem…'}
+      <div
+        role="status"
+        aria-live="polite"
+        className={cn(
+          "flex items-center gap-2 self-start rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+          draftState==='synced' && "border-emerald-200 bg-emerald-50 text-emerald-800",
+          (draftState==='pending' || draftState==='syncing' || draftState==='restoring') && "border-neutral-200 bg-white text-neutral-600",
+          draftState==='offline' && "border-amber-200 bg-amber-50 text-amber-900",
+          draftState==='error' && "border-red-200 bg-red-50 text-red-800"
+        )}
+      >
+        <span className={cn(
+          "h-1.5 w-1.5 shrink-0 rounded-full",
+          draftState==='synced' && "bg-emerald-500",
+          (draftState==='pending' || draftState==='syncing' || draftState==='restoring') && "bg-neutral-400 animate-pulse",
+          draftState==='offline' && "bg-amber-500",
+          draftState==='error' && "bg-red-500"
+        )} />
+        {draftState==='synced'
+          ? 'Salvo na nuvem'
+          : draftState==='pending' || draftState==='syncing'
+            ? 'Salvando…'
+            : draftState==='offline'
+              ? 'Salvo neste aparelho · envia quando a internet voltar'
+              : draftState==='error'
+                ? 'Não foi possível salvar a contagem. Não feche esta tela.'
+                : 'Carregando contagem…'}
       </div>
       {/* Spreadsheet Header */}
       <div className="bg-white rounded-xl border border-neutral-200 shadow-sm">

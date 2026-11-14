@@ -8,6 +8,7 @@ import { MOCK_CLIENTES, MOCK_PRODUTOS, MOCK_HISTORICO } from './mockData';
 import { deduplicateSales } from './utils';
 import { ensureQuarterlyFlexReset } from '../services/flexService';
 import { getCacheValue, setCacheValue, setCacheValues } from './offline';
+import { INDEXEDDB_ONLY_CACHE_KEYS, moveLargeCachesToIndexedDB } from './localCacheMigration';
 import {
   buildStockCountPayload,
   isStockCountFullyConfirmed,
@@ -184,17 +185,33 @@ const loadPersisted = async <T,>(key: string, fallback: T): Promise<T> => {
   }
 };
 
+// Caches grandes ficam só no IndexedDB para não encher a cota do localStorage.
+// O localStorage só recebe uma cópia se o IndexedDB falhar.
+const removeLocalMirror = (key: string) => {
+  try { localStorage.removeItem(key); } catch { /* sem cópia para remover */ }
+};
+
 const savePersisted = (key: string, data: any) => {
-  saveLocal(key, data);
-  setCacheValue(key, data).catch((e) => {
+  const indexedDbOnly = INDEXEDDB_ONLY_CACHE_KEYS.has(key);
+  if (!indexedDbOnly) saveLocal(key, data);
+  setCacheValue(key, data).then(() => {
+    if (indexedDbOnly) removeLocalMirror(key);
+  }).catch((e) => {
     console.warn(`[OfflineManager] Could not persist ${key} to IndexedDB.`, e);
+    if (indexedDbOnly) saveLocal(key, data);
   });
 };
 
 const savePersistedBatch = (values: Record<string, any>) => {
-  Object.entries(values).forEach(([key, value]) => saveLocal(key, value));
-  setCacheValues(values).catch((e) => {
+  const entries = Object.entries(values);
+  entries.forEach(([key, value]) => {
+    if (!INDEXEDDB_ONLY_CACHE_KEYS.has(key)) saveLocal(key, value);
+  });
+  setCacheValues(values).then(() => {
+    entries.forEach(([key]) => { if (INDEXEDDB_ONLY_CACHE_KEYS.has(key)) removeLocalMirror(key); });
+  }).catch((e) => {
     console.warn('[OfflineManager] Could not persist batch to IndexedDB.', e);
+    entries.forEach(([key, value]) => { if (INDEXEDDB_ONLY_CACHE_KEYS.has(key)) saveLocal(key, value); });
   });
 };
 
@@ -746,6 +763,10 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     
     setLoadingGlobal(true);
     try {
+      // Libera a cota do localStorage antes de ler os caches.
+      await moveLargeCachesToIndexedDB().catch(error => {
+        console.warn('[OfflineManager] Migração dos caches para o IndexedDB adiada.', error);
+      });
       const cachedClientes = await loadPersisted<Cliente[]>('offline_db_clientes', []);
       const cachedProdutos = await loadPersisted<Produto[]>('offline_db_produtos', []);
       const cachedMetas = await loadPersisted<Record<string, number>>('offline_db_metas', {});
