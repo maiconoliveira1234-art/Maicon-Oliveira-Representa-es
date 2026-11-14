@@ -60,7 +60,7 @@ export function SettingsPage() {
         <Panel className="overflow-hidden">
           <div className="p-6 border-b border-neutral-100 bg-neutral-50/50 flex items-center gap-2">
             <Database size={18} className="text-neutral-400" />
-            <h2 className="font-bold text-neutral-900 uppercase tracking-wider text-xs">Manutenção de Dados</h2>
+            <h2 className="text-sm font-semibold text-neutral-900">Manutenção de dados</h2>
           </div>
           <div className="p-6 space-y-4">
             <div className="flex justify-between items-center">
@@ -91,10 +91,10 @@ export function SettingsPage() {
                   }
                 }}
                 disabled={isOptimizing}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                   optSuccess 
-                    ? 'bg-green-100 text-green-600' 
-                    : 'bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95 disabled:opacity-50'
+                    ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' 
+                    : 'border border-neutral-300 bg-white text-neutral-800 shadow-sm hover:bg-neutral-50 active:scale-95 disabled:opacity-50'
                 }`}
               >
                 {isOptimizing ? (
@@ -102,7 +102,7 @@ export function SettingsPage() {
                 ) : optSuccess ? (
                   <CheckCircle2 size={14} />
                 ) : (
-                  'Otimizar 8 Dias'
+                  'Otimizar 8 dias'
                 )}
                 {optSuccess ? 'Concluído' : isOptimizing ? 'Processando' : ''}
               </button>
@@ -132,10 +132,10 @@ export function SettingsPage() {
                   }
                 }}
                 disabled={isSyncing}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                   isSyncing 
-                    ? 'bg-amber-100 text-amber-600' 
-                    : 'bg-amber-600 text-white hover:bg-amber-700 active:scale-95 disabled:opacity-50'
+                    ? 'border border-amber-200 bg-amber-50 text-amber-800' 
+                    : 'border border-neutral-300 bg-white text-neutral-800 shadow-sm hover:bg-neutral-50 active:scale-95 disabled:opacity-50'
                 }`}
               >
                 {isSyncing ? (
@@ -143,7 +143,7 @@ export function SettingsPage() {
                 ) : (
                   <RefreshCw size={14} />
                 )}
-                {isSyncing ? 'Sincronizando' : 'Atualizar Dados'}
+                {isSyncing ? 'Sincronizando' : 'Atualizar dados'}
               </button>
             </div>
           </div>
@@ -154,7 +154,7 @@ export function SettingsPage() {
         <Panel className="overflow-hidden">
           <div className="p-6 border-b border-neutral-100 bg-neutral-50/50 flex items-center gap-2">
             <Info size={18} className="text-neutral-400" />
-            <h2 className="font-bold text-neutral-900 uppercase tracking-wider text-xs">Sobre o Aplicativo</h2>
+            <h2 className="text-sm font-semibold text-neutral-900">Sobre o aplicativo</h2>
           </div>
           <div className="p-6 space-y-4">
             <div className="flex justify-between items-center">
@@ -174,10 +174,10 @@ export function SettingsPage() {
                 <button
                   onClick={handleUpdate}
                   disabled={isUpdating}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                     updateSuccess 
-                      ? 'bg-green-100 text-green-600' 
-                      : 'bg-orange-600 text-white hover:bg-orange-700 active:scale-95 disabled:opacity-50'
+                      ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' 
+                      : 'border border-neutral-300 bg-white text-neutral-800 shadow-sm hover:bg-neutral-50 active:scale-95 disabled:opacity-50'
                   }`}
                 >
                   {isUpdating ? (
@@ -188,7 +188,7 @@ export function SettingsPage() {
                   ) : (
                     <>
                       <RefreshCw size={14} />
-                      Atualizar Sistema
+                      Atualizar sistema
                     </>
                   )}
                 </button>
@@ -202,7 +202,7 @@ export function SettingsPage() {
         <Panel className="overflow-hidden">
           <div className="flex items-center gap-2 border-b border-neutral-100 bg-neutral-50/50 p-6">
             <Shield size={18} className="text-neutral-400" />
-            <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-900">Segurança & Privacidade</h2>
+            <h2 className="text-sm font-semibold text-neutral-900">Segurança e privacidade</h2>
           </div>
           <div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-center gap-3">

@@ -1919,19 +1919,19 @@ export function OrderPage() {
             avaliacaoCredito?.situacao === 'insuficiente' ? "bg-red-700" : "bg-neutral-900"
           )}>
             <div className="min-w-0 px-0.5 text-center">
-              <p className="text-[10px] font-medium leading-tight text-white/60 sm:text-[11px]">Peso (kg)</p>
+              <p className="text-[10px] font-medium leading-tight text-white/60 sm:text-[11px]">Peso<span className="hidden sm:inline"> (kg)</span></p>
               <p className="mt-0.5 truncate text-xs font-semibold tabular-nums leading-tight min-[375px]:text-[13px] sm:text-base">{formatNumeroRodape(pesoTotal)}</p>
             </div>
             <div className="min-w-0 border-l border-white/20 px-0.5 text-center">
-              <p className="text-[10px] font-medium leading-tight text-white/60 sm:text-[11px]">Faixa (kg)</p>
+              <p className="text-[10px] font-medium leading-tight text-white/60 sm:text-[11px]">Faixa<span className="hidden sm:inline"> (kg)</span></p>
               <p className="mt-0.5 truncate text-xs font-semibold tabular-nums leading-tight min-[375px]:text-[13px] sm:text-base">{currentFaixa.replace(/\s*kg$/i, '')}</p>
             </div>
             <div className="min-w-0 border-l border-white/20 px-0.5 text-center">
-              <p className="text-[10px] font-medium leading-tight text-white/60 sm:text-[11px]">Recompra (kg)</p>
+              <p className="text-[10px] font-medium leading-tight text-white/60 sm:text-[11px]">Recompra<span className="hidden sm:inline"> (kg)</span></p>
               <p className="mt-0.5 truncate text-xs font-semibold tabular-nums leading-tight min-[375px]:text-[13px] sm:text-base">{pesoConquistado > 0 ? formatNumeroRodape(pesoConquistado) : '—'}</p>
             </div>
             <div className="min-w-0 border-l border-white/20 px-0.5 text-center" title="Crédito disponível projetado para o cadastro financeiro selecionado">
-              <p className="text-[10px] font-medium leading-tight text-white/60 sm:text-[11px]">Limite (R$)</p>
+              <p className="text-[10px] font-medium leading-tight text-white/60 sm:text-[11px]">Limite<span className="hidden sm:inline"> (R$)</span></p>
               <p className="mt-0.5 truncate text-xs font-semibold tabular-nums leading-tight min-[375px]:text-[13px] sm:text-base">
                 {creditoCadastroStatus === 'loading' || (entidadeCreditoId && creditoSaldoStatus === 'loading')
                   ? '…'
@@ -1939,7 +1939,7 @@ export function OrderPage() {
               </p>
             </div>
             <div className="min-w-0 border-l border-white/20 px-0.5 text-center">
-              <p className="text-[10px] font-medium leading-tight text-white/60 sm:text-[11px]">Total (R$)</p>
+              <p className="text-[10px] font-medium leading-tight text-white/60 sm:text-[11px]">Total<span className="hidden sm:inline"> (R$)</span></p>
               <p className="mt-0.5 truncate text-xs font-semibold tabular-nums leading-tight text-orange-300 min-[375px]:text-[13px] sm:text-base">{formatNumeroRodape(valorTotal)}</p>
             </div>
           </div>
@@ -2025,7 +2025,7 @@ export function OrderPage() {
                   onClick={() => setShowPreview(true)}
                   className="flex-1 h-10 bg-orange-600 border border-orange-600 text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 shadow-sm hover:bg-orange-700 transition-all text-xs"
                 >
-                  <Eye size={15} /> Ver orçamento
+                  <Eye size={15} /> Ver<span className="hidden sm:inline"> orçamento</span>
                 </button>
               </>
             )}

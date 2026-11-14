@@ -1180,7 +1180,7 @@ export function ImportPage() {
             {/* Número do Pedido ERP Field */}
             <div className="min-w-0 space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+                <label className="flex items-center gap-1.5 text-sm font-medium text-neutral-700">
                   <Coins size={14} className="text-orange-500" />
                   Pedido ERP
                 </label>
@@ -1213,7 +1213,7 @@ export function ImportPage() {
 
             <div className="relative min-w-0">
               <div className="flex h-[18px] items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-600">Cliente</label>
+                <label className="block text-sm font-medium text-neutral-700">Cliente</label>
                 <button 
                   onClick={() => setShowInactive(!showInactive)}
                   className={cn(
@@ -1292,7 +1292,7 @@ export function ImportPage() {
             <div className="min-w-0 sm:col-span-2">
               {lojasStatus === 'ready' && lojasFinanceiras.length > 1 && (
                 <>
-              <label htmlFor="import-loja-financeira" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-600">
+              <label htmlFor="import-loja-financeira" className="mb-1.5 block text-sm font-medium text-neutral-700">
                 Loja do faturamento / CNPJ
               </label>
               <select
@@ -1340,7 +1340,7 @@ export function ImportPage() {
             </div>
 
             <div className="min-w-0">
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-600">Parcelamento</label>
+              <label className="mb-1.5 block text-sm font-medium text-neutral-700">Parcelamento</label>
               <input
                 type="text"
                 value={parcelamentoRaw}
@@ -1357,7 +1357,7 @@ export function ImportPage() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-600">Data do Faturamento</label>
+              <label className="mb-1.5 block text-sm font-medium text-neutral-700">Data do Faturamento</label>
               <input
                 type="date"
                 value={orderDate}
@@ -1367,7 +1367,7 @@ export function ImportPage() {
             </div>
 
             <div className="sm:col-span-2">
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-neutral-600">Importação de Pedido</label>
+              <label className="mb-1.5 block text-sm font-medium text-neutral-700">Importação de Pedido</label>
               <textarea
                 value={rawData}
                 onChange={(e) => setRawData(e.target.value)}

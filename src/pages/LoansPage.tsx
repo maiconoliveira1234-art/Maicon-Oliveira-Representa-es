@@ -377,7 +377,7 @@ export function LoansPage() {
                   showPaid ? "left-6" : "left-1"
                 )} />
               </div>
-              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest group-hover:text-neutral-900 transition-colors">Exibir Finalizados</span>
+              <span className="text-sm font-medium text-neutral-600 group-hover:text-neutral-900 transition-colors">Exibir finalizados</span>
             </label>
           </div>
         </div>
@@ -489,7 +489,7 @@ export function LoansPage() {
                       <div className="w-16 h-16 bg-neutral-50 rounded-full flex items-center justify-center text-neutral-200">
                         <ArrowLeftRight size={32} />
                       </div>
-                      <p className="text-sm font-black text-neutral-300 uppercase tracking-widest">Nenhum empréstimo encontrado</p>
+                      <p className="text-sm font-medium text-neutral-500">Nenhum empréstimo encontrado</p>
                     </div>
                   </td>
                 </tr>
@@ -958,7 +958,7 @@ export function LoansPage() {
                 <div className="pt-2">
                   <button 
                     onClick={handleAddLoan}
-                    className="w-full h-16 bg-gradient-to-br from-orange-600 to-orange-500 text-white rounded-lg font-black text-sm uppercase tracking-[0.2em] shadow-xl shadow-orange-600/20 hover:shadow-orange-600/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                    className="w-full h-16 bg-orange-600 text-white rounded-lg font-semibold text-base shadow-sm hover:bg-orange-700 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
                   >
                     <Plus size={20} className="text-orange-100" />
                     Confirmar Registro
