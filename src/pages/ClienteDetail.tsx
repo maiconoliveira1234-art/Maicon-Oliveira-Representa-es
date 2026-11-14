@@ -17,8 +17,7 @@ import {
   MapPin,
   Phone,
   Coins,
-  Eye,
-  EyeOff,
+  PiggyBank,
   Pencil,
   Layers
 } from 'lucide-react';
@@ -63,6 +62,9 @@ import { MOCK_CLIENTES, MOCK_HISTORICO, MOCK_PRODUTOS } from '../lib/mockData';
 import { shouldExcludeSale } from '../constants';
 import { useDataManager } from '../lib/dataManager';
 import { StockCountSkeleton } from '../components/ui/Skeleton';
+
+// Mesmo limite usado na tela de Trocas para destacar empréstimos em atraso.
+const PRAZO_EMPRESTIMO_DIAS = 30;
 
 // Helper to determine order core category visual styling list
 const getOrderClassificationsList = (items: HistVenda[]) => {
@@ -663,6 +665,9 @@ export function ClienteDetail() {
 
   const progresso = cliente.meta > 0 ? Math.round((realizado / cliente.meta) * 100) : 0;
   const statusCiclo = diasUltima <= 28 ? "Válido" : "Inválido";
+  const emprestimosAtrasados = emprestimos.filter(loan =>
+    differenceInDays(new Date(), parseISO(loan.data_emprestimo)) >= PRAZO_EMPRESTIMO_DIAS
+  ).length;
 
   return (
     <div className="space-y-6 pb-24">
@@ -681,8 +686,8 @@ export function ClienteDetail() {
           <ArrowLeft size={20} />
         </button>
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-          <h2 className="min-w-0 flex-1 truncate text-xl font-semibold tracking-tight leading-tight text-neutral-900 md:text-2xl" id="cliente-nome-header">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <h2 className="min-w-0 flex-1 sm:truncate text-xl font-semibold tracking-tight leading-tight text-neutral-900 md:text-2xl" id="cliente-nome-header">
             {cliente.cliente}
           </h2>
           <div className="flex shrink-0 flex-row items-center gap-1.5" role="group" aria-label="Atalhos do cliente">
@@ -695,6 +700,15 @@ export function ClienteDetail() {
             >
               <Coins size={20} aria-hidden="true" />
             </button>
+            <button
+              type="button"
+              onClick={() => setShowFlex(true)}
+              aria-label="Conta Flex do cliente"
+              title="Conta Flex"
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600"
+            >
+              <PiggyBank size={20} aria-hidden="true" />
+            </button>
             <CampaignClientAlert
               cliente={cliente}
               historico={historico}
@@ -704,11 +718,27 @@ export function ClienteDetail() {
             <button
               type="button"
               onClick={() => setShowLoans(true)}
-              aria-label={`Itens emprestados do cliente: ${emprestimos.length}`}
-              title="Itens emprestados"
-              className="flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-300 bg-white text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600"
+              aria-label={emprestimosAtrasados > 0
+                ? `Itens emprestados do cliente: ${emprestimos.length}, ${emprestimosAtrasados} com mais de ${PRAZO_EMPRESTIMO_DIAS} dias`
+                : `Itens emprestados do cliente: ${emprestimos.length}`}
+              title={emprestimosAtrasados > 0 ? `${emprestimosAtrasados} empréstimo(s) com mais de ${PRAZO_EMPRESTIMO_DIAS} dias` : 'Itens emprestados'}
+              className={cn(
+                "relative flex h-10 w-10 items-center justify-center rounded-lg border shadow-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-600",
+                emprestimosAtrasados > 0
+                  ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100"
+                  : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
+              )}
             >
               <ArrowLeftRight size={20} aria-hidden="true" />
+              {emprestimosAtrasados > 0 ? (
+                <span aria-hidden="true" className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-semibold text-white ring-2 ring-white">
+                  {emprestimosAtrasados}
+                </span>
+              ) : emprestimos.length > 0 ? (
+                <span aria-hidden="true" className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-neutral-700 px-1 text-[11px] font-semibold text-white ring-2 ring-white">
+                  {emprestimos.length}
+                </span>
+              ) : null}
             </button>
           </div>
           </div>
@@ -768,6 +798,20 @@ export function ClienteDetail() {
                   : 'Próxima visita: Não agendada'}
               </span>
             </button>
+
+            <div
+              className={cn(
+                "flex min-w-0 max-w-full items-start gap-1.5 rounded-2xl border px-3 py-1.5 text-xs font-medium shadow-sm",
+                statusCiclo === "Válido" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"
+              )}
+              title={statusCiclo === "Válido" ? "Recompra dentro do ciclo" : "Recompra fora do ciclo"}
+              id="cliente-recompra"
+            >
+              <History size={14} className="mt-px shrink-0 opacity-70" aria-hidden="true" />
+              <span className="tabular-nums">
+                {statusCiclo === "Válido" ? "Dentro do ciclo" : "Fora do ciclo"} · último pedido há {diasUltima} dias · ciclo médio {mediaCiclo} dias
+              </span>
+            </div>
           </div>
         </div>
       </header>
@@ -831,7 +875,7 @@ export function ClienteDetail() {
           <div className="space-y-2">
             {emprestimos.map((loan) => {
               const days = differenceInDays(new Date(), parseISO(loan.data_emprestimo));
-              const isUrgent = days >= 30;
+              const isUrgent = days >= PRAZO_EMPRESTIMO_DIAS;
               const isWarning = days >= 10;
               
               return (
@@ -840,7 +884,7 @@ export function ClienteDetail() {
                   className={cn(
                     "p-3 rounded-lg flex items-center gap-3 border transition-all",
                     isUrgent 
-                      ? "bg-rose-50 border-rose-200 text-rose-900 shadow-sm animate-pulse" 
+                      ? "bg-rose-50 border-rose-200 text-rose-900" 
                       : isWarning 
                         ? "bg-orange-50 border-orange-200 text-orange-900 shadow-sm"
                         : "bg-white border-neutral-200 text-neutral-900"
@@ -853,11 +897,11 @@ export function ClienteDetail() {
                     <ArrowLeftRight size={20} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-black truncate leading-tight">
+                    <p className="text-sm font-semibold truncate leading-tight">
                       {loan.quantidade} un de {loan.produto_nome}
                     </p>
                     <p className={cn(
-                      "text-[10px] font-bold uppercase mt-0.5",
+                      "text-xs font-medium mt-0.5",
                       isUrgent ? "text-rose-500" : isWarning ? "text-orange-500" : "text-neutral-400"
                     )}>
                       Emprestado por: {loan.cliente_origem_nome} • Há {days} dias
@@ -867,11 +911,11 @@ export function ClienteDetail() {
                     <button 
                       onClick={() => navigate('/emprestimos')}
                       className={cn(
-                        "text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-all",
+                        "text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all",
                         isUrgent ? "bg-rose-600 text-white border-rose-600" : isWarning ? "bg-orange-600 text-white border-orange-600" : "bg-neutral-900 text-white border-neutral-900"
                       )}
                     >
-                      Ver Detalhes
+                      Ver detalhes
                     </button>
                   </div>
                 </div>
@@ -1082,74 +1126,22 @@ export function ClienteDetail() {
         </div>
       </section>
 
-      {/* Purchase Cycle */}
-      <section className="bg-white p-5 sm:p-6 rounded-xl border border-neutral-200 shadow-sm">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h3 className="font-semibold text-neutral-900 flex items-center gap-2">
-            <Calendar className="text-neutral-400" size={18} />
-            Recompra
-          </h3>
-          <span className={cn(
-            "rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset",
-            statusCiclo === "Válido" ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-red-50 text-red-700 ring-red-200"
-          )}>
-            {statusCiclo === "Válido" ? "Dentro do ciclo" : "Fora do ciclo"}
-          </span>
-        </div>
-        <div className="grid grid-cols-2 divide-x divide-neutral-200 rounded-xl border border-neutral-200">
-          <div className="p-3 sm:p-4">
-            <p className="text-xs font-medium text-neutral-500">Ciclo médio</p>
-            <p className="mt-1 text-lg font-semibold tabular-nums text-neutral-900">{mediaCiclo} <span className="text-sm font-normal text-neutral-500">dias</span></p>
-          </div>
-          <div className="p-3 sm:p-4">
-            <p className="text-xs font-medium text-neutral-500">Último pedido</p>
-            <p className="mt-1 text-lg font-semibold tabular-nums text-neutral-900">{diasUltima} <span className="text-sm font-normal text-neutral-500">dias atrás</span></p>
-          </div>
-        </div>
-      </section>
-
       {/* Conta de Verba Flex Comercial & Extrato de Auditoria (Interno CRM) */}
-      {!showFlex ? (
-        <button
-          type="button"
-          onClick={() => setShowFlex(true)}
-          className="flex h-12 w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-4 text-sm font-semibold text-neutral-800 shadow-sm transition-colors hover:bg-neutral-50"
-        >
-          <span className="flex items-center gap-2">
-            <Coins className="text-neutral-400" size={19} />
-            Conta Flex
-          </span>
-          <Eye size={18} className="text-neutral-400" />
-        </button>
-      ) : (
-      <section className="bg-white p-4 sm:p-6 rounded-lg border border-neutral-200 shadow-sm space-y-4">
-        <div className="flex justify-between items-center pb-2 border-b border-neutral-100">
-          <h3 className="font-bold text-neutral-800 flex items-center gap-2">
-            <Coins className="text-orange-600" size={20} />
-            Conta Flex
-          </h3>
-          <button
-            type="button"
-            onClick={() => setShowFlex(false)}
-            className="flex h-9 items-center gap-1.5 rounded-lg border border-neutral-200 px-3 text-[10px] font-black uppercase text-neutral-500 transition-colors hover:bg-neutral-50"
-          >
-            <EyeOff size={15} />
-            Ocultar
-          </button>
-        </div>
-
+      {showFlex && (
+        <ClientDetailModal title="Conta Flex" onClose={() => setShowFlex(false)}>
+          <div className="space-y-4">
         <div className="bg-neutral-50 p-4 rounded-lg flex justify-between items-center">
           <div>
-            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Saldo Comercial Disponível</p>
-            <p className="text-2xl font-black text-neutral-900 mt-1">{formatCurrency(cliente?.flex_saldo || 0)}</p>
+            <p className="text-xs font-medium text-neutral-500">Saldo comercial disponível</p>
+            <p className="text-2xl font-semibold tabular-nums text-neutral-900 mt-1">{formatCurrency(cliente?.flex_saldo || 0)}</p>
           </div>
-          <span className="text-[10px] font-black uppercase text-neutral-400 border border-neutral-200 bg-white shadow-xs px-2.5 py-1 rounded-lg">
-            COMENTÁRIO INTERNO
+          <span className="text-[11px] font-medium text-neutral-500 border border-neutral-200 bg-white px-2.5 py-1 rounded-full">
+            Uso interno
           </span>
         </div>
 
         <div className="space-y-2">
-          <h4 className="text-[10px] font-black uppercase text-neutral-400 tracking-wider">Histórico de Movimentações</h4>
+          <h4 className="text-sm font-semibold text-neutral-900">Histórico de movimentações</h4>
           {flexExtrato.length === 0 ? (
             <p className="text-xs text-neutral-400 italic bg-neutral-50 p-4 rounded-lg text-center border border-dashed">
               Nenhuma movimentação de verba flex registrada até o momento.
@@ -1193,7 +1185,8 @@ export function ClienteDetail() {
             </div>
           )}
         </div>
-      </section>
+          </div>
+        </ClientDetailModal>
       )}
 
       {/* Recent History */}
