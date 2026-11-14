@@ -1880,7 +1880,7 @@ export function OrderPage() {
       {/* Bottom Section (Fixed) */}
       {createPortal(<div
         ref={orderFooterRef}
-        className="fixed bottom-0 left-0 md:left-[calc(5rem+env(safe-area-inset-left,0px))] lg:left-[calc(15rem+env(safe-area-inset-left,0px))] right-0 z-50 bg-white/95 backdrop-blur-md border-t border-neutral-200 shadow-[0_-4px_12px_rgba(16,24,40,0.06)] p-2 pb-[calc(8px+env(safe-area-inset-bottom))] md:p-3 md:pb-[calc(12px+env(safe-area-inset-bottom))] will-change-transform"
+        className="fixed bottom-0 left-0 md:left-[calc(5rem+env(safe-area-inset-left,0px))] min-[90rem]:left-[calc(15rem+env(safe-area-inset-left,0px))] right-0 z-50 bg-white/95 backdrop-blur-md border-t border-neutral-200 shadow-[0_-4px_12px_rgba(16,24,40,0.06)] p-2 pb-[calc(8px+env(safe-area-inset-bottom))] md:p-3 md:pb-[calc(12px+env(safe-area-inset-bottom))] will-change-transform"
       >
         <div className="max-w-4xl mx-auto space-y-2">
           {creditoCadastroStatus === 'ready' && entidadesCredito.length > 1 && (
