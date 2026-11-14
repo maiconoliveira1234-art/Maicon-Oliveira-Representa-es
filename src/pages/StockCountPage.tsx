@@ -1657,7 +1657,7 @@ export function StockCountPage() {
                           />
                           <button 
                             onClick={() => updateQuantity(item.produto_id, (estoqueMap[item.produto_id] || 0) + 1)}
-                            className="w-7 h-7 flex items-center justify-center bg-neutral-900 border border-neutral-900 rounded-md text-white hover:bg-neutral-700 active:scale-90 transition-transform cursor-pointer shrink-0"
+                            className="w-7 h-7 flex items-center justify-center bg-neutral-200 border border-neutral-300 rounded-md text-neutral-800 hover:bg-neutral-300 active:scale-90 transition-transform cursor-pointer shrink-0"
                           >
                             <Plus size={12} />
                           </button>
