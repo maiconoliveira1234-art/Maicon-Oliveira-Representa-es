@@ -114,6 +114,7 @@ export function whatsAppLink(phone: string, text: string): string {
 
 const ERROR_MESSAGES: Record<string, string> = {
   message_not_inbound: 'Escolha uma mensagem do cliente para responder.',
+  poucas_amostras: 'Ainda há poucas respostas suas registradas para montar o perfil. Tente de novo depois de responder mais clientes.',
   contact_not_linked: 'Vincule este contato a um cliente do CRM antes de gerar a sugestão.',
   audio_not_transcribed: 'Este áudio ainda não tem texto. Ouça no WhatsApp ou escolha outra mensagem.',
   message_not_found: 'Mensagem não encontrada. Atualize a tela.',

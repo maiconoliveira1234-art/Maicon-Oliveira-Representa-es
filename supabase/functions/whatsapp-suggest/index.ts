@@ -86,6 +86,76 @@ function priceForTier(p:Product, tier:string) {
   return { discount, box, unit };
 }
 
+
+// ---- Maicon's writing style -------------------------------------------------------------
+type StylePair = { resposta:string; pergunta:string|null; enviada_em:string };
+const STYLE_MIN_SAMPLES = 10;
+const STYLE_REFRESH_DAYS = 7;
+const STYLE_MODEL = 'gemini-3.5-flash-lite';
+
+async function loadStylePairs(db:any, limit = 200): Promise<StylePair[]> {
+  const { data, error } = await db.rpc('whatsapp_estilo_pares', { p_limit:limit });
+  if (error) throw error;
+  return (data || []) as StylePair[];
+}
+
+// Picks the replies Maicon sent to the most similar customer messages (word overlap), newest first on ties.
+const STYLE_STOPWORDS = new Set(['de','da','do','em','um','uma','os','as','no','na','ta','te','me','eu','tu','se','ao','ou','ja','la','ok','vc','pra','por','com','que','mas','tem','mais']);
+const styleTokens = (v:string) => tokens(v).filter(t => t.length >= 2 && !STYLE_STOPWORDS.has(t));
+
+function pickStyleExamples(pairs:StylePair[], queryText:string, max = 4): StylePair[] {
+  const withQuestion = pairs.filter(p => p.pergunta && p.pergunta.trim().length >= 3);
+  const wanted = new Set(styleTokens(queryText));
+  const scored = withQuestion.map((p, index) => {
+    const own = styleTokens(p.pergunta || '');
+    const hits = own.filter(t => wanted.has(t)).length;
+    return { p, index, score: own.length ? hits / Math.sqrt(own.length * Math.max(1, wanted.size)) : 0 };
+  });
+  const relevant = scored.filter(x => x.score > 0).sort((a,b) => b.score - a.score || a.index - b.index);
+  const chosen = relevant.slice(0, max).map(x => x.p);
+  // Fill with the most recent replies so the tone is always represented.
+  for (const x of scored) {
+    if (chosen.length >= Math.min(max, 3)) break;
+    if (!chosen.includes(x.p)) chosen.push(x.p);
+  }
+  return chosen;
+}
+
+function clip(text:string, size:number) {
+  const t = String(text || '').replace(/\s+/g, ' ').trim();
+  return t.length > size ? t.slice(0, size - 1) + '…' : t;
+}
+
+async function generateStyleProfile(db:any): Promise<{ ok:true; perfil:string; amostras:number } | { ok:false; error:string; amostras:number }> {
+  const pairs = await loadStylePairs(db, 200);
+  if (pairs.length < STYLE_MIN_SAMPLES) return { ok:false, error:'poucas_amostras', amostras:pairs.length };
+  const used = pairs.slice(0, 120);
+  const sample = used.map((p,i) => {
+    const q = p.pergunta ? `Cliente: ${clip(p.pergunta, 200)}\n` : '';
+    return `#${i+1}\n${q}Maicon: ${clip(p.resposta, 400)}`;
+  }).join('\n\n');
+  const prompt = `Abaixo estão respostas reais que Maicon, representante comercial, enviou a clientes pelo WhatsApp (algumas eram áudios transcritos).
+
+Descreva o ESTILO DE ESCRITA dele em 6 a 10 linhas curtas, cada uma começando com "- ". Cubra, só quando houver evidência nas amostras: tom e formalidade, tamanho típico das mensagens, como abre e como fecha a conversa, expressões e gírias que ele repete, uso de emoji e de pontuação, como trata o cliente (você, senhor, nome), e como costuma falar de preço e de pedido.
+
+REGRAS:
+- Descreva apenas o estilo. NÃO inclua nomes de clientes, preços, quantidades, datas, produtos específicos nem números.
+- Não invente hábitos que as amostras não mostrem. Se algo aparece poucas vezes, diga "às vezes".
+- Escreva em português do Brasil, sem markdown além dos hífens, sem introdução e sem conclusão.
+
+AMOSTRAS
+${sample}`;
+  const response = await ai.models.generateContent({ model:STYLE_MODEL, contents:prompt });
+  const perfil = String(response.text || '').trim().slice(0, 2500);
+  if (perfil.length < 40) return { ok:false, error:'empty_model_response', amostras:used.length };
+  const now = new Date().toISOString();
+  const { error } = await db.from('whatsapp_ai_estilo').upsert({
+    id:1, perfil, amostras:used.length, gerado_em:now, atualizado_em:now, editado_manual:false,
+  }, { onConflict:'id' });
+  if (error) throw error;
+  return { ok:true, perfil, amostras:used.length };
+}
+
 Deno.serve(async (req:Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers:corsHeaders });
   if (req.method !== 'POST') return json({ error:'method_not_allowed' }, 405);
@@ -102,6 +172,10 @@ Deno.serve(async (req:Request) => {
     const requestedContextIds = Array.isArray(body?.context_message_ids)
       ? [...new Set(body.context_message_ids.map((id:unknown) => String(id || '').trim()).filter(Boolean))].slice(0,20)
       : [];
+    if (body?.action === 'gerar_estilo') {
+      const generated = await generateStyleProfile(db);
+      return json(generated, generated.ok ? 200 : (generated.error === 'poucas_amostras' ? 409 : 502));
+    }
     if (!messageId) return json({ error:'message_id_required' }, 400);
 
     const { data:message, error:messageError } = await db.from('whatsapp_mensagens')
@@ -142,6 +216,12 @@ Deno.serve(async (req:Request) => {
       .slice(0,14).reverse()
       .map(m => `[${m.recebida_em}] ${m.direcao === 'enviada' ? 'Maicon' : 'Cliente'}: ${m.transcricao_audio || m.mensagem}`)
       .join('\n');
+
+    // Style is best-effort: a failure here must never block the suggestion.
+    const stylePromise = Promise.all([
+      db.from('whatsapp_ai_estilo').select('perfil, ativo, editado_manual, gerado_em').eq('id', 1).maybeSingle(),
+      loadStylePairs(db, 200),
+    ]).catch((e) => { console.warn('style lookup failed', e); return null; });
 
     const [clientResult, salesResult, rulesResult, productsResult, stockResult] = await Promise.all([
       db.from('clientes').select('cliente, contato, cidade, bairro, flex_saldo, ativo').eq('id', message.cliente_id).maybeSingle(),
@@ -232,6 +312,25 @@ Deno.serve(async (req:Request) => {
       `${i+1}. prioridade ${r.prioridade}; categoria ${r.categoria}; escopo ${r.escopo_tipo}${r.escopo_valor ? ' ('+r.escopo_valor+')' : ''}; ${r.titulo}: ${r.regra}`
     ).join('\n') : 'Nenhuma regra comercial editável cadastrada.';
 
+    const styleData = await stylePromise;
+    const styleRow = styleData?.[0]?.data as { perfil:string; ativo:boolean; editado_manual:boolean; gerado_em:string|null } | null | undefined;
+    const stylePairs = (styleData?.[1] || []) as StylePair[];
+    const styleProfile = styleRow && styleRow.ativo ? String(styleRow.perfil || '').trim() : '';
+    const styleExamples = styleRow && styleRow.ativo === false ? [] : pickStyleExamples(stylePairs, queryText, 4);
+    const styleText = styleProfile || styleExamples.length ? [
+      styleProfile ? `PERFIL DO ESTILO DO MAICON:\n${styleProfile}` : '',
+      styleExamples.length ? `EXEMPLOS DE COMO MAICON JÁ RESPONDEU (use só como referência de tom, vocabulário e tamanho):\n` +
+        styleExamples.map((x,i) => `${i+1}. Cliente: ${clip(x.pergunta || '', 220)}\n   Maicon: ${clip(x.resposta, 320)}`).join('\n') : '',
+    ].filter(Boolean).join('\n\n') : 'Ainda sem histórico de respostas do Maicon para imitar.';
+
+    // Keep the profile fresh without making the user wait: refresh weekly in the background unless he edited it by hand.
+    const stale = !styleRow || (!styleRow.editado_manual &&
+      (!styleRow.gerado_em || Date.now() - new Date(styleRow.gerado_em).getTime() > STYLE_REFRESH_DAYS*86400000));
+    if (stale && stylePairs.length >= STYLE_MIN_SAMPLES) {
+      const refresh = generateStyleProfile(db).catch((e) => console.warn('style refresh failed', e));
+      try { (globalThis as any).EdgeRuntime?.waitUntil?.(refresh); } catch { /* best effort */ }
+    }
+
     const purchases = saleLines.slice(0,30).map((s,i) =>
       `${i+1}. ${s.faturamento || ''} | ${s.produtos || ''} | qtd ${n(s.qtd)} | valor ${money(n(s['r$_total']))} | desconto registrado ${(n(s.xdt)*100).toFixed(1)}%`
     ).join('\n');
@@ -260,6 +359,7 @@ REGRAS DE RESPOSTA:
 - Responda às mensagens selecionadas. Use a CONVERSA RECENTE apenas para manter coerência com o que Maicon já respondeu ou prometeu: não repita informações que ele já deu e não contradiga o que ele disse.
 - A conversa recente pode estar incompleta (respostas enviadas só aparecem quando capturadas).
 - Transcrições de áudio podem conter pequenas imprecisões.
+- ESTILO: escreva como o Maicon escreve (tom, vocabulário, tamanho, jeito de abrir e fechar), seguindo a seção ESTILO DO MAICON. Os exemplos servem só como referência de jeito de falar: nunca copie deles preços, quantidades, datas, nomes ou condições, que podem estar desatualizados. Fatos vêm somente dos dados do CRM acima. Estilo nunca prevalece sobre as regras comerciais nem sobre as proteções acima.
 
 DADOS DO CLIENTE
 Cliente: ${cliente.cliente}
@@ -275,6 +375,9 @@ FAIXA COMERCIAL DISPONÍVEL AGORA: ${availableTier}
 
 REGRAS COMERCIAIS ATIVAS
 ${rulesText}
+
+ESTILO DO MAICON
+${styleText}
 
 CONVERSA RECENTE (apenas contexto; não responda a estas)
 ${recentConversation || 'Sem mensagens anteriores capturadas.'}
@@ -315,6 +418,7 @@ Retorne somente a resposta sugerida.`;
       rules_applied:rules.length, context_messages:contextMessages.length,
       client_tier:availableTier, last_order_weight:latestWeight, days_since_last:daysSinceLast,
       matched_products:scored.length, stock_items:stocks.length,
+      style_examples:styleExamples.length, style_profile:Boolean(styleProfile),
     });
   } catch (error) {
     console.error(error);

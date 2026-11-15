@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Edit3, Loader2, Plus, Save, ShieldCheck, Trash2, X } 
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { PageHeader, Panel } from '../components/ui/AppChrome';
+import { StyleProfilePanel } from '../components/whatsapp/StyleProfilePanel';
 
 type Scope = 'todos' | 'cliente' | 'linha' | 'familia';
 
@@ -231,6 +232,8 @@ export function WhatsAppRulesPage() {
           </button>
         </div>
       </Panel>
+
+      <StyleProfilePanel />
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
 
