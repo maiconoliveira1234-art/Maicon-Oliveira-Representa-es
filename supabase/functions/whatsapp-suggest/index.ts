@@ -217,6 +217,19 @@ Deno.serve(async (req:Request) => {
       .map(m => `[${m.recebida_em}] ${m.direcao === 'enviada' ? 'Maicon' : 'Cliente'}: ${m.transcricao_audio || m.mensagem}`)
       .join('\n');
 
+    // Maicon's own earlier replies to THIS customer: the pattern to follow in this specific conversation.
+    const { data:ownRows, error:ownError } = await db.from('whatsapp_mensagens')
+      .select('mensagem, transcricao_audio')
+      .eq('contato_map_id', message.contato_map_id).eq('direcao', 'enviada')
+      .in('tipo_mensagem', ['texto', 'audio'])
+      .lte('recebida_em', message.recebida_em)
+      .order('recebida_em', { ascending:false }).limit(20);
+    if (ownError) console.warn('contact style lookup failed', ownError);
+    const contactReplies = ((ownRows || []) as { mensagem:string|null; transcricao_audio:string|null }[])
+      .map(r => String(r.transcricao_audio || r.mensagem || '').replace(/^\s*🎤\s*/, '').replace(/\d{9,}/g, '[número]').replace(/\s+/g, ' ').trim())
+      .filter(t => t.length >= 12 && t.length <= 600)
+      .slice(0, 6);
+
     // Style is best-effort: a failure here must never block the suggestion.
     const stylePromise = Promise.all([
       db.from('whatsapp_ai_estilo').select('perfil, ativo, editado_manual, gerado_em').eq('id', 1).maybeSingle(),
@@ -314,10 +327,13 @@ Deno.serve(async (req:Request) => {
 
     const styleData = await stylePromise;
     const styleRow = styleData?.[0]?.data as { perfil:string; ativo:boolean; editado_manual:boolean; gerado_em:string|null } | null | undefined;
+    const ownStyleReplies = styleRow && styleRow.ativo === false ? [] : contactReplies;
     const stylePairs = (styleData?.[1] || []) as StylePair[];
     const styleProfile = styleRow && styleRow.ativo ? String(styleRow.perfil || '').trim() : '';
-    const styleExamples = styleRow && styleRow.ativo === false ? [] : pickStyleExamples(stylePairs, queryText, 4);
-    const styleText = styleProfile || styleExamples.length ? [
+    const styleExamples = styleRow && styleRow.ativo === false ? [] : pickStyleExamples(stylePairs, queryText, ownStyleReplies.length >= 3 ? 2 : 4);
+    const styleText = styleProfile || styleExamples.length || ownStyleReplies.length ? [
+      ownStyleReplies.length ? `COMO MAICON JÁ FALA COM ESTE CLIENTE (respostas dele nesta conversa, da mais recente para a mais antiga; siga este padrão de tratamento, formalidade, emoji, tamanho e jeito de abrir e fechar):\n` +
+        ownStyleReplies.map((t,i) => `${i+1}. ${clip(t, 320)}`).join('\n') : '',
       styleProfile ? `PERFIL DO ESTILO DO MAICON:\n${styleProfile}` : '',
       styleExamples.length ? `EXEMPLOS DE COMO MAICON JÁ RESPONDEU (use só como referência de tom, vocabulário e tamanho):\n` +
         styleExamples.map((x,i) => `${i+1}. Cliente: ${clip(x.pergunta || '', 220)}\n   Maicon: ${clip(x.resposta, 320)}`).join('\n') : '',
@@ -359,7 +375,7 @@ REGRAS DE RESPOSTA:
 - Responda às mensagens selecionadas. Use a CONVERSA RECENTE apenas para manter coerência com o que Maicon já respondeu ou prometeu: não repita informações que ele já deu e não contradiga o que ele disse.
 - A conversa recente pode estar incompleta (respostas enviadas só aparecem quando capturadas).
 - Transcrições de áudio podem conter pequenas imprecisões.
-- ESTILO: escreva como o Maicon escreve (tom, vocabulário, tamanho, jeito de abrir e fechar), seguindo a seção ESTILO DO MAICON. Os exemplos servem só como referência de jeito de falar: nunca copie deles preços, quantidades, datas, nomes ou condições, que podem estar desatualizados. Fatos vêm somente dos dados do CRM acima. Estilo nunca prevalece sobre as regras comerciais nem sobre as proteções acima.
+- ESTILO: escreva como o Maicon escreve (tom, vocabulário, tamanho, jeito de abrir e fechar), seguindo a seção ESTILO DO MAICON. Quando houver respostas dele a ESTE cliente, o padrão dessa conversa vale mais que o estilo geral. Os exemplos servem só como referência de jeito de falar: nunca copie deles preços, quantidades, datas, nomes ou condições, que podem estar desatualizados. Fatos vêm somente dos dados do CRM acima. Estilo nunca prevalece sobre as regras comerciais nem sobre as proteções acima.
 
 DADOS DO CLIENTE
 Cliente: ${cliente.cliente}
@@ -418,7 +434,7 @@ Retorne somente a resposta sugerida.`;
       rules_applied:rules.length, context_messages:contextMessages.length,
       client_tier:availableTier, last_order_weight:latestWeight, days_since_last:daysSinceLast,
       matched_products:scored.length, stock_items:stocks.length,
-      style_examples:styleExamples.length, style_profile:Boolean(styleProfile),
+      style_examples:styleExamples.length, style_contact_replies:ownStyleReplies.length, style_profile:Boolean(styleProfile),
     });
   } catch (error) {
     console.error(error);
