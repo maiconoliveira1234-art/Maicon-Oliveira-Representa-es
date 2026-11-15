@@ -464,7 +464,9 @@ export function WhatsAppConversationPage() {
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-violet-700">
           <span>
             {contextMessages.length === 0
-              ? 'Sem mensagens para responder.'
+              ? selecting
+                ? 'Toque nas mensagens do cliente que quer responder.'
+                : 'Sem mensagens para responder.'
               : selecting
                 ? `${contextMessages.length} ${contextMessages.length === 1 ? 'mensagem escolhida' : 'mensagens escolhidas'}. Toque nas mensagens para ajustar.`
                 : autoContext.answered
@@ -479,7 +481,7 @@ export function WhatsAppConversationPage() {
             ) : (
               <button
                 type="button"
-                onClick={() => setManualIds(new Set(lastBurst.map(item => item.id)))}
+                onClick={() => setManualIds(new Set())}
                 className="inline-flex min-h-[44px] items-center px-2 font-black underline"
               >
                 Escolher mensagens
