@@ -304,6 +304,17 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                     {analysis.observacoes && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs font-semibold text-amber-800">Observações da análise: {analysis.observacoes}</p>}
                     <p className="mt-1 text-xs text-amber-700">Prévia sem precificação: valores e condições comerciais serão calculados na tela Pedidos.</p>
                   </div>
+                  {(() => {
+                    const total = analysis.itens.length;
+                    const done = analysis.itens.filter(i => i.resolvido).length;
+                    const complete = total > 0 && done === total;
+                    return total > 0 ? (
+                      <p role="status" className={`rounded-lg px-3 py-2 text-xs font-black ${complete ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-900'}`}>
+                        {done} de {total} {total === 1 ? 'produto confirmado' : 'produtos confirmados'}
+                        {complete ? ' · tudo pronto para aprovar' : ` · ${total - done === 1 ? 'falta 1 para analisar' : `faltam ${total - done} para analisar`}`}
+                      </p>
+                    ) : null;
+                  })()}
                   {analysis.itens.map((item, index) => {
                     const packaging = packagingFor(analysis,item,index);
                     const historicalCandidate = (item.candidatos || []).find(c=>c.id===item.sugestao_produto_id && c.historico_compras);
@@ -322,7 +333,7 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                           .slice(0, 30)
                       : [];
                     return (
-                      <div key={key} className="rounded-lg bg-neutral-50 p-3">
+                      <div key={key} className={`rounded-lg border-l-4 p-3 transition-colors ${item.resolvido ? 'border-green-500 bg-green-50' : 'border-amber-400 bg-amber-50/60'}`}>
                         <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
                           <div>
                             <p className="text-sm font-bold text-neutral-900">{item.descricao}</p>
@@ -334,7 +345,7 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                             </p>}
                           </div>
                           {item.resolvido ? (
-                            <span className="flex items-center gap-1 text-xs font-bold text-green-700"><CheckCircle2 size={14} /> Confirmado</span>
+                            <span className="flex items-center gap-1 rounded-full bg-green-600 px-2.5 py-1 text-xs font-black text-white"><CheckCircle2 size={14} /> Confirmado</span>
                           ) : item.origem_sugestao === 'aprendizado_confirmado' ? (
                             <span className="text-xs font-semibold text-violet-700">Aprendido anteriormente</span>
                           ) : item.origem_sugestao === 'historico_cliente' ? (
@@ -410,7 +421,7 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                           </label>
                           <button type="button" onClick={() => void confirm(analysis, item, index)}
                             disabled={!selected || saving === key || loading}
-                            className="rounded-lg bg-violet-700 px-3 py-2 text-xs font-black text-white disabled:opacity-40">
+                            className={`rounded-lg px-3 py-2 text-xs font-black disabled:opacity-40 ${item.resolvido ? 'border border-green-300 bg-white text-green-800' : 'bg-violet-700 text-white'}`}>
                             {saving === key ? 'Salvando...' : item.resolvido ? 'Corrigir associação' : 'Confirmar produto'}
                           </button>
                         </div>
