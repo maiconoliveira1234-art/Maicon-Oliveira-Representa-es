@@ -14,7 +14,7 @@ assert.equal(insuficiente.excesso, 500);
 assert.equal(insuficiente.disponivelConservador, 2200);
 
 const porLiberacao = avaliarLimiteCredito(3000, saldo, '01 Boleto (14)');
-assert.equal(porLiberacao.situacao, 'atencao');
+assert.equal(porLiberacao.situacao, 'suficiente');
 assert.equal(porLiberacao.excesso, 0);
 
 const suficiente = avaliarLimiteCredito(2000, saldo, '01 Boleto (14)');

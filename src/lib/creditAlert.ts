@@ -6,7 +6,7 @@ export type SaldoCredito = {
 };
 
 export type ResultadoLimiteCredito = {
-  situacao: 'sem_valor' | 'avista' | 'insuficiente' | 'atencao' | 'suficiente';
+  situacao: 'sem_valor' | 'avista' | 'insuficiente' | 'suficiente';
   disponivelConservador: number;
   disponivelProjetado: number;
   excesso: number;
@@ -29,9 +29,7 @@ export function avaliarLimiteCredito(
       ? 'avista'
       : excessoCentavos > 0
         ? 'insuficiente'
-        : valorCentavos > Math.round(conservador * 100)
-          ? 'atencao'
-          : 'suficiente';
+        : 'suficiente';
 
   return {
     situacao,

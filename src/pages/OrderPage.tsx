@@ -1029,8 +1029,6 @@ export function OrderPage() {
           }, selectedPrazo);
           if (resultado.situacao === 'insuficiente' &&
             !window.confirm(`CRÉDITO INSUFICIENTE! O pedido ultrapassa o saldo projetado em ${formatCurrency(resultado.excesso)}. Há risco de devolução pelo financeiro. Deseja gerar o orçamento mesmo assim?`)) return;
-          if (resultado.situacao === 'atencao' &&
-            !window.confirm('O pedido ultrapassa o saldo disponível do levantamento, mas cabe na projeção por vencimentos. Confirme no ERP. Deseja continuar?')) return;
         } catch (error) {
           console.warn('Falha ao conferir crédito antes do orçamento:', error);
           if (!window.confirm('Não foi possível atualizar o crédito no Supabase. Não considere o pedido aprovado financeiramente. Deseja gerar o orçamento mesmo assim?')) return;
