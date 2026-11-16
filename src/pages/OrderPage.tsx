@@ -57,6 +57,7 @@ import { createDebouncedDraftSave } from '../lib/debouncedDraftSave';
 import { orderQuoteItems } from '../lib/quoteItemOrder';
 import { saveDraftLocally, readDraftLocally, clearLocalDraft } from '../lib/draftStorage';
 import { paginateQuoteItems } from '../lib/quotePagination';
+import { pesoTotalItensVenda } from '../lib/orderWeight';
 
 type EntidadeCredito = {
   id: string;
@@ -320,8 +321,8 @@ export function OrderPage() {
   }, [clienteId, allProducts, loadClientDetails, clientCache?.[clienteId || '']]);
 
   const pesoTotal = useMemo(() => {
-    return itens.filter(item => !item.tipo_operacao || item.tipo_operacao === 'VENDA').reduce((acc, item) => acc + (item.peso_total || 0), 0);
-  }, [itens]);
+    return pesoTotalItensVenda(itens, new Map(produtos.map(p => [p.id, p])));
+  }, [itens, produtos]);
 
   const currentFaixa = getFaixaEfetiva(pesoTotal, pesoConquistado, null);
 

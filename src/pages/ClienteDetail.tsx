@@ -972,7 +972,7 @@ export function ClienteDetail() {
                   title="Pedidos em aberto integrados ao período em andamento"
                 >
                   <ShoppingCart size={11} className="text-amber-600" />
-                  <span>Pedido em Aberto ({formatWeight(openOrderSales.reduce((acc, s) => acc + (s.qtd * (produtosMap[s.produto_id]?.peso_embalagem || 0)), 0))})</span>
+                  <span>Pedido em Aberto ({formatWeight(openOrderSales.reduce((acc, s) => s.vendas === 'VENDAS' ? acc + (s.qtd * (produtosMap[s.produto_id]?.peso_embalagem || 0)) : acc, 0))})</span>
                 </span>
               )}
             </div>

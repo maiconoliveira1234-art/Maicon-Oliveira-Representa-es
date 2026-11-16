@@ -69,6 +69,7 @@ interface ItemEstoqueData {
 import { useDataManager } from '../lib/dataManager';
 import { StockCountSkeleton } from '../components/ui/Skeleton';
 import { outgoingStockLoans } from '../lib/outgoingStockLoans';
+import { pesoTotalMapaVenda } from '../lib/orderWeight';
 
 export function StockCountPage() {
   const { clienteId } = useParams();
@@ -767,11 +768,10 @@ export function StockCountPage() {
   };
 
   const totalPesoPedido = useMemo(() => {
-    return processedItems.reduce((acc, item) => {
-      const extra = pedidoMap[item.produto_id] || 0;
-      return acc + (extra * item.peso);
-    }, 0);
-  }, [processedItems, pedidoMap]);
+    // Todo item do pedido conta, inclusive os que a lista filtrada nao mostra
+    // (inativos, sem historico), para bater com a tela do pedido.
+    return pesoTotalMapaVenda(pedidoMap, produtosMap);
+  }, [pedidoMap, produtosMap]);
 
   const pesoRecompra28Dias = useMemo(() => {
     const today = new Date();

@@ -358,7 +358,7 @@ export async function getClientOpenOrderSummary(
 
     const tipoOp = item.tipo_operacao || 'VENDA';
     const pesoItem = qtdEmbalagens * (prod.peso_embalagem || 0);
-    totalWeightKg += pesoItem;
+    if (tipoOp === 'VENDA') totalWeightKg += pesoItem;
 
     let rTotal = 0;
     if (tipoOp === 'VENDA') {
