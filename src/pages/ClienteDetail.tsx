@@ -671,7 +671,10 @@ export function ClienteDetail() {
 
   return (
     <div className="space-y-6 pb-24">
-      <header className="flex items-start gap-2 sm:gap-4">
+      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-3">
+        <h2 className="min-w-0 self-center break-words text-xl font-semibold tracking-tight leading-tight text-neutral-900 md:text-2xl" id="cliente-nome-header">
+            {cliente.cliente}
+          </h2>
         <button 
           onClick={() => {
             if (location.state?.fromMetas) {
@@ -681,16 +684,11 @@ export function ClienteDetail() {
             }
           }} 
           aria-label="Voltar"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
+          className="flex h-10 w-10 shrink-0 justify-self-end items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors"
         >
           <ArrowLeft size={20} />
         </button>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <h2 className="min-w-0 flex-1 sm:truncate text-xl font-semibold tracking-tight leading-tight text-neutral-900 md:text-2xl" id="cliente-nome-header">
-            {cliente.cliente}
-          </h2>
-          <div className="flex shrink-0 flex-row items-center gap-1.5" role="group" aria-label="Atalhos do cliente">
+          <div className="col-span-2 flex flex-row flex-wrap items-center gap-1.5" role="group" aria-label="Atalhos do cliente">
             <button
               type="button"
               onClick={() => setShowCredito(true)}
@@ -741,8 +739,7 @@ export function ClienteDetail() {
               ) : null}
             </button>
           </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2" id="cliente-contact-info">
+          <div className="col-span-2 flex flex-wrap gap-2" id="cliente-contact-info">
             {cliente.endereco && (
               <a 
                 href={
@@ -813,7 +810,6 @@ export function ClienteDetail() {
               </span>
             </div>
           </div>
-        </div>
       </header>
 
       {showCredito && (
