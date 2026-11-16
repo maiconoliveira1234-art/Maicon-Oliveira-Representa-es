@@ -114,6 +114,13 @@ export function whatsAppLink(phone: string, text: string): string {
 
 const ERROR_MESSAGES: Record<string, string> = {
   message_not_inbound: 'Escolha uma mensagem do cliente para responder.',
+  janela_24h: 'Passaram mais de 24 horas desde a última mensagem do cliente. O WhatsApp só permite enviar por aqui dentro desse prazo; use "Abrir no WhatsApp".',
+  sem_telefone: 'Este contato não tem número de WhatsApp registrado para envio pelo CRM. Use "Abrir no WhatsApp".',
+  envio_duplicado: 'Essa mesma mensagem acabou de ser enviada para este cliente.',
+  token_invalido: 'A conexão com o WhatsApp precisa ser renovada. A mensagem não foi enviada.',
+  envio_falhou: 'O WhatsApp não aceitou a mensagem. Ela não foi enviada; o texto continua aqui.',
+  texto_vazio: 'Escreva a mensagem antes de enviar.',
+  texto_longo: 'A mensagem passou do limite de 4.000 caracteres do WhatsApp.',
   poucas_amostras: 'Ainda há poucas respostas suas registradas para montar o perfil. Tente de novo depois de responder mais clientes.',
   contact_not_linked: 'Vincule este contato a um cliente do CRM antes de gerar a sugestão.',
   audio_not_transcribed: 'Este áudio ainda não tem texto. Ouça no WhatsApp ou escolha outra mensagem.',
@@ -222,4 +229,11 @@ export function writeDraft(contactId: string, draft: Omit<SuggestionDraft, 'save
   } catch {
     // Drafts are a convenience; losing one must never block the screen.
   }
+}
+
+/** Meta only allows free-form text within 24h of the customer's last message. Returns hours left (0 when closed). */
+export function serviceWindowHoursLeft(lastIncomingIso: string | null | undefined, now: Date = new Date()): number {
+  if (!lastIncomingIso) return 0;
+  const left = 24 * 3600 * 1000 - (now.getTime() - new Date(lastIncomingIso).getTime());
+  return left > 0 ? left / 3600000 : 0;
 }

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, Copy, ExternalLink, Link2, Loader2, MoreVertical, Mic, RefreshCw, Sparkles, Unlink, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, Copy, ExternalLink, Link2, Loader2, MoreVertical, Mic, RefreshCw, Send, Sparkles, Unlink, X } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { OrderLearningPanel } from '../components/whatsapp/OrderLearningPanel';
@@ -18,6 +18,7 @@ import {
   relativeTime,
   replyContext,
   resolveReplyPhone,
+  serviceWindowHoursLeft,
   whatsAppLink,
   writeDraft,
 } from '../lib/whatsappUi';
@@ -71,6 +72,9 @@ export function WhatsAppConversationPage() {
   const [suggestionAt, setSuggestionAt] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sentNotice, setSentNotice] = useState<string | null>(null);
   const draftReady = useRef(false);
 
 
@@ -229,6 +233,34 @@ export function WhatsAppConversationPage() {
       setError(err?.message || 'Não foi possível gerar a sugestão.');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const windowHours = serviceWindowHoursLeft(latestIncoming?.recebida_em);
+  const canSend = Boolean(target) && Boolean(draft.trim()) && windowHours > 0 && !sending && !generating;
+
+  const sendReply = async () => {
+    if (!target || !draft.trim()) return;
+    setSending(true);
+    setError(null);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('whatsapp-send', {
+        body: { message_id: target.id, texto: draft },
+      });
+      if (invokeError || data?.error) throw new Error(await readFunctionError(invokeError, data));
+      setConfirmOpen(false);
+      setDraft('');
+      setSuggestionAt(null);
+      setManualIds(null);
+      setSentNotice(data?.warning ? 'Mensagem enviada, mas não apareceu na conversa ainda. Atualize a tela.' : 'Mensagem enviada.');
+      window.setTimeout(() => setSentNotice(null), 5000);
+      await loadData(true);
+      void refreshWhatsAppSummary();
+    } catch (err: any) {
+      setConfirmOpen(false);
+      setError(err?.message || 'Não foi possível enviar a mensagem.');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -504,12 +536,26 @@ export function WhatsAppConversationPage() {
           </div>
         )}
 
+        {sentNotice && (
+          <div role="status" className="mt-2 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 text-xs font-bold text-green-800">
+            <Check size={15} className="shrink-0" /> {sentNotice}
+          </div>
+        )}
+
         <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setConfirmOpen(true)}
+            disabled={!canSend}
+            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-green-600 px-4 text-sm font-black text-white disabled:opacity-40 sm:col-span-3 lg:col-span-2"
+          >
+            <Send size={17} /> Enviar
+          </button>
           <button
             type="button"
             onClick={() => void copyDraft()}
             disabled={!draft.trim()}
-            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-green-600 px-4 text-sm font-black text-white disabled:opacity-40"
+            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-green-200 bg-white px-4 text-sm font-black text-green-700 disabled:opacity-40"
           >
             {copied ? <Check size={17} /> : <Copy size={17} />} {copied ? 'Copiado' : 'Copiar'}
           </button>
@@ -532,6 +578,11 @@ export function WhatsAppConversationPage() {
           </button>
         </div>
 
+        {windowHours <= 0 && latestIncoming && (
+          <p className="mt-2 text-xs font-semibold text-amber-700">
+            Passaram mais de 24 horas desde a última mensagem do cliente. O WhatsApp só permite enviar por aqui dentro desse prazo; use "Abrir no WhatsApp".
+          </p>
+        )}
         <p className="mt-2 text-xs text-violet-700/80">
           {replyPhone.source === 'conversa'
             ? 'O WhatsApp abre com o número que escreveu e o texto pronto; você confere e envia.'
@@ -548,6 +599,38 @@ export function WhatsAppConversationPage() {
       )}
       </div>
       </div>
+
+      {confirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Confirmar envio">
+          <div className="w-full max-w-lg rounded-t-2xl bg-white p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] shadow-xl sm:rounded-2xl">
+            <h2 className="text-base font-black text-neutral-900">Enviar para {title}?</h2>
+            <p className="mt-1 text-xs font-semibold text-neutral-500">
+              Vai sair pelo WhatsApp Business agora{windowHours < 3 ? ` · restam ${Math.max(1, Math.round(windowHours * 60))} min da janela de 24 h` : ''}.
+            </p>
+            <div className="mt-3 max-h-[40dvh] overflow-y-auto whitespace-pre-wrap rounded-xl bg-green-50 p-3 text-base leading-relaxed text-neutral-900">
+              {draft.trim()}
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(false)}
+                disabled={sending}
+                className="min-h-[48px] rounded-xl border border-neutral-200 bg-white px-4 text-sm font-black text-neutral-700 disabled:opacity-40"
+              >
+                Voltar e editar
+              </button>
+              <button
+                type="button"
+                onClick={() => void sendReply()}
+                disabled={sending}
+                className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-green-600 px-4 text-sm font-black text-white disabled:opacity-60"
+              >
+                {sending ? <Loader2 size={17} className="animate-spin" /> : <Send size={17} />} {sending ? 'Enviando...' : 'Enviar agora'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {sheetOpen && (
         <ClientLinkSheet

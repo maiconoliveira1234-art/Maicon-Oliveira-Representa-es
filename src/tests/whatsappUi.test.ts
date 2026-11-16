@@ -11,6 +11,7 @@ import {
   readFunctionError,
   relativeTime,
   resolveReplyPhone,
+  serviceWindowHoursLeft,
   whatsAppLink,
 } from '../lib/whatsappUi';
 
@@ -77,4 +78,11 @@ assert.equal(isSuggestionStale('2026-11-13T15:00:00.000Z', '2026-11-13T15:10:00.
 assert.equal(isSuggestionStale('2026-11-13T15:10:00.000Z', '2026-11-13T15:00:00.000Z'), false);
 assert.equal(isSuggestionStale(null, '2026-11-13T15:00:00.000Z'), false);
 
-console.log('WhatsApp UI helpers: bursts, phone resolution, search, errors, audio states and stale suggestion passed.');
+const windowNow = new Date('2026-11-16T12:00:00.000Z');
+assert.equal(Math.round(serviceWindowHoursLeft('2026-11-16T10:00:00.000Z', windowNow)), 22);
+assert.equal(serviceWindowHoursLeft('2026-11-15T11:59:00.000Z', windowNow), 0);
+assert.equal(serviceWindowHoursLeft(null, windowNow), 0);
+assert.match(messageForErrorCode('janela_24h'), /24 horas/);
+assert.match(messageForErrorCode('envio_falhou'), /não foi enviada/);
+
+console.log('WhatsApp UI helpers: bursts, phone resolution, search, errors, audio states, stale suggestion and 24h window passed.');

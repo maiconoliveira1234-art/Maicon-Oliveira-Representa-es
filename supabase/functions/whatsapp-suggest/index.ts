@@ -126,10 +126,39 @@ function clip(text:string, size:number) {
   return t.length > size ? t.slice(0, size - 1) + '…' : t;
 }
 
+type Correction = { contato_map_id:string|null; pergunta:string|null; sugestao_ia:string; texto_enviado:string; alterado:boolean; criado_em:string };
+
+async function loadCorrections(db:any, limit = 60): Promise<Correction[]> {
+  const { data, error } = await db.from('whatsapp_ai_correcoes')
+    .select('contato_map_id, pergunta, sugestao_ia, texto_enviado, alterado, criado_em')
+    .order('criado_em', { ascending:false }).limit(limit);
+  if (error) { console.warn('corrections lookup failed', error.code); return []; }
+  return (data || []) as Correction[];
+}
+
+// Edits Maicon made to earlier suggestions: same customer first, then the most similar customer message.
+function pickCorrections(rows:Correction[], contactId:string|null, queryText:string, max = 4): Correction[] {
+  const edited = rows.filter(r => r.alterado);
+  const wanted = new Set(styleTokens(queryText));
+  const similarity = (r:Correction) => {
+    const own = styleTokens(r.pergunta || '');
+    return own.length ? own.filter(t => wanted.has(t)).length / Math.sqrt(own.length * Math.max(1, wanted.size)) : 0;
+  };
+  const sameContact = edited.filter(r => contactId && r.contato_map_id === contactId).slice(0, 2);
+  const rest = edited.filter(r => !sameContact.includes(r))
+    .map((r, index) => ({ r, index, score:similarity(r) }))
+    .sort((a,b) => b.score - a.score || a.index - b.index)
+    .map(x => x.r);
+  return [...sameContact, ...rest].slice(0, max);
+}
+
 async function generateStyleProfile(db:any): Promise<{ ok:true; perfil:string; amostras:number } | { ok:false; error:string; amostras:number }> {
   const pairs = await loadStylePairs(db, 200);
   if (pairs.length < STYLE_MIN_SAMPLES) return { ok:false, error:'poucas_amostras', amostras:pairs.length };
   const used = pairs.slice(0, 120);
+  const edits = (await loadCorrections(db, 40)).filter(r => r.alterado).slice(0, 15);
+  const editsText = edits.length ? edits.map((r,i) =>
+    `#${i+1}\nIA sugeriu: ${clip(r.sugestao_ia, 350)}\nMaicon enviou: ${clip(r.texto_enviado, 350)}`).join('\n\n') : '';
   const sample = used.map((p,i) => {
     const q = p.pergunta ? `Cliente: ${clip(p.pergunta, 200)}\n` : '';
     return `#${i+1}\n${q}Maicon: ${clip(p.resposta, 400)}`;
@@ -144,7 +173,10 @@ REGRAS:
 - Escreva em português do Brasil, sem markdown além dos hífens, sem introdução e sem conclusão.
 
 AMOSTRAS
-${sample}`;
+${sample}${editsText ? `
+
+CORREÇÕES: textos que a IA sugeriu e que Maicon alterou antes de enviar. Use-as para entender o que ele muda (tamanho, tom, saudação, emoji, ordem das informações) e registre esses hábitos no perfil, sem citar os textos:
+${editsText}` : ''}`;
   const response = await ai.models.generateContent({ model:STYLE_MODEL, contents:prompt });
   const perfil = String(response.text || '').trim().slice(0, 2500);
   if (perfil.length < 40) return { ok:false, error:'empty_model_response', amostras:used.length };
@@ -234,6 +266,7 @@ Deno.serve(async (req:Request) => {
     const stylePromise = Promise.all([
       db.from('whatsapp_ai_estilo').select('perfil, ativo, editado_manual, gerado_em').eq('id', 1).maybeSingle(),
       loadStylePairs(db, 200),
+      loadCorrections(db, 60),
     ]).catch((e) => { console.warn('style lookup failed', e); return null; });
 
     const [clientResult, salesResult, rulesResult, productsResult, stockResult] = await Promise.all([
@@ -329,11 +362,18 @@ Deno.serve(async (req:Request) => {
     const styleRow = styleData?.[0]?.data as { perfil:string; ativo:boolean; editado_manual:boolean; gerado_em:string|null } | null | undefined;
     const ownStyleReplies = styleRow && styleRow.ativo === false ? [] : contactReplies;
     const stylePairs = (styleData?.[1] || []) as StylePair[];
+    const allCorrections = (styleData?.[2] || []) as Correction[];
+    const corrections = styleRow && styleRow.ativo === false ? [] : pickCorrections(allCorrections, message.contato_map_id, queryText, 4);
+    const recentDecisions = allCorrections.slice(0, 30);
+    const approvedAsIs = recentDecisions.filter(r => !r.alterado).length;
     const styleProfile = styleRow && styleRow.ativo ? String(styleRow.perfil || '').trim() : '';
     const styleExamples = styleRow && styleRow.ativo === false ? [] : pickStyleExamples(stylePairs, queryText, ownStyleReplies.length >= 3 ? 2 : 4);
-    const styleText = styleProfile || styleExamples.length || ownStyleReplies.length ? [
+    const styleText = styleProfile || styleExamples.length || ownStyleReplies.length || corrections.length ? [
       ownStyleReplies.length ? `COMO MAICON JÁ FALA COM ESTE CLIENTE (respostas dele nesta conversa, da mais recente para a mais antiga; siga este padrão de tratamento, formalidade, emoji, tamanho e jeito de abrir e fechar):\n` +
         ownStyleReplies.map((t,i) => `${i+1}. ${clip(t, 320)}`).join('\n') : '',
+      corrections.length ? `CORREÇÕES QUE MAICON FEZ EM SUGESTÕES ANTERIORES (aprenda o tipo de ajuste: tamanho, tom, saudação, emoji, ordem das informações; nunca copie valores, quantidades, datas ou nomes delas)` +
+        (recentDecisions.length >= 5 ? ` — das últimas ${recentDecisions.length} sugestões enviadas, ${approvedAsIs} saíram sem alteração` : '') + `:\n` +
+        corrections.map((c,i) => `${i+1}. Cliente: ${clip(c.pergunta || '', 200)}\n   IA sugeriu: ${clip(c.sugestao_ia, 300)}\n   Maicon enviou: ${clip(c.texto_enviado, 300)}`).join('\n') : '',
       styleProfile ? `PERFIL DO ESTILO DO MAICON:\n${styleProfile}` : '',
       styleExamples.length ? `EXEMPLOS DE COMO MAICON JÁ RESPONDEU (use só como referência de tom, vocabulário e tamanho):\n` +
         styleExamples.map((x,i) => `${i+1}. Cliente: ${clip(x.pergunta || '', 220)}\n   Maicon: ${clip(x.resposta, 320)}`).join('\n') : '',
@@ -375,7 +415,7 @@ REGRAS DE RESPOSTA:
 - Responda às mensagens selecionadas. Use a CONVERSA RECENTE apenas para manter coerência com o que Maicon já respondeu ou prometeu: não repita informações que ele já deu e não contradiga o que ele disse.
 - A conversa recente pode estar incompleta (respostas enviadas só aparecem quando capturadas).
 - Transcrições de áudio podem conter pequenas imprecisões.
-- ESTILO: escreva como o Maicon escreve (tom, vocabulário, tamanho, jeito de abrir e fechar), seguindo a seção ESTILO DO MAICON. Quando houver respostas dele a ESTE cliente, o padrão dessa conversa vale mais que o estilo geral. Os exemplos servem só como referência de jeito de falar: nunca copie deles preços, quantidades, datas, nomes ou condições, que podem estar desatualizados. Fatos vêm somente dos dados do CRM acima. Estilo nunca prevalece sobre as regras comerciais nem sobre as proteções acima.
+- ESTILO: escreva como o Maicon escreve (tom, vocabulário, tamanho, jeito de abrir e fechar), seguindo a seção ESTILO DO MAICON. Quando houver respostas dele a ESTE cliente, o padrão dessa conversa vale mais que o estilo geral. Se houver CORREÇÕES dele a sugestões anteriores, evite repetir o que ele costuma mudar. Os exemplos servem só como referência de jeito de falar: nunca copie deles preços, quantidades, datas, nomes ou condições, que podem estar desatualizados. Fatos vêm somente dos dados do CRM acima. Estilo nunca prevalece sobre as regras comerciais nem sobre as proteções acima.
 
 DADOS DO CLIENTE
 Cliente: ${cliente.cliente}
@@ -434,7 +474,7 @@ Retorne somente a resposta sugerida.`;
       rules_applied:rules.length, context_messages:contextMessages.length,
       client_tier:availableTier, last_order_weight:latestWeight, days_since_last:daysSinceLast,
       matched_products:scored.length, stock_items:stocks.length,
-      style_examples:styleExamples.length, style_contact_replies:ownStyleReplies.length, style_profile:Boolean(styleProfile),
+      style_examples:styleExamples.length, style_contact_replies:ownStyleReplies.length, style_corrections:corrections.length, style_profile:Boolean(styleProfile),
     });
   } catch (error) {
     console.error(error);
