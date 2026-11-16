@@ -125,10 +125,9 @@ Deno.serve(async req=>{
    }
    const items=converted;
    const {error:createError}=await admin.from("pedidos_em_aberto").insert({
-      cliente_id:approvedClientId,items,obs:[String(analysis.observacoes||""),
-       "Rascunho recebido via WhatsApp. Conversão: "+conversions.map(x=>`${x.produto}: ${x.unidades_pedidas} un solicitadas, ${x.caixas} CX de ${x.unidades_por_caixa} un${x.unidades_extras?` (${x.unidades_extras} un extras por caixa fechada)`:``}`).join("; "),
-       "Conferir preços, campanhas, limites e prazos antes de finalizar."]
-       .filter(Boolean).join("\\n")
+      cliente_id:approvedClientId,items,
+       // Short on purpose: the customer reads this note. Conversion details stay in the approval screen.
+       obs:"Pedido enviado pelo WhatsApp"
    });
    if(createError) return asJson({error:createError.code==="23505"?"existing_draft_must_be_reviewed_first":"draft_creation_failed"},500);
    const {error:markError}=await admin.from("whatsapp_pedidos_analise").update({
