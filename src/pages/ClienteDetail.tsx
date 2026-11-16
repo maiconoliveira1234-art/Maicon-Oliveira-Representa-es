@@ -677,7 +677,10 @@ export function ClienteDetail() {
           </h2>
         <button 
           onClick={() => {
-            if (location.state?.fromMetas) {
+            const backTo = location.state?.backTo;
+            if (typeof backTo === 'string' && backTo.startsWith('/')) {
+              navigate(backTo);
+            } else if (location.state?.fromMetas) {
               navigate('/metas');
             } else {
               navigate('/');

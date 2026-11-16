@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, Copy, ExternalLink, Link2, Loader2, MoreVertical, Mic, RefreshCw, Send, Sparkles, Unlink, X } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { AlertTriangle, ArrowLeft, Check, Copy, ExternalLink, Link2, Loader2, MoreVertical, Mic, RefreshCw, Send, Sparkles, Unlink, UserRound, X } from 'lucide-react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { OrderLearningPanel } from '../components/whatsapp/OrderLearningPanel';
 import { ClientLinkSheet } from '../components/whatsapp/ClientLinkSheet';
@@ -60,6 +60,7 @@ const POLL_MS = 15000;
 
 export function WhatsAppConversationPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { contatoId } = useParams<{ contatoId: string }>();
   const [mapping, setMapping] = useState<MapRow | null>(null);
   const [cliente, setCliente] = useState<Cliente | null>(null);
@@ -264,6 +265,13 @@ export function WhatsAppConversationPage() {
     }
   };
 
+  // The customer file opens with a way back to this conversation.
+  const openClientFile = () => {
+    if (!mapping?.cliente_id) return;
+    setMenuOpen(false);
+    navigate(`/cliente/${mapping.cliente_id}`, { state: { backTo: location.pathname } });
+  };
+
   const copyDraft = async () => {
     if (!draft.trim()) return;
     try {
@@ -371,6 +379,16 @@ export function WhatsAppConversationPage() {
           <h1 className="truncate text-base font-black text-neutral-900">{title}</h1>
           <p className="truncate text-xs font-semibold text-neutral-500">{subtitle}</p>
         </div>
+        {mapping?.cliente_id && (
+          <button
+            type="button"
+            onClick={openClientFile}
+            aria-label="Abrir ficha do cliente"
+            className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-3 text-sm font-black text-violet-700 hover:bg-violet-50"
+          >
+            <UserRound size={18} /> Ficha
+          </button>
+        )}
         <div className="relative">
           <button
             type="button"
@@ -385,6 +403,15 @@ export function WhatsAppConversationPage() {
             <>
               <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
               <div className="absolute right-0 top-12 z-40 w-52 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl">
+                {mapping?.cliente_id && (
+                  <button
+                    type="button"
+                    onClick={openClientFile}
+                    className="flex min-h-[48px] w-full items-center gap-3 border-b border-neutral-100 px-4 text-left text-sm font-bold text-neutral-700 hover:bg-neutral-50"
+                  >
+                    <UserRound size={16} /> Ver ficha do cliente
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => void openSheet()}
