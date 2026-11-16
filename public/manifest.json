@@ -3,7 +3,7 @@
   "short_name": "ProMax",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f2b1d",
+  "background_color": "#1f2328",
   "theme_color": "#0f2b1d",
   "icons": [
     {
@@ -16,7 +16,13 @@
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
