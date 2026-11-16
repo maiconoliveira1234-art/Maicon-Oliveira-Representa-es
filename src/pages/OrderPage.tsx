@@ -26,7 +26,8 @@ import {
   Home,
   AlertTriangle,
   Coins,
-  ArrowUp
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { Cliente, Produto, ItemPedido, PrecoFaixa } from '../types';
 import { supabase } from '../lib/supabase';
@@ -143,10 +144,18 @@ export function OrderPage() {
   const itemsEndRef = React.useRef<HTMLDivElement>(null);
   const orderDetailsRef = React.useRef<HTMLDivElement>(null);
   const orderFooterRef = React.useRef<HTMLDivElement>(null);
-  const [showScrollTop, setShowScrollTop] = useState(false);
+  // Atalho de rolagem: segue o sentido em que a pessoa esta rolando.
+  const [scrollDir, setScrollDir] = useState<'down' | 'up'>('down');
   useEffect(() => {
-    const onScroll = () => setShowScrollTop(window.scrollY > 500);
-    onScroll();
+    let lastY = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      const atBottom = window.innerHeight + y >= document.documentElement.scrollHeight - 80;
+      if (y < 80) setScrollDir('down');
+      else if (atBottom) setScrollDir('up');
+      else if (Math.abs(y - lastY) > 8) setScrollDir(y > lastY ? 'down' : 'up');
+      lastY = y;
+    };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
@@ -1889,14 +1898,17 @@ export function OrderPage() {
         ref={orderFooterRef}
         className="fixed bottom-0 left-0 md:left-[calc(5rem+env(safe-area-inset-left,0px))] min-[90rem]:left-[calc(15rem+env(safe-area-inset-left,0px))] right-0 z-50 bg-white/95 backdrop-blur-md border-t border-neutral-200 shadow-[0_-4px_12px_rgba(16,24,40,0.06)] p-2 pb-[calc(8px+env(safe-area-inset-bottom))] md:p-3 md:pb-[calc(12px+env(safe-area-inset-bottom))] will-change-transform"
       >
-        {showScrollTop && (
+        {itens.length > 15 && (
           <button
             type="button"
-            aria-label="Voltar ao topo do pedido"
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            aria-label={scrollDir === 'down' ? 'Ir para o fim do pedido' : 'Voltar ao topo do pedido'}
+            onClick={() => window.scrollTo({
+              top: scrollDir === 'down' ? document.documentElement.scrollHeight : 0,
+              behavior: 'smooth'
+            })}
             className="absolute right-3 bottom-full mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-neutral-900 text-white shadow-lg ring-1 ring-black/10 active:scale-95 transition-transform"
           >
-            <ArrowUp size={22} />
+            {scrollDir === 'down' ? <ArrowDown size={22} /> : <ArrowUp size={22} />}
           </button>
         )}
         <div className="max-w-4xl mx-auto space-y-2">
