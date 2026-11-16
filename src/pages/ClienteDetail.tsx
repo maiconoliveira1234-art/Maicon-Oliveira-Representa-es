@@ -161,6 +161,7 @@ export function ClienteDetail() {
     razao_social: string;
     limite_total: number;
     disponivel_oficial_snapshot: number;
+    disponivel_hoje: number | null;
     data_snapshot: string;
     titulos: Array<{ vencimento: string; valor: number; baixado_em: string | null }>;
   }>>([]);
@@ -193,11 +194,20 @@ export function ClienteDetail() {
             .select('vencimento, valor, baixado_em')
             .eq('entidade_financeira_id', entidade.id);
           if (titulos.error) throw titulos.error;
+          // Saldo projetado para hoje (mesma conta usada na tela de pedido).
+          const projetado = await supabase.rpc('saldo_credito_projetado', {
+            p_entidade: entidade.id,
+            p_data: format(new Date(), 'yyyy-MM-dd')
+          });
+          const linha = Array.isArray(projetado.data) ? projetado.data[0] : projetado.data;
+          const disponivelHoje = !projetado.error && linha && Number.isFinite(Number(linha.disponivel_estimado))
+            ? Number(linha.disponivel_estimado) : null;
           return {
             id: entidade.id,
             razao_social: entidade.razao_social,
             limite_total: Number(entidade.limite_total || 0),
             disponivel_oficial_snapshot: Number(entidade.disponivel_oficial_snapshot || 0),
+            disponivel_hoje: disponivelHoje,
             data_snapshot: entidade.data_snapshot,
             titulos: (titulos.data || []).map(t => ({
               vencimento: t.vencimento,
@@ -838,8 +848,10 @@ export function ClienteDetail() {
                       <p className="text-base font-bold text-neutral-900">{formatCurrency(entidade.limite_total)}</p>
                     </div>
                     <div className="rounded-lg bg-neutral-50 p-3">
-                      <p className="text-xs text-neutral-500">Disponível no levantamento</p>
-                      <p className="text-base font-bold text-neutral-900">{formatCurrency(entidade.disponivel_oficial_snapshot)}</p>
+                      <p className="text-xs text-neutral-500">Disponível hoje para compra</p>
+                      <p className="text-base font-bold text-neutral-900">
+                        {entidade.disponivel_hoje === null ? 'Indisponível' : formatCurrency(entidade.disponivel_hoje)}
+                      </p>
                     </div>
                     <div className="rounded-lg bg-neutral-50 p-3">
                       <p className="text-xs text-neutral-500">Boletos ainda não vencidos</p>
@@ -849,7 +861,7 @@ export function ClienteDetail() {
                     </div>
                   </div>
                   <p className="mt-2 text-xs text-neutral-500">
-                    Levantamento de {entidade.data_snapshot.split('-').reverse().join('/')}. Não representa saldo confirmado em tempo real pelo ERP.
+                    Estimativa de hoje a partir do levantamento de {entidade.data_snapshot.split('-').reverse().join('/')} (disponível no levantamento: {formatCurrency(entidade.disponivel_oficial_snapshot)}). Não representa saldo confirmado em tempo real pelo ERP.
                   </p>
                 </section>
               ))}
