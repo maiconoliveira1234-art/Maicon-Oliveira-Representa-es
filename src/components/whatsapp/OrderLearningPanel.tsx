@@ -350,13 +350,15 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                             <span className="text-xs font-semibold text-violet-700">Aprendido anteriormente</span>
                           ) : item.origem_sugestao === 'historico_cliente' ? (
                             <span className="text-xs font-semibold text-blue-700">Sugestão pelo histórico</span>
+                          ) : item.origem_sugestao === 'foto_cadastro' ? (
+                            <span className="text-xs font-semibold text-blue-700">Identificado na foto</span>
                           ) : (
                             <span className="text-xs font-semibold text-amber-700">Revisão necessária</span>
                           )}
                         </div>
                         <div className="rounded-xl border border-neutral-200 bg-white p-3">
                           <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-500">
-                            {item.resolvido ? 'Produto confirmado' : item.origem_sugestao === 'aprendizado_confirmado' ? 'Produto aprendido anteriormente' : item.origem_sugestao === 'historico_cliente' ? 'Produto sugerido pelo histórico de compras' : 'Sugestão inicial do catálogo'}
+                            {item.resolvido ? 'Produto confirmado' : item.origem_sugestao === 'aprendizado_confirmado' ? 'Produto aprendido anteriormente' : item.origem_sugestao === 'historico_cliente' ? 'Produto sugerido pelo histórico de compras' : item.origem_sugestao === 'foto_cadastro' ? 'Produto identificado na foto' : 'Sugestão inicial do catálogo'}
                           </p>
                           <p className="mt-1 text-sm font-bold text-neutral-800">
                             {selected ? (candidateNames.get(selected) || (item.candidatos || []).find(c => c.id === selected)?.produto || 'Produto selecionado') : (item.candidatos?.[0]?.produto || 'Nenhum produto sugerido')}

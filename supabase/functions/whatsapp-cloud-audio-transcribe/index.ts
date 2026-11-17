@@ -170,15 +170,33 @@ async function downloadMedia(mediaId: string, kind: Kind): Promise<{ bytes: Arra
 
 const IMAGE_PROMPT = `Esta imagem foi enviada pelo WhatsApp numa conversa entre Maicon, representante comercial de rações e produtos pet da Adimax (marcas ${VOCAB}), e um cliente (pet shop ou agropecuária).
 
-Escreva só uma descrição curta, de 1 a 3 frases, em português do Brasil, dizendo o que a imagem mostra e o que interessa para a venda (produto, embalagem, quantidade pedida na legenda, valor ou vencimento, se houver).
-Se for uma LISTA DE PEDIDO (escrita à mão, impressa ou print), escreva uma frase curta e depois um item por linha, só "quantidade produto embalagem" (ex.: "6 Magnus Todo Dia carne 15kg"), sem somar nem converter.
+Escreva uma descrição curta e natural, em português do Brasil, em 1 ou 2 frases:
+- Se for produto: diga qual é, com o nome completo como aparece na embalagem (marca, linha, espécie/idade, porte e peso), sem listar atributos separados. Se a legenda trouxer quantidade, diga isso. Exemplo: "Na imagem consta uma Fórmula Natural Life Cães Adultos Mini e Pequenos 15kg. Na legenda diz 15 unidades."
+- Se for LISTA DE PEDIDO (escrita à mão, impressa ou print): uma frase curta e depois um item por linha, só "quantidade produto embalagem", sem somar nem converter.
+- Se for nota, boleto ou print com valores: o que é, valor, vencimento ou número principal, numa frase.
+- Se não tiver relação com venda (foto pessoal, figurinha, paisagem): uma frase curta.
 
-Se a imagem não tiver relação com venda (foto pessoal, figurinha, paisagem), descreva em uma frase curta.
-Fale só do que aparece: nunca comente o que falta (sem valor, sem vencimento, sem relação com a venda, itens que não aparecem).
-Não faça ficha técnica: nada de listar marca, linha, público, sabor, ingredientes, destaques da embalagem ou textos cortados em tópicos separados. Não invente; se algo importante estiver ilegível, diga "ilegível". Sem markdown, sem asteriscos, sem comentários finais.`;
+Fale só do que aparece; não comente o que falta. Não invente; se algo importante estiver ilegível, diga "ilegível". Sem markdown e sem comentários finais.
+
+Se houver produto e ele corresponder com segurança a um item do CADASTRO abaixo, acrescente no fim uma linha "Produto no cadastro: NOME EXATO DO CADASTRO" (uma linha por produto). Se não tiver certeza do item exato (peso, porte, idade ou sabor diferentes ou ilegíveis), não acrescente essa linha.`;
+
+let catalogCache: string | null = null;
+/** Active product names, so the reading can point to the exact CRM item (helps the order review). */
+async function productCatalog(): Promise<string> {
+  if (catalogCache !== null) return catalogCache;
+  const { data, error } = await db.from("produtos").select("produto").eq("ativo", true).order("produto").limit(1000);
+  if (error) { console.warn("catalog lookup failed", error.message); return ""; }
+  catalogCache = (data || []).map((p: any) => String(p.produto || "").trim()).filter(Boolean).join("\n");
+  return catalogCache;
+}
 
 async function readImage(bytes: ArrayBuffer, mime: string, caption: string): Promise<{ text: string; model: string }> {
-  const prompt = caption ? `${IMAGE_PROMPT}\n\nLegenda que veio com a imagem: ${caption}` : IMAGE_PROMPT;
+  const catalog = await productCatalog();
+  const prompt = [
+    IMAGE_PROMPT,
+    caption ? `Legenda que veio com a imagem: ${caption}` : "",
+    catalog ? `CADASTRO (produtos ativos do CRM):\n${catalog}` : "",
+  ].filter(Boolean).join("\n\n");
   try {
     const result = await generate({ prompt, images: [{ mime, base64: imageBase64(bytes) }], maxTokens: 500, temperature: 0 });
     return { text: result.text.replace(/\*\*/g, "").trim(), model: result.model };
@@ -245,8 +263,12 @@ async function storeMedia(messageId: string, bytes: ArrayBuffer, mime: string): 
   return path;
 }
 
-function looksLikeOrder(text: string): boolean {
-  return text.split(/\r?\n/).filter(line => ORDER_LINE.test(line)).length >= 2 || /\bpedido\b/i.test(text);
+/** A photo/PDF that asks for goods: a list, the word "pedido", a quantity in the caption, or a known product with a quantity. */
+function looksLikeOrder(caption: string, text: string): boolean {
+  const all = `${caption}\n${text}`;
+  if (all.split(/\r?\n/).filter(line => ORDER_LINE.test(line)).length >= 2 || /\bpedido\b/i.test(all)) return true;
+  if (/\d/.test(caption)) return true;
+  return /Produto no cadastro:/i.test(text) && /\b\d+\s*(?:unidades?|un|sacos?|caixas?|cx|fardos?|pacotes?)\b/i.test(all);
 }
 
 /** Claims the message (pending/error, or a run stuck in "transcrevendo") so only one run processes it. */
@@ -297,7 +319,7 @@ async function finishVisual(message: any, kind: Kind, bytes: ArrayBuffer, mime: 
   if (writeError) throw new ProviderError(`image_save_failed_${writeError.code}`, true);
   console.info("cloud media read", kind, message.id, model);
   // A photographed order list goes to the same review as a typed one (never creates an order by itself).
-  if (message.direcao !== "enviada" && looksLikeOrder(`${caption}\n${text}`)) {
+  if (message.direcao !== "enviada" && looksLikeOrder(caption, text)) {
     const analysis = fetch(`${url}/functions/v1/whatsapp-order-analyze`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${service}`, apikey: service },
