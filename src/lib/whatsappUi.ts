@@ -168,17 +168,20 @@ type AudioFields = {
 export function audioState(message: AudioFields, now: Date = new Date()): AudioState {
   if (message.tipo_mensagem !== 'audio' || message.transcricao_audio) return null;
   const ageMs = now.getTime() - new Date(message.recebida_em).getTime();
-  if (message.audio_status === 'erro' || message.transcricao_erro) {
+  // Failed attempts are retried automatically for about two hours (status stays "pendente" meanwhile).
+  const retryWindowMs = 3 * 60 * 60 * 1000;
+  if (message.audio_status === 'erro') {
     if (/credencial/i.test(message.transcricao_erro || '')) {
       return { tone: 'error', text: 'Áudio sem texto: a transcrição ainda não está configurada. Ouça no WhatsApp.' };
     }
     return { tone: 'error', text: 'Falha ao transcrever o áudio. Ouça no WhatsApp.' };
   }
   if (message.audio_status === 'transcrevendo') {
-    if (ageMs > 10 * 60 * 1000) return { tone: 'error', text: 'Transcrição parada. Ouça o áudio no WhatsApp.' };
+    if (ageMs > retryWindowMs) return { tone: 'error', text: 'Transcrição parada. Ouça o áudio no WhatsApp.' };
     return { tone: 'wait', text: 'Transcrevendo o áudio…' };
   }
-  if (ageMs > 60 * 60 * 1000) return { tone: 'error', text: 'Este áudio não foi transcrito. Ouça no WhatsApp.' };
+  if (ageMs > retryWindowMs) return { tone: 'error', text: 'Este áudio não foi transcrito. Ouça no WhatsApp.' };
+  if (message.transcricao_erro) return { tone: 'wait', text: 'A transcrição falhou; nova tentativa em instantes…' };
   return { tone: 'wait', text: 'Aguardando a transcrição…' };
 }
 

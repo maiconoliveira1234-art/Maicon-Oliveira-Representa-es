@@ -72,6 +72,8 @@ assert.equal(audioState({ ...baseAudio, tipo_mensagem: 'texto' }, now), null);
 assert.equal(audioState({ ...baseAudio, audio_status: 'transcrevendo' }, now)?.tone, 'wait');
 assert.equal(audioState({ ...baseAudio, audio_status: 'transcrevendo', recebida_em: '2026-10-14T12:00:00.000Z' }, now)?.tone, 'error', 'a transcription stuck for weeks is not shown as in progress');
 assert.equal(audioState({ ...baseAudio, audio_status: 'pendente', recebida_em: '2026-10-01T12:00:00.000Z' }, now)?.tone, 'error');
+assert.equal(audioState({ ...baseAudio, audio_status: 'pendente', transcricao_erro: 'Falha ao transcrever: groq 429' }, now)?.tone, 'wait', 'a failure that will be retried is not shown as final');
+assert.equal(audioState({ ...baseAudio, audio_status: 'erro', transcricao_erro: 'Falha ao transcrever: x' }, now)?.tone, 'error');
 assert.match(audioState({ ...baseAudio, audio_status: 'erro', transcricao_erro: 'Credencial da Meta para download de mídia não configurada.' }, now)?.text || '', /não está configurada/);
 
 assert.equal(isSuggestionStale('2026-11-13T15:00:00.000Z', '2026-11-13T15:10:00.000Z'), true);

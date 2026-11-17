@@ -1,9 +1,13 @@
 import { createClient } from "npm:@supabase/supabase-js@2.101.1";
-import { GoogleGenAI } from "npm:@google/genai";
+
+// Transcribes WhatsApp Cloud audio (received and sent). Primary provider: Groq Whisper (free tier);
+// fallback: Gemini. Temporary provider failures (quota, overload, network) are retried later by the
+// "sweep" mode, which pg_cron calls every few minutes (job promax-whatsapp-audio-retry).
 
 const url = Deno.env.get("SUPABASE_URL") || "";
 const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const gemini = Deno.env.get("GEMINI_API_KEY") || "";
+const gemini = (Deno.env.get("GEMINI_API_KEY") || "").trim();
+const groq = (Deno.env.get("GROQ_API_KEY") || "").trim();
 // The secret was registered as EASYCOEXISTENCE_ACCCESS_TOKEN (three C); accept it until it is renamed.
 const mediaToken = (Deno.env.get("EASYCOEXISTENCE_ACCESS_TOKEN") ||
   Deno.env.get("EASYCOEXISTENCE_ACCCESS_TOKEN") ||
@@ -11,112 +15,279 @@ const mediaToken = (Deno.env.get("EASYCOEXISTENCE_ACCESS_TOKEN") ||
   Deno.env.get("WHATSAPP_CLOUD_ACCESS_TOKEN") ||
   Deno.env.get("META_ACCESS_TOKEN") || "").trim();
 const db = createClient(url, service, { auth: { persistSession: false, autoRefreshToken: false } });
-const json = (body: unknown, status=200) =>
-  new Response(JSON.stringify(body), {status,headers:{"content-type":"application/json","cache-control":"no-store"}});
-const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-const MAX_BYTES=16*1024*1024;
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
+const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+const MAX_BYTES = 16 * 1024 * 1024;
+const MAX_ATTEMPTS = 5;
+// Minutes to wait before attempt n+1 (index = attempts already made).
+const BACKOFF_MIN = [2, 5, 15, 30, 60];
+const STALE_MS = 5 * 60 * 1000;
+const SWEEP_BATCH = 6;
+const VOCAB = "Adimax, Fórmula Natural, FN Life, Magnus, Origens, Origens Class, Fresh Meat, sachê, saco, caixa, pet shop, agropecuária, boleto, pedido.";
 
-async function markError(id:string, description:string, retryable=false) {
-  await db.from("whatsapp_mensagens").update({
-    audio_status:retryable?"pendente":"erro",
-    transcricao_erro:description.slice(0,350)
-  }).eq("id",id);
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/** Error that should not be retried (bad media id, unsupported format, file too large...). */
+class PermanentError extends Error {}
+
+class ProviderError extends Error {
+  constructor(message: string, readonly temporary: boolean) { super(message); }
 }
-Deno.serve(async(req)=>{
-  if(req.method!=="POST")return json({error:"method_not_allowed"},405);
-  if(!service || req.headers.get("authorization")!==`Bearer ${service}`)
-    return json({error:"unauthorized"},401);
-  const body=await req.json().catch(()=>({}));
-  const messageId=String(body.message_id||"");
-  if(!UUID.test(messageId))return json({error:"invalid_id"},400);
-  const {data:message,error:lookupError}=await db.from("whatsapp_mensagens")
-    .select("id,contato_map_id,cliente_id,tipo_mensagem,app_package,audio_arquivo_nome,audio_status,transcricao_audio")
-    .eq("id",messageId).maybeSingle();
-  if(lookupError)return json({error:"lookup_failed"},500);
-  if(!message || message.tipo_mensagem!=="audio" || message.app_package!=="easycoexistence.cloud_api")
-    return json({error:"audio_not_found"},404);
-  if(message.transcricao_audio)return json({ok:true,already_transcribed:true});
-  const mediaId=String(message.audio_arquivo_nome||"").replace(/^meta-media:/,"");
-  if(!/^\d{8,32}$/.test(mediaId)) {
-    await markError(messageId,"Identificador de mídia Meta inválido.");
-    return json({error:"invalid_media_id"},422);
-  }
-  if(!mediaToken || !gemini){
-    const missing=!mediaToken?"Credencial da Meta para download de mídia não configurada.":"Credencial de transcrição não configurada.";
-    await markError(messageId,missing);
-    return json({error:"not_configured",detail:missing},503);
-  }
-  const {data:claimed,error:claimError}=await db.from("whatsapp_mensagens")
-    .update({audio_status:"transcrevendo",transcricao_erro:null})
-    .eq("id",messageId).in("audio_status",["pendente","erro"])
-    .select("id").maybeSingle();
-  if(claimError)return json({error:"claim_failed"},500);
-  if(!claimed)return json({ok:true,already_processing:true});
-  let uploadedName="";
+
+const isTemporaryStatus = (status: number) => status === 408 || status === 429 || status >= 500;
+
+// Whisper sometimes "hears" these stock captions in silence; a transcript made only of them is empty.
+const HALLUCINATION = /^(?:\s*(?:legendas? (?:pela|por) (?:comunidade )?amara\.org|obrigad[oa] por assistir!?|inscreva-se no canal!?)\s*[.!]?)+$/i;
+
+async function withRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  // One quick retry inside the same run for transient failures; longer waits are left to the sweep.
   try {
-    const authHeader={Authorization:`Bearer ${mediaToken}`};
-    const meta=await fetch(`https://graph.facebook.com/v25.0/${mediaId}`,{headers:authHeader});
-    if(!meta.ok)throw new Error(`media_lookup_http_${meta.status}`);
-    const info=await meta.json();
-    const mediaUrl=new URL(String(info.url||""));
-    if(mediaUrl.protocol!=="https:" ||
-      !/(^|\.)(?:fbsbx\.com|fbcdn\.net|facebook\.com)$/.test(mediaUrl.hostname))
-      throw new Error("untrusted_media_host");
-    if(Number(info.file_size)>MAX_BYTES)throw new Error("audio_too_large");
-    const audioResponse=await fetch(mediaUrl,{headers:authHeader});
-    if(!audioResponse.ok)throw new Error(`media_download_http_${audioResponse.status}`);
-    const bytes=await audioResponse.arrayBuffer();
-    if(bytes.byteLength===0 || bytes.byteLength>MAX_BYTES)throw new Error("invalid_audio_length");
-    const mime=String(info.mime_type||audioResponse.headers.get("content-type")||"audio/ogg")
-      .split(";")[0].trim().toLowerCase();
-    const normalizedMime=mime==="audio/opus"?"audio/ogg":mime==="application/ogg"?"audio/ogg":mime;
-    if(!/^audio\/(ogg|mp4|mpeg|aac|wav|webm|amr|3gpp|x-wav)$/.test(normalizedMime))
-      throw new Error("unsupported_mime");
-    const file = new File([bytes],`whatsapp-voice-${messageId}.ogg`,{type:normalizedMime});
-    const ai=new GoogleGenAI({apiKey:gemini,httpOptions:{apiVersion:"v1beta"}});
-    const uploaded=await ai.files.upload({file,config:{mime_type:normalizedMime}} as any);
-    uploadedName=String((uploaded as any).name||"");
-    // gemini-3.5-transcribe is served by generateContent on v1beta only (the SDK default v1 and the
-    // interactions endpoint return 404). If it returns nothing, fall back to a general audio model.
-    const prompt="Transcreva fielmente este áudio em português do Brasil. Vocabulário provável: Adimax, Fórmula Natural, Magnus, Origens, Fresh Meat, pet shop, agropecuária. Responda somente com a transcrição, sem comentários.";
-    let transcript="";
-    let usedModel="";
-    let lastDetail="";
-    for(const model of ["gemini-3.5-transcribe","gemini-3.5-flash"]){
+    return await fn();
+  } catch (error) {
+    if (error instanceof ProviderError && error.temporary) {
+      await sleep(3000);
+      return await fn();
+    }
+    throw error;
+  }
+}
+
+async function transcribeGroq(bytes: ArrayBuffer, mime: string): Promise<{ text: string; model: string }> {
+  const ext = mime === "audio/ogg" ? "ogg" : mime === "audio/mp4" ? "m4a" : mime === "audio/mpeg" ? "mp3"
+    : mime === "audio/wav" || mime === "audio/x-wav" ? "wav" : mime === "audio/webm" ? "webm" : "";
+  if (!ext) throw new ProviderError(`groq: formato ${mime} não suportado`, false);
+  const model = "whisper-large-v3";
+  return await withRetry("groq", async () => {
+    const form = new FormData();
+    form.append("file", new File([bytes], `audio.${ext}`, { type: mime }));
+    form.append("model", model);
+    form.append("language", "pt");
+    form.append("temperature", "0");
+    form.append("response_format", "json");
+    form.append("prompt", VOCAB);
+    let response: Response;
+    try {
+      response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+        method: "POST", headers: { Authorization: `Bearer ${groq}` }, body: form,
+        signal: AbortSignal.timeout(45000),
+      });
+    } catch (error) {
+      throw new ProviderError(`groq: ${error instanceof Error ? error.message : String(error)}`, true);
+    }
+    if (!response.ok) {
+      const detail = (await response.text().catch(() => "")).slice(0, 160);
+      throw new ProviderError(`groq ${response.status}: ${detail}`, isTemporaryStatus(response.status));
+    }
+    const data = await response.json();
+    return { text: String(data?.text || "").trim(), model: `groq/${model}` };
+  });
+}
+
+function toBase64(bytes: ArrayBuffer): string {
+  const view = new Uint8Array(bytes);
+  let binary = "";
+  for (let i = 0; i < view.length; i += 0x8000) binary += String.fromCharCode(...view.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
+async function transcribeGemini(bytes: ArrayBuffer, mime: string): Promise<{ text: string; model: string }> {
+  const prompt = `Transcreva fielmente este áudio em português do Brasil. Vocabulário provável: ${VOCAB} Responda somente com a transcrição, sem comentários.`;
+  const data = toBase64(bytes);
+  let last: ProviderError | null = null;
+  for (const model of ["gemini-3.5-flash", "gemini-3.5-flash-lite"]) {
+    try {
+      return await withRetry(model, async () => {
+        let response: Response;
+        try {
+          response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-goog-api-key": gemini },
+            body: JSON.stringify({ contents: [{ role: "user", parts: [{ inlineData: { mimeType: mime, data } }, { text: prompt }] }] }),
+            signal: AbortSignal.timeout(60000),
+          });
+        } catch (error) {
+          throw new ProviderError(`${model}: ${error instanceof Error ? error.message : String(error)}`, true);
+        }
+        if (!response.ok) {
+          const detail = (await response.text().catch(() => "")).slice(0, 160);
+          throw new ProviderError(`${model} ${response.status}: ${detail}`, isTemporaryStatus(response.status));
+        }
+        const result = await response.json();
+        const text = (result?.candidates?.[0]?.content?.parts || []).map((p: any) => p?.text || "").join("").trim();
+        if (!text) throw new ProviderError(`${model}: transcrição vazia (${result?.candidates?.[0]?.finishReason || "sem motivo"})`, false);
+        return { text, model };
+      });
+    } catch (error) {
+      last = error instanceof ProviderError ? error : new ProviderError(String(error), true);
+    }
+  }
+  throw last || new ProviderError("gemini: sem resposta", true);
+}
+
+async function downloadAudio(mediaId: string): Promise<{ bytes: ArrayBuffer; mime: string }> {
+  const authHeader = { Authorization: `Bearer ${mediaToken}` };
+  const meta = await fetch(`https://graph.facebook.com/v26.0/${mediaId}`, { headers: authHeader });
+  if (!meta.ok) {
+    // Meta keeps media for a limited time; 400/404 means it is gone, retrying will not help.
+    if (meta.status === 400 || meta.status === 404) throw new PermanentError(`media_lookup_http_${meta.status}`);
+    throw new ProviderError(`media_lookup_http_${meta.status}`, true);
+  }
+  const info = await meta.json();
+  const mediaUrl = new URL(String(info.url || ""));
+  if (mediaUrl.protocol !== "https:" || !/(^|\.)(?:fbsbx\.com|fbcdn\.net|facebook\.com)$/.test(mediaUrl.hostname))
+    throw new PermanentError("untrusted_media_host");
+  if (Number(info.file_size) > MAX_BYTES) throw new PermanentError("audio_too_large");
+  const audioResponse = await fetch(mediaUrl, { headers: authHeader });
+  if (!audioResponse.ok) throw new ProviderError(`media_download_http_${audioResponse.status}`, true);
+  const bytes = await audioResponse.arrayBuffer();
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_BYTES) throw new PermanentError("invalid_audio_length");
+  const mime = String(info.mime_type || audioResponse.headers.get("content-type") || "audio/ogg")
+    .split(";")[0].trim().toLowerCase();
+  const normalized = mime === "audio/opus" || mime === "application/ogg" ? "audio/ogg" : mime;
+  if (!/^audio\/(ogg|mp4|mpeg|aac|wav|webm|amr|3gpp|x-wav)$/.test(normalized)) throw new PermanentError("unsupported_mime");
+  return { bytes, mime: normalized };
+}
+
+/** Claims the message (pending/error, or a run stuck in "transcrevendo") so only one run processes it. */
+async function claim(id: string, attempts: number): Promise<boolean> {
+  const staleBefore = new Date(Date.now() - STALE_MS).toISOString();
+  const now = new Date().toISOString();
+  const fields = { audio_status: "transcrevendo", transcricao_iniciada_em: now, transcricao_tentativas: attempts + 1 };
+  const first = await db.from("whatsapp_mensagens").update(fields)
+    .eq("id", id).in("audio_status", ["pendente", "erro"]).is("transcricao_audio", null)
+    .select("id").maybeSingle();
+  if (first.error) throw first.error;
+  if (first.data) return true;
+  const stale = await db.from("whatsapp_mensagens").update(fields)
+    .eq("id", id).eq("audio_status", "transcrevendo").is("transcricao_audio", null)
+    .or(`transcricao_iniciada_em.is.null,transcricao_iniciada_em.lt.${staleBefore}`)
+    .select("id").maybeSingle();
+  if (stale.error) throw stale.error;
+  return Boolean(stale.data);
+}
+
+async function fail(id: string, attempts: number, detail: string, retryable: boolean) {
+  const again = retryable && attempts < MAX_ATTEMPTS;
+  const wait = BACKOFF_MIN[Math.min(attempts - 1, BACKOFF_MIN.length - 1)];
+  await db.from("whatsapp_mensagens").update({
+    audio_status: again ? "pendente" : "erro",
+    transcricao_erro: `Falha ao transcrever: ${detail}`.slice(0, 350),
+    transcricao_tentativas: again ? attempts : MAX_ATTEMPTS,
+    transcricao_proxima_tentativa: again ? new Date(Date.now() + wait * 60000).toISOString() : null,
+    transcricao_iniciada_em: null,
+  }).eq("id", id);
+}
+
+type Outcome = { id: string; result: string; detail?: string };
+
+async function processMessage(messageId: string): Promise<Outcome> {
+  const { data: message, error } = await db.from("whatsapp_mensagens")
+    .select("id,tipo_mensagem,app_package,audio_arquivo_nome,audio_status,transcricao_audio,transcricao_tentativas")
+    .eq("id", messageId).maybeSingle();
+  if (error) throw error;
+  if (!message || message.tipo_mensagem !== "audio" || message.app_package !== "easycoexistence.cloud_api")
+    return { id: messageId, result: "audio_not_found" };
+  if (message.transcricao_audio) return { id: messageId, result: "already_transcribed" };
+  const attemptsBefore = Number(message.transcricao_tentativas || 0);
+
+  const mediaId = String(message.audio_arquivo_nome || "").replace(/^meta-media:/, "");
+  if (!/^\d{8,32}$/.test(mediaId)) {
+    await fail(messageId, MAX_ATTEMPTS, "Identificador de mídia Meta inválido.", false);
+    return { id: messageId, result: "invalid_media_id" };
+  }
+  if (!mediaToken || (!groq && !gemini)) {
+    const missing = !mediaToken ? "Credencial da Meta para download de mídia não configurada." : "Credencial de transcrição não configurada.";
+    await db.from("whatsapp_mensagens").update({ audio_status: "erro", transcricao_erro: missing }).eq("id", messageId);
+    return { id: messageId, result: "not_configured", detail: missing };
+  }
+  if (!(await claim(messageId, attemptsBefore))) return { id: messageId, result: "already_processing" };
+  const attempts = attemptsBefore + 1;
+
+  try {
+    const { bytes, mime } = await downloadAudio(mediaId);
+    const errors: ProviderError[] = [];
+    let transcript = "";
+    let usedModel = "";
+    const providers: Array<() => Promise<{ text: string; model: string }>> = [];
+    if (groq) providers.push(() => transcribeGroq(bytes, mime));
+    if (gemini) providers.push(() => transcribeGemini(bytes, mime));
+    for (const provider of providers) {
       try {
-        const result=await ai.models.generateContent({
-          model,
-          contents:[{role:"user",parts:[
-            {fileData:{fileUri:(uploaded as any).uri,mimeType:(uploaded as any).mimeType||normalizedMime}},
-            {text:prompt}
-          ]}]
-        } as any);
-        transcript=String((result as any).text||"").trim();
-        if(transcript){usedModel=model;break;}
-        lastDetail=`empty_transcription_${model}_${String((result as any).candidates?.[0]?.finishReason||"")}`;
-      } catch(modelError) {
-        lastDetail=`${model}: ${modelError instanceof Error?modelError.message:String(modelError)}`.slice(0,200);
+        const { text, model } = await provider();
+        if (text && !HALLUCINATION.test(text)) { transcript = text; usedModel = model; break; }
+        errors.push(new ProviderError(`${model}: transcrição vazia`, false));
+      } catch (providerError) {
+        errors.push(providerError instanceof ProviderError ? providerError : new ProviderError(String(providerError), true));
       }
     }
-    if(!transcript)throw new Error(lastDetail||"empty_transcription");
-    const now=new Date().toISOString();
-    const {error:writeError}=await db.from("whatsapp_mensagens")
-      .update({mensagem:`🎤 ${transcript}`,transcricao_audio:transcript,
-        transcricao_modelo:usedModel,transcricao_gerada_em:now,
-        audio_status:"transcrito",transcricao_erro:null,audio_tamanho_bytes:bytes.byteLength})
-      .eq("id",messageId);
-    if(writeError)throw new Error(`transcription_save_failed_${writeError.code}`);
-    console.info("cloud audio transcribed",messageId);
-    return json({ok:true,transcrito:true});
-  }catch(error){
-    const detail=error instanceof Error?error.message:String(error);
-    console.error("cloud audio transcription failed",messageId,detail);
-    await markError(messageId,`Falha ao transcrever: ${detail}`);
-    return json({error:"transcription_failed",reason:detail},502);
-  }finally {
-    if(uploadedName){
-      try {await new GoogleGenAI({apiKey:gemini,httpOptions:{apiVersion:"v1beta"}}).files.delete({name:uploadedName} as any);}
-      catch {console.warn("temporary gemini audio cleanup failed")}
+    if (!transcript) {
+      const detail = errors.map(e => e.message).join(" | ") || "transcrição vazia";
+      console.error("audio transcription failed", messageId, detail);
+      await fail(messageId, attempts, detail, errors.some(e => e.temporary));
+      return { id: messageId, result: "failed", detail };
     }
+    const { error: writeError } = await db.from("whatsapp_mensagens").update({
+      mensagem: `🎤 ${transcript}`, transcricao_audio: transcript, transcricao_modelo: usedModel,
+      transcricao_gerada_em: new Date().toISOString(), audio_status: "transcrito", transcricao_erro: null,
+      audio_tamanho_bytes: bytes.byteLength, transcricao_proxima_tentativa: null, transcricao_iniciada_em: null,
+    }).eq("id", messageId);
+    if (writeError) throw new ProviderError(`transcription_save_failed_${writeError.code}`, true);
+    console.info("cloud audio transcribed", messageId, usedModel);
+    return { id: messageId, result: "transcribed" };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error("audio transcription failed", messageId, detail);
+    await fail(messageId, attempts, detail, !(error instanceof PermanentError));
+    return { id: messageId, result: "failed", detail };
+  }
+}
+
+async function sweep(): Promise<Outcome[]> {
+  const nowIso = new Date().toISOString();
+  const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+  const settled = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const staleBefore = new Date(Date.now() - STALE_MS).toISOString();
+  const { data, error } = await db.from("whatsapp_mensagens")
+    .select("id")
+    .eq("app_package", "easycoexistence.cloud_api").eq("tipo_mensagem", "audio")
+    .is("transcricao_audio", null).gte("recebida_em", since).lt("criado_em", settled)
+    .lt("transcricao_tentativas", MAX_ATTEMPTS)
+    .or([
+      `and(audio_status.in.(pendente,erro),or(transcricao_proxima_tentativa.is.null,transcricao_proxima_tentativa.lte.${nowIso}))`,
+      `and(audio_status.eq.transcrevendo,or(transcricao_iniciada_em.is.null,transcricao_iniciada_em.lt.${staleBefore}))`,
+    ].join(","))
+    .order("recebida_em", { ascending: false }).limit(SWEEP_BATCH);
+  if (error) throw error;
+  const outcomes: Outcome[] = [];
+  for (const row of data || []) outcomes.push(await processMessage(row.id));
+  return outcomes;
+}
+
+async function sweepAuthorized(token: string): Promise<boolean> {
+  if (!token) return false;
+  const { data } = await db.from("whatsapp_audio_cron").select("token").eq("id", true).maybeSingle();
+  return Boolean(data?.token) && data!.token === token;
+}
+
+Deno.serve(async req => {
+  if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
+  const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+  const body = await req.json().catch(() => ({}));
+  try {
+    if (body?.sweep === true) {
+      if (!(bearer && (bearer === service || await sweepAuthorized(bearer)))) return json({ error: "unauthorized" }, 401);
+      return json({ ok: true, processed: await sweep() });
+    }
+    if (!service || bearer !== service) return json({ error: "unauthorized" }, 401);
+    const messageId = String(body.message_id || "");
+    if (!UUID.test(messageId)) return json({ error: "invalid_id" }, 400);
+    const outcome = await processMessage(messageId);
+    const status = outcome.result === "transcribed" || outcome.result.startsWith("already") ? 200
+      : outcome.result === "audio_not_found" ? 404 : outcome.result === "not_configured" ? 503 : 502;
+    return json(outcome, status);
+  } catch (error) {
+    console.error("whatsapp-cloud-audio-transcribe:", error instanceof Error ? error.message : JSON.stringify(error));
+    return json({ error: "internal_error" }, 500);
   }
 });
