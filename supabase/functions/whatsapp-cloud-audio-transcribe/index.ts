@@ -271,6 +271,25 @@ function looksLikeOrder(caption: string, text: string): boolean {
   return /Produto no cadastro:/i.test(text) && /\b\d+\s*(?:unidades?|un|sacos?|caixas?|cx|fardos?|pacotes?)\b/i.test(all);
 }
 
+/** Spoken orders: a quantity next to a product word, or an explicit order verb with a number. */
+function audioLooksLikeOrder(text: string): boolean {
+  if (/\bpedido\b/i.test(text) && /\d/.test(text)) return true;
+  return /\b\d+\s*(?:sacos?|caixas?|cx|unidades?|fardos?|pacotes?|f[oó]rmula|magnus|origens|fn|life|fresh|sach[eê]s?|class)\b/i.test(text)
+    || (/\b(?:manda|mande|me manda|traz|preciso|separa)\b/i.test(text) && /\b\d{1,4}\b/.test(text));
+}
+
+/** Order review runs in the background and merges into the conversation's open proposal. */
+async function requestOrderAnalysis(messageId: string) {
+  const analysis = fetch(`${url}/functions/v1/whatsapp-order-analyze`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${service}`, apikey: service },
+    body: JSON.stringify({ message_id: messageId }),
+  }).then(r => { if (!r.ok) console.warn("order analysis status", r.status); })
+    .catch(error => console.warn("order analysis failed", String(error)));
+  const runtime = (globalThis as any).EdgeRuntime;
+  if (runtime?.waitUntil) runtime.waitUntil(analysis); else await analysis;
+}
+
 /** Claims the message (pending/error, or a run stuck in "transcrevendo") so only one run processes it. */
 async function claim(id: string, attempts: number): Promise<boolean> {
   const staleBefore = new Date(Date.now() - STALE_MS).toISOString();
@@ -319,16 +338,7 @@ async function finishVisual(message: any, kind: Kind, bytes: ArrayBuffer, mime: 
   if (writeError) throw new ProviderError(`image_save_failed_${writeError.code}`, true);
   console.info("cloud media read", kind, message.id, model);
   // A photographed order list goes to the same review as a typed one (never creates an order by itself).
-  if (message.direcao !== "enviada" && looksLikeOrder(caption, text)) {
-    const analysis = fetch(`${url}/functions/v1/whatsapp-order-analyze`, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${service}`, apikey: service },
-      body: JSON.stringify({ message_id: message.id }),
-    }).then(r => { if (!r.ok) console.warn("image order analysis status", r.status); })
-      .catch(error => console.warn("image order analysis failed", String(error)));
-    const runtime = (globalThis as any).EdgeRuntime;
-    if (runtime?.waitUntil) runtime.waitUntil(analysis); else await analysis;
-  }
+  if (message.direcao !== "enviada" && looksLikeOrder(caption, text)) await requestOrderAnalysis(message.id);
   return { id: message.id, result: "transcribed" };
 }
 
@@ -389,6 +399,7 @@ async function processMessage(messageId: string): Promise<Outcome> {
     }).eq("id", messageId);
     if (writeError) throw new ProviderError(`transcription_save_failed_${writeError.code}`, true);
     console.info("cloud audio transcribed", messageId, usedModel);
+    if (message.direcao !== "enviada" && audioLooksLikeOrder(transcript)) await requestOrderAnalysis(messageId);
     return { id: messageId, result: "transcribed" };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
