@@ -564,10 +564,10 @@ export function WhatsAppConversationPage() {
                           </span>
                         )}
                         {text ? (
-                          <span className="block whitespace-pre-wrap break-words text-[15px] leading-snug text-neutral-900">{text}</span>
+                          <span className="block whitespace-pre-wrap break-words text-[17px] leading-snug text-neutral-900 md:text-[15px]">{text}</span>
                         ) : null}
                         {isImage && message.transcricao_audio && (
-                          <span className="mt-1 block whitespace-pre-wrap break-words rounded-lg bg-neutral-100 px-2 py-1.5 text-[13px] leading-snug text-neutral-700">
+                          <span className="mt-1 block whitespace-pre-wrap break-words rounded-lg bg-neutral-100 px-2 py-1.5 text-[15px] leading-snug text-neutral-700 md:text-[13px]">
                             <span className="block text-[11px] font-black uppercase tracking-wide text-neutral-400">{isPdf ? 'O que tem no documento' : 'O que tem na imagem'}</span>
                             {message.transcricao_audio}
                           </span>
@@ -576,7 +576,7 @@ export function WhatsAppConversationPage() {
                           <span className={`mt-0.5 block text-xs font-semibold ${state.tone === 'error' ? 'text-red-700' : 'text-amber-700'}`}>{state.text}</span>
                         )}
                         {lastInBurst && (
-                          <span className="mt-0.5 flex items-center justify-end gap-2 text-[11px] font-semibold text-neutral-400">
+                          <span className="mt-0.5 flex items-center justify-end gap-2 text-xs font-semibold text-neutral-400 md:text-[11px]">
                             {isTarget && inContext && <span className="font-black text-violet-700">A responder</span>}
                             {clockTime(message.recebida_em)}
                           </span>
