@@ -27,7 +27,9 @@ import {
   AlertTriangle,
   Coins,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  CheckCircle2,
+  CircleDashed
 } from 'lucide-react';
 import { Cliente, Produto, ItemPedido, PrecoFaixa } from '../types';
 import { supabase } from '../lib/supabase';
@@ -1596,12 +1598,23 @@ export function OrderPage() {
                 key={o.regra.id}
                 type="button"
                 onClick={() => setSelectedCampaignRuleId(o.regra.id)}
-                className="w-full rounded-lg border border-orange-100 bg-white p-3 text-left hover:border-orange-400 transition-colors flex items-center justify-between gap-3"
+                className={cn(
+                  "w-full rounded-lg border p-3 text-left transition-colors flex items-center justify-between gap-3",
+                  o.elegivel && regrasAprovadas.includes(o.regra.id)
+                    ? "border-green-400 bg-green-50 hover:border-green-500"
+                    : "border-orange-100 bg-white hover:border-orange-400"
+                )}
               >
-                <div className="min-w-0">
+                {o.elegivel && (regrasAprovadas.includes(o.regra.id)
+                  ? <CheckCircle2 size={26} className="shrink-0 text-green-600" aria-hidden="true" />
+                  : <CircleDashed size={26} className="shrink-0 text-amber-500" aria-hidden="true" />)}
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold text-neutral-900">{o.campanha.titulo}</p>
                   <p className="text-xs text-neutral-600">{o.regra.tipo === 'bonificacao' ? 'Bonificação' : 'Preço promocional em reais'} · {o.quantidade}/{o.regra.minimo} {o.regra.unidade === 'kg' ? 'kg' : o.regra.unidade === 'unidades' ? 'unidades' : 'embalagens'}</p>
                   <p className={cn("text-xs font-bold", o.elegivel ? "text-green-700" : "text-orange-700")}>{o.elegivel ? 'Condição atingida' : `Faltam ${o.falta} para atingir a condição`}</p>
+                  {o.elegivel && (regrasAprovadas.includes(o.regra.id)
+                    ? <p className="text-xs font-black text-green-700">✓ Benefício concedido no pedido</p>
+                    : <p className="text-xs font-black text-amber-700">Benefício ainda não concedido — toque para aplicar</p>)}
                 </div>
                 <ChevronDown size={17} className="-rotate-90 shrink-0 text-orange-600" />
               </button>
@@ -1663,6 +1676,15 @@ export function OrderPage() {
                   <p className="font-bold">{oportunidade.quantidade} de {regra.minimo} {regra.unidade === 'kg' ? 'kg' : regra.unidade === 'unidades' ? 'unidades' : 'embalagens'}</p>
                   <p className={cn("text-sm font-bold", oportunidade.elegivel ? "text-green-700" : "text-orange-700")}>{oportunidade.elegivel ? (regra.tipo === 'bonificacao' ? `${oportunidade.bonusQuantidade} unidade(s) de bonificação disponível(is)` : 'Desconto disponível') : `Faltam ${oportunidade.falta} para atingir a condição`}</p>
                 </div>
+                {oportunidade.elegivel && (
+                  <div role="status" className={cn(
+                    "flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-black",
+                    aprovada ? "bg-green-50 text-green-800 border border-green-300" : "bg-amber-50 text-amber-800 border border-amber-300"
+                  )}>
+                    {aprovada ? <CheckCircle2 size={20} className="text-green-600" /> : <CircleDashed size={20} className="text-amber-500" />}
+                    {aprovada ? 'Benefício concedido neste pedido' : 'Benefício ainda não concedido'}
+                  </div>
+                )}
                 <button
                   type="button"
                   disabled={!oportunidade.elegivel}
