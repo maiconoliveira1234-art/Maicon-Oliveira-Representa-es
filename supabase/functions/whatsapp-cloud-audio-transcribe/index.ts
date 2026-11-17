@@ -170,18 +170,17 @@ async function downloadMedia(mediaId: string, kind: Kind): Promise<{ bytes: Arra
 
 const IMAGE_PROMPT = `Esta imagem foi enviada pelo WhatsApp numa conversa entre Maicon, representante comercial de rações e produtos pet da Adimax (marcas ${VOCAB}), e um cliente (pet shop ou agropecuária).
 
-Descreva o conteúdo de forma objetiva, em português do Brasil, para que o CRM possa usar o texto:
-- Se for uma LISTA DE PEDIDO (escrita à mão, impressa ou print), transcreva cada item numa linha própria, no formato "quantidade produto embalagem" (ex.: "6 Magnus Todo Dia carne 15kg"). Não some nem converta quantidades.
-- Se tiver texto relevante (nota fiscal, boleto, tabela de preços, print de conversa ou de sistema), transcreva o essencial: valores, datas, vencimentos, códigos, produtos e quantidades.
-- Se for foto de produto, embalagem, prateleira ou estoque, diga marca, linha, sabor, peso e quantidade visível de cada produto que der para identificar.
-- Se for outra coisa (foto pessoal, figurinha, paisagem), descreva em uma frase curta.
+Escreva só uma descrição curta, de 1 a 3 frases, em português do Brasil, dizendo o que a imagem mostra e o que interessa para a venda (produto, embalagem, quantidade pedida na legenda, valor ou vencimento, se houver).
+Se for uma LISTA DE PEDIDO (escrita à mão, impressa ou print), escreva uma frase curta e depois um item por linha, só "quantidade produto embalagem" (ex.: "6 Magnus Todo Dia carne 15kg"), sem somar nem converter.
 
-Regras: não invente nada; o que estiver ilegível ou incerto, marque como [ilegível] ou "parece ser". Comece com uma frase curta dizendo o que é a imagem. Sem markdown, sem asteriscos, sem comentários finais.`;
+Se a imagem não tiver relação com venda (foto pessoal, figurinha, paisagem), descreva em uma frase curta.
+Fale só do que aparece: nunca comente o que falta (sem valor, sem vencimento, sem relação com a venda, itens que não aparecem).
+Não faça ficha técnica: nada de listar marca, linha, público, sabor, ingredientes, destaques da embalagem ou textos cortados em tópicos separados. Não invente; se algo importante estiver ilegível, diga "ilegível". Sem markdown, sem asteriscos, sem comentários finais.`;
 
 async function readImage(bytes: ArrayBuffer, mime: string, caption: string): Promise<{ text: string; model: string }> {
   const prompt = caption ? `${IMAGE_PROMPT}\n\nLegenda que veio com a imagem: ${caption}` : IMAGE_PROMPT;
   try {
-    const result = await generate({ prompt, images: [{ mime, base64: imageBase64(bytes) }], maxTokens: 1200, temperature: 0 });
+    const result = await generate({ prompt, images: [{ mime, base64: imageBase64(bytes) }], maxTokens: 500, temperature: 0 });
     return { text: result.text.replace(/\*\*/g, "").trim(), model: result.model };
   } catch (error) {
     if (error instanceof ModelError) throw new ProviderError(error.message, error.temporary);

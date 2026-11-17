@@ -35,6 +35,7 @@ const temporaryStatus = (status: number) => status === 408 || status === 429 || 
 // Image formats the Anthropic API accepts directly.
 const CLAUDE_IMAGE = /^image\/(jpeg|png|gif|webp)$/;
 const CLAUDE_IMAGE_MAX = 5 * 1024 * 1024;
+const CLAUDE_MIN_TOKENS = 4096;
 
 async function callClaude(o: GenerateOptions): Promise<GenerateResult> {
   const content: unknown[] = [];
@@ -53,7 +54,9 @@ async function callClaude(o: GenerateOptions): Promise<GenerateResult> {
       headers: { "content-type": "application/json", "x-api-key": anthropicKey(), "anthropic-version": "2023-06-01" },
       body: JSON.stringify({
         // Current Claude models reject `temperature`; it is only used by the Gemini fallback.
-        model: CLAUDE_MODEL, max_tokens: o.maxTokens ?? 1024,
+        // The model may think before answering and that counts against max_tokens, so keep a
+        // generous floor; only tokens actually generated are billed.
+        model: CLAUDE_MODEL, max_tokens: Math.max(o.maxTokens ?? 1024, CLAUDE_MIN_TOKENS),
         ...(o.system ? { system: o.system } : {}), messages,
       }),
       signal: AbortSignal.timeout(60000),
@@ -67,6 +70,7 @@ async function callClaude(o: GenerateOptions): Promise<GenerateResult> {
   }
   const data = await response.json();
   let text = (data?.content || []).filter((b: any) => b?.type === "text").map((b: any) => b.text).join("").trim();
+  if (data?.stop_reason === "max_tokens") console.warn("claude reply cut at max_tokens", CLAUDE_MODEL);
   if (o.json) text = extractJson(text);
   if (!text) throw new ModelError(`claude: resposta vazia (${data?.stop_reason || "sem motivo"})`, false);
   return { text, model: CLAUDE_MODEL };
