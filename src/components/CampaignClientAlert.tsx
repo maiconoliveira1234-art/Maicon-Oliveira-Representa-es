@@ -5,6 +5,7 @@ import type { Cliente, HistVenda, Produto } from '../types';
 import type { Campanha } from '../lib/campaignEngine';
 import { campanhasParaHistorico } from '../lib/campaignEngine';
 import { ClientDetailModal } from './ui/ClientDetailModal';
+import { formatPersonName } from '../lib/personName';
 
 export function CampaignClientAlert({ cliente, historico, produtos, iconOnly = false }: {
   cliente: Cliente;
@@ -38,7 +39,7 @@ export function CampaignClientAlert({ cliente, historico, produtos, iconOnly = f
   const whatsappLink = (c: Campanha) => {
     const hour = new Date().getHours();
     const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
-    const nome = cliente.contato || cliente.cliente;
+    const nome = formatPersonName(cliente.contato || cliente.cliente);
     const message = greeting + ', ' + nome + '! Tudo bem? Estou com uma campanha vigente de ' + c.titulo +
       '. Posso te apresentar as condições para sua próxima reposição?';
     return 'https://wa.me/' + dest + '?text=' + encodeURIComponent(message);

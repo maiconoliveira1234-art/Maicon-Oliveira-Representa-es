@@ -121,6 +121,12 @@ function pickStyleExamples(pairs:StylePair[], queryText:string, max = 4): StyleP
   return chosen;
 }
 
+function properName(raw: unknown) {
+  const text = String(raw ?? "").replace(/\s+/g, " ").trim().toLocaleLowerCase("pt-BR");
+  if (!text || text === "undefined" || text === "null") return "";
+  return text.split(" ").map((w, i) => i > 0 && ["da", "de", "di", "do", "das", "dos", "e"].includes(w)
+    ? w : w.replace(/(^|[-'])(\p{L})/gu, (_m, sep: string, ch: string) => sep + ch.toLocaleUpperCase("pt-BR"))).join(" ");
+}
 function clip(text:string, size:number) {
   const t = String(text || '').replace(/\s+/g, ' ').trim();
   return t.length > size ? t.slice(0, size - 1) + '…' : t;
@@ -415,11 +421,12 @@ REGRAS DE RESPOSTA:
 - Responda às mensagens selecionadas. Use a CONVERSA RECENTE apenas para manter coerência com o que Maicon já respondeu ou prometeu: não repita informações que ele já deu e não contradiga o que ele disse.
 - A conversa recente pode estar incompleta (respostas enviadas só aparecem quando capturadas).
 - Transcrições de áudio podem conter pequenas imprecisões.
+- NOMES: ao citar o nome do cliente ou do contato, escreva só a inicial de cada nome em maiúscula e o restante em minúsculas (ex.: "Carla", "Racao Facil"), nunca tudo em maiúsculas.
 - ESTILO: escreva como o Maicon escreve (tom, vocabulário, tamanho, jeito de abrir e fechar), seguindo a seção ESTILO DO MAICON. Quando houver respostas dele a ESTE cliente, o padrão dessa conversa vale mais que o estilo geral. Se houver CORREÇÕES dele a sugestões anteriores, evite repetir o que ele costuma mudar. Os exemplos servem só como referência de jeito de falar: nunca copie deles preços, quantidades, datas, nomes ou condições, que podem estar desatualizados. Fatos vêm somente dos dados do CRM acima. Estilo nunca prevalece sobre as regras comerciais nem sobre as proteções acima.
 
 DADOS DO CLIENTE
-Cliente: ${cliente.cliente}
-Contato: ${cliente.contato || 'não informado'}
+Cliente: ${properName(cliente.cliente)}
+Contato: ${properName(cliente.contato) || 'não informado'}
 Cidade/bairro: ${[cliente.cidade,cliente.bairro].filter(Boolean).join(' / ') || 'não informado'}
 Saldo Flex: ${money(n(cliente.flex_saldo))}
 Último faturamento: ${latestDate || 'não encontrado'}

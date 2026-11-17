@@ -62,6 +62,7 @@ import { MOCK_CLIENTES, MOCK_HISTORICO, MOCK_PRODUTOS } from '../lib/mockData';
 import { shouldExcludeSale } from '../constants';
 import { useDataManager } from '../lib/dataManager';
 import { StockCountSkeleton } from '../components/ui/Skeleton';
+import { formatPersonName } from '../lib/personName';
 
 // Mesmo limite usado na tela de Trocas para destacar empréstimos em atraso.
 const PRAZO_EMPRESTIMO_DIAS = 30;
@@ -778,7 +779,7 @@ export function ClienteDetail() {
                   const rawPhone = String(cliente.telefone || '');
                   const digits = rawPhone.replace(/\D/g, '');
                   const cleanedPhone = (digits.length <= 11 && digits.length > 0 && !digits.startsWith('55')) ? '55' + digits : digits;
-                  const contactName = cliente.contato || cliente.cliente;
+                  const contactName = formatPersonName(cliente.contato || cliente.cliente);
                   const hour = new Date().getHours();
                   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
                   const textMessage = `${greeting} ${contactName}, tudo bem?`;

@@ -25,6 +25,7 @@ import { cn } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
 import { applyAgendaNoteAlertLevel, getAgendaNoteAlert } from '../../lib/agendaNoteAlert';
 import type { AgendaNoteAlertLevel } from '../../lib/agendaNoteAlert';
+import { formatPersonName } from '../../lib/personName';
 
 interface VisitaDrawerProps {
   visita: Visita | null;
@@ -153,8 +154,7 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
 
   const openWhatsApp = () => {
     const cleanPhone = String(visita.telefone || '').replace(/\D/g, '');
-    const rawName = visita.contato || 'Parceiro';
-    const contactName = rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
+    const contactName = formatPersonName(visita.contato) || 'Parceiro';
     const message = `Bom dia ${contactName}, tudo bem?`;
     window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
   };
