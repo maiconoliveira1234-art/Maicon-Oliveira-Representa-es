@@ -124,6 +124,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   poucas_amostras: 'Ainda há poucas respostas suas registradas para montar o perfil. Tente de novo depois de responder mais clientes.',
   contact_not_linked: 'Vincule este contato a um cliente do CRM antes de gerar a sugestão.',
   audio_not_transcribed: 'Este áudio ainda não tem texto. Ouça no WhatsApp ou escolha outra mensagem.',
+  image_not_read: 'Esta imagem ainda não foi lida. Aguarde um instante ou escolha outra mensagem.',
   message_not_found: 'Mensagem não encontrada. Atualize a tela.',
   context_message_not_found: 'Alguma mensagem do contexto não foi encontrada. Atualize a tela.',
   invalid_context_contact: 'As mensagens escolhidas não são desta conversa. Atualize a tela.',
@@ -166,23 +167,27 @@ type AudioFields = {
 };
 
 export function audioState(message: AudioFields, now: Date = new Date()): AudioState {
-  if (message.tipo_mensagem !== 'audio' || message.transcricao_audio) return null;
+  const isImage = message.tipo_mensagem === 'imagem';
+  if ((message.tipo_mensagem !== 'audio' && !isImage) || message.transcricao_audio) return null;
   const ageMs = now.getTime() - new Date(message.recebida_em).getTime();
   // Failed attempts are retried automatically for about two hours (status stays "pendente" meanwhile).
   const retryWindowMs = 3 * 60 * 60 * 1000;
+  const what = isImage ? 'a imagem' : 'o áudio';
   if (message.audio_status === 'erro') {
     if (/credencial/i.test(message.transcricao_erro || '')) {
-      return { tone: 'error', text: 'Áudio sem texto: a transcrição ainda não está configurada. Ouça no WhatsApp.' };
+      return { tone: 'error', text: isImage
+        ? 'Imagem sem leitura: a leitura de imagens ainda não está configurada. Veja no WhatsApp.'
+        : 'Áudio sem texto: a transcrição ainda não está configurada. Ouça no WhatsApp.' };
     }
-    return { tone: 'error', text: 'Falha ao transcrever o áudio. Ouça no WhatsApp.' };
+    return { tone: 'error', text: isImage ? 'Não foi possível ler a imagem.' : 'Falha ao transcrever o áudio. Ouça no WhatsApp.' };
   }
   if (message.audio_status === 'transcrevendo') {
-    if (ageMs > retryWindowMs) return { tone: 'error', text: 'Transcrição parada. Ouça o áudio no WhatsApp.' };
-    return { tone: 'wait', text: 'Transcrevendo o áudio…' };
+    if (ageMs > retryWindowMs) return { tone: 'error', text: isImage ? 'Leitura da imagem parada.' : 'Transcrição parada. Ouça o áudio no WhatsApp.' };
+    return { tone: 'wait', text: isImage ? 'Lendo a imagem…' : 'Transcrevendo o áudio…' };
   }
-  if (ageMs > retryWindowMs) return { tone: 'error', text: 'Este áudio não foi transcrito. Ouça no WhatsApp.' };
-  if (message.transcricao_erro) return { tone: 'wait', text: 'A transcrição falhou; nova tentativa em instantes…' };
-  return { tone: 'wait', text: 'Aguardando a transcrição…' };
+  if (ageMs > retryWindowMs) return { tone: 'error', text: isImage ? 'Esta imagem não foi lida.' : 'Este áudio não foi transcrito. Ouça no WhatsApp.' };
+  if (message.transcricao_erro) return { tone: 'wait', text: `Não deu para ${isImage ? 'ler' : 'transcrever'} ${what} agora; nova tentativa em instantes…` };
+  return { tone: 'wait', text: isImage ? 'Aguardando a leitura da imagem…' : 'Aguardando a transcrição…' };
 }
 
 /** A suggestion is stale when a newer message arrived after it was generated. */

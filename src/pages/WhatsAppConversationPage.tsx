@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, Copy, ExternalLink, Link2, Loader2, MoreVertical, Mic, RefreshCw, Send, Sparkles, Unlink, UserRound, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, Copy, ExternalLink, Image as ImageIcon, Link2, Loader2, MoreVertical, Mic, RefreshCw, Send, Sparkles, Unlink, UserRound, X } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { OrderLearningPanel } from '../components/whatsapp/OrderLearningPanel';
@@ -47,6 +47,8 @@ type Message = {
   transcricao_audio: string | null;
   audio_status: string | null;
   transcricao_erro: string | null;
+  midia_legenda: string | null;
+  midia_path: string | null;
   sugestao_resposta: string | null;
   sugestao_gerada_em: string | null;
   sugestao_erro: string | null;
@@ -55,8 +57,46 @@ type Message = {
 };
 
 const MESSAGE_FIELDS =
-  'id, mensagem, recebida_em, tipo_mensagem, transcricao_audio, audio_status, transcricao_erro, sugestao_resposta, sugestao_gerada_em, sugestao_erro, visualizada_em, direcao';
+  'id, mensagem, recebida_em, tipo_mensagem, transcricao_audio, audio_status, transcricao_erro, midia_legenda, midia_path, sugestao_resposta, sugestao_gerada_em, sugestao_erro, visualizada_em, direcao';
 const POLL_MS = 15000;
+
+// Signed URLs for the private photo bucket, cached for the session (they last one hour).
+const imageUrlCache = new Map<string, { url: string; expires: number }>();
+
+function MessageImage({ path, sent }: { path: string; sent: boolean }) {
+  const [url, setUrl] = useState<string | null>(() => {
+    const cached = imageUrlCache.get(path);
+    return cached && cached.expires > Date.now() ? cached.url : null;
+  });
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (url) return;
+    let alive = true;
+    supabase.storage.from('whatsapp-midia').createSignedUrl(path, 3600).then(({ data, error }) => {
+      if (!alive) return;
+      if (error || !data?.signedUrl) { setFailed(true); return; }
+      imageUrlCache.set(path, { url: data.signedUrl, expires: Date.now() + 55 * 60 * 1000 });
+      setUrl(data.signedUrl);
+    });
+    return () => { alive = false; };
+  }, [path, url]);
+  if (failed) return null;
+  return (
+    <a
+      href={url || undefined}
+      target="_blank"
+      rel="noreferrer"
+      aria-label="Abrir a foto"
+      className={`mb-1 block overflow-hidden rounded-2xl bg-neutral-200 shadow-sm ${sent ? 'self-end' : 'self-start'}`}
+    >
+      {url ? (
+        <img src={url} alt="Foto enviada pelo WhatsApp" loading="lazy" className="block max-h-64 w-auto max-w-full object-cover" />
+      ) : (
+        <span className="flex h-32 w-40 items-center justify-center text-neutral-400"><ImageIcon size={28} /></span>
+      )}
+    </a>
+  );
+}
 
 export function WhatsAppConversationPage() {
   const navigate = useNavigate();
@@ -466,19 +506,22 @@ export function WhatsAppConversationPage() {
                 {burst.map((message, index) => {
                   const state = audioState(message, now);
                   const isAudio = message.tipo_mensagem === 'audio';
+                  const isImage = message.tipo_mensagem === 'imagem';
                   const sent = isSent(message);
                   const inContext = !sent && contextIdSet.has(message.id);
                   const isTarget = !sent && target?.id === message.id;
-                  const text = isAudio ? message.transcricao_audio : message.mensagem;
+                  const text = isAudio ? message.transcricao_audio : isImage ? message.midia_legenda : message.mensagem;
                   const lastInBurst = index === burst.length - 1;
                   return (
                     <div key={message.id} className={`mb-0.5 flex ${sent ? 'justify-end' : ''}`}>
+                      <div className={`flex max-w-[88%] flex-col ${sent ? 'items-end' : 'items-start'}`}>
+                      {isImage && message.midia_path && <MessageImage path={message.midia_path} sent={sent} />}
                       <button
                         type="button"
                         disabled={!selecting || sent}
                         onClick={() => toggleManual(message)}
                         aria-pressed={selecting ? inContext : undefined}
-                        className={`max-w-[88%] px-3 py-2 text-left shadow-sm transition ${
+                        className={`max-w-full px-3 py-2 text-left shadow-sm transition ${
                           sent ? 'rounded-2xl rounded-tr-md' : 'rounded-2xl rounded-tl-md'
                         } ${selecting && !sent ? 'min-h-[44px] cursor-pointer' : 'cursor-default'} ${
                           inContext ? 'bg-violet-100 ring-2 ring-violet-400' : sent ? 'bg-green-100' : 'bg-white'
@@ -489,9 +532,20 @@ export function WhatsAppConversationPage() {
                             <Mic size={13} /> {sent ? 'Seu áudio' : 'Áudio'}
                           </span>
                         )}
+                        {isImage && (
+                          <span className="mb-0.5 flex items-center gap-1 text-xs font-bold text-neutral-500">
+                            <ImageIcon size={13} /> {sent ? 'Sua imagem' : 'Imagem'}
+                          </span>
+                        )}
                         {text ? (
                           <span className="block whitespace-pre-wrap break-words text-[15px] leading-snug text-neutral-900">{text}</span>
                         ) : null}
+                        {isImage && message.transcricao_audio && (
+                          <span className="mt-1 block whitespace-pre-wrap break-words rounded-lg bg-neutral-100 px-2 py-1.5 text-[13px] leading-snug text-neutral-700">
+                            <span className="block text-[11px] font-black uppercase tracking-wide text-neutral-400">O que tem na imagem</span>
+                            {message.transcricao_audio}
+                          </span>
+                        )}
                         {state && (
                           <span className={`mt-0.5 block text-xs font-semibold ${state.tone === 'error' ? 'text-red-700' : 'text-amber-700'}`}>{state.text}</span>
                         )}
@@ -502,6 +556,7 @@ export function WhatsAppConversationPage() {
                           </span>
                         )}
                       </button>
+                      </div>
                     </div>
                   );
                 })}

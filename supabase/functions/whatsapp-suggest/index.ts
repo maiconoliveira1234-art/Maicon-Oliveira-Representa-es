@@ -1,9 +1,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.101.1';
-import { GoogleGenAI } from 'npm:@google/genai';
+import { generate } from './llm.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
-const ai = new GoogleGenAI({ apiKey: Deno.env.get('GEMINI_API_KEY')! });
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': 'https://maicon-oliveira-representa-es.vercel.app',
@@ -39,6 +38,10 @@ type Sale = {
 };
 type Stock = { produto_id:string; quantidade_atual:number|null; ultima_contagem:string|null };
 
+// Audio: the transcript. Image: mensagem already holds caption + what the photo shows ("📷 ...").
+function msgText(m: { tipo_mensagem?:string|null; transcricao_audio?:string|null; mensagem?:string|null }) {
+  return m.tipo_mensagem === 'imagem' ? String(m.mensagem || '') : String(m.transcricao_audio || m.mensagem || '');
+}
 function n(v: unknown) { const x = Number(v); return Number.isFinite(x) ? x : 0; }
 function money(v: number) { return v.toLocaleString('pt-BR', { style:'currency', currency:'BRL' }); }
 function norm(v: string) {
@@ -91,7 +94,6 @@ function priceForTier(p:Product, tier:string) {
 type StylePair = { resposta:string; pergunta:string|null; enviada_em:string };
 const STYLE_MIN_SAMPLES = 10;
 const STYLE_REFRESH_DAYS = 7;
-const STYLE_MODEL = 'gemini-3.5-flash-lite';
 
 async function loadStylePairs(db:any, limit = 200): Promise<StylePair[]> {
   const { data, error } = await db.rpc('whatsapp_estilo_pares', { p_limit:limit });
@@ -183,7 +185,7 @@ ${sample}${editsText ? `
 
 CORREÇÕES: textos que a IA sugeriu e que Maicon alterou antes de enviar. Use-as para entender o que ele muda (tamanho, tom, saudação, emoji, ordem das informações) e registre esses hábitos no perfil, sem citar os textos:
 ${editsText}` : ''}`;
-  const response = await ai.models.generateContent({ model:STYLE_MODEL, contents:prompt });
+  const response = await generate({ prompt, maxTokens:900, temperature:0.3 });
   const perfil = String(response.text || '').trim().slice(0, 2500);
   if (perfil.length < 40) return { ok:false, error:'empty_model_response', amostras:used.length };
   const now = new Date().toISOString();
@@ -224,6 +226,7 @@ Deno.serve(async (req:Request) => {
     if (message.direcao === 'enviada') return json({ error:'message_not_inbound' }, 409);
     if (!message.cliente_id) return json({ error:'contact_not_linked' }, 409);
     if (message.tipo_mensagem === 'audio' && !message.transcricao_audio) return json({ error:'audio_not_transcribed' }, 409);
+    if (message.tipo_mensagem === 'imagem' && !message.transcricao_audio) return json({ error:'image_not_read' }, 409);
 
     let contextMessages:ContextMessage[] = [{
       id:message.id, contato_map_id:message.contato_map_id, mensagem:message.mensagem,
@@ -252,7 +255,7 @@ Deno.serve(async (req:Request) => {
     const recentConversation = ((recentRows || []) as ContextMessage[])
       .filter(m => !contextIdSet.has(m.id))
       .slice(0,14).reverse()
-      .map(m => `[${m.recebida_em}] ${m.direcao === 'enviada' ? 'Maicon' : 'Cliente'}: ${m.transcricao_audio || m.mensagem}`)
+      .map(m => `[${m.recebida_em}] ${m.direcao === 'enviada' ? 'Maicon' : 'Cliente'}: ${msgText(m)}`)
       .join('\n');
 
     // Maicon's own earlier replies to THIS customer: the pattern to follow in this specific conversation.
@@ -315,8 +318,8 @@ Deno.serve(async (req:Request) => {
     const lastTier = tierFromWeight(latestWeight);
     const availableTier = retained ? lastTier : 'livre';
 
-    const contextText = contextMessages.map((m,i) => `${i+1}. [${m.recebida_em}] ${m.transcricao_audio || m.mensagem}`).join('\n');
-    const queryText = contextMessages.map(m => m.transcricao_audio || m.mensagem).join(' ');
+    const contextText = contextMessages.map((m,i) => `${i+1}. [${m.recebida_em}] ${msgText(m)}`).join('\n');
+    const queryText = contextMessages.map(m => msgText(m)).join(' ');
     const scored = products
       .map(p => ({ p, score:productScore(p,queryText) }))
       .filter(x => x.score > 0)
@@ -406,7 +409,7 @@ Deno.serve(async (req:Request) => {
     const agoraLocal = new Intl.DateTimeFormat('pt-BR', {
       timeZone:'America/Sao_Paulo', dateStyle:'full', timeStyle:'short'
     }).format(new Date());
-    const finalMessage = message.transcricao_audio || message.mensagem;
+    const finalMessage = msgText(message);
     const prompt = `Você escreve respostas de WhatsApp Business em nome de Maicon, representante comercial da Adimax.
 
 OBJETIVO: responda usando os dados reais do CRM. Quando houver preço disponível, INFORME O PREÇO; não responda que vai verificar. Quando o cliente pedir reposição, pedido, sugestão ou “o que precisa”, use histórico e estoque abaixo para sugerir quantidades. Nunca invente dados.
@@ -421,6 +424,7 @@ REGRAS DE RESPOSTA:
 - Responda às mensagens selecionadas. Use a CONVERSA RECENTE apenas para manter coerência com o que Maicon já respondeu ou prometeu: não repita informações que ele já deu e não contradiga o que ele disse.
 - A conversa recente pode estar incompleta (respostas enviadas só aparecem quando capturadas).
 - Transcrições de áudio podem conter pequenas imprecisões.
+- Mensagens que começam com 📷 são fotos enviadas, já descritas em texto (lista de pedido, print, produto). Trate o conteúdo como o que o cliente mostrou; se algo estiver marcado como ilegível ou incerto, confirme com o cliente em vez de supor.
 - NOMES: ao citar o nome do cliente ou do contato, escreva só a inicial de cada nome em maiúscula e o restante em minúsculas (ex.: "Carla", "Racao Facil"), nunca tudo em maiúsculas.
 - ESTILO: escreva como o Maicon escreve (tom, vocabulário, tamanho, jeito de abrir e fechar), seguindo a seção ESTILO DO MAICON. Quando houver respostas dele a ESTE cliente, o padrão dessa conversa vale mais que o estilo geral. Se houver CORREÇÕES dele a sugestões anteriores, evite repetir o que ele costuma mudar. Os exemplos servem só como referência de jeito de falar: nunca copie deles preços, quantidades, datas, nomes ou condições, que podem estar desatualizados. Fatos vêm somente dos dados do CRM acima. Estilo nunca prevalece sobre as regras comerciais nem sobre as proteções acima.
 
@@ -462,7 +466,8 @@ MENSAGEM QUE DEVE SER RESPONDIDA
 
 Retorne somente a resposta sugerida.`;
 
-    const response = await ai.models.generateContent({ model:'gemini-3.5-flash-lite', contents:prompt });
+    const response = await generate({ prompt, maxTokens:700, temperature:0.4 });
+    const usedModel = response.model;
     let suggestion = String(response.text || '').trim();
     // Enforce the greeting if the model begins with one from the wrong period.
     suggestion = suggestion.replace(/^(bom dia|boa tarde|boa noite)(?=[!,.:;\\s]|$)/i,
@@ -471,13 +476,13 @@ Retorne somente a resposta sugerida.`;
 
     const generatedAt = new Date().toISOString();
     const { error:updateError } = await db.from('whatsapp_mensagens').update({
-      sugestao_resposta:suggestion, sugestao_gerada_em:generatedAt, sugestao_modelo:'gemini-3.5-flash-lite',
+      sugestao_resposta:suggestion, sugestao_gerada_em:generatedAt, sugestao_modelo:usedModel,
       sugestao_erro:null, status:'sugerida',
     }).eq('id', message.id);
     if (updateError) throw updateError;
 
     return json({
-      ok:true, suggestion, model:'gemini-3.5-flash-lite', generated_at:generatedAt,
+      ok:true, suggestion, model:usedModel, generated_at:generatedAt,
       rules_applied:rules.length, context_messages:contextMessages.length,
       client_tier:availableTier, last_order_weight:latestWeight, days_since_last:daysSinceLast,
       matched_products:scored.length, stock_items:stocks.length,
