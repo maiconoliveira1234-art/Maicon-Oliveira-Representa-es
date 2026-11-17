@@ -1,9 +1,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2.101.1";
+import { PDFDocument } from "npm:pdf-lib@1.17.1";
 import { claudeCheck, generate, hasAnyModel, ModelError, toBase64 as imageBase64 } from "./llm.ts";
 
 // Processes WhatsApp Cloud media (received and sent):
 // - audio: transcribed by Groq Whisper (free tier), Gemini as fallback;
-// - images: read by Claude (Haiku), Gemini as fallback; the photo is kept in Storage (whatsapp-midia).
+// - images and PDFs ("documento"): read by Claude (Haiku), Gemini as fallback; the file is kept in
+//   Storage (whatsapp-midia). Only the first PDF_MAX_PAGES pages of a PDF are read, to bound the cost.
 // The result goes to transcricao_audio (name kept for both kinds). Temporary provider failures
 // (quota, overload, network) are retried later by the "sweep" mode, which pg_cron calls every few
 // minutes (job promax-whatsapp-audio-retry).
@@ -29,6 +31,8 @@ const BACKOFF_MIN = [2, 5, 15, 30, 60];
 const STALE_MS = 5 * 60 * 1000;
 const SWEEP_BATCH = 6;
 const BUCKET = "whatsapp-midia";
+const PDF_MAX_PAGES = 10;
+type Kind = "audio" | "imagem" | "documento";
 const ORDER_LINE = /^\s*\d{1,4}\s*(?:(?:cxs?|caixas?|unidades?|un|sacos?|sc)\s*)?[-.)x]?\s+\S/i;
 const VOCAB = "Adimax, Fórmula Natural, FN Life, Magnus, Origens, Origens Class, Fresh Meat, sachê, saco, caixa, pet shop, agropecuária, boleto, pedido.";
 
@@ -131,7 +135,7 @@ async function transcribeGemini(bytes: ArrayBuffer, mime: string): Promise<{ tex
   throw last || new ProviderError("gemini: sem resposta", true);
 }
 
-async function downloadMedia(mediaId: string, kind: "audio" | "imagem"): Promise<{ bytes: ArrayBuffer; mime: string }> {
+async function downloadMedia(mediaId: string, kind: Kind): Promise<{ bytes: ArrayBuffer; mime: string }> {
   const authHeader = { Authorization: `Bearer ${mediaToken}` };
   const meta = await fetch(`https://graph.facebook.com/v26.0/${mediaId}`, { headers: authHeader });
   if (!meta.ok) {
@@ -150,6 +154,10 @@ async function downloadMedia(mediaId: string, kind: "audio" | "imagem"): Promise
   if (bytes.byteLength === 0 || bytes.byteLength > MAX_BYTES) throw new PermanentError("invalid_audio_length");
   const mime = String(info.mime_type || audioResponse.headers.get("content-type") || "audio/ogg")
     .split(";")[0].trim().toLowerCase();
+  if (kind === "documento") {
+    if (mime !== "application/pdf") throw new PermanentError("unsupported_mime");
+    return { bytes, mime };
+  }
   if (kind === "imagem") {
     const image = mime === "image/jpg" ? "image/jpeg" : mime;
     if (!/^image\/(jpeg|png|webp|gif)$/.test(image)) throw new PermanentError("unsupported_mime");
@@ -181,9 +189,58 @@ async function readImage(bytes: ArrayBuffer, mime: string, caption: string): Pro
   }
 }
 
-async function storeImage(messageId: string, bytes: ArrayBuffer, mime: string): Promise<string | null> {
-  const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : mime === "image/gif" ? "gif" : "jpg";
-  const path = `imagens/${messageId}.${ext}`;
+const PDF_PROMPT = `Este PDF foi enviado pelo WhatsApp numa conversa entre Maicon, representante comercial de rações e produtos pet da Adimax (marcas ${VOCAB}), e um cliente (pet shop ou agropecuária).
+
+Resuma o conteúdo de forma objetiva, em português do Brasil, para que o CRM possa usar o texto:
+- Comece com uma frase curta dizendo o que é o documento (nota fiscal, boleto, pedido, tabela de preços, comprovante, catálogo...).
+- Se for PEDIDO ou lista de compra, transcreva cada item numa linha própria, no formato "quantidade produto embalagem". Não some nem converta quantidades.
+- Se for nota fiscal, boleto ou comprovante: número, emitente, valor total, vencimento, data e, se houver, os itens com quantidade e valor.
+- Se for tabela de preços ou campanha: produtos, preços, condições e validade (no máximo 30 linhas; diga se houver mais).
+- Em outros casos, os pontos principais em poucas linhas.
+
+Regras: não invente nada; o que estiver ilegível ou incerto, marque como [ilegível] ou "parece ser". Sem markdown, sem asteriscos, sem comentários finais.`;
+
+/** Keeps only the first PDF_MAX_PAGES pages; returns the original bytes if the PDF cannot be parsed. */
+async function trimPdf(bytes: ArrayBuffer): Promise<{ bytes: Uint8Array; pages: number | null; trimmed: boolean }> {
+  try {
+    const source = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    const pages = source.getPageCount();
+    if (pages <= PDF_MAX_PAGES) return { bytes: new Uint8Array(bytes), pages, trimmed: false };
+    const out = await PDFDocument.create();
+    const copied = await out.copyPages(source, Array.from({ length: PDF_MAX_PAGES }, (_, i) => i));
+    copied.forEach(page => out.addPage(page));
+    return { bytes: await out.save(), pages, trimmed: true };
+  } catch (error) {
+    console.warn("pdf trim failed", error instanceof Error ? error.message : String(error));
+    return { bytes: new Uint8Array(bytes), pages: null, trimmed: false };
+  }
+}
+
+async function readDocument(bytes: ArrayBuffer, caption: string, name: string): Promise<{ text: string; model: string }> {
+  const { bytes: pdf, pages, trimmed } = await trimPdf(bytes);
+  const extra = [
+    name ? `Nome do arquivo: ${name}` : "",
+    caption ? `Legenda que veio com o arquivo: ${caption}` : "",
+    trimmed ? `Atenção: o PDF tem ${pages} páginas; só as ${PDF_MAX_PAGES} primeiras foram enviadas.` : "",
+  ].filter(Boolean).join("\n");
+  try {
+    const result = await generate({
+      prompt: extra ? `${PDF_PROMPT}\n\n${extra}` : PDF_PROMPT,
+      documents: [{ base64: imageBase64(pdf.slice().buffer) }],
+      maxTokens: 1500, temperature: 0,
+    });
+    let text = result.text.replace(/\*\*/g, "").trim();
+    if (trimmed) text += `\n(Lidas só as ${PDF_MAX_PAGES} primeiras de ${pages} páginas.)`;
+    return { text, model: result.model };
+  } catch (error) {
+    if (error instanceof ModelError) throw new ProviderError(error.message, error.temporary);
+    throw error;
+  }
+}
+
+async function storeMedia(messageId: string, bytes: ArrayBuffer, mime: string): Promise<string | null> {
+  const ext = mime === "application/pdf" ? "pdf" : mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : mime === "image/gif" ? "gif" : "jpg";
+  const path = `${mime === "application/pdf" ? "documentos" : "imagens"}/${messageId}.${ext}`;
   const { error } = await db.storage.from(BUCKET).upload(path, new Blob([bytes], { type: mime }), { contentType: mime, upsert: true });
   if (error) { console.warn("image storage failed", messageId, error.message); return null; }
   return path;
@@ -225,18 +282,21 @@ async function fail(id: string, attempts: number, detail: string, retryable: boo
 
 type Outcome = { id: string; result: string; detail?: string };
 
-async function finishImage(message: any, bytes: ArrayBuffer, mime: string): Promise<Outcome> {
+async function finishVisual(message: any, kind: Kind, bytes: ArrayBuffer, mime: string): Promise<Outcome> {
   const caption = String(message.midia_legenda || "").trim();
-  const path = message.midia_path || await storeImage(message.id, bytes, mime);
-  const { text, model } = await readImage(bytes, mime, caption);
+  const path = message.midia_path || await storeMedia(message.id, bytes, mime);
+  const { text, model } = kind === "documento"
+    ? await readDocument(bytes, caption, String(message.midia_nome || ""))
+    : await readImage(bytes, mime, caption);
+  const icon = kind === "documento" ? "📄" : "📷";
   const { error: writeError } = await db.from("whatsapp_mensagens").update({
-    mensagem: `📷 ${caption ? `${caption}\n` : ""}${text}`,
+    mensagem: `${icon} ${caption ? `${caption}\n` : ""}${text}`,
     transcricao_audio: text, transcricao_modelo: model, transcricao_gerada_em: new Date().toISOString(),
     audio_status: "transcrito", transcricao_erro: null, audio_tamanho_bytes: bytes.byteLength,
     transcricao_proxima_tentativa: null, transcricao_iniciada_em: null, midia_path: path,
   }).eq("id", message.id);
   if (writeError) throw new ProviderError(`image_save_failed_${writeError.code}`, true);
-  console.info("cloud image read", message.id, model);
+  console.info("cloud media read", kind, message.id, model);
   // A photographed order list goes to the same review as a typed one (never creates an order by itself).
   if (message.direcao !== "enviada" && looksLikeOrder(`${caption}\n${text}`)) {
     const analysis = fetch(`${url}/functions/v1/whatsapp-order-analyze`, {
@@ -253,11 +313,11 @@ async function finishImage(message: any, bytes: ArrayBuffer, mime: string): Prom
 
 async function processMessage(messageId: string): Promise<Outcome> {
   const { data: message, error } = await db.from("whatsapp_mensagens")
-    .select("id,tipo_mensagem,app_package,audio_arquivo_nome,audio_status,transcricao_audio,transcricao_tentativas,direcao,midia_legenda,midia_path")
+    .select("id,tipo_mensagem,app_package,audio_arquivo_nome,audio_status,transcricao_audio,transcricao_tentativas,direcao,midia_legenda,midia_path,midia_nome")
     .eq("id", messageId).maybeSingle();
   if (error) throw error;
-  const kind = message?.tipo_mensagem === "imagem" ? "imagem" : "audio";
-  if (!message || !["audio", "imagem"].includes(message.tipo_mensagem) || message.app_package !== "easycoexistence.cloud_api")
+  const kind: Kind = message?.tipo_mensagem === "imagem" ? "imagem" : message?.tipo_mensagem === "documento" ? "documento" : "audio";
+  if (!message || !["audio", "imagem", "documento"].includes(message.tipo_mensagem) || message.app_package !== "easycoexistence.cloud_api")
     return { id: messageId, result: "audio_not_found" };
   if (message.transcricao_audio) return { id: messageId, result: "already_transcribed" };
   const attemptsBefore = Number(message.transcricao_tentativas || 0);
@@ -267,10 +327,10 @@ async function processMessage(messageId: string): Promise<Outcome> {
     await fail(messageId, MAX_ATTEMPTS, "Identificador de mídia Meta inválido.", false);
     return { id: messageId, result: "invalid_media_id" };
   }
-  const modelReady = kind === "imagem" ? hasAnyModel() : Boolean(groq || gemini);
+  const modelReady = kind === "audio" ? Boolean(groq || gemini) : hasAnyModel();
   if (!mediaToken || !modelReady) {
     const missing = !mediaToken ? "Credencial da Meta para download de mídia não configurada."
-      : kind === "imagem" ? "Credencial de leitura de imagens não configurada." : "Credencial de transcrição não configurada.";
+      : kind === "audio" ? "Credencial de transcrição não configurada." : "Credencial de leitura de imagens e PDF não configurada.";
     await db.from("whatsapp_mensagens").update({ audio_status: "erro", transcricao_erro: missing }).eq("id", messageId);
     return { id: messageId, result: "not_configured", detail: missing };
   }
@@ -279,7 +339,7 @@ async function processMessage(messageId: string): Promise<Outcome> {
 
   try {
     const { bytes, mime } = await downloadMedia(mediaId, kind);
-    if (kind === "imagem") return await finishImage(message, bytes, mime);
+    if (kind !== "audio") return await finishVisual(message, kind, bytes, mime);
     const errors: ProviderError[] = [];
     let transcript = "";
     let usedModel = "";
@@ -324,7 +384,7 @@ async function sweep(): Promise<Outcome[]> {
   const staleBefore = new Date(Date.now() - STALE_MS).toISOString();
   const { data, error } = await db.from("whatsapp_mensagens")
     .select("id")
-    .eq("app_package", "easycoexistence.cloud_api").in("tipo_mensagem", ["audio", "imagem"])
+    .eq("app_package", "easycoexistence.cloud_api").in("tipo_mensagem", ["audio", "imagem", "documento"])
     .is("transcricao_audio", null).gte("recebida_em", since).lt("criado_em", settled)
     .lt("transcricao_tentativas", MAX_ATTEMPTS)
     .or([

@@ -77,6 +77,8 @@ assert.equal(audioState({ ...baseAudio, audio_status: 'erro', transcricao_erro: 
 assert.match(audioState({ ...baseAudio, tipo_mensagem: 'imagem', audio_status: 'transcrevendo' }, now)?.text || '', /Lendo a imagem/);
 assert.equal(audioState({ ...baseAudio, tipo_mensagem: 'imagem', transcricao_audio: 'Lista com 3 itens' }, now), null);
 assert.equal(audioState({ ...baseAudio, tipo_mensagem: 'imagem', audio_status: 'erro', transcricao_erro: 'x' }, now)?.tone, 'error');
+assert.match(audioState({ ...baseAudio, tipo_mensagem: 'documento', audio_status: 'transcrevendo' }, now)?.text || '', /Lendo o PDF/);
+assert.equal(audioState({ ...baseAudio, tipo_mensagem: 'documento', transcricao_audio: 'Nota fiscal' }, now), null);
 assert.match(audioState({ ...baseAudio, audio_status: 'erro', transcricao_erro: 'Credencial da Meta para download de mídia não configurada.' }, now)?.text || '', /não está configurada/);
 
 assert.equal(isSuggestionStale('2026-11-13T15:00:00.000Z', '2026-11-13T15:10:00.000Z'), true);

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, Copy, ExternalLink, Image as ImageIcon, Link2, Loader2, MoreVertical, Mic, RefreshCw, Send, Sparkles, Unlink, UserRound, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, Copy, ExternalLink, FileText, Image as ImageIcon, Link2, Loader2, MoreVertical, Mic, RefreshCw, Send, Sparkles, Unlink, UserRound, X } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { OrderLearningPanel } from '../components/whatsapp/OrderLearningPanel';
@@ -49,6 +49,7 @@ type Message = {
   transcricao_erro: string | null;
   midia_legenda: string | null;
   midia_path: string | null;
+  midia_nome: string | null;
   sugestao_resposta: string | null;
   sugestao_gerada_em: string | null;
   sugestao_erro: string | null;
@@ -57,13 +58,13 @@ type Message = {
 };
 
 const MESSAGE_FIELDS =
-  'id, mensagem, recebida_em, tipo_mensagem, transcricao_audio, audio_status, transcricao_erro, midia_legenda, midia_path, sugestao_resposta, sugestao_gerada_em, sugestao_erro, visualizada_em, direcao';
+  'id, mensagem, recebida_em, tipo_mensagem, transcricao_audio, audio_status, transcricao_erro, midia_legenda, midia_path, midia_nome, sugestao_resposta, sugestao_gerada_em, sugestao_erro, visualizada_em, direcao';
 const POLL_MS = 15000;
 
 // Signed URLs for the private photo bucket, cached for the session (they last one hour).
 const imageUrlCache = new Map<string, { url: string; expires: number }>();
 
-function MessageImage({ path, sent }: { path: string; sent: boolean }) {
+function useSignedUrl(path: string) {
   const [url, setUrl] = useState<string | null>(() => {
     const cached = imageUrlCache.get(path);
     return cached && cached.expires > Date.now() ? cached.url : null;
@@ -80,6 +81,27 @@ function MessageImage({ path, sent }: { path: string; sent: boolean }) {
     });
     return () => { alive = false; };
   }, [path, url]);
+  return { url, failed };
+}
+
+function MessagePdf({ path, name, sent }: { path: string; name: string | null; sent: boolean }) {
+  const { url, failed } = useSignedUrl(path);
+  if (failed) return null;
+  return (
+    <a
+      href={url || undefined}
+      target="_blank"
+      rel="noreferrer"
+      className={`mb-1 flex min-h-[44px] max-w-full items-center gap-2 rounded-2xl bg-white px-3 py-2 text-sm font-bold text-neutral-800 shadow-sm ${sent ? 'self-end' : 'self-start'}`}
+    >
+      <FileText size={22} className="shrink-0 text-red-600" />
+      <span className="truncate">{name || 'Abrir PDF'}</span>
+    </a>
+  );
+}
+
+function MessageImage({ path, sent }: { path: string; sent: boolean }) {
+  const { url, failed } = useSignedUrl(path);
   if (failed) return null;
   return (
     <a
@@ -506,7 +528,8 @@ export function WhatsAppConversationPage() {
                 {burst.map((message, index) => {
                   const state = audioState(message, now);
                   const isAudio = message.tipo_mensagem === 'audio';
-                  const isImage = message.tipo_mensagem === 'imagem';
+                  const isPdf = message.tipo_mensagem === 'documento';
+                  const isImage = message.tipo_mensagem === 'imagem' || isPdf;
                   const sent = isSent(message);
                   const inContext = !sent && contextIdSet.has(message.id);
                   const isTarget = !sent && target?.id === message.id;
@@ -515,7 +538,9 @@ export function WhatsAppConversationPage() {
                   return (
                     <div key={message.id} className={`mb-0.5 flex ${sent ? 'justify-end' : ''}`}>
                       <div className={`flex max-w-[88%] flex-col ${sent ? 'items-end' : 'items-start'}`}>
-                      {isImage && message.midia_path && <MessageImage path={message.midia_path} sent={sent} />}
+                      {isImage && message.midia_path && (isPdf
+                        ? <MessagePdf path={message.midia_path} name={message.midia_nome} sent={sent} />
+                        : <MessageImage path={message.midia_path} sent={sent} />)}
                       <button
                         type="button"
                         disabled={!selecting || sent}
@@ -534,7 +559,8 @@ export function WhatsAppConversationPage() {
                         )}
                         {isImage && (
                           <span className="mb-0.5 flex items-center gap-1 text-xs font-bold text-neutral-500">
-                            <ImageIcon size={13} /> {sent ? 'Sua imagem' : 'Imagem'}
+                            {isPdf ? <FileText size={13} /> : <ImageIcon size={13} />}{' '}
+                            {isPdf ? (sent ? 'Seu PDF' : 'PDF') : sent ? 'Sua imagem' : 'Imagem'}
                           </span>
                         )}
                         {text ? (
@@ -542,7 +568,7 @@ export function WhatsAppConversationPage() {
                         ) : null}
                         {isImage && message.transcricao_audio && (
                           <span className="mt-1 block whitespace-pre-wrap break-words rounded-lg bg-neutral-100 px-2 py-1.5 text-[13px] leading-snug text-neutral-700">
-                            <span className="block text-[11px] font-black uppercase tracking-wide text-neutral-400">O que tem na imagem</span>
+                            <span className="block text-[11px] font-black uppercase tracking-wide text-neutral-400">{isPdf ? 'O que tem no documento' : 'O que tem na imagem'}</span>
                             {message.transcricao_audio}
                           </span>
                         )}

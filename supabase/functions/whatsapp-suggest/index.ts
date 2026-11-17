@@ -38,9 +38,9 @@ type Sale = {
 };
 type Stock = { produto_id:string; quantidade_atual:number|null; ultima_contagem:string|null };
 
-// Audio: the transcript. Image: mensagem already holds caption + what the photo shows ("📷 ...").
+// Audio: the transcript. Image/PDF: mensagem already holds caption + what the file shows ("📷 ..." / "📄 ...").
 function msgText(m: { tipo_mensagem?:string|null; transcricao_audio?:string|null; mensagem?:string|null }) {
-  return m.tipo_mensagem === 'imagem' ? String(m.mensagem || '') : String(m.transcricao_audio || m.mensagem || '');
+  return m.tipo_mensagem === 'imagem' || m.tipo_mensagem === 'documento' ? String(m.mensagem || '') : String(m.transcricao_audio || m.mensagem || '');
 }
 function n(v: unknown) { const x = Number(v); return Number.isFinite(x) ? x : 0; }
 function money(v: number) { return v.toLocaleString('pt-BR', { style:'currency', currency:'BRL' }); }
@@ -226,7 +226,7 @@ Deno.serve(async (req:Request) => {
     if (message.direcao === 'enviada') return json({ error:'message_not_inbound' }, 409);
     if (!message.cliente_id) return json({ error:'contact_not_linked' }, 409);
     if (message.tipo_mensagem === 'audio' && !message.transcricao_audio) return json({ error:'audio_not_transcribed' }, 409);
-    if (message.tipo_mensagem === 'imagem' && !message.transcricao_audio) return json({ error:'image_not_read' }, 409);
+    if ((message.tipo_mensagem === 'imagem' || message.tipo_mensagem === 'documento') && !message.transcricao_audio) return json({ error:'image_not_read' }, 409);
 
     let contextMessages:ContextMessage[] = [{
       id:message.id, contato_map_id:message.contato_map_id, mensagem:message.mensagem,
@@ -424,7 +424,7 @@ REGRAS DE RESPOSTA:
 - Responda às mensagens selecionadas. Use a CONVERSA RECENTE apenas para manter coerência com o que Maicon já respondeu ou prometeu: não repita informações que ele já deu e não contradiga o que ele disse.
 - A conversa recente pode estar incompleta (respostas enviadas só aparecem quando capturadas).
 - Transcrições de áudio podem conter pequenas imprecisões.
-- Mensagens que começam com 📷 são fotos enviadas, já descritas em texto (lista de pedido, print, produto). Trate o conteúdo como o que o cliente mostrou; se algo estiver marcado como ilegível ou incerto, confirme com o cliente em vez de supor.
+- Mensagens que começam com 📷 são fotos e as que começam com 📄 são PDFs enviados, já descritos em texto (lista de pedido, print, nota, boleto, produto). Trate o conteúdo como o que o cliente mostrou; se algo estiver marcado como ilegível ou incerto, confirme com o cliente em vez de supor.
 - NOMES: ao citar o nome do cliente ou do contato, escreva só a inicial de cada nome em maiúscula e o restante em minúsculas (ex.: "Carla", "Racao Facil"), nunca tudo em maiúsculas.
 - ESTILO: escreva como o Maicon escreve (tom, vocabulário, tamanho, jeito de abrir e fechar), seguindo a seção ESTILO DO MAICON. Quando houver respostas dele a ESTE cliente, o padrão dessa conversa vale mais que o estilo geral. Se houver CORREÇÕES dele a sugestões anteriores, evite repetir o que ele costuma mudar. Os exemplos servem só como referência de jeito de falar: nunca copie deles preços, quantidades, datas, nomes ou condições, que podem estar desatualizados. Fatos vêm somente dos dados do CRM acima. Estilo nunca prevalece sobre as regras comerciais nem sobre as proteções acima.
 

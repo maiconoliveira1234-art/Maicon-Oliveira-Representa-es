@@ -16,10 +16,13 @@ export class ModelError extends Error {
 }
 
 export type ImageInput = { mime: string; base64: string };
+/** PDF file, base64. */
+export type DocumentInput = { base64: string };
 export type GenerateOptions = {
   prompt: string;
   system?: string;
   images?: ImageInput[];
+  documents?: DocumentInput[];
   maxTokens?: number;
   temperature?: number;
   /** Ask for a JSON object; the text returned is the raw JSON. */
@@ -35,6 +38,9 @@ const CLAUDE_IMAGE_MAX = 5 * 1024 * 1024;
 
 async function callClaude(o: GenerateOptions): Promise<GenerateResult> {
   const content: unknown[] = [];
+  for (const doc of o.documents || []) {
+    content.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: doc.base64 } });
+  }
   for (const image of o.images || []) {
     content.push({ type: "image", source: { type: "base64", media_type: image.mime, data: image.base64 } });
   }
@@ -67,7 +73,10 @@ async function callClaude(o: GenerateOptions): Promise<GenerateResult> {
 }
 
 async function callGemini(model: string, o: GenerateOptions): Promise<GenerateResult> {
-  const parts: unknown[] = (o.images || []).map(i => ({ inlineData: { mimeType: i.mime, data: i.base64 } }));
+  const parts: unknown[] = [
+    ...(o.documents || []).map(d => ({ inlineData: { mimeType: "application/pdf", data: d.base64 } })),
+    ...(o.images || []).map(i => ({ inlineData: { mimeType: i.mime, data: i.base64 } })),
+  ];
   parts.push({ text: o.prompt });
   let response: Response;
   try {

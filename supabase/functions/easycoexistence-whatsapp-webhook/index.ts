@@ -53,13 +53,19 @@ Deno.serve(async req => {
         const echoText = echo.type === "text" && typeof echo.text?.body === "string";
         const echoAudio = echo.type === "audio" && typeof echo.audio?.id === "string";
         const echoImage = echo.type === "image" && typeof echo.image?.id === "string";
-        if (!echoText && !echoAudio && !echoImage) { unsupported++; continue; }
-        const echoCaption = echoImage ? String(echo.image.caption || "").trim().slice(0, 1000) : "";
+        // Only PDFs among documents (other files stay unsupported).
+        const echoPdf = echo.type === "document" && typeof echo.document?.id === "string"
+          && String(echo.document?.mime_type || "").toLowerCase().startsWith("application/pdf");
+        if (!echoText && !echoAudio && !echoImage && !echoPdf) { unsupported++; continue; }
+        const echoMedia = echoImage ? echo.image : echoPdf ? echo.document : null;
+        const echoCaption = echoMedia ? String(echoMedia.caption || "").trim().slice(0, 1000) : "";
+        const echoFileName = echoPdf ? String(echo.document.filename || "").trim().slice(0, 200) : "";
         const echoPhone = String(echo.to).replace(/\D/g, "");
         if (!echoPhone) continue;
         const echoSender = "WA " + echoPhone;
         const echoBody = echoAudio ? "🎤 Áudio enviado — aguardando transcrição"
-          : echoImage ? "📷 " + (echoCaption || "Imagem enviada") : String(echo.text.body).trim();
+          : echoImage ? "📷 " + (echoCaption || "Imagem enviada")
+          : echoPdf ? "📄 " + (echoCaption || echoFileName || "PDF enviado") : String(echo.text.body).trim();
         if (!echoBody) continue;
         const sentAt = /^\d{9,13}$/.test(String(echo.timestamp || ""))
           ? new Date(Number(echo.timestamp) * 1000).toISOString() : new Date().toISOString();
@@ -79,11 +85,12 @@ Deno.serve(async req => {
           whatsapp_nome: echoSender,
           mensagem: echoBody,
           app_package: "easycoexistence.cloud_api",
-          tipo_mensagem: echoAudio ? "audio" : echoImage ? "imagem" : "texto",
+          tipo_mensagem: echoAudio ? "audio" : echoImage ? "imagem" : echoPdf ? "documento" : "texto",
           direcao: "enviada",
           visualizada_em: new Date().toISOString(),
           ...(echoAudio ? {audio_status: "pendente", audio_arquivo_nome: "meta-media:" + String(echo.audio.id).slice(0,200)} : {}),
-          ...(echoImage ? {audio_status: "pendente", audio_arquivo_nome: "meta-media:" + String(echo.image.id).slice(0,200), midia_legenda: echoCaption || null} : {}),
+          ...(echoMedia ? {audio_status: "pendente", audio_arquivo_nome: "meta-media:" + String(echoMedia.id).slice(0,200),
+            midia_legenda: echoCaption || null, midia_nome: echoFileName || null} : {}),
           dedupe_key: await digest("easycoexistence-echo:" + String(echo.id)),
           recebida_em: sentAt
         }).select("id").single();
@@ -92,7 +99,7 @@ Deno.serve(async req => {
           throw echoInserted.error;
         }
         echoes++;
-        if (echoAudio || echoImage) {
+        if (echoAudio || echoMedia) {
           const echoTranscription = fetch(dbUrl + "/functions/v1/whatsapp-cloud-audio-transcribe", {
             method: "POST",
             headers: {"content-type": "application/json", "authorization": "Bearer " + dbSecret, "apikey": dbSecret},
@@ -114,13 +121,19 @@ Deno.serve(async req => {
         const isText = message.type === "text" && typeof message.text?.body === "string";
         const isAudio = message.type === "audio" && typeof message.audio?.id === "string";
         const isImage = message.type === "image" && typeof message.image?.id === "string";
-        if (!isText && !isAudio && !isImage) { unsupported++; continue; }
-        const caption = isImage ? String(message.image.caption || "").trim().slice(0, 1000) : "";
+        // Only PDFs among documents (other files stay unsupported).
+        const isPdf = message.type === "document" && typeof message.document?.id === "string"
+          && String(message.document?.mime_type || "").toLowerCase().startsWith("application/pdf");
+        if (!isText && !isAudio && !isImage && !isPdf) { unsupported++; continue; }
+        const media = isImage ? message.image : isPdf ? message.document : null;
+        const caption = media ? String(media.caption || "").trim().slice(0, 1000) : "";
+        const fileName = isPdf ? String(message.document.filename || "").trim().slice(0, 200) : "";
         const phone = String(message.from).replace(/\D/g, "");
         if (!phone) continue;
         const sender = "WA " + phone;
         const body = isAudio ? "🎤 Áudio recebido — aguardando transcrição"
-          : isImage ? "📷 " + (caption || "Imagem recebida") : String(message.text.body).trim();
+          : isImage ? "📷 " + (caption || "Imagem recebida")
+          : isPdf ? "📄 " + (caption || fileName || "PDF recebido") : String(message.text.body).trim();
         if (!body) continue;
         const receivedAt = /^\d{9,13}$/.test(String(message.timestamp || ""))
           ? new Date(Number(message.timestamp) * 1000).toISOString() : new Date().toISOString();
@@ -191,9 +204,10 @@ Deno.serve(async req => {
           whatsapp_nome: sender,
           mensagem: body,
           app_package: "easycoexistence.cloud_api",
-          tipo_mensagem: isAudio ? "audio" : isImage ? "imagem" : "texto",
+          tipo_mensagem: isAudio ? "audio" : isImage ? "imagem" : isPdf ? "documento" : "texto",
           ...(isAudio ? {audio_status: "pendente", audio_arquivo_nome: "meta-media:" + String(message.audio.id).slice(0,200)} : {}),
-          ...(isImage ? {audio_status: "pendente", audio_arquivo_nome: "meta-media:" + String(message.image.id).slice(0,200), midia_legenda: caption || null} : {}),
+          ...(media ? {audio_status: "pendente", audio_arquivo_nome: "meta-media:" + String(media.id).slice(0,200),
+            midia_legenda: caption || null, midia_nome: fileName || null} : {}),
           dedupe_key: await digest("easycoexistence:" + String(message.id)),
           recebida_em: receivedAt
         }).select("id").single();
@@ -202,7 +216,7 @@ Deno.serve(async req => {
           throw inserted.error;
         }
         received++;
-        if (isAudio || isImage) {
+        if (isAudio || media) {
           // Cloud audio must be downloaded by its Meta media ID; the Android
           // notification uploader has been deliberately disabled.
           const transcription = fetch(dbUrl + "/functions/v1/whatsapp-cloud-audio-transcribe",{
