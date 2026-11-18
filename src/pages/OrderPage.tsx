@@ -668,6 +668,23 @@ export function OrderPage() {
     else draftSaver.flush();
   }, [draftSaver]);
 
+  // Com a espera maior antes de gravar, garantir o envio imediato quando o app
+  // vai para segundo plano ou a pagina e fechada (iPad/celular).
+  useEffect(() => {
+    const flushPending = () => {
+      if (!suppressDraftPersistence.current) draftSaver.flush();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') flushPending();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', flushPending);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', flushPending);
+    };
+  }, [draftSaver]);
+
   // Persist items to localStorage and database (Supabase)
   useEffect(() => {
     if (isReady && clienteId && !suppressDraftPersistence.current) {
