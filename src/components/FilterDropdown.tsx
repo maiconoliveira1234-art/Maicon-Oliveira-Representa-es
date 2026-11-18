@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, ChevronDown, X } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { rankOptions } from '../lib/rankOptions';
 
 interface Option {
   id: string;
@@ -30,9 +31,7 @@ export function FilterDropdown({
 
   const selectedOption = options.find(o => o.id === selected);
 
-  const filteredOptions = options.filter(o => 
-    o.label.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredOptions = rankOptions(options, searchTerm);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
