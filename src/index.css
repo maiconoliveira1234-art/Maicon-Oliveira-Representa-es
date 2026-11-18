@@ -81,6 +81,13 @@ body,
   overflow-x: clip;
 }
 
+/* iPad/iPhone: sem o "elástico" ao passar do topo/fim da página,
+   que arrastava o menu lateral fixo junto com o conteúdo. */
+html,
+body {
+  overscroll-behavior-y: none;
+}
+
 *,
 *::before,
 *::after {

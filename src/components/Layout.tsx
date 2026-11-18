@@ -182,7 +182,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div data-mobile-density={mobileListMode} className={cn(
-      "min-h-dvh bg-neutral-100 flex flex-col md:pl-[calc(5rem+env(safe-area-inset-left,0px))] min-[90rem]:pl-[calc(15rem+env(safe-area-inset-left,0px))] pr-[env(safe-area-inset-right,0px)] pl-[env(safe-area-inset-left,0px)] w-full max-w-full overflow-x-hidden",
+      "min-h-dvh bg-neutral-100 flex flex-col md:pl-[calc(5rem+env(safe-area-inset-left,0px))] min-[90rem]:pl-[calc(15rem+env(safe-area-inset-left,0px))] pr-[env(safe-area-inset-right,0px)] pl-[env(safe-area-inset-left,0px)] w-full max-w-full overflow-x-clip",
       hideBottomNav ? "pb-0 md:pb-0" : "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:pb-0"
     )}>
       {/* Status de sincronização no celular: só aparece quando exige atenção */}
@@ -199,13 +199,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Sidebar Desktop */}
       <aside
         ref={sidebarRef}
-        style={{
-          transform: 'translate3d(0, 0, 0)',
-          WebkitTransform: 'translate3d(0, 0, 0)',
-          backfaceVisibility: 'hidden',
-          WebkitBackfaceVisibility: 'hidden',
-          willChange: 'transform'
-        }}
         className="hidden md:flex flex-col w-[calc(5rem+env(safe-area-inset-left,0px))] min-[90rem]:w-[calc(15rem+env(safe-area-inset-left,0px))] pl-[env(safe-area-inset-left,0px)] bg-neutral-900 text-neutral-300 fixed left-0 top-0 bottom-0 z-50"
       >
         <div className="flex h-16 shrink-0 items-center justify-center gap-2.5 px-4 min-[90rem]:justify-start min-[90rem]:px-5">
