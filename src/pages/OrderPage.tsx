@@ -162,37 +162,8 @@ export function OrderPage() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  useEffect(() => {
-    const viewport = window.visualViewport;
-    let frameId = 0;
-
-    const positionFooter = () => {
-      window.cancelAnimationFrame(frameId);
-      frameId = window.requestAnimationFrame(() => {
-        if (!orderFooterRef.current) return;
-
-        const visualBottom = viewport
-          ? viewport.offsetTop + viewport.height
-          : window.innerHeight;
-        const offset = Math.min(0, visualBottom - window.innerHeight);
-        orderFooterRef.current.style.transform = `translate3d(0, ${Math.round(offset)}px, 0)`;
-      });
-    };
-
-    positionFooter();
-    window.addEventListener('resize', positionFooter);
-    window.addEventListener('orientationchange', positionFooter);
-    viewport?.addEventListener('resize', positionFooter);
-    viewport?.addEventListener('scroll', positionFooter);
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      window.removeEventListener('resize', positionFooter);
-      window.removeEventListener('orientationchange', positionFooter);
-      viewport?.removeEventListener('resize', positionFooter);
-      viewport?.removeEventListener('scroll', positionFooter);
-    };
-  }, []);
+  // A barra de totais fica presa no rodapé pelo CSS (position: fixed). Não
+  // reposicionar via visualViewport: no iPad isso a deslocava para o meio da tela.
 
   const families = useMemo(() => {
     const activeProducts = produtos.filter(p => p.ativo !== false);
@@ -1930,7 +1901,7 @@ export function OrderPage() {
       {/* Bottom Section (Fixed) */}
       {createPortal(<div
         ref={orderFooterRef}
-        className="fixed bottom-0 left-0 md:left-[calc(5rem+env(safe-area-inset-left,0px))] min-[90rem]:left-[calc(15rem+env(safe-area-inset-left,0px))] right-0 z-50 bg-white/95 backdrop-blur-md border-t border-neutral-200 shadow-[0_-4px_12px_rgba(16,24,40,0.06)] p-2 pb-[calc(8px+env(safe-area-inset-bottom))] md:p-3 md:pb-[calc(12px+env(safe-area-inset-bottom))] will-change-transform"
+        className="fixed bottom-0 left-0 md:left-[calc(5rem+env(safe-area-inset-left,0px))] min-[90rem]:left-[calc(15rem+env(safe-area-inset-left,0px))] right-0 z-50 bg-white/95 backdrop-blur-md border-t border-neutral-200 shadow-[0_-4px_12px_rgba(16,24,40,0.06)] p-2 pb-[calc(8px+env(safe-area-inset-bottom))] md:p-3 md:pb-[calc(12px+env(safe-area-inset-bottom))]"
       >
         {itens.length > 15 && (
           <button
