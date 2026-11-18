@@ -1187,9 +1187,6 @@ export function OrderPage() {
     <div className="space-y-6 pb-44 md:pb-48">
       <header className="flex justify-between items-center gap-3 mb-6">
         <div className="flex min-w-0 items-center gap-3">
-          <button onClick={() => navigate(-1)} aria-label="Voltar" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors">
-            <ArrowLeft size={20} />
-          </button>
           <div className="min-w-0">
             <p className="text-xs font-medium text-orange-600">Novo pedido</p>
             <h2 className="truncate text-xl font-semibold tracking-tight text-neutral-900">{cliente?.cliente}</h2>
@@ -1231,6 +1228,9 @@ export function OrderPage() {
           >
             <Package size={17} className="text-neutral-500" />
             <span className="hidden sm:inline">Contagem</span>
+          </button>
+          <button onClick={() => navigate(-1)} aria-label="Voltar" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-neutral-200 bg-white text-neutral-700 shadow-sm hover:bg-neutral-50 transition-colors">
+            <ArrowLeft size={20} />
           </button>
         </div>
       </header>
