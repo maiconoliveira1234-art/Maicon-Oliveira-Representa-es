@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.101.1";
+import { inferirTermos, montarDicionario, type Termo } from "./productMatch.ts";
 const url = Deno.env.get("SUPABASE_URL") || "";
 const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const anon = Deno.env.get("SUPABASE_ANON_KEY") || "";
@@ -150,7 +151,7 @@ Deno.serve(async req=>{
  const item=analysis.itens[itemIndex];
  if(!item || typeof item.descricao!=="string" || !Number.isFinite(Number(item.quantidade))) return asJson({error:"invalid_analysis_item"},409);
  const {data:product,error:productError}=await admin.from("produtos")
-    .select("id,produto,ativo").eq("id",productId).eq("ativo",true).maybeSingle();
+    .select("id,produto,ativo,peso_embalagem,quant_embalagem").eq("id",productId).eq("ativo",true).maybeSingle();
  if(productError||!product) return asJson({error:"product_not_active"},409);
  const clienteId=scope==="cliente"?analysis.cliente_id:null;
  if(scope==="cliente"&&!clienteId) return asJson({error:"client_not_linked"},409);
@@ -194,5 +195,26 @@ Deno.serve(async req=>{
    itens:items,atualizado_em:now
  }).eq("id",analysisId);
  if(itemError) return asJson({error:"analysis_update_failed"},500);
- return asJson({ok:true,acao:actionName,produto:product.produto,escopo:scope,aprendizado_id:learningId});
+ // Pattern detection: words the dictionary did not know, set against what the confirmed product has.
+ // They only become suggestions; a term is used after the user approves it in "Termos aprendidos".
+ let suggestedTerms=0;
+ try {
+   const {data:termRows,error:termError}=await admin.from("whatsapp_dicionario_termos")
+     .select("termo,atributo,valor,cliente_id").eq("status","ativo");
+   if(termError) throw termError;
+   const known=(termRows||[]).filter((t:any)=>!t.cliente_id||t.cliente_id===clienteId) as Termo[];
+   for(const s of inferirTermos(expression,product,montarDicionario(known)).slice(0,6)){
+     const {error:rpcError}=await admin.rpc("registrar_termo_sugerido",{
+       p_termo:s.termo,p_atributo:s.atributo,p_valor:s.valor,p_cliente_id:clienteId,
+       p_mensagem_id:analysis.mensagem_id,p_expressao:expression,p_produto:product.produto,
+       p_cliente_origem:analysis.cliente_id||null
+     });
+     if(rpcError) throw rpcError;
+     suggestedTerms++;
+   }
+ } catch(e) {
+   // The confirmation itself is already saved; a failed suggestion must not undo it.
+   console.warn("term_suggestion_failed",e instanceof Error?e.message:String((e as any)?.message||e));
+ }
+ return asJson({ok:true,acao:actionName,produto:product.produto,escopo:scope,aprendizado_id:learningId,termos_sugeridos:suggestedTerms});
 });

@@ -6,7 +6,9 @@ import { useNavigate } from 'react-router-dom';
 type Candidate = {
   id: string; produto: string; score: number;
   historico_compras?: { ocorrencias: number; ultima_compra: string } | null;
+  conflitos?: string[];
 };
+type Ambiguity = { atributos: Array<{ atributo: string; nome: string; opcoes: string[] }>; mensagem: string };
 type Item = {
   descricao: string;
   quantidade: number;
@@ -17,6 +19,10 @@ type Item = {
   sugestao_produto_id?: string | null;
   origem_sugestao?: string | null;
   resolvido?: boolean;
+  /** What the customer's words were read as (brand, size, flavor...). */
+  atributos_cliente?: Record<string, string[]>;
+  ambiguidade?: Ambiguity | null;
+  filtro_relaxado?: string[];
 };
 type Analysis = {
   id: string;
@@ -31,7 +37,7 @@ type Analysis = {
 };
 type Product = { id: string; produto: string; quant_embalagem: number; peso_embalagem: number };
 type AnalyzeResult = { already_processed?: boolean; status?: string; atualizado_em?: string; itens?: number };
-type ApiResult = { ok?: boolean; error?: string; analises?: Analysis[]; acao?: string; resultado?: AnalyzeResult };
+type ApiResult = { ok?: boolean; error?: string; analises?: Analysis[]; acao?: string; resultado?: AnalyzeResult; termos_sugeridos?: number };
 
 const formatDateTime = (value?: string | null) => (value ? new Date(value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '');
 
@@ -172,7 +178,9 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
       });
       if (invokeError) throw invokeError;
       if (data?.error) throw new Error(data.error);
-      setSuccess('Correspondência registrada. O próximo pedido poderá reutilizar esta correção.');
+      setSuccess(data?.termos_sugeridos
+        ? 'Correspondência registrada. A IA também anotou palavras novas do cliente; quando se repetirem, aparecem em Regras da IA › Termos aprendidos para você aprovar.'
+        : 'Correspondência registrada. O próximo pedido poderá reutilizar esta correção.');
       await load();
     } catch (err: any) {
       setError(err?.message || 'Não foi possível salvar o aprendizado.');
@@ -348,13 +356,15 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                             <span className="text-xs font-semibold text-blue-700">Sugestão pelo histórico</span>
                           ) : item.origem_sugestao === 'foto_cadastro' ? (
                             <span className="text-xs font-semibold text-blue-700">Identificado na foto</span>
+                          ) : item.origem_sugestao === 'atributos' ? (
+                            <span className="text-xs font-semibold text-blue-700">Marca, peso e atributos batem</span>
                           ) : (
                             <span className="text-xs font-semibold text-amber-700">Revisão necessária</span>
                           )}
                         </div>
                         <div className="rounded-xl border border-neutral-200 bg-white p-3">
                           <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-500">
-                            {item.resolvido ? 'Produto confirmado' : item.origem_sugestao === 'aprendizado_confirmado' ? 'Produto aprendido anteriormente' : item.origem_sugestao === 'historico_cliente' ? 'Produto sugerido pelo histórico de compras' : item.origem_sugestao === 'foto_cadastro' ? 'Produto identificado na foto' : 'Sugestão inicial do catálogo'}
+                            {item.resolvido ? 'Produto confirmado' : item.origem_sugestao === 'aprendizado_confirmado' ? 'Produto aprendido anteriormente' : item.origem_sugestao === 'historico_cliente' ? 'Produto sugerido pelo histórico de compras' : item.origem_sugestao === 'foto_cadastro' ? 'Produto identificado na foto' : item.origem_sugestao === 'atributos' ? 'Produto que atende a tudo o que o cliente pediu' : 'Sugestão inicial do catálogo'}
                           </p>
                           <p className="mt-1 text-sm font-bold text-neutral-800">
                             {selected ? (candidateNames.get(selected) || (item.candidatos || []).find(c => c.id === selected)?.produto || 'Produto selecionado') : (item.candidatos?.[0]?.produto || 'Nenhum produto sugerido')}
@@ -363,6 +373,31 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                             <p className="mt-1 text-xs font-semibold text-blue-700">
                               Comprado {historical.ocorrencias} {historical.ocorrencias===1?'vez':'vezes'} · última compra em {new Date(historical.ultima_compra + 'T12:00:00').toLocaleDateString('pt-BR')}. Confirme a apresentação e o sabor.
                             </p>
+                          )}
+                          {!item.resolvido && item.atributos_cliente && Object.keys(item.atributos_cliente).length > 0 && (
+                            <p className="mt-2 text-[11px] text-neutral-500">
+                              Entendido: {Object.entries(item.atributos_cliente)
+                                .filter(([k]) => k !== 'palavras')
+                                .map(([, v]) => v.join('/')).join(' · ') || '—'}
+                            </p>
+                          )}
+                          {!item.resolvido && (item.filtro_relaxado || []).includes('peso') && (
+                            <p className="mt-2 rounded-lg bg-amber-50 px-2 py-1.5 text-xs font-semibold text-amber-800">
+                              Nenhum produto com o peso pedido. As opções abaixo têm outro peso.
+                            </p>
+                          )}
+                          {!item.resolvido && item.ambiguidade && (
+                            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2">
+                              <p className="text-xs font-bold text-amber-900">Dúvida: {item.ambiguidade.mensagem}</p>
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {(item.candidatos || []).filter(c => !(c.conflitos || []).length).slice(0, 4).map(c => (
+                                  <button key={c.id} type="button" onClick={() => setChoices(s => ({ ...s, [key]: c.id }))}
+                                    className={`rounded-lg border px-2 py-1 text-left text-[11px] font-semibold ${selected === c.id ? 'border-violet-600 bg-violet-600 text-white' : 'border-amber-300 bg-white text-neutral-800'}`}>
+                                    {c.produto}{c.historico_compras ? ' · já comprou' : ''}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           )}
                           {!selected && item.candidatos?.[0]?.id && (
                             <button type="button" onClick={() => setChoices(s => ({...s,[key]: item.candidatos![0].id}))}

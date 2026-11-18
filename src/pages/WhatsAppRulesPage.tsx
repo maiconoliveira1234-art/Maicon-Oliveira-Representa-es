@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { PageHeader, Panel } from '../components/ui/AppChrome';
 import { StyleProfilePanel } from '../components/whatsapp/StyleProfilePanel';
+import { ProductTermsPanel } from '../components/whatsapp/ProductTermsPanel';
 
 type Scope = 'todos' | 'cliente' | 'linha' | 'familia';
 
@@ -233,6 +234,8 @@ export function WhatsAppRulesPage() {
       </Panel>
 
       <StyleProfilePanel />
+
+      <ProductTermsPanel />
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
 
