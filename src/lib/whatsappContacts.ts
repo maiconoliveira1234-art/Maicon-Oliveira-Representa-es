@@ -41,7 +41,8 @@ export async function linkContact(mapId: string, clienteId: string): Promise<voi
   if (messagesError) throw messagesError;
 }
 
-/** Unlinks a contact: back to "pendente" (to identify) or to "ignorado". Messages lose their client link. */
+/** Unlinks a contact: back to "pendente" (to identify) or to "ignorado". Messages lose their client link.
+ *  Marking "ignorado" makes the database delete the whole conversation (and future messages). */
 export async function setContactStatus(mapId: string, status: 'pendente' | 'ignorado'): Promise<void> {
   const { error: mapError } = await supabase
     .from('whatsapp_contatos_map')

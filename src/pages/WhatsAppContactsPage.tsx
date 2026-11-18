@@ -223,6 +223,9 @@ export function WhatsAppContactsPage() {
   };
 
   const changeStatus = async (item: WhatsAppMap, status: 'pendente' | 'ignorado') => {
+    if (status === 'ignorado' && !window.confirm(
+      `Marcar ${item.whatsapp_perfil_nome || item.whatsapp_nome} como "Não é cliente"?\n\nTodas as mensagens desta conversa serão apagadas e as próximas não serão guardadas.`,
+    )) return;
     setBusyId(item.id);
     setError(null);
     try {
@@ -241,7 +244,7 @@ export function WhatsAppContactsPage() {
     recentes: 'Nenhuma conversa vinculada ainda.',
     todos: 'Nenhuma conversa vinculada ainda.',
     identificar: 'Nenhum contato esperando identificação.',
-    ignorados: 'Nenhum contato ignorado.',
+    ignorados: 'Nenhum contato ignorado. As conversas de quem não é cliente não ficam guardadas.',
   };
 
   return (
