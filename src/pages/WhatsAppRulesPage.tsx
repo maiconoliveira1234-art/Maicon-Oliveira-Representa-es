@@ -225,7 +225,6 @@ export function WhatsAppRulesPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-bold text-neutral-900">Base comercial da IA</p>
-            <p className="mt-1 text-xs leading-relaxed text-neutral-500">Somente regras ativas e dentro da validade entram nas novas sugestões. As proteções contra inventar preços, descontos e condições continuam fixas no sistema.</p>
           </div>
           <button type="button" onClick={openNew} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-neutral-900 px-4 py-2.5 text-xs font-black text-white">
             <Plus size={15} /> Nova regra

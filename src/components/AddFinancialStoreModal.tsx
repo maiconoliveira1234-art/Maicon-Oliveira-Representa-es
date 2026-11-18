@@ -121,9 +121,6 @@ export function AddFinancialStoreModal({ clienteId, clienteNome, onClose, onCrea
               placeholder="Se vazio, igual ao limite total"
               className="h-11 w-full rounded-lg border border-neutral-300 px-3 text-sm text-neutral-900 focus:border-orange-500 focus:outline-none" />
           </label>
-          <p className="text-xs leading-relaxed text-amber-800">
-            Confira o saldo no ERP. Se não informar o disponível inicial, o CRM considerará o limite totalmente livre, sem boletos anteriores.
-          </p>
           {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm font-medium text-red-700">{error}</p>}
           <div className="flex gap-2 pt-1">
             <button type="button" disabled={saving} onClick={onClose}

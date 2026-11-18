@@ -1168,9 +1168,6 @@ export function ImportPage() {
           <FileUp className="text-orange-600" />
           Importação de Pedidos
         </h1>
-        <p className="text-neutral-500 text-sm">
-          Cole os dados da planilha para importar registros para o histórico de vendas.
-        </p>
       </header>
 
       <div className="grid grid-cols-1 gap-5">
@@ -1349,7 +1346,6 @@ export function ImportPage() {
                 aria-invalid={!!(prazosColados?.erro || parcelasLidas.erro)}
                 className="h-11 w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 text-sm outline-none transition-colors focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
               />
-              <p className="mt-1 text-xs text-neutral-600">Prazos em dias contados a partir do sábado da semana seguinte à data do faturamento.</p>
               {vencimentosW.length > 0 && <p className="mt-1 text-xs font-semibold text-orange-700">Vencimentos: {vencimentosW.map(v => v.vencimento.split('-').reverse().join('/')).join(' • ')}</p>}
               {(prazosColados?.erro || parcelasLidas.erro) && (
                 <p className="text-xs text-red-600 mt-1">{prazosColados?.erro || parcelasLidas.erro}</p>

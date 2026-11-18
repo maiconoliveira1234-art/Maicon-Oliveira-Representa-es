@@ -113,10 +113,8 @@ export function CampaignSkuMultiSearch({
               ))}
             </div>
           )}
-          <p className="text-[11px] text-neutral-500">Selecione vários SKUs. As quantidades dos produtos participantes serão somadas para atingir o mínimo da campanha.</p>
         </div>
       )}
-      {disabled && <p className="text-[11px] text-neutral-500">A regra considera todos os SKUs da família selecionada.</p>}
 
       {open && !disabled && (
         <div id={inputId + '-options'} role="listbox" aria-multiselectable="true"

@@ -175,7 +175,7 @@ export function CampaignPage() {
     <div className="mx-auto max-w-5xl space-y-5 pb-24">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div><h1 className="flex items-center gap-2 text-2xl font-black text-neutral-900"><Megaphone className="text-orange-600" /> Campanhas Comerciais</h1>
-          <p className="mt-1 text-sm text-neutral-500">Cadastre ofertas, importe encartes com IA e aplique regras nos orçamentos.</p></div>
+          </div>
         <button onClick={() => { setForm(blankCampaign()); setError(''); setNotice(''); }} className="flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-bold text-white"><Plus size={16}/> Nova campanha</button>
       </header>
       {error && <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"><AlertTriangle size={18}/>{error}</div>}
@@ -199,7 +199,6 @@ export function CampaignPage() {
             {form.imagem_data && <img className="max-h-52 rounded-lg border border-neutral-200 object-contain" src={form.imagem_data} alt="Encarte original da empresa"/>}
             <button disabled={!form.imagem_data || extracting} onClick={() => void extract()} className="flex items-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
               <Sparkles size={15}/>{extracting ? 'Interpretando imagem...' : 'Ler imagem com IA'}</button>
-            <p className="text-xs text-neutral-500">A IA sugere as condições. O reconhecimento do produto só é automático quando o nome coincide exatamente com o cadastro.</p>
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between"><h3 className="font-black">Regras comerciais</h3>

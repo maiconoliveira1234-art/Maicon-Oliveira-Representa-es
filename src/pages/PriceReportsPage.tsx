@@ -597,7 +597,6 @@ export function PriceReportsPage() {
           <p className="mt-1 text-sm text-neutral-500">Monte consultas, compare tabelas e analise o histórico de cada produto.</p>
           */}
           <h1 className="text-2xl font-black text-neutral-900">Produto</h1>
-          <p className="mt-1 text-sm text-neutral-500">Consulte produtos, compare tabelas e gere relatorios comerciais.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => setShowNewProduct(true)} className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">
@@ -671,7 +670,7 @@ export function PriceReportsPage() {
       {mode === 'history' ? (
         <HistoryReport products={filteredProducts} selectedId={historyProductId} onSelect={setHistoryProductId} rows={historyRows} orderWeightMap={orderWeightMap} />
       ) : mode === 'custom' && !customColumns ? (
-        <div className="border-y border-neutral-200 bg-white py-16 text-center"><p className="font-bold text-neutral-700">Escolha e confirme as colunas do relatorio.</p><p className="mt-1 text-sm text-neutral-500">O formulario sera exibido somente depois da confirmacao.</p></div>
+        <div className="border-y border-neutral-200 bg-white py-16 text-center"><p className="font-bold text-neutral-700">Escolha e confirme as colunas do relatorio.</p></div>
       ) : (
         <ComparisonReport
           products={filteredProducts}
@@ -1060,7 +1059,7 @@ function NewProductModal({ form, saving, families, products, onChange, onClose, 
   const calculatedUnitWeight = (Number(form.peso_embalagem) || 0) / quantity;
   const familyTemplate = products.find(product => product.familia === form.familia);
   return <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 p-0 md:items-center md:p-4"><div className="max-h-[92dvh] w-full max-w-3xl overflow-y-auto rounded-t-lg bg-white p-5 shadow-2xl md:rounded-lg md:p-6">
-    <div className="mb-5 flex items-center justify-between"><div><h2 className="text-xl font-black">Novo produto</h2><p className="text-sm text-neutral-500">O item ficara disponivel tambem na importacao e nos pedidos.</p></div><button onClick={onClose} className="p-2 text-neutral-400 hover:text-neutral-700"><X size={22}/></button></div>
+    <div className="mb-5 flex items-center justify-between"><div><h2 className="text-xl font-black">Novo produto</h2></div><button onClick={onClose} className="p-2 text-neutral-400 hover:text-neutral-700"><X size={22}/></button></div>
     <div className="grid gap-4 md:grid-cols-2"><label className="text-xs font-bold text-neutral-500 md:col-span-2">Nome do produto<ClearableTextInput value={form.produto} onChange={value => onChange({ ...form, produto: value })} ariaLabel="Nome do produto" className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 pr-10 text-sm text-neutral-900 outline-none focus:border-orange-400" /></label>
       <label className="text-xs font-bold text-neutral-500">Família<select value={form.familia} onChange={event => onChange({ ...form, familia: event.target.value })} className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-orange-400"><option value="">Selecione uma família</option>{families.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
       {numberField('sugestao','Preço sugerido')}{numberField('custo_total','Custo total da embalagem')}{numberField('peso_embalagem','Peso total da embalagem')}{numberField('quant_embalagem','Quantidade de unidades na embalagem')}

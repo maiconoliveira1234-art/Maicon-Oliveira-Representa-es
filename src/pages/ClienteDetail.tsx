@@ -861,9 +861,6 @@ export function ClienteDetail() {
                       </p>
                     </div>
                   </div>
-                  <p className="mt-2 text-xs text-neutral-500">
-                    Estimativa de hoje a partir do levantamento de {entidade.data_snapshot.split('-').reverse().join('/')} (disponível no levantamento: {formatCurrency(entidade.disponivel_oficial_snapshot)}). Não representa saldo confirmado em tempo real pelo ERP.
-                  </p>
                 </section>
               ))}
             </div>
@@ -989,9 +986,6 @@ export function ClienteDetail() {
                 </span>
               )}
             </div>
-            <p className="text-xs text-neutral-400 mt-0.5">
-              Média mensal (kg/mês) desde a 1ª compra do cliente • Atualizado com pedidos em aberto
-            </p>
           </div>
 
           <div className="flex items-center gap-2 self-start sm:self-auto">

@@ -794,11 +794,7 @@ export function PriceInquiryPage() {
           ) : (
             <div className="p-12 text-center text-neutral-400">
               <p className="font-medium text-neutral-600">{showInactive ? 'Nenhum produto inativo encontrado' : 'Nenhum produto encontrado'}</p>
-              {selectedClient !== 'all' ? (
-                <p className="text-xs text-neutral-400 mt-1">
-                  O filtro por cliente exibe apenas os produtos que o cliente já comprou no histórico. Para ver toda a tabela ou produtos novos, selecione &quot;Todos os Clientes&quot;.
-                </p>
-              ) : (
+              {selectedClient === 'all' && (
                 <p className="text-xs text-neutral-400 mt-1">
                   Tente ajustar a busca ou selecione &quot;Todas as Famílias&quot;.
                 </p>
@@ -1010,7 +1006,6 @@ export function PriceInquiryPage() {
                 <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-100 flex items-center justify-between">
                   <div>
                     <h4 className="text-sm font-bold text-neutral-900">Produto Ativo</h4>
-                    <p className="text-neutral-400 text-xs mt-0.5">Se desativado, o produto é marcado como inativo no banco de dados</p>
                   </div>
                   <button
                     type="button"

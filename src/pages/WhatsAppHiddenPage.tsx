@@ -105,10 +105,6 @@ export function WhatsAppHiddenPage() {
 
       <Panel className="p-4 sm:p-5">
         <p className="text-sm font-black text-neutral-900">Adicionar início do nome</p>
-        <p className="mt-1 text-xs leading-relaxed text-neutral-500">
-          Tudo que começar com o texto informado será ocultado. Exemplo: “Santa Catarina” oculta
-          “Santa Catarina: Renata”, “Santa Catarina: ~ Daniel” e outras variações do mesmo grupo.
-        </p>
 
         <div className="mt-4 flex gap-2">
           <input
@@ -135,9 +131,6 @@ export function WhatsAppHiddenPage() {
       <Panel className="overflow-hidden">
         <div className="border-b border-neutral-100 px-4 py-3">
           <p className="text-sm font-black text-neutral-900">Lista de ocultos</p>
-          <p className="mt-0.5 text-xs text-neutral-500">
-            Esses contatos continuam sendo capturados no banco, mas não aparecem nas abas Pendentes, Vinculados ou Ignorados.
-          </p>
         </div>
 
         {loading ? (

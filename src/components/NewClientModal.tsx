@@ -395,7 +395,6 @@ export function NewClientModal({ isOpen, onClose, onSuccess, editingCliente }: N
             <div className="md:col-span-2 bg-neutral-50 border border-neutral-200 p-4 rounded-lg flex items-center justify-between gap-4">
               <div className="space-y-0.5">
                 <label className="text-xs font-black text-neutral-900 uppercase tracking-wider block">Agenda Fixa</label>
-                <span className="text-[10px] text-neutral-500 block font-semibold leading-tight">Se ativado, o cliente nunca será movido automaticamente por otimizações, rebalanceamento ou novas inclusões.</span>
               </div>
               <label className="relative inline-flex items-center cursor-pointer select-none">
                 <input

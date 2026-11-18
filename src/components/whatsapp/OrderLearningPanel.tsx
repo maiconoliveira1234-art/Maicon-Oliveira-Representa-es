@@ -248,9 +248,7 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
         <span className="inline-flex items-center gap-2"><Sparkles size={16} className="text-violet-700" /> Propostas de pedidos · reconhecimento de produtos</span>
         <ChevronDown size={17} className={open ? 'rotate-180' : ''} />
       </button>
-      {!open ? (
-        <p className="mt-1 text-xs text-neutral-500">Revise os itens, confirme os produtos e envie o rascunho para a tela de Pedidos.</p>
-      ) : (
+      {!open ? null : (
         <div className="mt-4 space-y-4">
           {loading && <p className="flex items-center gap-2 text-sm text-neutral-500"><Loader2 size={15} className="animate-spin" /> Carregando análises...</p>}
           {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-xs font-semibold text-red-700">{error}</p>}
@@ -268,7 +266,6 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
           {authorized && (
             <>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs text-neutral-500">As propostas ficam aqui para aprovação. Um rascunho só é criado após sua confirmação explícita.</p>
                 <button type="button" disabled={saving === 'reanalyze'} onClick={() => void reanalyze()} className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 disabled:opacity-50">Analisar conversa</button>
                 <button type="button" aria-label="Atualizar análises" onClick={() => void load()}
                   className="rounded-lg border border-neutral-200 p-2 text-neutral-600"><RefreshCcw size={15} /></button>
@@ -302,7 +299,6 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                       {analysis.itens.length} itens · {analysis.itens.reduce((sum, item) => sum + Number(item.quantidade || 0), 0)} embalagens solicitadas
                     </p>
                     {analysis.observacoes && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs font-semibold text-amber-800">Observações da análise: {analysis.observacoes}</p>}
-                    <p className="mt-1 text-xs text-amber-700">Prévia sem precificação: valores e condições comerciais serão calculados na tela Pedidos.</p>
                   </div>
                   {(() => {
                     const total = analysis.itens.length;
@@ -411,7 +407,6 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                             </div>
                           )}
                         </div>
-                        {!selected && <p className="mt-2 text-xs text-amber-700">Use a sugestão inicial ou clique em “Alterar produto” para pesquisar. Confira o SKU antes de confirmar.</p>}
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                           <label className="flex items-center gap-2 text-xs text-neutral-600">
                             Aplicar a
@@ -444,7 +439,6 @@ export function OrderLearningPanel({ contatoId }: { contatoId: string }) {
                       className="w-full rounded-lg bg-green-700 px-3 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">
                       {saving === analysis.id ? 'Criando rascunho...' : 'Aprovar itens e abrir rascunho em Pedidos'}
                     </button>
-                    <p className="mt-2 text-[11px] text-neutral-500">Esta aprovação apenas cria um pedido em aberto para conferência. Não envia pedidos à empresa.</p>
                   </div>
                 </div>
               ))}

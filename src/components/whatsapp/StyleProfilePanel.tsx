@@ -102,9 +102,6 @@ export function StyleProfilePanel() {
           <MessageSquareQuote className="mt-0.5 shrink-0 text-violet-600" size={20} />
           <div className="min-w-0">
             <p className="text-sm font-bold text-neutral-900">Seu estilo de resposta</p>
-            <p className="mt-1 text-xs leading-relaxed text-neutral-500">
-              A IA usa este resumo e algumas respostas que você já enviou para escrever como você. Preços, quantidades e condições continuam vindo só dos dados do CRM.
-            </p>
           </div>
         </div>
         <button

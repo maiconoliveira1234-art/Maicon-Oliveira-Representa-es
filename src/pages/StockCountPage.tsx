@@ -1892,7 +1892,6 @@ export function StockCountPage() {
                 <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
                   <div>
                     <p className="text-sm font-bold text-neutral-800">Item ativo na contagem</p>
-                    <p className="text-xs text-neutral-500">Ao desativar, ele aparece em Exibir inativos. Uma contagem positiva reativa o item.</p>
                   </div>
                   <button type="button" role="switch" aria-checked={!manualInactive.has(selectedProductHistory.produto_id)}
                     aria-label="Item ativo na contagem" disabled={savingActivity}

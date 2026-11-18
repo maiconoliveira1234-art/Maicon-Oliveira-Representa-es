@@ -108,7 +108,6 @@ function StoreReview({ store, onSaved }: { store: Store; onSaved: (store: Store)
       <div><p className="text-xs text-neutral-500">Limite total</p><p className="text-xl font-black">{formatCurrency(store.limite_total)}</p></div>
       <div><p className="text-xs text-neutral-500">Disponível atualizado (pagamento presumido)</p><p className="text-xl font-black">{available === null ? 'Indisponível / consultando...' : formatCurrency(available)}</p></div>
     </div>
-    <p className="text-xs text-neutral-600">Base do ERP de {dateLabel(store.data_snapshot)}: {formatCurrency(store.disponivel_oficial_snapshot)}. O disponível atualizado considera os boletos pagos no vencimento, desconta novos faturamentos e reservas e respeita o limite total. É uma estimativa do CRM.</p>
     {balanceError && <p role="alert" className="text-sm text-red-700">{balanceError}</p>}
     {!editing ? <button type="button" className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white"
       onClick={() => { setRaw(store.limite_total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })); setMessage(''); setEditing(true); }}>Alterar limite</button> :
@@ -116,7 +115,6 @@ function StoreReview({ store, onSaved }: { store: Store; onSaved: (store: Store)
         <label className="block text-sm font-bold">Novo limite aprovado no ERP (R$)
           <input autoFocus required inputMode="decimal" disabled={saving} className={inputClass} value={raw} onChange={e => setRaw(e.target.value)} />
         </label>
-        <p className="text-xs text-neutral-700">Informe o limite já aprovado no sistema da empresa. Esta alteração é salva somente no CRM. Os boletos e a data do levantamento são preservados.</p>
         {preview && <p className="text-sm">Limite: {formatCurrency(store.limite_total)} → {formatCurrency(preview.limit)}. Disponível no levantamento após o ajuste: {formatCurrency(preview.available)}.</p>}
         {validation && <p role="alert" className="text-sm text-red-700">{validation}</p>}
         <div className="flex gap-2">
@@ -143,7 +141,6 @@ function StoreReview({ store, onSaved }: { store: Store; onSaved: (store: Store)
               <td className="p-2">{titleStatus(t, today)}</td>
             </tr>)}</tbody>
           </table></div>}
-        <p className="text-xs text-neutral-500">No vencimento, o CRM considera o pagamento presumido para liberar crédito na projeção. Essa estimativa não confirma que o cliente pagou o boleto.</p>
       </>}
   </article>;
 }
@@ -185,7 +182,6 @@ export function FinancialTab({ clientes }: { clientes: Cliente[] }) {
   return <section className="space-y-4" aria-label="Financeiro dos clientes">
     <div className="rounded-xl border border-neutral-200 bg-white p-4">
       <h2 className="text-lg font-extrabold">Financeiro por cliente</h2>
-      <p className="mb-4 text-sm text-neutral-600">Consulte boletos e atualize o limite de cada loja conforme a aprovação no ERP.</p>
       <label className="mb-3 block text-sm font-bold">Buscar cliente ativo
         <input type="search" className={inputClass} value={clientSearch} onChange={e => setClientSearch(e.target.value)} placeholder="Digite o nome do cliente" />
       </label>

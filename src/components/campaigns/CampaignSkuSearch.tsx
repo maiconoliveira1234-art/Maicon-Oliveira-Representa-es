@@ -129,14 +129,6 @@ export function CampaignSkuSearch({
           <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400" />
         )}
       </div>
-      {allowSameProduct && !value && !open && !disabled && (
-        <p className="text-[11px] text-neutral-500">
-          Sem SKU selecionado: bonifica o mesmo produto, quando houver apenas um SKU participante.
-        </p>
-      )}
-      {disabled && (
-        <p className="text-[11px] text-neutral-500">A regra considera todos os SKUs da família selecionada.</p>
-      )}
       {open && !disabled && (
         <div
           id={inputId + '-options'}

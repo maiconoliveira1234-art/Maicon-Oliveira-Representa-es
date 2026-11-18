@@ -417,7 +417,6 @@ export const VisitaDrawer: React.FC<VisitaDrawerProps> = ({
                          </div>
                        </div>
 
-                       <p className="text-xs text-neutral-500">Horários automáticos de 40 minutos, por prioridade de compra e proximidade. Almoço das 12h às 13h30.</p>
 
                        <div className="flex gap-2">
                          <button 

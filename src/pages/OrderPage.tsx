@@ -1659,10 +1659,8 @@ export function OrderPage() {
                           <p className="text-green-700 font-bold">Economia: {formatCurrency(Math.max(0, precoTabela - precoOferta))} por embalagem</p>
                         </div>;
                       })}
-                      <p className="text-[11px] text-neutral-600">Valores calculados pela faixa atual do pedido. Sujeitos ao cumprimento da condição e à tabela vigente.</p>
                     </div>
                   )}
-                  <p className="text-xs text-neutral-600">{regra.repetivel ? 'Benefício repetível conforme quantidade comprada.' : 'Benefício concedido uma vez por pedido.'}</p>
                 </div>
                 <div>
                   <p className="text-xs font-black uppercase text-neutral-600 mb-2">Produtos participantes ({participantes.length})</p>
@@ -1906,9 +1904,6 @@ export function OrderPage() {
               </div>
             </div>
 
-            <p className="text-[10px] font-semibold text-neutral-400 italic text-center leading-tight">
-              *Saldo sujeito a alteração devido a pedidos ainda não faturados pelo ERP.
-            </p>
           </div>
         )}
 

@@ -1253,9 +1253,6 @@ export function Dashboard() {
                     <div className="w-1.5 h-3.5 bg-orange-500 rounded-full" />
                     Clientes Ativos e Tendências
                   </h3>
-                  <p className="text-xs font-medium text-neutral-500 mt-0.5">
-                    Ordenado por maior volume vendido no período mais recente
-                  </p>
                 </div>
 
                 <span className="text-xs font-bold text-neutral-500 self-start sm:self-auto">
@@ -1752,9 +1749,6 @@ export function Dashboard() {
                   <div className="w-1.5 h-3.5 bg-orange-500 rounded-full" />
                   Evolução Mensal ({monthlyMetricMode === 'volume' ? 'Volume em kg' : 'Faturamento em R$'}) por Ano
                 </h3>
-                <p className="text-xs font-medium text-neutral-500 mt-0.5">
-                  Comparativo de desempenho mês a mês entre os anos da base
-                </p>
               </div>
 
               {/* Selector for Metric: Volume (kg) vs Faturamento (R$) */}
@@ -2184,9 +2178,6 @@ export function Dashboard() {
               <div className="text-2xl font-black text-neutral-900 mt-2">
                 {formatCurrency(productMixData.totalFaturamento)}
               </div>
-              <p className="text-xs font-semibold text-neutral-500 mt-0.5">
-                Vendas da carteira ativa no período
-              </p>
             </div>
 
             <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm">
@@ -2197,9 +2188,6 @@ export function Dashboard() {
                 {formatCurrency(productMixData.totalVolume > 0 ? productMixData.totalFaturamento / productMixData.totalVolume : 0)}
                 <span className="text-xs font-bold text-neutral-400 ml-1">/kg</span>
               </div>
-              <p className="text-xs font-semibold text-neutral-500 mt-0.5">
-                Média ponderada por quilograma
-              </p>
             </div>
           </div>
 
@@ -2296,9 +2284,6 @@ export function Dashboard() {
               <div className="text-2xl font-black text-neutral-900 mt-2">
                 {activeClientes.length}
               </div>
-              <p className="text-xs font-semibold text-neutral-500 mt-0.5">
-                Base total de clientes ativos
-              </p>
             </div>
 
             <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm">

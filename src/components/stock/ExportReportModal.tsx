@@ -109,9 +109,6 @@ export function ExportReportModal({
                 <h3 className="text-base sm:text-lg font-black text-neutral-900 leading-tight">
                   Compartilhar relatório
                 </h3>
-                <p className="text-xs text-neutral-500 font-medium mt-0.5 leading-snug">
-                  Selecione as informações que deseja enviar no relatório.
-                </p>
               </div>
             </div>
 

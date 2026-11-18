@@ -65,7 +65,6 @@ export function CampaignClientAlert({ cliente, historico, produtos, iconOnly = f
       </button>
       {open && <ClientDetailModal title={`Campanhas para oferecer (${elegiveis.length})`} onClose={() => setOpen(false)}>
       <div className="space-y-3">
-      <p className="text-xs text-neutral-600">Baseado em produtos comprados nos últimos 12 meses. O envio é sempre manual.</p>
       {elegiveis.length === 0 && (
         <p className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-600">
           Nenhuma campanha disponível para este cliente no momento.
