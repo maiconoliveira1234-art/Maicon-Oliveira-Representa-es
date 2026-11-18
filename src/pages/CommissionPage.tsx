@@ -150,7 +150,10 @@ export function CommissionPage({ embedded = false }: { embedded?: boolean } = {}
           setClientes(cachedClientes);
         }
 
-        if (navigator.onLine === false) return;
+        // O DataManager mantem o historico local sincronizado (incremental ao
+        // voltar ao app e completo 1x/dia). Rebaixar tudo do banco a cada
+        // abertura da tela so gerava E/S de disco no Supabase.
+        if (navigator.onLine === false || cachedHistorico.length > 0) return;
 
         // Fetch from 2024 to allow evolution chart
         const startOfHistory = '2024-01-01';

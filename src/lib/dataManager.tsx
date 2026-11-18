@@ -245,61 +245,33 @@ async function executeWithRetry<T = any>(
 }
 
 // Safely fetch hist_vendas in chunks to prevent PostgreSQL statement_timeout (code 57014)
+// Paginacao por "continuar de onde parou" (id > ultimo id): cada pagina le so
+// as suas linhas. Com OFFSET, cada pagina relia todas as anteriores no banco.
 async function fetchHistVendasChunked(startDate = '2024-01-01'): Promise<{ data: HistVenda[]; error: any }> {
   const CHUNK_SIZE = 1000;
+  const SMALL_CHUNK_SIZE = 300;
+  let chunkSize = CHUNK_SIZE;
   let allRows: HistVenda[] = [];
-  let from = 0;
-  let hasMore = true;
+  let lastId: number | null = null;
 
-  while (hasMore) {
-    const to = from + CHUNK_SIZE - 1;
-    const res = await executeWithRetry<HistVenda[]>(() =>
-      supabase
+  while (true) {
+    const afterId = lastId;
+    const size = chunkSize;
+    const res = await executeWithRetry<HistVenda[]>(() => {
+      let query = supabase
         .from('hist_vendas')
         .select('*')
-        .gte('faturamento', startDate)
-        .order('id', { ascending: true })
-        .range(from, to)
-    );
+        .gte('faturamento', startDate);
+      if (afterId !== null) query = query.gt('id', afterId);
+      return query.order('id', { ascending: true }).limit(size);
+    });
 
     if (res.error) {
-      console.warn(`[OfflineSync] Error fetching hist_vendas range [${from}..${to}]:`, res.error);
+      console.warn(`[OfflineSync] Error fetching hist_vendas after id ${afterId ?? 'inicio'}:`, res.error);
       const isTimeout = res.error.code === '57014' || res.error.message?.includes('timeout') || res.error.message?.includes('canceling statement');
-      if (isTimeout) {
-        // Fallback with smaller chunk size
-        const smallChunkSize = 300;
-        let subFrom = from;
-        let subFailed = false;
-        while (subFrom <= to && !subFailed) {
-          const subTo = subFrom + smallChunkSize - 1;
-          const subRes = await executeWithRetry<HistVenda[]>(() =>
-            supabase
-              .from('hist_vendas')
-              .select('*')
-              .gte('faturamento', startDate)
-              .order('id', { ascending: true })
-              .range(subFrom, subTo)
-          );
-          if (subRes.error) {
-            subFailed = true;
-            break;
-          }
-          if (subRes.data && subRes.data.length > 0) {
-            allRows = allRows.concat(subRes.data);
-            if (subRes.data.length < smallChunkSize) {
-              hasMore = false;
-              break;
-            }
-            subFrom += smallChunkSize;
-          } else {
-            hasMore = false;
-            break;
-          }
-        }
-        if (subFailed) {
-          return { data: allRows, error: res.error };
-        }
-        from = subFrom;
+      if (isTimeout && chunkSize > SMALL_CHUNK_SIZE) {
+        // Tentar de novo a partir do mesmo ponto com paginas menores.
+        chunkSize = SMALL_CHUNK_SIZE;
         continue;
       }
       return { data: allRows, error: res.error };
@@ -307,11 +279,12 @@ async function fetchHistVendasChunked(startDate = '2024-01-01'): Promise<{ data:
 
     const rows = res.data || [];
     allRows = allRows.concat(rows);
-    if (rows.length < CHUNK_SIZE) {
-      hasMore = false;
-    } else {
-      from += CHUNK_SIZE;
+    if (rows.length < size) break;
+    const nextId = Number((rows[rows.length - 1] as any).id);
+    if (!Number.isFinite(nextId) || (afterId !== null && nextId <= afterId)) {
+      return { data: allRows, error: new Error('Paginacao de hist_vendas sem avancar') };
     }
+    lastId = nextId;
   }
 
   return { data: allRows, error: null };
@@ -1583,13 +1556,44 @@ export function DataManagerProvider({ children }: { children: React.ReactNode })
     return latestSalesMap;
   }, [latestSalesMap, produtos]);
 
+  // Atualizar so as tabelas afetadas. Antes, salvar um cliente ou um preco
+  // disparava a sincronizacao completa, que baixava todo o historico de vendas.
   const refreshClientes = useCallback(async () => {
-    await syncAllDataInternal(true);
-  }, [syncAllDataInternal]);
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    const [clientesRes, metasRes, visitasRes] = await Promise.all([
+      executeWithRetry<Cliente[]>(() => supabase.from('clientes').select('*').order('cliente')),
+      executeWithRetry<any[]>(() => supabase.from('metas').select('*')),
+      executeWithRetry<any[]>(() => supabase.from('agenda_visitas').select('*').order('semana', { ascending: true }).order('dia_semana', { ascending: true })),
+    ]);
+    if (!clientesRes.error && clientesRes.data && clientesRes.data.length > 0) {
+      setClientes(clientesRes.data);
+      savePersisted('offline_db_clientes', clientesRes.data);
+    } else if (clientesRes.error) {
+      console.warn('[OfflineSync] refreshClientes warning:', clientesRes.error);
+    }
+    if (!metasRes.error && metasRes.data) {
+      const cachedMetas = await loadPersisted<Record<string, number>>('offline_db_metas', {});
+      const dbMetas: Record<string, number> = { ...cachedMetas };
+      metasRes.data.forEach((m: any) => { dbMetas[m.cliente_id] = m.meta || 0; });
+      setMetas(dbMetas);
+      savePersisted('offline_db_metas', dbMetas);
+    }
+    if (!visitasRes.error && visitasRes.data) {
+      setAgendaVisitas(visitasRes.data);
+      savePersisted('offline_db_agenda_visitas', visitasRes.data);
+    }
+  }, []);
 
   const refreshProdutos = useCallback(async () => {
-    await syncAllDataInternal(true);
-  }, [syncAllDataInternal]);
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    const produtosRes = await executeWithRetry<Produto[]>(() => supabase.from('produtos').select('*').order('produto'));
+    if (!produtosRes.error && produtosRes.data && produtosRes.data.length > 0) {
+      setProdutos(produtosRes.data);
+      savePersisted('offline_db_produtos', produtosRes.data);
+    } else if (produtosRes.error) {
+      console.warn('[OfflineSync] refreshProdutos warning:', produtosRes.error);
+    }
+  }, []);
 
   // NUNCA restaurar pedidos a partir de copias locais passivamente no login.
   // Um pedido ausente na nuvem pode ter sido limpo em outro dispositivo.

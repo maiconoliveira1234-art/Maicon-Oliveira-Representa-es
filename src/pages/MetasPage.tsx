@@ -156,11 +156,16 @@ export function MetasPage() {
         // Load Historico (last 12 months for better averages)
         const twelveMonthsAgo = subMonths(new Date(), 12);
         
-        const { data: hData } = await supabase
-          .from('hist_vendas')
-          .select('*')
-          .gte('faturamento', twelveMonthsAgo.toISOString());
-        
+        // Usar o historico local (sincronizado pelo DataManager) quando houver;
+        // so buscar no banco se o aparelho ainda nao tiver copia.
+        const twelveMonthsAgoDate = twelveMonthsAgo.toISOString().slice(0, 10);
+        const hData = cachedHistorico.length > 0
+          ? cachedHistorico.filter(h => !!h.faturamento && String(h.faturamento).slice(0, 10) >= twelveMonthsAgoDate)
+          : (await supabase
+              .from('hist_vendas')
+              .select('*')
+              .gte('faturamento', twelveMonthsAgo.toISOString())).data;
+
         if (hData) {
           const uniqueMap = new Map();
           hData.forEach((h: HistVenda) => {
