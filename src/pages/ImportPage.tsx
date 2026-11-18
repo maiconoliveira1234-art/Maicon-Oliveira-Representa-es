@@ -11,6 +11,7 @@ import { getFlexRateForDate } from '../lib/flexRules';
 import { calcularVencimentosW, distribuirFaturamentoEmParcelas } from '../lib/creditImport';
 import { ensureQuarterlyFlexReset } from '../services/flexService';
 import { getClientOpenOrderSummary, deleteClientOpenOrder, ClientOpenOrderSummary } from '../lib/openOrderSales';
+import { scrollAppTo } from '../lib/appScroll';
 
 interface RawRow {
   id: string;
@@ -418,12 +419,12 @@ export function ImportPage() {
 
     if (!selectedClienteId) {
       setError('Selecione um cliente antes de importar o pedido');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      scrollAppTo({ top: 0, behavior: 'smooth' });
       return;
     }
     if (processedRows.length === 0) return;
     if (!validarLojaFinanceira()) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      scrollAppTo({ top: 0, behavior: 'smooth' });
       return;
     }
     if (prazosColados?.erro || parcelasLidas.erro || (prazosColados && vencimentosW.length !== prazosColados.prazos.length)) {
@@ -438,7 +439,7 @@ export function ImportPage() {
 
     if (!numeroPedidoErp.trim()) {
       setError('O "Número do Pedido ERP" é obrigatório para realizar a importação protegida contra duplicidades.');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      scrollAppTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
@@ -471,7 +472,7 @@ export function ImportPage() {
 
       if (existingSales && existingSales.length > 0) {
         setError('Este faturamento já foi importado anteriormente. (Proteção Idempotente ativa)');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        scrollAppTo({ top: 0, behavior: 'smooth' });
         return;
       }
 
@@ -492,7 +493,7 @@ export function ImportPage() {
       setShowConfirmSave(true);
     } catch (err: any) {
       setError(err.message || 'Erro inesperado na verificação do faturamento.');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      scrollAppTo({ top: 0, behavior: 'smooth' });
     } finally {
       setSaving(false);
       setStatusImportacao('IDLE');
@@ -854,7 +855,7 @@ export function ImportPage() {
       }
       setError(`Erro ao salvar os faturamentos: ${err.message || 'Erro desconhecido'}`);
       setShowConfirmSave(false);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      scrollAppTo({ top: 0, behavior: 'smooth' });
     } finally {
       setSaving(false);
       setStatusImportacao('IDLE');

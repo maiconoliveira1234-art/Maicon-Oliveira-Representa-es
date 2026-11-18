@@ -4,7 +4,7 @@ import { LayoutDashboard, Users, PackageSearch, BarChart3, Settings, FileUp, Cal
 import { cn } from '../lib/utils';
 import { useDataManager } from '../lib/dataManager';
 import { useWhatsAppSummary } from '../hooks/useWhatsAppSummary';
-import { ViewportDiag } from './ViewportDiag';
+import { APP_SCROLL_ID } from '../lib/appScroll';
 
 // Diagnostic mode toggle. Keep false in normal use.
 const DEBUG_LAYOUT = false;
@@ -46,6 +46,29 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // iOS/iPadOS 26: depois que o teclado fecha, o Safari às vezes deixa o documento
+  // deslocado. Como o documento não rola (só o #app-scroll), volta ele para o topo.
+  React.useEffect(() => {
+    let timer = 0;
+    const reset = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
+      }, 300);
+    };
+    const onFocusOut = (event: FocusEvent) => {
+      const el = event.target as HTMLElement | null;
+      if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) reset();
+    };
+    document.addEventListener('focusout', onFocusOut);
+    window.visualViewport?.addEventListener('resize', reset);
+    return () => {
+      document.removeEventListener('focusout', onFocusOut);
+      window.visualViewport?.removeEventListener('resize', reset);
+      window.clearTimeout(timer);
     };
   }, []);
 
@@ -183,10 +206,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div data-mobile-density={mobileListMode} className={cn(
-      "min-h-dvh bg-neutral-100 flex flex-col md:flex-row pr-[env(safe-area-inset-right,0px)] pl-[env(safe-area-inset-left,0px)] md:pl-0 w-full max-w-full overflow-x-clip",
-      hideBottomNav ? "pb-0 md:pb-0" : "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:pb-0"
+      "h-full bg-neutral-100 flex flex-col md:flex-row pr-[env(safe-area-inset-right,0px)] pl-[env(safe-area-inset-left,0px)] md:pl-0 w-full max-w-full overflow-hidden"
     )}>
-      <ViewportDiag />
       {/* Status de sincronização no celular: só aparece quando exige atenção */}
       {syncState !== 'synced' && (
         <div className={cn(
@@ -198,10 +219,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {/* Sidebar Desktop: coluna própria e sticky (no iPad o position:fixed se soltava ao rolar) */}
+      {/* Sidebar Desktop: coluna própria; quem rola é só o #app-scroll ao lado */}
       <aside
         ref={sidebarRef}
-        className="hidden md:flex flex-col w-[calc(5rem+env(safe-area-inset-left,0px))] min-[90rem]:w-[calc(15rem+env(safe-area-inset-left,0px))] pl-[env(safe-area-inset-left,0px)] bg-neutral-900 text-neutral-300 sticky top-0 h-dvh shrink-0 self-start z-50"
+        className="hidden md:flex flex-col w-[calc(5rem+env(safe-area-inset-left,0px))] min-[90rem]:w-[calc(15rem+env(safe-area-inset-left,0px))] pl-[env(safe-area-inset-left,0px)] bg-neutral-900 text-neutral-300 h-full shrink-0 z-50"
       >
         <div className="flex h-16 shrink-0 items-center justify-center gap-2.5 px-4 min-[90rem]:justify-start min-[90rem]:px-5">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-500 text-sm font-bold text-white">P</span>
@@ -243,13 +264,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 md:px-8 md:py-8 min-[90rem]:px-10 max-w-[90rem] mx-auto w-full overflow-x-clip">
+      {/* Main Content: único contêiner com rolagem (ver lib/appScroll.ts) */}
+      <div
+        id={APP_SCROLL_ID}
+        className={cn(
+          "min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain",
+          hideBottomNav ? "pb-0" : "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:pb-0"
+        )}
+      >
+      <main className="min-w-0 px-4 py-5 sm:px-6 md:px-8 md:py-8 min-[90rem]:px-10 max-w-[90rem] mx-auto w-full overflow-x-clip">
         {children}
         <footer className="mt-10 text-center text-xs text-neutral-400">
           <a href="/privacidade" className="hover:text-neutral-700 hover:underline underline-offset-4">Política de Privacidade</a>
         </footer>
       </main>
+      </div>
 
       {hasMobileList && (
         <button

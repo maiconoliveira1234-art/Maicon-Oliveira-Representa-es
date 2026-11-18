@@ -62,6 +62,7 @@ import { orderQuoteItems } from '../lib/quoteItemOrder';
 import { saveDraftLocally, readDraftLocally, clearLocalDraft } from '../lib/draftStorage';
 import { paginateQuoteItems } from '../lib/quotePagination';
 import { pesoTotalItensVenda } from '../lib/orderWeight';
+import { getAppScroller, scrollAppTo } from '../lib/appScroll';
 
 type EntidadeCredito = {
   id: string;
@@ -149,21 +150,22 @@ export function OrderPage() {
   // Atalho de rolagem: segue o sentido em que a pessoa esta rolando.
   const [scrollDir, setScrollDir] = useState<'down' | 'up'>('down');
   useEffect(() => {
-    let lastY = window.scrollY;
+    const scroller = getAppScroller();
+    let lastY = scroller.scrollTop;
     const onScroll = () => {
-      const y = window.scrollY;
-      const atBottom = window.innerHeight + y >= document.documentElement.scrollHeight - 80;
+      const y = scroller.scrollTop;
+      const atBottom = scroller.clientHeight + y >= scroller.scrollHeight - 80;
       if (y < 80) setScrollDir('down');
       else if (atBottom) setScrollDir('up');
       else if (Math.abs(y - lastY) > 8) setScrollDir(y > lastY ? 'down' : 'up');
       lastY = y;
     };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    return () => scroller.removeEventListener('scroll', onScroll);
   }, []);
 
-  // A barra de totais fica presa no rodapé pelo CSS (position: fixed). Não
-  // reposicionar via visualViewport: no iPad isso a deslocava para o meio da tela.
+  // A barra de totais fica presa no rodapé pelo CSS (position: fixed); a rolagem
+  // acontece no #app-scroll do Layout (ver lib/appScroll.ts).
 
   const families = useMemo(() => {
     const activeProducts = produtos.filter(p => p.ativo !== false);
@@ -1907,8 +1909,8 @@ export function OrderPage() {
           <button
             type="button"
             aria-label={scrollDir === 'down' ? 'Ir para o fim do pedido' : 'Voltar ao topo do pedido'}
-            onClick={() => window.scrollTo({
-              top: scrollDir === 'down' ? document.documentElement.scrollHeight : 0,
+            onClick={() => scrollAppTo({
+              top: scrollDir === 'down' ? getAppScroller().scrollHeight : 0,
               behavior: 'smooth'
             })}
             className="absolute right-3 bottom-full mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-neutral-900 text-white shadow-lg ring-1 ring-black/10 active:scale-95 transition-transform"

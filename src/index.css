@@ -72,13 +72,21 @@
   }
 }
 
+/* O documento não rola: a rolagem fica no #app-scroll do Layout. Isso contorna o
+   bug do iOS/iPadOS 26 em que barras position: fixed "andam" com a rolagem. */
 html,
 body,
 #root {
   width: 100%;
   max-width: 100%;
-  min-height: 100%;
-  overflow-x: clip;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Telas fora do Layout (login, acesso) ainda podem rolar se precisarem. */
+#root {
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* iPad/iPhone: sem o "elástico" ao passar do topo/fim da página,
