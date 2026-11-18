@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Users } from 'lucide-react';
+import { FilterDropdown } from './FilterDropdown';
 import { format } from 'date-fns';
 import { supabase } from '../lib/supabase';
 import { Cliente } from '../types';
@@ -35,7 +37,7 @@ function StoreReview({ store, onSaved }: { store: Store; onSaved: (store: Store)
   const [raw, setRaw] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
-  const [filter, setFilter] = useState('Todos');
+  const [filter, setFilter] = useState('A vencer');
   const lock = useRef(false);
   const [today, setToday] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   useEffect(() => {
@@ -147,10 +149,7 @@ function StoreReview({ store, onSaved }: { store: Store; onSaved: (store: Store)
 
 export function FinancialTab({ clientes }: { clientes: Cliente[] }) {
   const [clientId, setClientId] = useState('');
-  const [clientSearch, setClientSearch] = useState('');
-  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').trim();
   const activeClients = clientes.filter(c => c.ativo !== false);
-  const filteredClients = activeClients.filter(c => normalize(c.cliente).includes(normalize(clientSearch)));
   useEffect(() => {
     if (clientId && !clientes.some(c => c.id === clientId && c.ativo !== false)) setClientId('');
   }, [clientes, clientId]);
@@ -182,17 +181,14 @@ export function FinancialTab({ clientes }: { clientes: Cliente[] }) {
   return <section className="space-y-4" aria-label="Financeiro dos clientes">
     <div className="rounded-xl border border-neutral-200 bg-white p-4">
       <h2 className="text-lg font-extrabold">Financeiro por cliente</h2>
-      <label className="mb-3 block text-sm font-bold">Buscar cliente ativo
-        <input type="search" className={inputClass} value={clientSearch} onChange={e => setClientSearch(e.target.value)} placeholder="Digite o nome do cliente" />
-      </label>
-      <label className="block text-sm font-bold">Cliente
-        <select value={clientId} onChange={e => setClientId(e.target.value)} className={inputClass}>
-          <option value="">Selecione um cliente</option>
-          {activeClients.filter(c => c.id === clientId && !filteredClients.some(f => f.id === c.id)).map(c => <option key={c.id} value={c.id} hidden>{c.cliente}</option>)}
-          {[...filteredClients].sort((a, b) => a.cliente.localeCompare(b.cliente, 'pt-BR')).map(c => <option key={c.id} value={c.id}>{c.cliente}</option>)}
-        </select>
-      </label>
-      <p role="status" className="mt-1 text-xs text-neutral-500">{filteredClients.length === 0 ? 'Nenhum cliente ativo encontrado.' : `${filteredClients.length} cliente(s) ativo(s) encontrado(s).`}</p>
+      <FilterDropdown
+        label="Selecione um cliente"
+        options={[...activeClients].sort((x, y) => x.cliente.localeCompare(y.cliente, 'pt-BR')).map(c => ({ id: c.id, label: c.cliente }))}
+        selected={clientId}
+        onChange={setClientId}
+        placeholder="Digite o nome do cliente"
+        icon={<Users size={20} />}
+      />
       <button type="button" disabled={!clientId || loading} onClick={() => setRevision(n => n + 1)} className="mt-3 rounded-lg border px-4 py-2 text-sm font-bold disabled:opacity-50">Atualizar consulta</button>
     </div>
     {loading && <p role="status">Consultando financeiro...</p>}
