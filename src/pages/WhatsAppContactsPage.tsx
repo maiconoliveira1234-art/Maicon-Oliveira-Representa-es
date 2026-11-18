@@ -3,6 +3,7 @@ import { EyeOff, Link2, Loader2, MessageCircle, Mic, RefreshCw, Search, Settings
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ClientLinkSheet } from '../components/whatsapp/ClientLinkSheet';
+import { StorageUsageAlert } from '../components/whatsapp/StorageUsageAlert';
 import {
   fetchClientes,
   linkContact,
@@ -245,6 +246,7 @@ export function WhatsAppContactsPage() {
 
   return (
     <div className="mx-auto max-w-3xl pb-4">
+      <StorageUsageAlert />
       <div className="mb-3 flex items-center gap-2">
         <h1 className="flex flex-1 items-center gap-2 text-xl font-black text-neutral-900">
           <MessageCircle size={22} className="text-green-600" /> WhatsApp
