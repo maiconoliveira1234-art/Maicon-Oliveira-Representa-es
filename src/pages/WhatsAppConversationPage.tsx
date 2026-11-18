@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, Copy, ExternalLink, FileText, Image as ImageIcon, Link2, Loader2, MoreVertical, Mic, RefreshCw, Send, Sparkles, Unlink, UserRound, X } from 'lucide-react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, ArrowLeft, Check, ExternalLink, FileText, Image as ImageIcon, Link2, Loader2, MoreVertical, Mic, RefreshCw, Send, Sparkles, Unlink, UserRound, X } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { OrderLearningPanel } from '../components/whatsapp/OrderLearningPanel';
@@ -134,7 +134,6 @@ export function WhatsAppConversationPage() {
   const [draft, setDraft] = useState('');
   const [suggestionAt, setSuggestionAt] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [sentNotice, setSentNotice] = useState<string | null>(null);
@@ -148,6 +147,8 @@ export function WhatsAppConversationPage() {
   const [linkBusy, setLinkBusy] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const messagesRef = useRef<HTMLElement | null>(null);
+  const replyRef = useRef<HTMLElement | null>(null);
+  const draftBoxRef = useRef<HTMLTextAreaElement | null>(null);
   const scrolled = useRef(false);
 
   const loadData = useCallback(
@@ -268,7 +269,20 @@ export function WhatsAppConversationPage() {
     // without moving the page; on phones the page itself scrolls to the end.
     if (box && box.scrollHeight > box.clientHeight + 1) box.scrollTop = box.scrollHeight;
     else bottomRef.current?.scrollIntoView({ block: 'end' });
+    // Deixa a linha de botoes (WhatsApp / Enviar / Gerar) visivel ao abrir.
+    replyRef.current?.scrollIntoView({ block: 'end' });
   }, [loading, messages.length]);
+
+  // Caixa de resposta: minimo de 3 linhas, cresce com o texto ate 40% da tela.
+  useLayoutEffect(() => {
+    const box = draftBoxRef.current;
+    if (!box) return;
+    box.style.height = 'auto';
+    const max = Math.round(window.innerHeight * 0.4);
+    const borders = box.offsetHeight - box.clientHeight;
+    box.style.height = `${Math.min(box.scrollHeight + borders, max)}px`;
+    box.style.overflowY = box.scrollHeight + borders > max ? 'auto' : 'hidden';
+  }, [draft, loading]);
 
   const stale = Boolean(draft.trim()) && isSuggestionStale(suggestionAt, latestIncoming?.recebida_em);
 
@@ -332,27 +346,6 @@ export function WhatsAppConversationPage() {
     if (!mapping?.cliente_id) return;
     setMenuOpen(false);
     navigate(`/cliente/${mapping.cliente_id}`, { state: { backTo: location.pathname } });
-  };
-
-  const copyDraft = async () => {
-    if (!draft.trim()) return;
-    try {
-      await navigator.clipboard.writeText(draft);
-    } catch {
-      const area = document.createElement('textarea');
-      area.value = draft;
-      area.style.position = 'fixed';
-      area.style.opacity = '0';
-      document.body.appendChild(area);
-      area.select();
-      try {
-        document.execCommand('copy');
-      } finally {
-        document.body.removeChild(area);
-      }
-    }
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 2000);
   };
 
   const replyPhone = resolveReplyPhone(mapping?.whatsapp_nome, cliente?.telefone);
@@ -594,7 +587,7 @@ export function WhatsAppConversationPage() {
       </section>
 
       <div className="lg:sticky lg:top-4 lg:max-h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
-      <section aria-label="Resposta" className="mt-3 rounded-2xl lg:mt-0 border border-violet-100 bg-violet-50/60 p-3">
+      <section ref={replyRef} aria-label="Resposta" className="mt-3 rounded-2xl lg:mt-0 border border-violet-100 bg-violet-50/60 p-3">
         <div className="flex items-center gap-2">
           <Sparkles size={16} className="text-violet-600" />
           <h2 className="flex-1 text-sm font-black text-violet-800">Resposta</h2>
@@ -630,11 +623,12 @@ export function WhatsAppConversationPage() {
         </div>
 
         <textarea
+          ref={draftBoxRef}
           value={draft}
           onChange={event => setDraft(event.target.value)}
-          rows={5}
+          rows={3}
           placeholder="Gere uma sugestão ou escreva a resposta aqui. Nada é enviado sem você."
-          className="mt-1 w-full resize-y rounded-xl border border-violet-200 bg-white p-3 text-base leading-relaxed text-neutral-900 outline-none focus:border-violet-400"
+          className="mt-1 w-full resize-none rounded-xl border border-violet-200 bg-white p-3 text-base leading-relaxed text-neutral-900 outline-none focus:border-violet-400"
         />
 
         {stale && (
@@ -650,54 +644,39 @@ export function WhatsAppConversationPage() {
           </div>
         )}
 
-        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-2">
+        <div className="mt-2 flex gap-2">
+          <button
+            type="button"
+            onClick={openWhatsApp}
+            disabled={!draft.trim() || !replyPhone.phone}
+            className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-green-200 bg-white px-2 text-sm font-black text-green-700 disabled:opacity-40"
+          >
+            <ExternalLink size={17} /> WhatsApp
+          </button>
           <button
             type="button"
             onClick={() => setConfirmOpen(true)}
             disabled={!canSend}
-            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-green-600 px-4 text-sm font-black text-white disabled:opacity-40 sm:col-span-3 lg:col-span-2"
+            className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-green-600 px-2 text-sm font-black text-white disabled:opacity-40"
           >
             <Send size={17} /> Enviar
           </button>
           <button
             type="button"
-            onClick={() => void copyDraft()}
-            disabled={!draft.trim()}
-            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-green-200 bg-white px-4 text-sm font-black text-green-700 disabled:opacity-40"
-          >
-            {copied ? <Check size={17} /> : <Copy size={17} />} {copied ? 'Copiado' : 'Copiar'}
-          </button>
-          <button
-            type="button"
-            onClick={openWhatsApp}
-            disabled={!draft.trim() || !replyPhone.phone}
-            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-green-200 bg-white px-4 text-sm font-black text-green-700 disabled:opacity-40"
-          >
-            <ExternalLink size={17} /> Abrir no WhatsApp
-          </button>
-          <button
-            type="button"
             onClick={() => void generate()}
             disabled={!target || generating || !mapping?.cliente_id}
-            className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-4 text-sm font-black text-violet-700 disabled:opacity-40 lg:order-first lg:col-span-2"
+            className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-violet-200 bg-white px-2 text-sm font-black text-violet-700 disabled:opacity-40"
           >
             {generating ? <Loader2 size={17} className="animate-spin" /> : draft.trim() ? <RefreshCw size={17} /> : <Sparkles size={17} />}
-            {draft.trim() ? 'Gerar de novo' : 'Gerar sugestão'}
+            {draft.trim() ? 'Gerar de novo' : 'Gerar'}
           </button>
         </div>
 
         {windowHours <= 0 && latestIncoming && (
           <p className="mt-2 text-xs font-semibold text-amber-700">
-            Passaram mais de 24 horas desde a última mensagem do cliente. O WhatsApp só permite enviar por aqui dentro desse prazo; use "Abrir no WhatsApp".
+            Passaram mais de 24 horas desde a última mensagem do cliente. O WhatsApp só permite enviar por aqui dentro desse prazo; use o botão "WhatsApp".
           </p>
         )}
-        <p className="mt-2 text-xs text-violet-700/80">
-          {replyPhone.source === 'conversa'
-            ? 'O WhatsApp abre com o número que escreveu e o texto pronto; você confere e envia.'
-            : replyPhone.source === 'cadastro'
-              ? 'O WhatsApp abre com o telefone do cadastro do CRM (este contato não tem número na conversa). Confira antes de enviar.'
-              : 'Sem telefone para abrir o WhatsApp: copie o texto e cole na conversa.'}
-        </p>
       </section>
 
       {contatoId && (
