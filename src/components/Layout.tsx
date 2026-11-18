@@ -4,6 +4,7 @@ import { LayoutDashboard, Users, PackageSearch, BarChart3, Settings, FileUp, Cal
 import { cn } from '../lib/utils';
 import { useDataManager } from '../lib/dataManager';
 import { useWhatsAppSummary } from '../hooks/useWhatsAppSummary';
+import { ViewportDiag } from './ViewportDiag';
 
 // Diagnostic mode toggle. Keep false in normal use.
 const DEBUG_LAYOUT = false;
@@ -185,6 +186,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       "min-h-dvh bg-neutral-100 flex flex-col md:flex-row pr-[env(safe-area-inset-right,0px)] pl-[env(safe-area-inset-left,0px)] md:pl-0 w-full max-w-full overflow-x-clip",
       hideBottomNav ? "pb-0 md:pb-0" : "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:pb-0"
     )}>
+      <ViewportDiag />
       {/* Status de sincronização no celular: só aparece quando exige atenção */}
       {syncState !== 'synced' && (
         <div className={cn(
