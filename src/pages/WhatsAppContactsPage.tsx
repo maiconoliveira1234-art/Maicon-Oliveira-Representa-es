@@ -1,14 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { EyeOff, Link2, Loader2, MessageCircle, Mic, RefreshCw, Search, Settings, ShieldCheck, XCircle } from 'lucide-react';
+import { EyeOff, Link2, Loader2, MessageCircle, Mic, Phone, RefreshCw, Search, Settings, ShieldCheck, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ClientLinkSheet } from '../components/whatsapp/ClientLinkSheet';
 import { StorageUsageAlert } from '../components/whatsapp/StorageUsageAlert';
 import {
   fetchClientes,
+  fetchContactInfo,
+  formatWhatsAppPhone,
   linkContact,
+  NO_NUMBER_WARNING,
   setContactStatus,
   type ClienteLite,
+  type ContactInfo,
   type WhatsAppMap,
 } from '../lib/whatsappContacts';
 import { refreshWhatsAppSummary } from '../hooks/useWhatsAppSummary';
@@ -34,7 +38,7 @@ const QUERY_KEY = 'whatsapp.query';
 const POLL_MS = 20000;
 
 // Kept at module level so coming back from a conversation shows the list instantly while it refreshes.
-let cache: { maps: WhatsAppMap[]; summaries: Record<string, Summary> } | null = null;
+let cache: { maps: WhatsAppMap[]; summaries: Record<string, Summary>; info: Map<string, ContactInfo> } | null = null;
 
 function previewText(message: PreviewMessage | null): { text: string; audio: boolean } {
   if (!message) return { text: 'Sem mensagens recentes', audio: false };
@@ -57,6 +61,7 @@ export function WhatsAppContactsPage() {
   const navigate = useNavigate();
   const [maps, setMaps] = useState<WhatsAppMap[]>(cache?.maps || []);
   const [summaries, setSummaries] = useState<Record<string, Summary>>(cache?.summaries || {});
+  const [info, setInfo] = useState<Map<string, ContactInfo>>(cache?.info || new Map());
   const [clientes, setClientes] = useState<ClienteLite[]>([]);
   const [clientesLoading, setClientesLoading] = useState(false);
   const [loading, setLoading] = useState(!cache);
@@ -113,9 +118,16 @@ export function WhatsAppContactsPage() {
         }
       }
 
-      cache = { maps: nextMaps, summaries: next };
+      // Numbers and quarantine are extra detail: the list still works if this lookup fails.
+      const nextInfo = await fetchContactInfo().catch(err => {
+        console.warn('Números dos contatos indisponíveis:', err);
+        return cache?.info || new Map<string, ContactInfo>();
+      });
+
+      cache = { maps: nextMaps, summaries: next, info: nextInfo };
       setMaps(nextMaps);
       setSummaries(next);
+      setInfo(nextInfo);
       setError(null);
     } catch (err: any) {
       console.error('Erro ao carregar o WhatsApp:', err);
@@ -176,12 +188,13 @@ export function WhatsAppContactsPage() {
     const searched = query.trim()
       ? byStatus.filter(item => {
           const last = summaries[item.id]?.last;
-          return matchesQuery(query, item.whatsapp_perfil_nome, item.whatsapp_nome, last?.mensagem, last?.transcricao_audio);
+          const phones = (info.get(item.id)?.telefones || []).flatMap(p => [p, p.slice(2), formatWhatsAppPhone(p)]);
+          return matchesQuery(query, item.whatsapp_perfil_nome, item.whatsapp_nome, last?.mensagem, last?.transcricao_audio, ...phones);
         })
       : byStatus;
     return [...searched].sort((a, b) => new Date(lastTime(b)).getTime() - new Date(lastTime(a)).getTime());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [maps, summaries, activeFilter, query]);
+  }, [maps, summaries, info, activeFilter, query]);
 
   const ensureClientes = async () => {
     if (clientesLoaded.current) return;
@@ -197,7 +210,13 @@ export function WhatsAppContactsPage() {
     }
   };
 
+  const hasNumber = (item: WhatsAppMap) => (info.get(item.id)?.telefones.length || 0) > 0;
+  // Only warn when the numbers were actually loaded; an empty map means the lookup failed.
+  const warnNoNumber = (item: WhatsAppMap, action: string) =>
+    info.size === 0 || hasNumber(item) || window.confirm(`${NO_NUMBER_WARNING}\n\n${action} mesmo assim?`);
+
   const openSheet = (item: WhatsAppMap) => {
+    if (!warnNoNumber(item, 'Vincular este cadastro')) return;
     setSheetMap(item);
     void ensureClientes();
   };
@@ -224,8 +243,9 @@ export function WhatsAppContactsPage() {
 
   const changeStatus = async (item: WhatsAppMap, status: 'pendente' | 'ignorado') => {
     if (status === 'ignorado' && !window.confirm(
-      `Marcar ${item.whatsapp_perfil_nome || item.whatsapp_nome} como "Não é cliente"?\n\nTodas as mensagens desta conversa serão apagadas e as próximas não serão guardadas.`,
+      `Marcar ${item.whatsapp_perfil_nome || item.whatsapp_nome} como "Não é cliente"?\n\nA conversa sai do CRM e as próximas mensagens não aparecem. Durante 48 horas, "Reavaliar" recupera tudo; depois as mensagens são apagadas.`,
     )) return;
+    if (status === 'pendente' && !warnNoNumber(item, 'Reavaliar este cadastro')) return;
     setBusyId(item.id);
     setError(null);
     try {
@@ -244,7 +264,7 @@ export function WhatsAppContactsPage() {
     recentes: 'Nenhuma conversa vinculada ainda.',
     todos: 'Nenhuma conversa vinculada ainda.',
     identificar: 'Nenhum contato esperando identificação.',
-    ignorados: 'Nenhum contato ignorado. As conversas de quem não é cliente não ficam guardadas.',
+    ignorados: 'Nenhum contato ignorado. As conversas de quem não é cliente ficam guardadas só por 48 horas.',
   };
 
   return (
@@ -374,6 +394,30 @@ export function WhatsAppContactsPage() {
                       <h2 className={`truncate text-[15px] text-neutral-900 ${unseen > 0 ? 'font-black' : 'font-bold'}`}>{nameOf(item)}</h2>
                       <span className="ml-auto shrink-0 text-xs font-semibold text-neutral-400">{relativeTime(lastTime(item))}</span>
                     </div>
+                    {(() => {
+                      const contact = info.get(item.id);
+                      if (!contact) return null;
+                      const quarantineUntil = contact.quarentena_ate ? new Date(contact.quarentena_ate) : null;
+                      return (
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                          {contact.telefones.length > 0 ? (
+                            <span className="inline-flex items-center gap-1 font-semibold text-neutral-500">
+                              <Phone size={12} className="shrink-0" /> {contact.telefones.map(formatWhatsAppPhone).join(' · ')}
+                            </span>
+                          ) : (
+                            <span title={NO_NUMBER_WARNING} className="rounded-full bg-amber-50 px-2 py-0.5 font-bold text-amber-800">
+                              Sem número · cadastro antigo
+                            </span>
+                          )}
+                          {item.status === 'ignorado' && contact.quarentena > 0 && quarantineUntil && (
+                            <span className="rounded-full bg-neutral-100 px-2 py-0.5 font-bold text-neutral-600">
+                              {contact.quarentena} {contact.quarentena === 1 ? 'mensagem guardada' : 'mensagens guardadas'} até{' '}
+                              {quarantineUntil.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <div className="mt-0.5 flex items-center gap-1.5">
                       {preview.audio && <Mic size={13} className="shrink-0 text-neutral-400" />}
                       <p className={`line-clamp-2 text-sm ${unseen > 0 ? 'font-semibold text-neutral-800' : 'text-neutral-500'}`}>{preview.text}</p>
