@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Produto, PrecoFaixa, HistVenda } from '../types';
-import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle, Users, X, ChevronDown, History, TrendingUp, Pencil } from 'lucide-react';
+import { Loader2, Search, Filter, Download, CheckSquare, Square, XCircle, Users, X, ChevronDown, History, TrendingUp, Pencil, MoreHorizontal, Eye, EyeOff, RotateCcw } from 'lucide-react';
 import { cn, deduplicateSales } from '../lib/utils';
 import { ADIMAX_LOGO_URL, waitForReportImages } from '../lib/pdfBranding';
 import jsPDF from 'jspdf';
@@ -15,11 +15,15 @@ import { FileChartColumn } from 'lucide-react';
 import { calcularPrecoComDesconto } from '../lib/calculations';
 
 export function PriceInquiryPage() {
-  const { produtos: cachedProdutos, hist_vendas: cachedHistorico } = useDataManager();
+  const { produtos: cachedProdutos, hist_vendas: cachedHistorico, refreshProdutos } = useDataManager();
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showInactive, setShowInactive] = useState(false);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  const [actionsMenuAlign, setActionsMenuAlign] = useState<'left' | 'right'>('right');
+  const actionsMenuRef = useRef<HTMLDivElement>(null);
+  const actionsMenuButtonRef = useRef<HTMLButtonElement>(null);
   const [selectedFamily, setSelectedFamily] = useState<string>('all');
   const [selectedTable, setSelectedTable] = useState<PrecoFaixa>('livre');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -72,34 +76,46 @@ export function PriceInquiryPage() {
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editForm, setEditForm] = useState<Produto | null>(null);
+  const [editingInactive, setEditingInactive] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const handleSaveProduct = async () => {
+  const openProductRecord = (produto: Produto) => {
+    setEditForm({ ...produto });
+    setEditingInactive(produto.ativo === false);
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveProduct = async (overrides: Partial<Produto> = {}) => {
     if (!editForm) return;
+    const data: Produto = { ...editForm, ...overrides };
     setIsSaving(true);
     try {
       const { error } = await supabase
         .from('produtos')
         .update({
-          produto: editForm.produto,
-          ativo: editForm.ativo,
-          familia: editForm.familia,
-          custo_total: Number(editForm.custo_total || 0),
-          custo_und: Number(editForm.custo_und || 0),
-          sugestao: Number(editForm.sugestao || 0),
-          comissao: Number(editForm.comissao || 0),
-          peso_embalagem: Number(editForm.peso_embalagem || 0),
-          quant_embalagem: Number(editForm.quant_embalagem || 1),
+          produto: data.produto,
+          ativo: data.ativo,
+          familia: data.familia,
+          custo_total: Number(data.custo_total || 0),
+          custo_und: Number(data.custo_und || 0),
+          sugestao: Number(data.sugestao || 0),
+          comissao: Number(data.comissao || 0),
+          peso_embalagem: Number(data.peso_embalagem || 0),
+          quant_embalagem: Number(data.quant_embalagem || 1),
         })
-        .eq('id', editForm.id);
+        .eq('id', data.id);
 
       if (error) throw error;
 
       // Update local state is crucial
-      setProdutos(prev => prev.map(p => p.id === editForm.id ? { ...p, ...editForm } : p));
-      if (editForm.ativo === false) setSelectedIds(prev => new Set([...prev].filter(id => id !== editForm.id)));
+      const nextProdutos = produtos.map(p => p.id === data.id ? { ...p, ...data } : p);
+      setProdutos(nextProdutos);
+      if (data.ativo === false) setSelectedIds(prev => new Set([...prev].filter(id => id !== data.id)));
+      if (showInactive && !nextProdutos.some(p => p.ativo === false)) setShowInactive(false);
       setSelectedFamily('all');
       setIsEditModalOpen(false);
+      // Propaga a mudanca (ex.: reativacao) para as outras telas, como Pedidos.
+      refreshProdutos().catch(err => console.warn('Falha ao atualizar cache de produtos:', err));
     } catch (err) {
       console.error('Erro ao salvar produto:', err);
       alert('Erro ao salvar alterações no produto.');
@@ -283,6 +299,39 @@ export function PriceInquiryPage() {
     }));
   };
 
+  const inactiveCount = useMemo(() => produtos.filter(p => p.ativo === false).length, [produtos]);
+
+  const toggleInactiveView = () => {
+    setShowInactive(value => !value);
+    setSelectedFamily('all');
+    setSelectedClient('all');
+    setSelectedIds(new Set());
+    setHistoryProductId(null);
+    setIsActionsMenuOpen(false);
+  };
+
+  const toggleActionsMenu = () => {
+    const rect = actionsMenuButtonRef.current?.getBoundingClientRect();
+    setActionsMenuAlign(rect && rect.right < 240 ? 'left' : 'right');
+    setIsActionsMenuOpen(open => !open);
+  };
+
+  useEffect(() => {
+    if (!isActionsMenuOpen) return;
+    const closeOnOutside = (event: PointerEvent) => {
+      if (!actionsMenuRef.current?.contains(event.target as Node)) setIsActionsMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsActionsMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isActionsMenuOpen]);
+
   const families = useMemo(() => {
     const visibleProducts = produtos.filter(p => showInactive ? p.ativo === false : p.ativo !== false);
     const fams = new Set(visibleProducts.map(p => p.familia || 'Sem Família'));
@@ -462,10 +511,7 @@ export function PriceInquiryPage() {
             <button
                onClick={() => {
                  const prod = produtos.find(p => p.id === historyProductId);
-                 if (prod) {
-                   setEditForm({ ...prod });
-                   setIsEditModalOpen(true);
-                 }
+                 if (prod) openProductRecord(prod);
                }}
                className="px-3 py-1.5 bg-neutral-900 border border-transparent text-white rounded-lg font-bold hover:bg-neutral-800 transition-all flex items-center gap-2 text-xs shadow-md"
             >
@@ -497,28 +543,72 @@ export function PriceInquiryPage() {
             <TrendingUp size={16} />
             {showMargin ? "Ocultar Markup" : "Exibir Markup"}
           </button>
-          <button
-            onClick={deselectAll}
-            className="px-3 py-1.5 bg-white border border-neutral-200 text-neutral-600 rounded-lg font-bold hover:bg-neutral-50 transition-all flex items-center gap-2 text-xs"
-          >
-            <XCircle size={16} />
-            Desmarcar Todos
-          </button>
-          <button
-            onClick={selectAll}
-            className="px-3 py-1.5 bg-white border border-neutral-200 text-neutral-600 rounded-lg font-bold hover:bg-neutral-50 transition-all flex items-center gap-2 text-xs"
-          >
-            <CheckSquare size={16} />
-            Marcar Todos
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="px-3 py-1.5 bg-orange-600 text-white rounded-lg font-bold hover:bg-orange-700 transition-all flex items-center gap-2 shadow-lg shadow-orange-200 disabled:opacity-50 text-xs"
-          >
-            {exporting ? <Loader2 className="animate-spin" size={16} /> : <Download size={16} />}
-            Exportar / Enviar
-          </button>
+          {!showInactive && (
+            <>
+              <button
+                onClick={deselectAll}
+                className="px-3 py-1.5 bg-white border border-neutral-200 text-neutral-600 rounded-lg font-bold hover:bg-neutral-50 transition-all flex items-center gap-2 text-xs"
+              >
+                <XCircle size={16} />
+                Desmarcar Todos
+              </button>
+              <button
+                onClick={selectAll}
+                className="px-3 py-1.5 bg-white border border-neutral-200 text-neutral-600 rounded-lg font-bold hover:bg-neutral-50 transition-all flex items-center gap-2 text-xs"
+              >
+                <CheckSquare size={16} />
+                Marcar Todos
+              </button>
+              <button
+                onClick={handleExport}
+                disabled={exporting}
+                className="px-3 py-1.5 bg-orange-600 text-white rounded-lg font-bold hover:bg-orange-700 transition-all flex items-center gap-2 shadow-lg shadow-orange-200 disabled:opacity-50 text-xs"
+              >
+                {exporting ? <Loader2 className="animate-spin" size={16} /> : <Download size={16} />}
+                Exportar / Enviar
+              </button>
+            </>
+          )}
+          <div ref={actionsMenuRef} className="relative">
+            <button
+              ref={actionsMenuButtonRef}
+              type="button"
+              onClick={toggleActionsMenu}
+              aria-label="Mais opções"
+              aria-haspopup="menu"
+              aria-expanded={isActionsMenuOpen}
+              className={cn(
+                "px-3 py-1.5 rounded-lg font-bold transition-all flex items-center justify-center border text-xs",
+                isActionsMenuOpen || showInactive
+                  ? "bg-neutral-900 border-neutral-900 text-white shadow-md"
+                  : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50"
+              )}
+            >
+              <MoreHorizontal size={16} />
+            </button>
+            {isActionsMenuOpen && (
+              <div
+                role="menu"
+                className={cn(
+                  "absolute top-full mt-2 z-50 w-60 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl",
+                  actionsMenuAlign === 'left' ? "left-0" : "right-0"
+                )}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={toggleInactiveView}
+                  className="flex h-11 w-full items-center gap-3 px-3 text-left text-sm font-bold text-neutral-800 hover:bg-neutral-50"
+                >
+                  {showInactive ? <Eye size={17} /> : <EyeOff size={17} />}
+                  <span className="flex-1">{showInactive ? 'Ocultar Inativos' : 'Exibir Inativos'}</span>
+                  {!showInactive && inactiveCount > 0 && (
+                    <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-black text-neutral-600">{inactiveCount}</span>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -542,30 +632,20 @@ export function PriceInquiryPage() {
           )}
         </div>
 
-        <div className="flex justify-center">
-          <button
-            type="button"
-            aria-pressed={showInactive}
-            onClick={() => {
-              setShowInactive(value => !value);
-              setSelectedFamily('all');
-              setSelectedClient('all');
-              setSelectedIds(new Set());
-              setHistoryProductId(null);
-            }}
-            className={cn(
-              "rounded-lg border px-4 py-2 text-xs font-bold transition-colors",
-              showInactive
-                ? "border-orange-300 bg-orange-100 text-orange-700"
-                : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50"
-            )}
-          >
-            {showInactive ? 'Mostrar Ativos' : 'Inativos'}
-            {!showInactive && produtos.some(p => p.ativo === false)
-              ? ` (${produtos.filter(p => p.ativo === false).length})`
-              : ''}
-          </button>
-        </div>
+        {showInactive && (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={toggleInactiveView}
+              aria-label="Voltar aos produtos ativos"
+              className="inline-flex h-10 items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-4 text-sm font-bold text-amber-800 transition-colors hover:bg-amber-100"
+            >
+              <EyeOff size={16} />
+              Inativos ({inactiveCount})
+              <X size={16} />
+            </button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-5xl mx-auto">
           <div className="relative">
@@ -733,12 +813,13 @@ export function PriceInquiryPage() {
                 ? (clientLastPrices[produto.id] || clientLastPricesByName[produto.produto?.toLowerCase() || ''] || 0)
                 : calcularPrecoComDesconto(produto.custo_und, produto[selectedTable]);
 
+              const isInactive = produto.ativo === false;
+
               return (
                 <div
                   key={produto.id}
-                  onClick={() => { if (produto.ativo !== false) toggleSelect(produto.id); }}
-                  className={cn("flex items-center justify-between p-4 transition-colors group",
-                    produto.ativo === false ? "bg-neutral-50/60" : "hover:bg-neutral-50 cursor-pointer")}
+                  onClick={() => { if (isInactive) openProductRecord(produto); else toggleSelect(produto.id); }}
+                  className="flex items-center justify-between p-4 transition-colors group hover:bg-neutral-50 cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
                     <div
@@ -747,12 +828,13 @@ export function PriceInquiryPage() {
                         selectedIds.has(produto.id) ? "text-orange-600" : "text-neutral-300"
                       )}
                     >
-                      {selectedIds.has(produto.id) ? <CheckSquare size={24} /> : <Square size={24} />}
+                      {isInactive
+                        ? <EyeOff size={24} />
+                        : selectedIds.has(produto.id) ? <CheckSquare size={24} /> : <Square size={24} />}
                     </div>
                     <div>
                       <h3 className="font-bold text-neutral-900 text-base">{produto.produto}</h3>
                       <p className="text-[10px] text-neutral-400 font-bold uppercase">{produto.familia}</p>
-                      {produto.ativo === false && <span className="text-[10px] font-bold uppercase text-amber-700">Inativo · Editar para reativar</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-4 md:gap-6">
@@ -779,8 +861,7 @@ export function PriceInquiryPage() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setEditForm({ ...produto });
-                        setIsEditModalOpen(true);
+                        openProductRecord(produto);
                       }}
                       className="p-2 bg-neutral-50 hover:bg-orange-50 text-neutral-400 hover:text-orange-600 rounded-lg transition-all border border-transparent hover:border-orange-200"
                       title="Editar produto"
@@ -958,7 +1039,12 @@ export function PriceInquiryPage() {
             {/* Modal Header */}
             <div className="p-6 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
               <div>
-                <h2 className="text-xl font-black text-neutral-900">Editar Produto</h2>
+                <h2 className="text-xl font-black text-neutral-900 flex items-center gap-2">
+                  Editar Produto
+                  {editingInactive && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800">Inativo</span>
+                  )}
+                </h2>
                 <p className="text-neutral-500 text-xs mt-0.5">Editando configurações do banco de dados</p>
               </div>
               <button 
@@ -1003,21 +1089,36 @@ export function PriceInquiryPage() {
                 </div>
 
                 {/* Ativo Status Toggle Block */}
-                <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-100 flex items-center justify-between">
-                  <div>
-                    <h4 className="text-sm font-bold text-neutral-900">Produto Ativo</h4>
+                {editingInactive ? (
+                  <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-bold text-amber-900">Produto Inativo</h4>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveProduct({ ativo: true })}
+                      disabled={isSaving}
+                      className="h-10 px-4 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg transition-all text-sm flex items-center gap-2 shadow-md shadow-orange-100 disabled:opacity-50"
+                    >
+                      {isSaving ? <Loader2 className="animate-spin" size={16} /> : <RotateCcw size={16} />}
+                      Reativar
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setEditForm({...editForm, ativo: !editForm.ativo})}
-                    className={cn(
-                      "w-12 h-6 rounded-full p-1 transition-all duration-300 outline-none relative flex items-center",
-                      editForm.ativo ? "bg-orange-600 justify-end" : "bg-neutral-300 justify-start"
-                    )}
-                  >
-                    <span className="w-4 h-4 bg-white rounded-full shadow-md" />
-                  </button>
-                </div>
+                ) : (
+                  <div className="p-4 bg-neutral-50 rounded-lg border border-neutral-100 flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-bold text-neutral-900">Produto Ativo</h4>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({...editForm, ativo: !editForm.ativo})}
+                      className={cn(
+                        "w-12 h-6 rounded-full p-1 transition-all duration-300 outline-none relative flex items-center",
+                        editForm.ativo ? "bg-orange-600 justify-end" : "bg-neutral-300 justify-start"
+                      )}
+                    >
+                      <span className="w-4 h-4 bg-white rounded-full shadow-md" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Finance Section */}
@@ -1120,7 +1221,7 @@ export function PriceInquiryPage() {
               </button>
               <button
                 type="button"
-                onClick={handleSaveProduct}
+                onClick={() => handleSaveProduct()}
                 disabled={isSaving}
                 className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg transition-all text-sm flex items-center gap-2 shadow-lg shadow-orange-100 disabled:opacity-50"
               >
