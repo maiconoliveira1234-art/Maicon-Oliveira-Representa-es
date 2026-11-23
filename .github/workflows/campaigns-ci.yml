@@ -27,4 +27,5 @@ jobs:
       - run: npx tsx src/tests/openOrderSafety.test.ts
       - run: npx tsx src/tests/stockCountDraft.test.ts
       - run: npx tsx src/tests/openOrderDeletionSafety.test.ts
+      - run: npx tsx src/tests/whatsappPriceTable.test.ts
       - run: npm run build

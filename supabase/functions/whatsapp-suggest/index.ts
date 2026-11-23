@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.101.1';
 import { generate } from './llm.ts';
+import { descreverTabela, hojeSaoPaulo, normalizarDesconto, precoNaFaixa, tabelaDoCliente } from './priceTable.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
@@ -30,7 +31,7 @@ type Product = {
   id:string; produto:string; familia:string|null; ativo:boolean|null;
   livre:number|null; '200kg':number|null; '500kg':number|null; '1000kg':number|null;
   '2000kg':number|null; '4000kg':number|null; custo_total:number|null; custo_und:number|null;
-  peso_embalagem:number|null; quant_embalagem:number|null;
+  sugestao:number|null; peso_embalagem:number|null; quant_embalagem:number|null;
 };
 type Sale = {
   faturamento:string|null; numero_pedido_erp:string|null; produtos:string|null; qtd:number|null;
@@ -57,19 +58,6 @@ function norm(v: string) {
 function tokens(v:string) {
   return [...new Set(norm(v).split(/\s+/).filter(t => t.length >= 2))];
 }
-function tierFromWeight(weight:number) {
-  if (weight >= 4000) return '4000kg';
-  if (weight >= 2000) return '2000kg';
-  if (weight >= 1000) return '1000kg';
-  if (weight >= 500) return '500kg';
-  if (weight >= 200) return '200kg';
-  return 'livre';
-}
-function daysBetween(date:string|null, now = new Date()) {
-  if (!date) return null;
-  const d = new Date(date + 'T12:00:00Z');
-  return Math.max(0, Math.floor((now.getTime() - d.getTime()) / 86400000));
-}
 function productScore(p:Product, query:string) {
   const q = tokens(query);
   if (!q.length) return 0;
@@ -81,12 +69,6 @@ function productScore(p:Product, query:string) {
   const nq = norm(query);
   if (nq && hay.includes(nq)) score += 8;
   return score;
-}
-function priceForTier(p:Product, tier:string) {
-  const discount = n((p as any)[tier]);
-  const box = n(p.custo_total) * (1 - discount);
-  const unit = n(p.custo_und) * (1 - discount);
-  return { discount, box, unit };
 }
 
 
@@ -287,7 +269,7 @@ Deno.serve(async (req:Request) => {
         .select('titulo, categoria, regra, prioridade, escopo_tipo, escopo_valor, cliente_id, valido_de, valido_ate')
         .eq('ativo', true).order('prioridade', { ascending:true }).order('atualizado_em', { ascending:false }),
       db.from('produtos')
-        .select('id, produto, familia, ativo, livre, "200kg", "500kg", "1000kg", "2000kg", "4000kg", custo_total, custo_und, peso_embalagem, quant_embalagem')
+        .select('id, produto, familia, ativo, livre, "200kg", "500kg", "1000kg", "2000kg", "4000kg", custo_total, custo_und, sugestao, peso_embalagem, quant_embalagem')
         .eq('ativo', true),
       db.from('estoque_cliente').select('produto_id, quantidade_atual, ultima_contagem').eq('cliente_id', message.cliente_id),
     ]);
@@ -303,20 +285,12 @@ Deno.serve(async (req:Request) => {
     const stockById = new Map(stocks.map(s => [s.produto_id,s]));
 
     const saleLines = sales.filter(s => String(s.vendas || '').toUpperCase() === 'VENDAS');
-    const latestSale = saleLines.find(s => s.faturamento) || null;
-    const latestDate = latestSale?.faturamento || null;
-    const latestOrderKey = latestSale?.numero_pedido_erp || null;
-    const latestOrderLines = latestSale
-      ? saleLines.filter(s => latestOrderKey ? s.numero_pedido_erp === latestOrderKey : s.faturamento === latestDate)
-      : [];
-    const latestWeight = latestOrderLines.reduce((sum,s) => {
-      const p = s.produto_id ? productById.get(s.produto_id) : null;
-      return sum + n(s.qtd) * n(p?.peso_embalagem);
-    },0);
-    const daysSinceLast = daysBetween(latestDate);
-    const retained = daysSinceLast !== null && daysSinceLast <= 28;
-    const lastTier = tierFromWeight(latestWeight);
-    const availableTier = retained ? lastTier : 'livre';
+    const hoje = hojeSaoPaulo();
+    const latestDate = saleLines.find(s => s.faturamento)?.faturamento || null;
+    const daysSinceLast = latestDate ? Math.max(0, Math.round((Date.parse(hoje + 'T00:00:00Z') - Date.parse(latestDate.slice(0,10) + 'T00:00:00Z')) / 86400000)) : null;
+    // Tabela que a IA usa para informar preço: ativa, senão a última que o cliente teve, senão livre.
+    const tabela = tabelaDoCliente(sales, products, hoje);
+    const availableTier = tabela.faixa;
 
     const contextText = contextMessages.map((m,i) => `${i+1}. [${m.recebida_em}] ${msgText(m)}`).join('\n');
     const queryText = contextMessages.map(m => msgText(m)).join(' ');
@@ -326,10 +300,13 @@ Deno.serve(async (req:Request) => {
       .sort((a,b) => b.score - a.score)
       .slice(0,15);
 
+    // Só o preço da unidade vai para a IA: o valor da caixa nunca é informado ao cliente.
     const priceContext = scored.length ? scored.map(({p,score},i) => {
-      const pr = priceForTier(p, availableTier);
+      const pr = precoNaFaixa(p, availableTier);
       const commercialQty = Math.max(1,n(p.quant_embalagem));
-      return `${i+1}. ${p.produto} | família ${p.familia || '-'} | faixa ${availableTier} | desconto ${(pr.discount*100).toFixed(1)}% | embalagem comercial ${money(pr.box)} | unidade ${money(pr.unit)} | ${commercialQty} un/embalagem | peso ${n(p.peso_embalagem)} kg | relevância ${score.toFixed(1)}`;
+      const preco = pr.unidade > 0 ? money(pr.unidade) : 'sem preço cadastrado';
+      const sugestao = pr.sugestao > 0 ? money(pr.sugestao) : 'não cadastrada';
+      return `${i+1}. ${p.produto} | família ${p.familia || '-'} | preço por unidade ${preco} | sugestão de venda por unidade ${sugestao} | ${commercialQty} un por caixa | relevância ${score.toFixed(1)}`;
     }).join('\n') : 'Nenhum produto pôde ser identificado com segurança pela mensagem.';
 
     const cutoff90 = Date.now() - 90*86400000;
@@ -349,11 +326,11 @@ Deno.serve(async (req:Request) => {
       const monthly = m.qty / 3;
       const current = stock ? n(stock.quantidade_atual) : null;
       const suggested = current === null ? null : Math.max(0, Math.ceil(monthly - current));
-      const pr = priceForTier(p, availableTier);
-      return { name:p.produto, qty90:m.qty, monthly, stock:current, stockDate:stock?.ultima_contagem || null, suggested, box:pr.box };
+      const pr = precoNaFaixa(p, availableTier);
+      return { name:p.produto, qty90:m.qty, monthly, stock:current, stockDate:stock?.ultima_contagem || null, suggested, box:pr.caixa };
     }).filter(Boolean).sort((a:any,b:any) => (b.suggested || 0) - (a.suggested || 0) || b.monthly-a.monthly).slice(0,25);
     const orderText = orderContext.length ? orderContext.map((x:any,i) =>
-      `${i+1}. ${x.name} | comprado 90d ${x.qty90} | média/mês ${x.monthly.toFixed(1)} | estoque ${x.stock === null ? 'sem contagem' : x.stock} ${x.stockDate ? '('+x.stockDate+')' : ''} | sugestão estimada ${x.suggested === null ? 'indisponível' : x.suggested} emb. | valor atual/emb. ${money(x.box)}`
+      `${i+1}. ${x.name} | comprado 90d ${x.qty90} | média/mês ${x.monthly.toFixed(1)} | estoque ${x.stock === null ? 'sem contagem' : x.stock} ${x.stockDate ? '('+x.stockDate+')' : ''} | sugestão estimada ${x.suggested === null ? 'indisponível' : x.suggested} emb. | valor da caixa ${money(x.box)} (só para somar o total do pedido; nunca informe como preço)`
     ).join('\n') : 'Sem histórico suficiente para sugestão.';
 
     const today = new Date().toISOString().slice(0,10);
@@ -397,7 +374,7 @@ Deno.serve(async (req:Request) => {
     }
 
     const purchases = saleLines.slice(0,30).map((s,i) =>
-      `${i+1}. ${s.faturamento || ''} | ${s.produtos || ''} | qtd ${n(s.qtd)} | valor ${money(n(s['r$_total']))} | desconto registrado ${(n(s.xdt)*100).toFixed(1)}%`
+      `${i+1}. ${s.faturamento || ''} | ${s.produtos || ''} | qtd ${n(s.qtd)} | valor ${money(n(s['r$_total']))} | desconto registrado ${(normalizarDesconto(s.xdt)*100).toFixed(1)}%`
     ).join('\n');
 
     // Greeting is based on the current São Paulo local time, never the UTC server clock.
@@ -417,8 +394,8 @@ OBJETIVO: responda usando os dados reais do CRM. Quando houver preço disponíve
 REGRAS DE RESPOSTA:
 - Português do Brasil, natural, cordial, objetivo e comercial, normalmente 1 a 4 frases.
 - Não diga que é IA. Não use markdown, títulos, listas ou aspas.
-- Para pergunta de preço: identifique produto e embalagem. Se houver uma única opção claramente correspondente em PREÇOS ATUAIS, use o valor da embalagem/unidade adequado à pergunta. Se houver várias opções plausíveis, peça apenas o detalhe que falta (peso/versão), sem inventar.
-- A faixa comercial disponível do cliente já foi calculada pelo CRM. Use-a. Se a recompra de 28 dias expirou, a faixa disponível será livre.
+- Para pergunta de preço: identifique produto e versão. Se houver uma única opção claramente correspondente em PREÇOS PARA INFORMAR AO CLIENTE, informe o preço por unidade dela, mesmo que o cliente pergunte pela caixa, e a sugestão de venda quando houver. Se houver várias opções plausíveis, peça apenas o detalhe que falta (peso/versão), sem inventar.
+- A TABELA DO CLIENTE e os preços já foram calculados pelo CRM. Use exatamente esses valores; não recalcule, não troque de tabela e não cite outras tabelas nem regra de volume.
 - Para sugestão de pedido: use SOMENTE a seção SUGESTÃO/ESTOQUE. A quantidade sugerida é uma estimativa baseada em compras dos últimos 90 dias menos o estoque contado; se o estoque estiver sem contagem, não invente quantidade.
 - Respeite pedido mínimo, boleto mínimo, campanhas e demais regras editáveis.
 - Responda às mensagens selecionadas. Use a CONVERSA RECENTE apenas para manter coerência com o que Maicon já respondeu ou prometeu: não repita informações que ele já deu e não contradiga o que ele disse.
@@ -435,10 +412,7 @@ Cidade/bairro: ${[cliente.cidade,cliente.bairro].filter(Boolean).join(' / ') || 
 Saldo Flex: ${money(n(cliente.flex_saldo))}
 Último faturamento: ${latestDate || 'não encontrado'}
 Dias desde o último faturamento: ${daysSinceLast ?? 'não calculado'}
-Peso estimado do último pedido: ${latestWeight.toFixed(1)} kg
-Faixa do último pedido: ${lastTier}
-Recompra dentro de 28 dias: ${retained ? 'sim' : 'não'}
-FAIXA COMERCIAL DISPONÍVEL AGORA: ${availableTier}
+TABELA DO CLIENTE: ${descreverTabela(tabela)}
 
 REGRAS COMERCIAIS ATIVAS
 ${rulesText}
@@ -452,7 +426,7 @@ ${recentConversation || 'Sem mensagens anteriores capturadas.'}
 MENSAGENS SELECIONADAS COMO CONTEXTO
 ${contextText}
 
-PREÇOS ATUAIS DOS PRODUTOS MAIS RELACIONADOS À MENSAGEM
+PREÇOS PARA INFORMAR AO CLIENTE (produtos mais relacionados à mensagem; já na TABELA DO CLIENTE, por unidade)
 ${priceContext}
 
 SUGESTÃO/ESTOQUE DO CLIENTE
@@ -484,7 +458,7 @@ Retorne somente a resposta sugerida.`;
     return json({
       ok:true, suggestion, model:usedModel, generated_at:generatedAt,
       rules_applied:rules.length, context_messages:contextMessages.length,
-      client_tier:availableTier, last_order_weight:latestWeight, days_since_last:daysSinceLast,
+      client_tier:availableTier, client_table:tabela.tipo, weight_28d:tabela.pesoAtivo, days_since_last:daysSinceLast,
       matched_products:scored.length, stock_items:stocks.length,
       style_examples:styleExamples.length, style_contact_replies:ownStyleReplies.length, style_corrections:corrections.length, style_profile:Boolean(styleProfile),
     });
