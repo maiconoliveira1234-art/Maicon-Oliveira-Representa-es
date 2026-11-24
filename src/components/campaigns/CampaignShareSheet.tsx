@@ -10,6 +10,8 @@ import { ClientDetailModal } from '../ui/ClientDetailModal';
 
 const inputClass = 'w-full rounded-xl border border-neutral-200 bg-white p-2.5 text-sm outline-none focus:border-orange-500';
 const labelClass = 'block space-y-1 text-xs font-semibold text-neutral-700';
+// No celular só o ícone; a partir do iPad, ícone e texto.
+const secondaryButton = 'flex h-11 w-11 items-center justify-center gap-1.5 rounded-lg border border-neutral-300 text-sm font-bold text-neutral-800 sm:w-auto sm:px-3';
 const capitalizar = (s: string) => s.charAt(0).toLocaleUpperCase('pt-BR') + s.slice(1);
 
 export function CampaignShareSheet({ campanha, produtos, onClose }: {
@@ -152,20 +154,20 @@ export function CampaignShareSheet({ campanha, produtos, onClose }: {
         </label>
         <div className="flex flex-wrap justify-end gap-2 border-t border-neutral-100 pt-3">
           {podeCompartilharImagem && (
-            <button type="button" onClick={() => void compartilharEncarte()}
-              className="flex min-h-11 items-center gap-1.5 rounded-lg border border-neutral-300 px-3 text-sm font-bold text-neutral-800">
-              <ImageUp size={16} /> Encarte
+            <button type="button" onClick={() => void compartilharEncarte()} aria-label="Encarte" title="Compartilhar encarte"
+              className={secondaryButton}>
+              <ImageUp size={18} /><span className="hidden sm:inline">Encarte</span>
             </button>
           )}
-          <button type="button" onClick={() => void copiar()} disabled={!texto.trim()}
-            className="flex min-h-11 items-center gap-1.5 rounded-lg border border-neutral-300 px-3 text-sm font-bold text-neutral-800 disabled:opacity-50">
-            {copiado ? <Check size={16} /> : <Copy size={16} />} {copiado ? 'Copiado' : 'Copiar'}
+          <button type="button" onClick={() => void copiar()} disabled={!texto.trim()} aria-label={copiado ? 'Copiado' : 'Copiar'} title="Copiar"
+            className={secondaryButton + ' disabled:opacity-50'}>
+            {copiado ? <Check size={18} /> : <Copy size={18} />}<span className="hidden sm:inline">{copiado ? 'Copiado' : 'Copiar'}</span>
           </button>
           <a href={podeEnviar ? link : undefined} target="_blank" rel="noopener noreferrer"
             aria-disabled={!podeEnviar}
             onClick={e => { if (!podeEnviar) e.preventDefault(); }}
             className={'flex min-h-11 items-center gap-1.5 rounded-lg bg-green-600 px-4 text-sm font-bold text-white' + (podeEnviar ? '' : ' pointer-events-none opacity-50')}>
-            <Send size={16} /> Abrir no WhatsApp
+            <Send size={16} /><span className="sm:hidden">WhatsApp</span><span className="hidden sm:inline">Abrir no WhatsApp</span>
           </a>
         </div>
       </div>

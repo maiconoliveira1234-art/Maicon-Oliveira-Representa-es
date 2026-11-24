@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Megaphone, Plus, Trash2, Sparkles, ImageUp, CheckCircle2, AlertTriangle, Pencil, Send, X } from 'lucide-react';
+import { Megaphone, Plus, Trash2, Sparkles, ImageUp, CheckCircle2, AlertTriangle, Pause, Pencil, Send, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useDataManager } from '../lib/dataManager';
 import type { Campanha, RegraCampanha } from '../lib/campaignEngine';
@@ -26,6 +26,8 @@ const blankCampaign = (): Campanha => ({
 const normalize = (v: string) => (v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const inputClass = 'w-full rounded-xl border border-neutral-200 bg-white p-2.5 text-sm outline-none focus:border-orange-500';
 const labelClass = 'block space-y-1 text-xs font-semibold text-neutral-700';
+// No celular só o ícone (40 px de toque); a partir do iPad, ícone e texto.
+const actionButton = 'flex h-10 w-10 items-center justify-center gap-1 rounded-lg border text-xs font-bold sm:h-auto sm:w-auto sm:px-3 sm:py-2';
 
 export function CampaignPage() {
   const { produtos } = useDataManager();
@@ -317,11 +319,13 @@ export function CampaignPage() {
             {c.imagem_data ? <img className="h-16 w-16 rounded-lg border object-cover" alt="Encarte" src={c.imagem_data}/> : <Megaphone className="text-orange-500"/>}
             <div className="min-w-0 flex-1"><h2 className="font-black">{c.titulo}</h2>
               <p className="text-xs text-neutral-500">{c.inicio} até {c.fim} · {c.regras?.length || 0} regras · {campanhaAtiva(c) ? 'Vigente' : c.status}</p></div>
-            <button onClick={() => setSharing(c)} className="flex items-center gap-1 rounded-lg border border-green-200 px-3 py-2 text-xs font-bold text-green-700"><Send size={14}/> WhatsApp</button>
-            <button onClick={() => { setForm(c); setError(''); }} className="flex items-center gap-1 rounded-lg border px-3 py-2 text-xs font-bold"><Pencil size={14}/> Editar</button>
-            {c.status === 'ativa'
-              ? <button onClick={() => void changeStatus(c, 'pausada')} className="rounded-lg border px-3 py-2 text-xs font-bold">Pausar</button>
-              : <button onClick={() => void changeStatus(c, 'ativa')} disabled={!!validate(c, true)} className="flex items-center gap-1 rounded-lg border border-green-200 px-3 py-2 text-xs font-bold text-green-700 disabled:opacity-40"><CheckCircle2 size={14}/> Ativar</button>}
+            <div className="flex w-full justify-end gap-2 sm:w-auto">
+              <button onClick={() => setSharing(c)} aria-label="WhatsApp" title="Compartilhar no WhatsApp" className={actionButton + ' border-green-200 text-green-700'}><Send size={16}/><span className="hidden sm:inline">WhatsApp</span></button>
+              <button onClick={() => { setForm(c); setError(''); }} aria-label="Editar" title="Editar" className={actionButton}><Pencil size={16}/><span className="hidden sm:inline">Editar</span></button>
+              {c.status === 'ativa'
+                ? <button onClick={() => void changeStatus(c, 'pausada')} aria-label="Pausar" title="Pausar" className={actionButton}><Pause size={16}/><span className="hidden sm:inline">Pausar</span></button>
+                : <button onClick={() => void changeStatus(c, 'ativa')} disabled={!!validate(c, true)} aria-label="Ativar" title="Ativar" className={actionButton + ' border-green-200 text-green-700 disabled:opacity-40'}><CheckCircle2 size={16}/><span className="hidden sm:inline">Ativar</span></button>}
+            </div>
           </article>)}
         </section>
       )}
