@@ -4,11 +4,15 @@ import {
   BarChart3,
   Check,
   ChevronDown,
+  Eye,
+  EyeOff,
   FileDown,
   History,
   Loader2,
+  MoreHorizontal,
   PackagePlus,
   Plus,
+  RotateCcw,
   Save,
   Search,
   SlidersHorizontal,
@@ -190,8 +194,27 @@ export function PriceReportsPage() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
+  const actionsMenuRef = useRef<HTMLDivElement>(null);
 
   React.useEffect(() => setProducts(managedProducts), [managedProducts]);
+
+  React.useEffect(() => {
+    if (!actionsMenuOpen) return;
+    const closeOnOutside = (event: PointerEvent) => {
+      if (!actionsMenuRef.current?.contains(event.target as Node)) setActionsMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActionsMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [actionsMenuOpen]);
 
   const history = useMemo(() => deduplicateSales(managedHistory), [managedHistory]);
   const normalSales = useMemo(
@@ -203,24 +226,29 @@ export function PriceReportsPage() {
     () => products.filter(product => product.ativo !== false),
     [products]
   );
+  const inactiveProducts = useMemo(
+    () => products.filter(product => product.ativo === false),
+    [products]
+  );
+  const listedProducts = showInactive ? inactiveProducts : activeProducts;
   const allFamilies = useMemo(
     () => Array.from(new Set(activeProducts.map(product => product.familia).filter(Boolean))).sort(),
     [activeProducts]
   );
   const families = useMemo(
-    () => Array.from(new Set(activeProducts
+    () => Array.from(new Set(listedProducts
       .filter(product => packageWeight === 'all' || Number(unitWeight(product).toFixed(3)) === Number(packageWeight))
       .map(product => product.familia)
       .filter(Boolean))).sort(),
-    [activeProducts, packageWeight]
+    [listedProducts, packageWeight]
   );
   const packageWeights = useMemo(
-    () => Array.from(new Set(activeProducts
+    () => Array.from(new Set(listedProducts
       .filter(product => family === 'all' || product.familia === family)
       .map(product => Number(unitWeight(product).toFixed(3)))))
       .filter(Boolean)
       .sort((a, b) => a - b),
-    [activeProducts, family]
+    [listedProducts, family]
   );
 
   React.useEffect(() => {
@@ -261,17 +289,16 @@ export function PriceReportsPage() {
     if (mode === 'history' && clientId !== 'all' && !availableClients.some(client => client.id === clientId)) setClientId('all');
   }, [mode, clientId, availableClients]);
 
-  const filteredProducts = useMemo(() => products
-    .filter(product => product.ativo !== false)
+  const filteredProducts = useMemo(() => listedProducts
     .filter(product => family === 'all' || product.familia === family)
     .filter(product => packageWeight === 'all' || Number(unitWeight(product).toFixed(3)) === Number(packageWeight))
     .filter(product => {
       const term = search.trim().toLocaleLowerCase('pt-BR');
       return !term || product.produto.toLocaleLowerCase('pt-BR').includes(term);
     })
-    .filter(product => !onlyPurchased || purchasedKeys.has(product.id))
+    .filter(product => showInactive || !onlyPurchased || purchasedKeys.has(product.id))
     .sort((a, b) => `${a.familia} ${a.produto}`.localeCompare(`${b.familia} ${b.produto}`, 'pt-BR')),
-  [products, family, packageWeight, search, onlyPurchased, purchasedKeys]);
+  [listedProducts, showInactive, family, packageWeight, search, onlyPurchased, purchasedKeys]);
 
   const selectedProducts = useMemo(
     () => products.filter(product => selectedIds.has(product.id)),
@@ -571,13 +598,40 @@ export function PriceReportsPage() {
       const { id, ...changes } = updatedProduct;
       const { error } = await supabase.from('produtos').update(changes).eq('id', id);
       if (error) throw error;
-      setProducts(current => current.map(product => product.id === id ? updatedProduct : product));
+      const nextProducts = products.map(product => product.id === id ? updatedProduct : product);
+      setProducts(nextProducts);
+      if (showInactive && !nextProducts.some(product => product.ativo === false)) setShowInactive(false);
       setViewedProduct(updatedProduct);
       setEditForm(null);
       await refreshProdutos();
     } catch (error) {
       console.error('Erro ao salvar produto:', error);
       alert('Nao foi possivel salvar as alteracoes do produto.');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const toggleInactiveView = () => {
+    setShowInactive(value => !value);
+    setActionsMenuOpen(false);
+  };
+
+  const reactivateProduct = async (product: Produto) => {
+    setSavingEdit(true);
+    try {
+      const { error } = await supabase.from('produtos').update({ ativo: true }).eq('id', product.id);
+      if (error) throw error;
+      const reactivated: Produto = { ...product, ativo: true };
+      const nextProducts = products.map(item => item.id === product.id ? reactivated : item);
+      setProducts(nextProducts);
+      setViewedProduct(null);
+      setEditForm(null);
+      if (!nextProducts.some(item => item.ativo === false)) setShowInactive(false);
+      await refreshProdutos();
+    } catch (error) {
+      console.error('Erro ao reativar produto:', error);
+      alert('Nao foi possivel reativar o produto.');
     } finally {
       setSavingEdit(false);
     }
@@ -602,13 +656,46 @@ export function PriceReportsPage() {
           <button onClick={() => setShowNewProduct(true)} className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-bold text-neutral-700 hover:bg-neutral-50">
             <PackagePlus size={17} /> Novo produto
           </button>
-          <button
+          {!showInactive && <button
             onClick={mode === 'history' ? generateHistoryPdf : generateComparisonPdf}
             disabled={exporting || (mode === 'history' ? !historyRows.length : !selectedProducts.length) || (mode === 'custom' && !customColumns)}
             className="flex items-center gap-2 rounded-lg bg-orange-600 px-3 py-2 text-sm font-bold text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <FileDown size={17} /> {exporting ? 'Gerando...' : mode === 'custom' ? 'Gerar relatorio' : 'Gerar PDF'}
-          </button>
+          </button>}
+          <div ref={actionsMenuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setActionsMenuOpen(open => !open)}
+              aria-label="Mais opcoes"
+              aria-haspopup="menu"
+              aria-expanded={actionsMenuOpen}
+              className={cn(
+                'flex h-full min-h-10 items-center justify-center rounded-xl border px-3 transition-colors',
+                actionsMenuOpen || showInactive
+                  ? 'border-neutral-900 bg-neutral-900 text-white'
+                  : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50'
+              )}
+            >
+              <MoreHorizontal size={18} />
+            </button>
+            {actionsMenuOpen && (
+              <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-xl">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={toggleInactiveView}
+                  className="flex h-11 w-full items-center gap-3 px-3 text-left text-sm font-bold text-neutral-800 hover:bg-neutral-50"
+                >
+                  {showInactive ? <Eye size={17} /> : <EyeOff size={17} />}
+                  <span className="flex-1">{showInactive ? 'Ocultar inativos' : 'Exibir inativos'}</span>
+                  {!showInactive && inactiveProducts.length > 0 && (
+                    <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-black text-neutral-600">{inactiveProducts.length}</span>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
       {exportMessage && <div className={cn(
@@ -616,7 +703,16 @@ export function PriceReportsPage() {
         exportMessage.startsWith('Não') ? 'border-red-200 bg-red-50 text-red-700' : 'border-green-200 bg-green-50 text-green-700'
       )}>{exportMessage}</div>}
 
-      <div className="inline-flex w-full overflow-x-auto rounded-xl border border-neutral-200 bg-white p-1 md:w-auto">
+      {showInactive ? (
+        <button
+          type="button"
+          onClick={toggleInactiveView}
+          aria-label="Voltar aos produtos ativos"
+          className="inline-flex h-10 items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-4 text-sm font-bold text-amber-800 hover:bg-amber-100"
+        >
+          <EyeOff size={16} /> Inativos ({inactiveProducts.length}) <X size={16} />
+        </button>
+      ) : <div className="inline-flex w-full overflow-x-auto rounded-xl border border-neutral-200 bg-white p-1 md:w-auto">
         {([
           ['comparison', 'Comparar preços', SlidersHorizontal],
           ['history', 'Histórico do produto', History],
@@ -629,7 +725,7 @@ export function PriceReportsPage() {
             <Icon size={16} /> {label}
           </button>
         ))}
-      </div>
+      </div>}
 
       <section className="overflow-hidden rounded-xl border border-neutral-200 bg-white p-4">
         <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-12">
@@ -637,10 +733,10 @@ export function PriceReportsPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={17} />
             <ClearableTextInput value={search} onChange={setSearch} placeholder="Buscar produto" className="w-full rounded-lg border border-neutral-200 py-2.5 pl-10 pr-10 text-sm outline-none focus:border-orange-400" />
           </label>
-          <div className="min-w-0 xl:col-span-3"><Select value={clientId} onChange={setClientId} label={mode === 'comparison' ? 'Cliente do relatório' : 'Filtrar cliente'} options={[
+          {!showInactive && <div className="min-w-0 xl:col-span-3"><Select value={clientId} onChange={setClientId} label={mode === 'comparison' ? 'Cliente do relatório' : 'Filtrar cliente'} options={[
             ['all', mode === 'comparison' ? 'Cliente não identificado' : 'Todos os clientes'],
             ...availableClients.map(client => [client.id, client.cliente] as [string, string])
-          ]} /></div>
+          ]} /></div>}
           <div className="min-w-0 xl:col-span-3"><Select value={family} onChange={setFamily} label="Família" options={[
             ['all', 'Todas as famílias'],
             ...families.map(item => [item, item] as [string, string])
@@ -650,12 +746,12 @@ export function PriceReportsPage() {
             ...packageWeights.map(item => [String(item), formatWeight(item)] as [string, string])
           ]} /></div>
         </div>
-        {mode === 'comparison' && <p className="mt-3 text-xs font-semibold text-neutral-500">
+        {mode === 'comparison' && !showInactive && <p className="mt-3 text-xs font-semibold text-neutral-500">
           {selectedClient
             ? `${selectedClient.cliente} será identificado no cabeçalho do PDF.`
             : 'O cliente é opcional e serve apenas para identificar o destinatário no PDF; os preços das tabelas não são alterados.'}
         </p>}
-        {(mode === 'history' || mode === 'custom') && (
+        {(mode === 'history' || mode === 'custom') && !showInactive && (
           <div className="mt-3 grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
             <label className="block min-w-0 max-w-full overflow-hidden text-xs font-bold text-neutral-500">Data inicial<input type="date" value={dateFrom} onChange={event => setDateFrom(event.target.value)} className="mt-1 block min-w-0 max-w-full [inline-size:100%] rounded-lg border border-neutral-200 px-3 py-2 text-sm text-neutral-800" /></label>
             <label className="block min-w-0 max-w-full overflow-hidden text-xs font-bold text-neutral-500">Data final<input type="date" value={dateTo} onChange={event => setDateTo(event.target.value)} className="mt-1 block min-w-0 max-w-full [inline-size:100%] rounded-lg border border-neutral-200 px-3 py-2 text-sm text-neutral-800" /></label>
@@ -667,7 +763,29 @@ export function PriceReportsPage() {
         )}
       </section>
 
-      {mode === 'history' ? (
+      {showInactive ? (
+        <ComparisonReport
+          readOnly
+          products={filteredProducts}
+          selectedIds={new Set()}
+          selectedTables={selectedTables}
+          priceStats={priceStats}
+          custom={false}
+          customColumns={null}
+          comparisonShowMarkup={comparisonShowMarkup}
+          onComparisonShowMarkupChange={() => setComparisonShowMarkup(value => !value)}
+          savingsTables={savingsTables}
+          negotiatedPrices={negotiatedPrices}
+          onNegotiatedPriceChange={() => undefined}
+          extraDiscounts={extraDiscounts}
+          onExtraDiscountChange={() => undefined}
+          onToggleProduct={() => undefined}
+          onToggleTable={toggleTable}
+          onClear={() => undefined}
+          onToggleAllVisible={() => undefined}
+          onOpenProduct={product => openProduct(product)}
+        />
+      ) : mode === 'history' ? (
         <HistoryReport products={filteredProducts} selectedId={historyProductId} onSelect={setHistoryProductId} rows={historyRows} orderWeightMap={orderWeightMap} />
       ) : mode === 'custom' && !customColumns ? (
         <div className="border-y border-neutral-200 bg-white py-16 text-center"><p className="font-bold text-neutral-700">Escolha e confirme as colunas do relatorio.</p></div>
@@ -715,6 +833,7 @@ export function PriceReportsPage() {
           onCancelEdit={() => setEditForm(null)}
           onClose={closeProduct}
           onSave={saveEditedProduct}
+          onReactivate={() => reactivateProduct(viewedProduct)}
         />
       )}
     </div>
@@ -843,7 +962,7 @@ function ColumnSelector({ draft, onChange, savingsTables, onSavingsTablesChange,
   </div>;
 }
 
-function ComparisonReport({ products, selectedIds, selectedTables, priceStats, custom, customColumns, comparisonShowMarkup, onComparisonShowMarkupChange, savingsTables, negotiatedPrices, onNegotiatedPriceChange, extraDiscounts, onExtraDiscountChange, onToggleProduct, onToggleTable, onClear, onToggleAllVisible, onOpenProduct }: {
+function ComparisonReport({ products, selectedIds, selectedTables, priceStats, custom, customColumns, comparisonShowMarkup, onComparisonShowMarkupChange, savingsTables, negotiatedPrices, onNegotiatedPriceChange, extraDiscounts, onExtraDiscountChange, onToggleProduct, onToggleTable, onClear, onToggleAllVisible, onOpenProduct, readOnly = false }: {
   products: Produto[]; selectedIds: Set<string>; selectedTables: Set<PrecoFaixa>; priceStats: Map<string, { last: number; average: number; quantity: number; lastDate: string; lastQuantity: number; purchaseCount: number; monthlyAverage: number; daysSince: number }>;
   custom: boolean; onToggleProduct: (id: string) => void; onToggleTable: (table: PrecoFaixa) => void; onClear: () => void;
   customColumns: Set<CustomColumn> | null;
@@ -852,6 +971,7 @@ function ComparisonReport({ products, selectedIds, selectedTables, priceStats, c
   extraDiscounts: Record<string, number>; onExtraDiscountChange: (id: string, discount: number) => void;
   onToggleAllVisible: () => void;
   onOpenProduct: (product: Produto) => void;
+  readOnly?: boolean;
 }) {
   const activeTables = PRICE_TABLES.filter(table => custom ? customColumns?.has(`table:${table.key}`) : selectedTables.has(table.key));
   const showTableMarkup = custom ? Boolean(customColumns?.has('tableMarkup')) : comparisonShowMarkup;
@@ -864,16 +984,16 @@ function ComparisonReport({ products, selectedIds, selectedTables, priceStats, c
         </button>)}
         <button type="button" onClick={onComparisonShowMarkupChange} className={cn('flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold', comparisonShowMarkup ? 'border-orange-300 bg-orange-50 text-orange-700' : 'border-neutral-200 bg-white text-neutral-500')}><span className={cn('flex h-4 w-4 items-center justify-center rounded border', comparisonShowMarkup ? 'border-orange-600 bg-orange-600 text-white' : 'border-neutral-300')}>{comparisonShowMarkup && <Check size={11}/>}</span>Markup</button>
       </div>}
-      <div className="flex flex-wrap items-center gap-3 text-sm">
+      {!readOnly && <div className="flex flex-wrap items-center gap-3 text-sm">
         <span className="font-bold text-neutral-600">{selectedIds.size} selecionados</span>
         {products.length > 0 && <button type="button" onClick={onToggleAllVisible} className="font-bold text-orange-700 hover:text-orange-800">{allVisibleSelected ? 'Desmarcar todos' : 'Selecionar todos'}</button>}
         {selectedIds.size > 0 && <button type="button" onClick={onClear} className="font-bold text-red-600">Limpar</button>}
-      </div>
+      </div>}
     </div>
     <div className="mobile-card-table overflow-x-auto border-y border-neutral-200 bg-white p-2 md:p-0">
       <table className="w-full min-w-[900px] border-collapse text-sm">
         <thead className="sticky top-0 z-10 bg-neutral-50 text-[11px] font-semibold uppercase tracking-wide text-neutral-500 shadow-[inset_0_-1px_0_var(--color-neutral-200)]"><tr>
-          <th className="w-16 px-3 py-3"><span className="sr-only">Selecionar</span></th>{(!custom || customColumns?.has('product')) && <th className="px-3 py-3 text-left">Produto</th>}
+          {!readOnly && <th className="w-16 px-3 py-3"><span className="sr-only">Selecionar</span></th>}{(!custom || customColumns?.has('product')) && <th className="px-3 py-3 text-left">Produto</th>}
           {/* Legacy fixed custom columns replaced by the confirmed selection.
           {custom && <><th className="px-3 py-3 text-right">Último preço</th><th className="px-3 py-3 text-right">Custo médio</th></>}
           {activeTables.map(table => <th key={table.key} className="px-3 py-3 text-right">{table.label}</th>)}<th className="px-3 py-3 text-right">Sugerido</th>{custom && <th className="px-3 py-3 text-right">Markup medio</th>}
@@ -910,7 +1030,7 @@ function ComparisonReport({ products, selectedIds, selectedTables, priceStats, c
           return <tr key={product.id} onClick={() => onOpenProduct(product)} className={cn('cursor-pointer hover:bg-orange-50/50', selectedIds.has(product.id) && 'bg-orange-50')}>
             <td className="mobile-compact-row" colSpan={30}>
               <div className="mobile-compact-line">
-                <button
+                {!readOnly && <button
                   type="button"
                   onClick={event => {
                     event.stopPropagation();
@@ -921,11 +1041,11 @@ function ComparisonReport({ products, selectedIds, selectedTables, priceStats, c
                   aria-pressed={selectedIds.has(product.id)}
                 >
                   <span className={cn('flex h-4 w-4 items-center justify-center rounded border', selectedIds.has(product.id) ? 'border-orange-600 bg-orange-600 text-white' : 'border-neutral-300')}>{selectedIds.has(product.id) && <Check size={11} />}</span>
-                </button>
+                </button>}
                 <span className="mobile-compact-primary">{product.produto}</span>
                 {(!custom || customColumns?.has('suggested')) && <span className="mobile-compact-value text-orange-700">{formatCurrency(product.sugestao)}</span>}
               </div>
-              <div className="mobile-compact-line pl-7">
+              <div className={cn('mobile-compact-line', !readOnly && 'pl-7')}>
                 <span className="mobile-compact-secondary">
                   {activeTables.map(table => `${table.label} ${formatCurrency(priceForTable(product, table.key))}`).join(' · ')}
                   {custom && customColumns?.has('negotiatedPrice') && ` · Neg. ${negotiatedPrice ? formatCurrency(negotiatedPrice) : '-'}`}
@@ -933,7 +1053,7 @@ function ComparisonReport({ products, selectedIds, selectedTables, priceStats, c
                 </span>
               </div>
             </td>
-            <td
+            {!readOnly && <td
               data-label="Selecionar"
               data-mobile-summary
               className="cursor-default px-2 py-1.5"
@@ -950,7 +1070,7 @@ function ComparisonReport({ products, selectedIds, selectedTables, priceStats, c
               >
                 <span className={cn('flex h-5 w-5 items-center justify-center rounded border', selectedIds.has(product.id) ? 'border-orange-600 bg-orange-600 text-white' : 'border-neutral-300')}>{selectedIds.has(product.id) && <Check size={13} />}</span>
               </button>
-            </td>
+            </td>}
             {(!custom || customColumns?.has('product')) && <td data-label="Produto" data-mobile-summary data-mobile-title className="px-3 py-3"><p className="font-bold text-neutral-900">{product.produto}</p></td>}
             {custom && <>
               {customColumns?.has('family') && <td data-label="Familia" className="px-3 py-3 font-semibold">{product.familia}</td>}
@@ -974,7 +1094,7 @@ function ComparisonReport({ products, selectedIds, selectedTables, priceStats, c
           </tr>;
         })}</tbody>
       </table>
-      {!products.length && <div className="py-16 text-center text-sm font-bold text-neutral-400">Nenhum produto encontrado com estes filtros.</div>}
+      {!products.length && <div className="py-16 text-center text-sm font-bold text-neutral-400">{readOnly ? 'Nenhum produto inativo encontrado.' : 'Nenhum produto encontrado com estes filtros.'}</div>}
     </div>
   </div>;
 }
@@ -1000,10 +1120,13 @@ function HistoryReport({ products, selectedId, onSelect, rows, orderWeightMap }:
   </div>;
 }
 
-function ProductDrawer({ product, form, saving, families, onEdit, onChange, onCancelEdit, onClose, onSave }: {
+function ProductDrawer({ product, form, saving, families, onEdit, onChange, onCancelEdit, onClose, onSave, onReactivate }: {
   product: Produto; form: Produto | null; saving: boolean; families: string[];
   onEdit: () => void; onChange: (form: Produto) => void; onCancelEdit: () => void; onClose: () => void; onSave: () => void;
+  onReactivate: () => void;
 }) {
+  const isInactive = product.ativo === false;
+  const familyOptions = product.familia && !families.includes(product.familia) ? [product.familia, ...families] : families;
   const current = form || product;
   const quantity = Math.max(1, Number(current.quant_embalagem) || 1);
   const calculatedCost = (Number(current.custo_total) || 0) / quantity;
@@ -1015,7 +1138,7 @@ function ProductDrawer({ product, form, saving, families, onEdit, onChange, onCa
   return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-neutral-900/45 p-3 lg:justify-end lg:p-0" onMouseDown={event => event.target === event.currentTarget && onClose()}>
     <aside className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl animate-in zoom-in-95 duration-200 lg:h-full lg:max-h-none lg:max-w-xl lg:rounded-none lg:animate-in lg:slide-in-from-right">
       <header className="flex items-start justify-between border-b border-neutral-200 px-5 py-4">
-        <div className="min-w-0 pr-4"><p className="text-xs font-bold uppercase text-orange-600">{form ? 'Editando cadastro' : 'Detalhes do produto'}</p><h2 className="mt-1 truncate text-xl font-black text-neutral-900">{product.produto}</h2><p className="mt-1 text-sm text-neutral-500">{product.familia}</p></div>
+        <div className="min-w-0 pr-4"><p className="flex items-center gap-2 text-xs font-bold uppercase text-orange-600">{form ? 'Editando cadastro' : 'Detalhes do produto'}{isInactive && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-800">Inativo</span>}</p><h2 className="mt-1 truncate text-xl font-black text-neutral-900">{product.produto}</h2><p className="mt-1 text-sm text-neutral-500">{product.familia}</p></div>
         <button type="button" onClick={onClose} disabled={saving} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-neutral-500 hover:bg-neutral-100" title="Fechar"><X size={21}/></button>
       </header>
 
@@ -1032,7 +1155,7 @@ function ProductDrawer({ product, form, saving, families, onEdit, onChange, onCa
         </div> : <div className="space-y-6">
           <section><h3 className="mb-3 text-xs font-black uppercase text-neutral-400">Identificacao</h3><div className="grid gap-4 sm:grid-cols-2">
             <label className="text-xs font-bold text-neutral-500 sm:col-span-2">Nome do produto<ClearableTextInput value={form.produto} onChange={value => onChange({ ...form, produto: value })} ariaLabel="Nome do produto" className={`${fieldClass} pr-10`}/></label>
-            <label className="text-xs font-bold text-neutral-500">Familia<select value={form.familia} onChange={event => onChange({ ...form, familia: event.target.value })} className={fieldClass}>{families.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
+            <label className="text-xs font-bold text-neutral-500">Familia<select value={form.familia} onChange={event => onChange({ ...form, familia: event.target.value })} className={fieldClass}>{familyOptions.map(item => <option key={item} value={item}>{item}</option>)}</select></label>
             <label className="flex items-center justify-between self-end rounded-lg border border-neutral-200 px-3 py-2.5 text-sm font-bold text-neutral-700">Produto ativo<input type="checkbox" checked={form.ativo !== false} onChange={event => onChange({ ...form, ativo: event.target.checked })} className="h-5 w-5 accent-orange-600"/></label>
           </div></section>
           <section className="border-t border-neutral-100 pt-5"><h3 className="mb-3 text-xs font-black uppercase text-neutral-400">Custos e embalagem</h3><div className="grid gap-4 sm:grid-cols-2">
@@ -1046,7 +1169,10 @@ function ProductDrawer({ product, form, saving, families, onEdit, onChange, onCa
       </div>
 
       <footer className="border-t border-neutral-200 bg-neutral-50 px-5 py-4">
-        {!form ? <button type="button" onClick={onEdit} className="flex w-full items-center justify-center rounded-lg bg-orange-600 px-4 py-3 text-sm font-bold text-white hover:bg-orange-700">Editar produto</button> : <div className="flex items-center justify-end gap-2"><button type="button" onClick={onCancelEdit} disabled={saving} className="rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-bold text-neutral-700">Cancelar</button><button type="button" onClick={onSave} disabled={saving || !changed || !form.produto.trim() || !form.familia.trim()} className="flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">{saving ? <Loader2 className="animate-spin" size={17}/> : <Save size={17}/>} {saving ? 'Salvando...' : 'Salvar alteracoes'}</button></div>}
+        {!form ? (isInactive ? <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={onEdit} disabled={saving} className="flex items-center justify-center rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm font-bold text-neutral-700 hover:bg-neutral-50 disabled:opacity-40">Editar produto</button>
+          <button type="button" onClick={onReactivate} disabled={saving} className="flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-3 text-sm font-bold text-white hover:bg-orange-700 disabled:opacity-40">{saving ? <Loader2 className="animate-spin" size={17}/> : <RotateCcw size={17}/>} Reativar</button>
+        </div> : <button type="button" onClick={onEdit} className="flex w-full items-center justify-center rounded-lg bg-orange-600 px-4 py-3 text-sm font-bold text-white hover:bg-orange-700">Editar produto</button>) : <div className="flex items-center justify-end gap-2"><button type="button" onClick={onCancelEdit} disabled={saving} className="rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm font-bold text-neutral-700">Cancelar</button><button type="button" onClick={onSave} disabled={saving || !changed || !form.produto.trim() || !form.familia.trim()} className="flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">{saving ? <Loader2 className="animate-spin" size={17}/> : <Save size={17}/>} {saving ? 'Salvando...' : 'Salvar alteracoes'}</button></div>}
       </footer>
     </aside>
   </div>;
