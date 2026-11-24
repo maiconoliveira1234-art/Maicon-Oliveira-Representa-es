@@ -1,11 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Megaphone, Plus, Trash2, Sparkles, ImageUp, CheckCircle2, AlertTriangle, Pencil, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Megaphone, Plus, Trash2, Sparkles, ImageUp, CheckCircle2, AlertTriangle, Pencil, Send, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useDataManager } from '../lib/dataManager';
 import type { Campanha, RegraCampanha } from '../lib/campaignEngine';
 import { campanhaAtiva, descontoValido, descricaoDesconto, modalidadeDesconto, type ModalidadeDesconto } from '../lib/campaignEngine';
 import { CampaignSkuSearch } from '../components/campaigns/CampaignSkuSearch';
 import { CampaignSkuMultiSearch } from '../components/campaigns/CampaignSkuMultiSearch';
+import { CampaignShareSheet } from '../components/campaigns/CampaignShareSheet';
 import { campaignExtractionError } from '../lib/campaignExtractionError';
 
 const blankRule = (): RegraCampanha => ({
@@ -35,6 +36,8 @@ export function CampaignPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [filter, setFilter] = useState('');
+  const [sharing, setSharing] = useState<Campanha | null>(null);
+  const closeSharing = useCallback(() => setSharing(null), []);
   const familias = useMemo(() => [...new Set(produtos.map(p => p.familia).filter(Boolean))].sort(), [produtos]);
   const visible = useMemo(() => campanhas.filter(c => normalize(c.titulo).includes(normalize(filter))), [campanhas, filter]);
 
@@ -314,6 +317,7 @@ export function CampaignPage() {
             {c.imagem_data ? <img className="h-16 w-16 rounded-lg border object-cover" alt="Encarte" src={c.imagem_data}/> : <Megaphone className="text-orange-500"/>}
             <div className="min-w-0 flex-1"><h2 className="font-black">{c.titulo}</h2>
               <p className="text-xs text-neutral-500">{c.inicio} até {c.fim} · {c.regras?.length || 0} regras · {campanhaAtiva(c) ? 'Vigente' : c.status}</p></div>
+            <button onClick={() => setSharing(c)} className="flex items-center gap-1 rounded-lg border border-green-200 px-3 py-2 text-xs font-bold text-green-700"><Send size={14}/> WhatsApp</button>
             <button onClick={() => { setForm(c); setError(''); }} className="flex items-center gap-1 rounded-lg border px-3 py-2 text-xs font-bold"><Pencil size={14}/> Editar</button>
             {c.status === 'ativa'
               ? <button onClick={() => void changeStatus(c, 'pausada')} className="rounded-lg border px-3 py-2 text-xs font-bold">Pausar</button>
@@ -321,6 +325,7 @@ export function CampaignPage() {
           </article>)}
         </section>
       )}
+      {sharing && <CampaignShareSheet campanha={sharing} produtos={produtos} onClose={closeSharing} />}
     </div>
   );
 }
