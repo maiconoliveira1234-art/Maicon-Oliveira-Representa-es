@@ -28,7 +28,8 @@ import {
   ExternalLink,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Bot
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -74,7 +75,7 @@ import {
 } from '../lib/salesTrendAnalysis';
 import { fetchOpenOrderSales } from '../lib/openOrderSales';
 
-export type DashboardTab = 'evolucao' | 'visao_geral' | 'curva_abc' | 'mix_produtos' | 'positivacao' | 'comissoes' | 'financeiro';
+export type DashboardTab = 'evolucao' | 'visao_geral' | 'curva_abc' | 'mix_produtos' | 'positivacao' | 'comissoes' | 'financeiro' | 'custo_ia';
 type AbcMetric = 'volume' | 'faturamento' | 'ponderado';
 
 function abcValue(item: { totalKg: number; totalVal: number }, totals: { totalKg: number; totalVal: number }, metric: AbcMetric): number {
@@ -95,6 +96,8 @@ const FinancialTab = lazy(() => import('../components/FinancialTab').then(module
 
 const CommissionTab = lazy(() => import('./CommissionPage').then(module => ({ default: module.CommissionPage })));
 
+const AiCostTab = lazy(() => import('../components/AiCostTab').then(module => ({ default: module.AiCostTab })));
+
 export function Dashboard() {
   const navigate = useNavigate();
   const {
@@ -104,7 +107,7 @@ export function Dashboard() {
     loadingGlobal
   } = useDataManager();
 
-  const [activeTab, setActiveTab] = useState<DashboardTab>(() => (['comissoes', 'financeiro'].includes(new URLSearchParams(window.location.search).get('aba') || '') ? new URLSearchParams(window.location.search).get('aba') as DashboardTab : 'evolucao'));
+  const [activeTab, setActiveTab] = useState<DashboardTab>(() => (['comissoes', 'financeiro', 'custo_ia'].includes(new URLSearchParams(window.location.search).get('aba') || '') ? new URLSearchParams(window.location.search).get('aba') as DashboardTab : 'evolucao'));
   const [loading, setLoading] = useState(true);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [produtos, setProdutos] = useState<Produto[]>([]);
@@ -883,6 +886,7 @@ export function Dashboard() {
     { id: 'positivacao' as const, label: 'Positivação da Carteira', icon: Users },
     { id: 'comissoes' as const, label: 'Comissões', icon: DollarSign },
     { id: 'financeiro' as const, label: 'Financeiro', icon: DollarSign },
+    { id: 'custo_ia' as const, label: 'Custo de IA', icon: Bot },
   ];
 
   const situationList: TrendCategory[] = [
@@ -949,7 +953,7 @@ export function Dashboard() {
                 <option value={-3}>3 Meses Atrás ({format(subMonths(new Date(), 3), 'MMMM/yyyy', { locale: ptBR })})</option>
               </select>
             </div>
-          ) : activeTab === 'financeiro' ? null : (
+          ) : activeTab === 'financeiro' || activeTab === 'custo_ia' ? null : (
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-neutral-500">Período:</span>
               <select
@@ -997,6 +1001,12 @@ export function Dashboard() {
       {activeTab === 'financeiro' && (
         <Suspense fallback={<div className="py-8 text-center text-sm text-neutral-500">Carregando financeiro...</div>}>
           <FinancialTab clientes={clientes} />
+        </Suspense>
+      )}
+
+      {activeTab === 'custo_ia' && (
+        <Suspense fallback={<div className="py-8 text-center text-sm text-neutral-500">Carregando custo de IA...</div>}>
+          <AiCostTab />
         </Suspense>
       )}
 

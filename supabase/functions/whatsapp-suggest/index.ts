@@ -167,7 +167,7 @@ ${sample}${editsText ? `
 
 CORREÇÕES: textos que a IA sugeriu e que Maicon alterou antes de enviar. Use-as para entender o que ele muda (tamanho, tom, saudação, emoji, ordem das informações) e registre esses hábitos no perfil, sem citar os textos:
 ${editsText}` : ''}`;
-  const response = await generate({ prompt, maxTokens:900, temperature:0.3 });
+  const response = await generate({ prompt, maxTokens:900, temperature:0.3, task:'estilo' });
   const perfil = String(response.text || '').trim().slice(0, 2500);
   if (perfil.length < 40) return { ok:false, error:'empty_model_response', amostras:used.length };
   const now = new Date().toISOString();
@@ -440,7 +440,7 @@ MENSAGEM QUE DEVE SER RESPONDIDA
 
 Retorne somente a resposta sugerida.`;
 
-    const response = await generate({ prompt, maxTokens:700, temperature:0.4 });
+    const response = await generate({ prompt, maxTokens:700, temperature:0.4, task:'sugestao' });
     const usedModel = response.model;
     let suggestion = String(response.text || '').trim();
     // Enforce the greeting if the model begins with one from the wrong period.

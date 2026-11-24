@@ -27,8 +27,57 @@ export type GenerateOptions = {
   temperature?: number;
   /** Ask for a JSON object; the text returned is the raw JSON. */
   json?: boolean;
+  /** Label stored with the token usage in public.ia_uso (sugestao, estilo, pedido, imagem, pdf...). */
+  task?: string;
 };
 export type GenerateResult = { text: string; model: string };
+
+// ---- Token usage and cost -------------------------------------------------------------------
+// Every billed reply is stored in public.ia_uso with the tokens the API reported, so the CRM can
+// show what the AI costs. Recording is best-effort: it never fails or blocks the AI call.
+
+export type Usage = { input: number; output: number; cacheWrite: number; cacheRead: number };
+type Price = { input: number; output: number; cacheWrite: number; cacheRead: number };
+/** USD per million tokens. Long prompts (all input tokens, cache included, above `limit`) cost more. */
+const CLAUDE_PRICES: Record<string, { limit: number; base: Price; long: Price }> = {
+  "claude-haiku-5-5": {
+    limit: 100_000,
+    base: { input: 0.10, output: 0.50, cacheWrite: 0.125, cacheRead: 0.01 },
+    long: { input: 0.50, output: 2.50, cacheWrite: 0.625, cacheRead: 0.05 },
+  },
+};
+
+const tokenCount = (value: unknown) => { const n = Number(value); return Number.isFinite(n) && n > 0 ? Math.round(n) : 0; };
+
+/** Cost in USD of one Claude reply; null when the model has no price in CLAUDE_PRICES. */
+export function claudeCost(model: string, u: Usage): number | null {
+  const table = CLAUDE_PRICES[model];
+  if (!table) return null;
+  const price = u.input + u.cacheWrite + u.cacheRead > table.limit ? table.long : table.base;
+  const usd = (u.input * price.input + u.output * price.output + u.cacheWrite * price.cacheWrite + u.cacheRead * price.cacheRead) / 1_000_000;
+  return Math.round(usd * 1e8) / 1e8;
+}
+
+async function recordUsage(task: string | undefined, provider: "anthropic" | "google", model: string, u: Usage, cost: number | null) {
+  const url = (Deno.env.get("SUPABASE_URL") || "").replace(/\/+$/, "");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  if (!url || !key) return;
+  try {
+    const response = await fetch(`${url}/rest/v1/ia_uso`, {
+      method: "POST",
+      headers: { "content-type": "application/json", apikey: key, authorization: `Bearer ${key}`, prefer: "return=minimal" },
+      body: JSON.stringify({
+        tarefa: String(task || "outra").slice(0, 40), provedor: provider, modelo: model.slice(0, 80),
+        tokens_entrada: u.input, tokens_saida: u.output, tokens_cache_escrita: u.cacheWrite, tokens_cache_leitura: u.cacheRead,
+        custo_usd: cost,
+      }),
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!response.ok) console.warn("ia_uso insert failed", response.status, (await response.text().catch(() => "")).slice(0, 200));
+  } catch (error) {
+    console.warn("ia_uso insert failed", error instanceof Error ? error.message : String(error));
+  }
+}
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const temporaryStatus = (status: number) => status === 408 || status === 429 || status === 529 || status >= 500;
@@ -69,6 +118,14 @@ async function callClaude(o: GenerateOptions): Promise<GenerateResult> {
     throw new ModelError(`claude ${response.status}: ${detail}`, temporaryStatus(response.status));
   }
   const data = await response.json();
+  // Recorded before the reply is checked: an empty or cut reply is billed all the same.
+  const usage: Usage = {
+    input: tokenCount(data?.usage?.input_tokens),
+    output: tokenCount(data?.usage?.output_tokens),
+    cacheWrite: tokenCount(data?.usage?.cache_creation_input_tokens),
+    cacheRead: tokenCount(data?.usage?.cache_read_input_tokens),
+  };
+  await recordUsage(o.task, "anthropic", CLAUDE_MODEL, usage, claudeCost(CLAUDE_MODEL, usage));
   let text = (data?.content || []).filter((b: any) => b?.type === "text").map((b: any) => b.text).join("").trim();
   if (data?.stop_reason === "max_tokens") console.warn("claude reply cut at max_tokens", CLAUDE_MODEL);
   if (o.json) text = extractJson(text);
@@ -105,6 +162,14 @@ async function callGemini(model: string, o: GenerateOptions): Promise<GenerateRe
     throw new ModelError(`${model} ${response.status}: ${detail}`, temporaryStatus(response.status));
   }
   const data = await response.json();
+  // Gemini: tokens only; the price depends on the plan, so no cost is computed.
+  const meta = data?.usageMetadata;
+  await recordUsage(o.task, "google", model, {
+    input: Math.max(0, tokenCount(meta?.promptTokenCount) - tokenCount(meta?.cachedContentTokenCount)),
+    output: tokenCount(meta?.candidatesTokenCount) + tokenCount(meta?.thoughtsTokenCount),
+    cacheWrite: 0,
+    cacheRead: tokenCount(meta?.cachedContentTokenCount),
+  }, null);
   const text = (data?.candidates?.[0]?.content?.parts || []).map((p: any) => p?.text || "").join("").trim();
   if (!text) throw new ModelError(`${model}: resposta vazia (${data?.candidates?.[0]?.finishReason || "sem motivo"})`, false);
   return { text, model };
@@ -126,7 +191,7 @@ async function once(fn: () => Promise<GenerateResult>): Promise<GenerateResult> 
 export async function claudeCheck(): Promise<{ configured: boolean; ok: boolean; detail: string }> {
   if (!anthropicKey()) return { configured: false, ok: false, detail: "ANTHROPIC_API_KEY ausente" };
   try {
-    const r = await callClaude({ prompt: "Responda apenas: ok", maxTokens: 10, temperature: 0 });
+    const r = await callClaude({ prompt: "Responda apenas: ok", maxTokens: 10, temperature: 0, task: "teste" });
     return { configured: true, ok: true, detail: r.text.slice(0, 20) };
   } catch (error) {
     return { configured: true, ok: false, detail: error instanceof Error ? error.message.slice(0, 300) : String(error) };

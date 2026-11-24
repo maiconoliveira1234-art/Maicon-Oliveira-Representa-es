@@ -98,7 +98,7 @@ O pedido do cliente de produtos pequenos geralmente informa quantidade de unidad
     const response=await generate({
       system,
       prompt:"MENSAGEM RECEBIDA:\n"+String(contextText).slice(0,12000)+"\n\nResponda somente com o objeto JSON.",
-      json:true,temperature:0,maxTokens:2000
+      json:true,temperature:0,maxTokens:2000,task:"pedido"
     });
     console.info("order analysis model",response.model);
     const parsed=JSON.parse(String(response.text||"{}"));

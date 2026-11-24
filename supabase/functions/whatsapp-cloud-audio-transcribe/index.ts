@@ -198,7 +198,7 @@ async function readImage(bytes: ArrayBuffer, mime: string, caption: string): Pro
     catalog ? `CADASTRO (produtos ativos do CRM):\n${catalog}` : "",
   ].filter(Boolean).join("\n\n");
   try {
-    const result = await generate({ prompt, images: [{ mime, base64: imageBase64(bytes) }], maxTokens: 500, temperature: 0 });
+    const result = await generate({ prompt, images: [{ mime, base64: imageBase64(bytes) }], maxTokens: 500, temperature: 0, task: "imagem" });
     return { text: result.text.replace(/\*\*/g, "").trim(), model: result.model };
   } catch (error) {
     if (error instanceof ModelError) throw new ProviderError(error.message, error.temporary);
@@ -244,7 +244,7 @@ async function readDocument(bytes: ArrayBuffer, caption: string, name: string): 
     const result = await generate({
       prompt: extra ? `${PDF_PROMPT}\n\n${extra}` : PDF_PROMPT,
       documents: [{ base64: imageBase64(pdf.slice().buffer) }],
-      maxTokens: 1500, temperature: 0,
+      maxTokens: 1500, temperature: 0, task: "pdf",
     });
     let text = result.text.replace(/\*\*/g, "").trim();
     if (trimmed) text += `\n(Lidas só as ${PDF_MAX_PAGES} primeiras de ${pages} páginas.)`;
