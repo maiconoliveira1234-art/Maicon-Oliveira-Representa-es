@@ -29,7 +29,8 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Wallet
+  Wallet,
+  Landmark
 } from 'lucide-react';
 import { 
   ResponsiveContainer, 
@@ -51,6 +52,7 @@ import { supabase } from '../lib/supabase';
 import { Cliente, Produto, HistVenda } from '../types';
 import { cn, formatWeight, formatCurrency, deduplicateSales, parseSaleDate } from '../lib/utils';
 import { PageHeader } from '../components/ui/AppChrome';
+import { ReportPicker } from '../components/ReportPicker';
 import { useDataManager } from '../lib/dataManager';
 import { classifySaleRecord } from '../lib/salesClassifier';
 import { shouldExcludeSale } from '../constants';
@@ -891,8 +893,8 @@ export function Dashboard() {
     { id: 'curva_abc' as const, label: 'Curva ABC', icon: BarChart3 },
     { id: 'mix_produtos' as const, label: 'Mix de Produtos', icon: Package },
     { id: 'positivacao' as const, label: 'Positivação da Carteira', icon: Users },
-    { id: 'comissoes' as const, label: 'Comissões', icon: DollarSign },
-    { id: 'financeiro' as const, label: 'Financeiro', icon: DollarSign },
+    { id: 'comissoes' as const, label: 'Comissões', icon: Percent },
+    { id: 'financeiro' as const, label: 'Financeiro', icon: Landmark },
     { id: 'custos' as const, label: 'Custos', icon: Wallet },
   ];
 
@@ -979,31 +981,8 @@ export function Dashboard() {
         }
       />
 
-      {/* Main Navigation Tabs */}
-      <div className="-mx-1 flex gap-1 overflow-x-auto border-b border-neutral-200 px-1 scrollbar-none">
-        {tabsConfig.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-
-          return (
-            <button
-              key={tab.id}
-              id={`tab-btn-${tab.id}`}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "-mb-px flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap border-b-2 px-3 text-sm font-medium transition-colors",
-                isActive
-                  ? "border-orange-600 text-neutral-900"
-                  : "border-transparent text-neutral-500 hover:border-neutral-300 hover:text-neutral-800"
-              )}
-            >
-              <Icon size={16} className={cn("shrink-0", isActive ? "text-orange-600" : "text-neutral-400")} />
-              <span className="min-w-0">{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
+      {/* Relatório escolhido num menu suspenso */}
+      <ReportPicker options={tabsConfig} value={activeTab} onChange={setActiveTab} />
 
       {activeTab === 'financeiro' && (
         <Suspense fallback={<div className="py-8 text-center text-sm text-neutral-500">Carregando financeiro...</div>}>
