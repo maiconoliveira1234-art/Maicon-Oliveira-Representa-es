@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { EyeOff, Link2, Loader2, MessageCircle, Mic, Phone, RefreshCw, Search, Settings, ShieldCheck, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -18,7 +18,7 @@ import {
 import { refreshWhatsAppSummary } from '../hooks/useWhatsAppSummary';
 import { matchesQuery, readSession, relativeTime, writeSession } from '../lib/whatsappUi';
 
-type Filter = 'novas' | 'recentes' | 'todos' | 'identificar' | 'ignorados';
+type Filter = 'novas' | 'recentes' | 'identificar' | 'ignorados';
 
 type PreviewMessage = {
   id: string;
@@ -52,7 +52,6 @@ function previewText(message: PreviewMessage | null): { text: string; audio: boo
 const FILTER_LABELS: Record<Filter, string> = {
   novas: 'Novas',
   recentes: 'Recentes',
-  todos: 'Todos',
   identificar: 'Identificar',
   ignorados: 'Ignorados',
 };
@@ -70,6 +69,16 @@ export function WhatsAppContactsPage() {
   const [filter, setFilter] = useState<Filter | null>(() => readSession<Filter | null>(FILTER_KEY, null));
   const [query, setQuery] = useState(() => readSession<string>(QUERY_KEY, ''));
   const [menuOpen, setMenuOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  // Sempre abre no topo: sobe a janela e o container que rola dentro do layout.
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+    for (let node = rootRef.current?.parentElement; node; node = node.parentElement) {
+      const overflowY = getComputedStyle(node).overflowY;
+      if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollTop > 0) node.scrollTop = 0;
+    }
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const clientesLoaded = useRef(false);
 
@@ -161,14 +170,16 @@ export function WhatsAppContactsPage() {
     return {
       novas: linked.filter(item => (summaries[item.id]?.unseen || 0) > 0).length,
       recentes: linked.length,
-      todos: linked.length,
       identificar: maps.filter(item => item.status === 'pendente').length,
       ignorados: maps.filter(item => item.status === 'ignorado').length,
     };
   }, [maps, summaries]);
 
   // Until the user picks a filter, open on "Novas" when there is something new, otherwise "Recentes".
-  const activeFilter: Filter = filter ?? (counts.novas > 0 ? 'novas' : 'recentes');
+  const savedFilter = (filter as string | null) === 'todos' || (filter === 'identificar' && counts.identificar === 0) ? null : filter;
+  const activeFilter: Filter = savedFilter ?? (counts.novas > 0 ? 'novas' : 'recentes');
+  // "Identificar" so existe quando ha contatos esperando e fica sempre a esquerda.
+  const filtersToShow: Filter[] = [...(counts.identificar > 0 ? ['identificar' as const] : []), 'novas', 'recentes', 'ignorados'];
 
   const chooseFilter = (next: Filter) => {
     setFilter(next);
@@ -258,18 +269,17 @@ export function WhatsAppContactsPage() {
     }
   };
 
-  const filtersToShow: Filter[] = ['novas', 'recentes', 'todos', 'identificar', 'ignorados'];
   const emptyText: Record<Filter, string> = {
     novas: 'Nenhuma conversa com mensagem nova.',
     recentes: 'Nenhuma conversa vinculada ainda.',
-    todos: 'Nenhuma conversa vinculada ainda.',
     identificar: 'Nenhum contato esperando identificação.',
     ignorados: 'Nenhum contato ignorado. As conversas de quem não é cliente ficam guardadas só por 48 horas.',
   };
 
   return (
-    <div className="mx-auto max-w-3xl pb-4">
+    <div ref={rootRef} className="mx-auto max-w-3xl pb-4">
       <StorageUsageAlert />
+      <div className="sticky top-0 z-20 bg-neutral-100 pt-1">
       <div className="mb-3 flex items-center gap-2">
         <h1 className="flex flex-1 items-center gap-2 text-xl font-black text-neutral-900">
           <MessageCircle size={22} className="text-green-600" /> WhatsApp
@@ -347,6 +357,8 @@ export function WhatsAppContactsPage() {
             </button>
           );
         })}
+      </div>
+
       </div>
 
       {error && (
