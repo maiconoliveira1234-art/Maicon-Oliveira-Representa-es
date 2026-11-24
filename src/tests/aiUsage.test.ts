@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { aiMonthProjection, aiPeriodRange, formatTokens, formatUsd, summarizeAiUsage, type AiUsageRow } from '../lib/aiUsage';
+import { aiMonthProjection, aiPeriodRange, formatBrlSmall, formatTokens, formatUsd, summarizeAiUsage, type AiUsageRow } from '../lib/aiUsage';
 
 const row = (criado_em: string, tarefa: string, custo: number | null, entrada = 1000, saida = 100): AiUsageRow => ({
   criado_em, tarefa, modelo: 'claude-haiku-5-5',
@@ -55,6 +55,11 @@ describe('custo de IA', () => {
     expect(formatUsd(0.00135).replace(/\s/g, ' ')).toBe('US$ 0,0014');
     expect(formatUsd(0.25).replace(/\s/g, ' ')).toBe('US$ 0,250');
     expect(formatUsd(12.5).replace(/\s/g, ' ')).toBe('US$ 12,50');
+    expect(formatBrlSmall(0.58).replace(/\s/g, ' ')).toBe('R$ 0,58');
+    expect(formatBrlSmall(12.345).replace(/\s/g, ' ')).toBe('R$ 12,35');
+    expect(formatBrlSmall(0.058).replace(/\s/g, ' ')).toBe('R$ 0,058');
+    expect(formatBrlSmall(0.00135 * 5.3).replace(/\s/g, ' ')).toBe('R$ 0,0072');
+    expect(formatBrlSmall(0).replace(/\s/g, ' ')).toBe('R$ 0,00');
     expect(formatTokens(950)).toBe('950');
     expect(formatTokens(31234)).toBe('31,2 mil');
     expect(formatTokens(1_250_000)).toBe('1,3 mi');

@@ -126,10 +126,10 @@ export function formatUsd(value: number): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'USD', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value);
 }
 
-/** Real, com mais casas quando o valor é menor que um centavo. */
+/** Real com centavos; valores menores que R$ 0,10 ganham casas para não virar zero: R$ 0,58 · R$ 0,058 · R$ 0,0069. */
 export function formatBrlSmall(value: number): string {
   const abs = Math.abs(value);
-  const digits = abs >= 1 || abs === 0 ? 2 : abs >= 0.01 ? 3 : 4;
+  const digits = abs >= 0.1 || abs === 0 ? 2 : abs >= 0.01 ? 3 : 4;
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value);
 }
 

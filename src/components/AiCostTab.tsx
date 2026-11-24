@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Bot, CalendarClock, DollarSign, MessageSquare } from 'lucide-react';
+import { Banknote, Bot, CalendarClock, MessageSquare } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
@@ -35,21 +35,26 @@ async function loadFirstRecord(): Promise<Date | null> {
   return data?.criado_em ? new Date(data.criado_em) : null;
 }
 
-// Cotação comercial do dólar, só para mostrar o valor aproximado em reais.
+// A Anthropic cobra em dólar; a tela converte para real pela cotação comercial do dia.
+// A última cotação fica guardada no aparelho e é usada quando não dá para consultar.
 const RATE_KEY = 'crm_cotacao_usd_brl';
 const RATE_MAX_AGE = 6 * 3600 * 1000;
+type DollarRate = { rate: number; at: number };
 
-function cachedRate(): number | null {
+function savedRate(): DollarRate | null {
   try {
     const saved = JSON.parse(localStorage.getItem(RATE_KEY) || 'null');
-    return saved && Date.now() - saved.at < RATE_MAX_AGE && saved.rate > 0 ? Number(saved.rate) : null;
+    return saved && Number(saved.rate) > 0 && Number(saved.at) > 0 ? { rate: Number(saved.rate), at: Number(saved.at) } : null;
   } catch { return null; }
 }
 
-function useDollarRate(): number | null {
-  const [rate, setRate] = useState<number | null>(cachedRate);
+/** rate = null enquanto a primeira cotação não chega; done = a consulta terminou (com ou sem sucesso). */
+function useDollarRate(): { rate: DollarRate | null; done: boolean } {
+  const [rate, setRate] = useState<DollarRate | null>(savedRate);
+  const [done, setDone] = useState(false);
   useEffect(() => {
-    if (rate) return;
+    const current = savedRate();
+    if (current && Date.now() - current.at < RATE_MAX_AGE) { setDone(true); return; }
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), 8000);
     fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL', { signal: controller.signal })
@@ -57,14 +62,15 @@ function useDollarRate(): number | null {
       .then(data => {
         const value = Number(data?.USDBRL?.bid);
         if (!(value > 0)) return;
-        setRate(value);
-        try { localStorage.setItem(RATE_KEY, JSON.stringify({ rate: value, at: Date.now() })); } catch { /* sem cache */ }
+        const fresh = { rate: value, at: Date.now() };
+        setRate(fresh);
+        try { localStorage.setItem(RATE_KEY, JSON.stringify(fresh)); } catch { /* sem cache */ }
       })
-      .catch(() => { /* sem cotação: mostra só em dólar */ })
-      .finally(() => window.clearTimeout(timer));
+      .catch(() => { /* fica a última cotação guardada */ })
+      .finally(() => { window.clearTimeout(timer); setDone(true); });
     return () => { controller.abort(); window.clearTimeout(timer); };
-  }, [rate]);
-  return rate;
+  }, []);
+  return { rate, done };
 }
 
 function StatCard({ label, value, detail, icon }: { label: string; value: string; detail?: string; icon: React.ReactNode }) {
@@ -90,7 +96,7 @@ export function AiCostTab() {
   const [firstRecord, setFirstRecord] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const rate = useDollarRate();
+  const { rate, done: rateDone } = useDollarRate();
 
   useEffect(() => {
     let active = true;
@@ -105,7 +111,9 @@ export function AiCostTab() {
 
   const summary = useMemo(() => summarizeAiUsage(rows), [rows]);
   const projection = period === 'mes' ? aiMonthProjection(summary.custo, firstRecord) : null;
-  const brl = (usd: number) => rate ? `≈ ${formatBrlSmall(usd * rate)}` : undefined;
+  // Em real pela cotação do dia; em dólar só se nunca foi possível obter a cotação.
+  const money = (usd: number) => rate ? formatBrlSmall(usd * rate.rate) : formatUsd(usd);
+  const waiting = loading || (!rate && !rateDone);
   const average = summary.respostas ? summary.custo / summary.respostas : 0;
 
   return (
@@ -128,30 +136,36 @@ export function AiCostTab() {
             </button>
           ))}
         </div>
-        {firstRecord && (
+        {(firstRecord || rate) && (
           <span className="text-xs font-semibold text-neutral-500">
-            Registro desde {firstRecord.toLocaleDateString('pt-BR')}
+            {[
+              firstRecord ? `Registro desde ${firstRecord.toLocaleDateString('pt-BR')}` : '',
+              rate ? `US$ 1 = ${rate.rate.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : '',
+            ].filter(Boolean).join(' · ')}
           </span>
         )}
       </div>
 
       {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-      {loading && <p role="status" className="py-6 text-center text-sm text-neutral-500">Carregando...</p>}
+      {!rate && rateDone && (
+        <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Sem cotação do dólar no momento: valores em US$.</p>
+      )}
+      {waiting && <p role="status" className="py-6 text-center text-sm text-neutral-500">Carregando...</p>}
 
-      {!loading && !error && summary.respostas === 0 && (
+      {!waiting && !error && summary.respostas === 0 && (
         <p className="rounded-xl border border-neutral-200 bg-white p-4 text-sm text-neutral-600">
           Nenhuma resposta do Claude registrada neste período.
         </p>
       )}
 
-      {!loading && !error && summary.respostas > 0 && (
+      {!waiting && !error && summary.respostas > 0 && (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="Gasto" value={formatUsd(summary.custo)} detail={brl(summary.custo)} icon={<DollarSign size={18} />} />
+            <StatCard label="Gasto" value={money(summary.custo)} icon={<Banknote size={18} />} />
             <StatCard label="Respostas" value={summary.respostas.toLocaleString('pt-BR')} icon={<MessageSquare size={18} />} />
-            <StatCard label="Por resposta" value={formatUsd(average)} detail={brl(average)} icon={<Bot size={18} />} />
+            <StatCard label="Por resposta" value={money(average)} icon={<Bot size={18} />} />
             {projection !== null && (
-              <StatCard label="Projeção do mês" value={formatUsd(projection)} detail={brl(projection)} icon={<CalendarClock size={18} />} />
+              <StatCard label="Projeção do mês" value={money(projection)} icon={<CalendarClock size={18} />} />
             )}
           </div>
 
@@ -170,14 +184,14 @@ export function AiCostTab() {
                   <li key={task.tarefa} className="py-3 first:pt-0 last:pb-0">
                     <div className="flex items-baseline justify-between gap-3">
                       <span className="min-w-0 truncate text-sm font-bold text-neutral-800">{task.label}</span>
-                      <span className="shrink-0 text-sm font-black text-neutral-900">{formatUsd(task.custo)}</span>
+                      <span className="shrink-0 text-sm font-black text-neutral-900">{money(task.custo)}</span>
                     </div>
                     <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-neutral-100">
                       <div className="h-full rounded-full bg-orange-500" style={{ width: `${Math.round(share * 100)}%` }} />
                     </div>
                     <p className="mt-1.5 text-xs font-semibold text-neutral-500">
                       {task.respostas.toLocaleString('pt-BR')} {task.respostas === 1 ? 'resposta' : 'respostas'}
-                      {' · '}{formatUsd(task.custo / task.respostas)} cada
+                      {' · '}{money(task.custo / task.respostas)} cada
                       {' · '}{formatTokens(task.tokensEntrada / task.respostas)} tokens enviados, {formatTokens(task.tokensSaida / task.respostas)} recebidos
                     </p>
                   </li>
@@ -195,13 +209,13 @@ export function AiCostTab() {
                   <XAxis dataKey="dia" tickFormatter={dayLabel} axisLine={{ stroke: '#e5e5e5' }} tickLine={false}
                     tick={{ fontSize: 11, fontWeight: 700, fill: '#737373' }} minTickGap={12} />
                   <YAxis axisLine={false} tickLine={false} width={64}
-                    tick={{ fontSize: 10, fontWeight: 700, fill: '#a3a3a3' }} tickFormatter={(v: number) => formatUsd(v)} />
+                    tick={{ fontSize: 10, fontWeight: 700, fill: '#a3a3a3' }} tickFormatter={(v: number) => money(v)} />
                   <Tooltip
                     cursor={{ fill: '#fff7ed' }}
                     contentStyle={{ borderRadius: '12px', border: '1px solid #e5e5e5', fontSize: 12, fontWeight: 700 }}
                     labelFormatter={(label) => dayLabel(String(label))}
                     formatter={(value, _name, item) => [
-                      `${formatUsd(Number(value))} · ${(item?.payload as { respostas?: number } | undefined)?.respostas ?? 0} respostas`,
+                      `${money(Number(value))} · ${(item?.payload as { respostas?: number } | undefined)?.respostas ?? 0} respostas`,
                       'Gasto',
                     ]}
                   />
