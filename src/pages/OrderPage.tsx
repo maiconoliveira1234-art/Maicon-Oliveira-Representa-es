@@ -57,6 +57,7 @@ import { formatFlexRate, getFlexRateForDate } from '../lib/flexRules';
 import { avaliarCampanhas, type Campanha } from '../lib/campaignEngine';
 import { calcularPrecoDeCampanha } from '../lib/campaignPricing';
 import { readDraftCampaigns, withDraftCampaigns } from '../lib/orderDraftCampaigns';
+import { registrarPreco } from '../lib/orderDraftPricing';
 import { createDebouncedDraftSave } from '../lib/debouncedDraftSave';
 import { orderQuoteItems } from '../lib/quoteItemOrder';
 import { saveDraftLocally, readDraftLocally, clearLocalDraft } from '../lib/draftStorage';
@@ -668,11 +669,18 @@ export function OrderPage() {
         return;
       }
 
-      const rawItemList = withDraftCampaigns(itens.map(item => ({
-        produto_id: item.produto_id,
-        quantidade: item.quantidade,
-        tipo_operacao: item.tipo_operacao || 'VENDA',
-      })), regrasAprovadas);
+      // Preço e desconto de cada venda ficam gravados só no banco, para o
+      // lançamento no ERP seguir exatamente o pedido. Não aparecem na tela/PDF.
+      const precoVenda = new Map(computedItens
+        .filter(item => !item.tipo_operacao || item.tipo_operacao === 'VENDA')
+        .map(item => [item.produto_id, item.valor_unitario] as const));
+      const rawItemList = withDraftCampaigns(itens.map(item => {
+        const tipo = item.tipo_operacao || 'VENDA';
+        const base = { produto_id: item.produto_id, quantidade: item.quantidade, tipo_operacao: tipo };
+        if (tipo !== 'VENDA') return base;
+        const produto = produtos.find(p => p.id === item.produto_id);
+        return { ...base, ...registrarPreco(produto, precoVenda.get(item.produto_id)) };
+      }), regrasAprovadas);
       
       const nowIso = new Date().toISOString();
       const payload = {
@@ -698,7 +706,7 @@ export function OrderPage() {
 
       draftSaver.schedule(payload);
     }
-  }, [itens, clienteId, isReady, selectedPrazo, observacoes, startedAt, regrasAprovadas, draftSaver, deleteOpenOrder]);
+  }, [itens, computedItens, produtos, clienteId, isReady, selectedPrazo, observacoes, startedAt, regrasAprovadas, draftSaver, deleteOpenOrder]);
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
