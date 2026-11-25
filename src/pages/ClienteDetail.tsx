@@ -857,7 +857,7 @@ export function ClienteDetail() {
                     <div className="rounded-lg bg-neutral-50 p-3">
                       <p className="text-xs text-neutral-500">Boletos ainda não vencidos</p>
                       <p className="text-base font-bold text-neutral-900">
-                        {formatCurrency(entidade.titulos.filter(t => !t.baixado_em && t.vencimento >= format(new Date(), 'yyyy-MM-dd')).reduce((total, t) => total + t.valor, 0))}
+                        {formatCurrency(entidade.titulos.filter(t => !t.baixado_em && t.vencimento > format(new Date(), 'yyyy-MM-dd')).reduce((total, t) => total + t.valor, 0))}
                       </p>
                     </div>
                   </div>

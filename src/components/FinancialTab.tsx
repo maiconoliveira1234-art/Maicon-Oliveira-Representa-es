@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { supabase } from '../lib/supabase';
 import { Cliente } from '../types';
 import { formatCurrency } from '../lib/utils';
-import { adjustedCredit, CreditTitle, titleStatus } from '../lib/financialReview';
+import { adjustedCredit, canSettleEarly, CreditTitle, PAGO_ANTECIPADO, sumTitles, titleStatus } from '../lib/financialReview';
 
 type Store = {
   id: string; razao_social: string; limite_total: number;
@@ -19,7 +19,7 @@ async function loadTitles(id: string): Promise<CreditTitle[]> {
   const titles: CreditTitle[] = [];
   for (let offset = 0; ; offset += 500) {
     const { data, error } = await supabase.from('titulos_credito')
-      .select('id, vencimento, valor').eq('entidade_financeira_id', id)
+      .select('id, vencimento, valor, baixado_em').eq('entidade_financeira_id', id)
       .order('vencimento').order('id').range(offset, offset + 499);
     if (error) throw error;
     titles.push(...(data || []).map(t => ({ ...t, valor: Number(t.valor) })));
@@ -38,6 +38,9 @@ function StoreReview({ store, onSaved }: { store: Store; onSaved: (store: Store)
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [filter, setFilter] = useState('A vencer');
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [settling, setSettling] = useState(false);
+  const [balanceTick, setBalanceTick] = useState(0);
   const lock = useRef(false);
   const [today, setToday] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   useEffect(() => {
@@ -69,7 +72,7 @@ function StoreReview({ store, onSaved }: { store: Store; onSaved: (store: Store)
     const timer = window.setInterval(refresh, 60000);
     window.addEventListener('focus', refresh);
     return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refresh); };
-  }, [store.id, store.limite_total, store.disponivel_oficial_snapshot]);
+  }, [store.id, store.limite_total, store.disponivel_oficial_snapshot, balanceTick]);
   let preview: ReturnType<typeof adjustedCredit> | null = null;
   let validation = '';
   if (editing && raw.trim()) {
@@ -103,7 +106,68 @@ function StoreReview({ store, onSaved }: { store: Store; onSaved: (store: Store)
       setSaving(false);
     }
   };
+  // Baixa manual de boleto pago antes do vencimento: grava baixado_em = hoje e
+  // o saldo projetado passa a liberar o valor no limite a partir de hoje.
+  const settle = async () => {
+    if (lock.current) return;
+    const chosen = titles.filter(t => selected.has(t.id) && canSettleEarly(t, today));
+    if (!chosen.length) return;
+    lock.current = true;
+    setSettling(true);
+    setMessage('');
+    try {
+      if (navigator.onLine === false) throw new Error('Conecte-se à internet para dar baixa.');
+      const day = format(new Date(), 'yyyy-MM-dd');
+      const { data, error: writeError } = await supabase.from('titulos_credito')
+        .update({ baixado_em: day })
+        .in('id', chosen.map(t => t.id)).eq('entidade_financeira_id', store.id)
+        .is('baixado_em', null).gt('vencimento', day)
+        .select('id, baixado_em');
+      if (writeError) throw new Error('Não foi possível dar baixa. Atualize a consulta e tente novamente.');
+      const done = new Map<string, string>((data || []).map((r: { id: string; baixado_em: string }) => [r.id, r.baixado_em] as [string, string]));
+      setTitles(rows => rows.map(t => done.has(t.id) ? { ...t, baixado_em: done.get(t.id) ?? null } : t));
+      setSelected(new Set());
+      setBalanceTick(n => n + 1);
+      const total = formatCurrency(sumTitles(chosen.filter(t => done.has(t.id))));
+      setMessage(done.size === chosen.length
+        ? `Baixa de ${done.size} boleto(s) • ${total}.`
+        : `Baixa confirmada em ${done.size} de ${chosen.length} boleto(s) (${total}). Atualize a consulta.`);
+    } catch (err) {
+      setMessage((err as Error).message);
+    } finally {
+      lock.current = false;
+      setSettling(false);
+    }
+  };
+  const undoSettle = async (title: CreditTitle) => {
+    if (lock.current || !title.baixado_em) return;
+    lock.current = true;
+    setSettling(true);
+    setMessage('');
+    try {
+      if (navigator.onLine === false) throw new Error('Conecte-se à internet para desfazer a baixa.');
+      const { data, error: writeError } = await supabase.from('titulos_credito')
+        .update({ baixado_em: null })
+        .eq('id', title.id).eq('entidade_financeira_id', store.id).eq('baixado_em', title.baixado_em)
+        .select('id');
+      if (writeError || !data?.length) throw new Error('Não foi possível desfazer a baixa. Atualize a consulta e tente novamente.');
+      setTitles(rows => rows.map(t => t.id === title.id ? { ...t, baixado_em: null } : t));
+      setBalanceTick(n => n + 1);
+      setMessage(`Baixa desfeita • ${formatCurrency(title.valor)}.`);
+    } catch (err) {
+      setMessage((err as Error).message);
+    } finally {
+      lock.current = false;
+      setSettling(false);
+    }
+  };
+  const toggle = (id: string) => setSelected(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
   const visible = titles.filter(t => filter === 'Todos' || titleStatus(t, today) === filter);
+  const chosen = titles.filter(t => selected.has(t.id) && canSettleEarly(t, today));
   return <article className="space-y-4 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
     <h3 className="font-extrabold text-neutral-900">{store.razao_social}</h3>
     <div className="grid gap-3 sm:grid-cols-2">
@@ -128,20 +192,39 @@ function StoreReview({ store, onSaved }: { store: Store; onSaved: (store: Store)
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h4 className="font-bold">Boletos</h4>
       <label className="text-xs">Situação
-        <select className={inputClass} value={filter} onChange={e => setFilter(e.target.value)}>
-          {['Todos', 'Pagamento presumido', 'A vencer'].map(s => <option key={s}>{s}</option>)}
+        <select className={inputClass} value={filter} onChange={e => { setFilter(e.target.value); setSelected(new Set()); }}>
+          {['Todos', 'Pagamento presumido', 'A vencer', PAGO_ANTECIPADO].map(s => <option key={s}>{s}</option>)}
         </select>
       </label>
     </div>
     {loading ? <p role="status" className="text-sm">Consultando boletos...</p> : error ? <p role="alert" className="text-sm text-red-700">{error}</p> :
-      <><p className="text-xs text-neutral-600">{visible.length} boleto(s) • {formatCurrency(visible.reduce((sum, t) => sum + t.valor, 0))}</p>
+      <><p className="text-xs text-neutral-600">{visible.length} boleto(s) • {formatCurrency(sumTitles(visible))}</p>
+        {chosen.length > 0 && <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={settling} onClick={settle} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+            {settling ? 'Dando baixa...' : `Dar baixa (${chosen.length}) • ${formatCurrency(sumTitles(chosen))}`}
+          </button>
+          <button type="button" disabled={settling} onClick={() => setSelected(new Set())} className="rounded-lg border px-4 py-2 text-sm">Limpar</button>
+        </div>}
         {visible.length === 0 ? <p className="text-sm text-neutral-500">Nenhum boleto encontrado nesta consulta.</p> :
           <div className="max-h-96 overflow-auto"><table className="w-full text-left text-sm">
-            <thead className="sticky top-0 bg-neutral-100"><tr><th className="p-2">Vencimento</th><th className="p-2">Valor</th><th className="p-2">Situação</th></tr></thead>
-            <tbody>{visible.map(t => <tr key={t.id} className="border-b border-neutral-100">
-              <td className="whitespace-nowrap p-2">{dateLabel(t.vencimento)}</td><td className="whitespace-nowrap p-2">{formatCurrency(t.valor)}</td>
-              <td className="p-2">{titleStatus(t, today)}</td>
-            </tr>)}</tbody>
+            <thead className="sticky top-0 bg-neutral-100"><tr><th className="w-10 p-2"><span className="sr-only">Selecionar</span></th><th className="p-2">Vencimento</th><th className="p-2">Valor</th><th className="p-2">Situação</th></tr></thead>
+            <tbody>{visible.map(t => {
+              const status = titleStatus(t, today);
+              const eligible = canSettleEarly(t, today);
+              return <tr key={t.id} className={`border-b border-neutral-100 ${selected.has(t.id) && eligible ? 'bg-emerald-50' : ''}`}>
+                <td className="p-0">{eligible && <label className="flex h-11 w-10 cursor-pointer items-center justify-center">
+                  <input type="checkbox" className="h-5 w-5 accent-emerald-600" disabled={settling} checked={selected.has(t.id)} onChange={() => toggle(t.id)}
+                    aria-label={`Selecionar boleto de ${dateLabel(t.vencimento)} • ${formatCurrency(t.valor)}`} />
+                </label>}</td>
+                <td className="whitespace-nowrap p-2">{dateLabel(t.vencimento)}</td><td className="whitespace-nowrap p-2">{formatCurrency(t.valor)}</td>
+                <td className="p-2">{status === PAGO_ANTECIPADO
+                  ? <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="text-emerald-700">{status} {dateLabel(t.baixado_em ?? null).slice(0, 5)}</span>
+                      <button type="button" disabled={settling} onClick={() => undoSettle(t)} className="rounded-md border px-2 py-1 text-xs font-bold disabled:opacity-50">Desfazer</button>
+                    </div>
+                  : status}</td>
+              </tr>;
+            })}</tbody>
           </table></div>}
       </>}
   </article>;
