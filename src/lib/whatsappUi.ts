@@ -249,3 +249,19 @@ export function serviceWindowHoursLeft(lastIncomingIso: string | null | undefine
   const left = 24 * 3600 * 1000 - (now.getTime() - new Date(lastIncomingIso).getTime());
   return left > 0 ? left / 3600000 : 0;
 }
+
+export type ReadMark = { id: string; until: string | null };
+
+/**
+ * Which selected conversations to mark as read in bulk (already read and answered on the phone): only those
+ * with unseen messages, each limited to the newest moment the list was showing, so a message that arrives
+ * after the user looked at the list stays new.
+ */
+export function readMarksFor(items: Array<{ id: string; unseen: number; knownTimes: Array<string | null | undefined> }>): ReadMark[] {
+  return items
+    .filter(item => item.unseen > 0)
+    .map(item => {
+      const times = item.knownTimes.map(value => (value ? new Date(value).getTime() : NaN)).filter(time => Number.isFinite(time));
+      return { id: item.id, until: times.length ? new Date(Math.max(...times)).toISOString() : null };
+    });
+}

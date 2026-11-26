@@ -8,6 +8,7 @@ import {
   messageForErrorCode,
   normalizeBrPhone,
   phoneFromWhatsAppName,
+  readMarksFor,
   readFunctionError,
   relativeTime,
   resolveReplyPhone,
@@ -92,4 +93,14 @@ assert.equal(serviceWindowHoursLeft(null, windowNow), 0);
 assert.match(messageForErrorCode('janela_24h'), /24 horas/);
 assert.match(messageForErrorCode('envio_falhou'), /não foi enviada/);
 
-console.log('WhatsApp UI helpers: bursts, phone resolution, search, errors, audio states, stale suggestion and 24h window passed.');
+assert.deepEqual(
+  readMarksFor([
+    { id: 'a', unseen: 2, knownTimes: ['2026-11-26T10:00:00.000Z', '2026-11-26T10:00:03.500Z'] },
+    { id: 'b', unseen: 0, knownTimes: ['2026-11-26T09:00:00.000Z'] },
+    { id: 'c', unseen: 1, knownTimes: [null, undefined, 'x'] },
+  ]),
+  [{ id: 'a', until: '2026-11-26T10:00:03.500Z' }, { id: 'c', until: null }],
+  'bulk read marks skip conversations without news and stop at the newest moment the list knew of'
+);
+
+console.log('WhatsApp UI helpers: bursts, phone resolution, search, errors, audio states, stale suggestion, 24h window and bulk read marks passed.');

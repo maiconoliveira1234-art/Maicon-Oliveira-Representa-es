@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { EyeOff, Link2, Loader2, MessageCircle, Mic, Phone, RefreshCw, Search, Settings, ShieldCheck, XCircle } from 'lucide-react';
+import { Check, CheckCheck, EyeOff, Link2, Loader2, MessageCircle, Mic, Phone, RefreshCw, Search, Settings, ShieldCheck, X, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ClientLinkSheet } from '../components/whatsapp/ClientLinkSheet';
@@ -9,6 +9,7 @@ import {
   fetchContactInfo,
   formatWhatsAppPhone,
   linkContact,
+  markContactsSeen,
   NO_NUMBER_WARNING,
   setContactStatus,
   type ClienteLite,
@@ -16,7 +17,7 @@ import {
   type WhatsAppMap,
 } from '../lib/whatsappContacts';
 import { refreshWhatsAppSummary } from '../hooks/useWhatsAppSummary';
-import { matchesQuery, readSession, relativeTime, writeSession } from '../lib/whatsappUi';
+import { matchesQuery, readMarksFor, readSession, relativeTime, writeSession } from '../lib/whatsappUi';
 
 type Filter = 'novas' | 'recentes' | 'identificar' | 'ignorados';
 
@@ -36,6 +37,7 @@ const MESSAGE_FIELDS = 'id, contato_map_id, mensagem, recebida_em, tipo_mensagem
 const FILTER_KEY = 'whatsapp.filter';
 const QUERY_KEY = 'whatsapp.query';
 const POLL_MS = 20000;
+const LONG_PRESS_MS = 450;
 
 // Kept at module level so coming back from a conversation shows the list instantly while it refreshes.
 let cache: { maps: WhatsAppMap[]; summaries: Record<string, Summary>; info: Map<string, ContactInfo> } | null = null;
@@ -269,6 +271,99 @@ export function WhatsAppContactsPage() {
     }
   };
 
+  // Selecao em lote para marcar como lidas as conversas ja lidas e respondidas no celular.
+  const canSelect = activeFilter === 'novas' || activeFilter === 'recentes';
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [marking, setMarking] = useState(false);
+  const pressTimer = useRef<number | undefined>(undefined);
+  const pressStart = useRef<{ x: number; y: number } | null>(null);
+  const longPressed = useRef(false);
+
+  const exitSelection = () => {
+    setSelecting(false);
+    setSelected(new Set());
+  };
+
+  useEffect(() => {
+    if (!canSelect) exitSelection();
+  }, [canSelect]);
+
+  useEffect(() => () => window.clearTimeout(pressTimer.current), []);
+
+  const toggleSelected = (id: string) =>
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const allVisibleSelected = rows.length > 0 && rows.every(item => selected.has(item.id));
+  const toggleAll = () => setSelected(allVisibleSelected ? new Set() : new Set(rows.map(item => item.id)));
+
+  const readMarks = useMemo(
+    () =>
+      readMarksFor(
+        maps
+          .filter(item => item.status === 'vinculado' && selected.has(item.id))
+          .map(item => ({
+            id: item.id,
+            unseen: summaries[item.id]?.unseen || 0,
+            knownTimes: [summaries[item.id]?.last?.recebida_em, item.ultima_vez_em],
+          })),
+      ),
+    [maps, summaries, selected],
+  );
+
+  const markSelectedRead = async () => {
+    if (readMarks.length === 0) return;
+    setMarking(true);
+    setError(null);
+    try {
+      await markContactsSeen(readMarks);
+      const done = new Set(readMarks.map(mark => mark.id));
+      setSummaries(prev => {
+        const next = { ...prev };
+        for (const id of done) if (next[id]) next[id] = { ...next[id], unseen: 0 };
+        if (cache) cache = { ...cache, summaries: next };
+        return next;
+      });
+      exitSelection();
+      await afterChange();
+    } catch (err: any) {
+      setError(err?.message || 'Não foi possível marcar as conversas como lidas.');
+      void load(true);
+    } finally {
+      setMarking(false);
+    }
+  };
+
+  const cancelPress = () => {
+    window.clearTimeout(pressTimer.current);
+    pressStart.current = null;
+  };
+
+  // Segurar o dedo numa conversa entra na selecao ja com ela marcada, como no WhatsApp.
+  const startPress = (id: string, event: React.PointerEvent) => {
+    longPressed.current = false;
+    if (selecting || !canSelect || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    pressStart.current = { x: event.clientX, y: event.clientY };
+    window.clearTimeout(pressTimer.current);
+    pressTimer.current = window.setTimeout(() => {
+      longPressed.current = true;
+      pressStart.current = null;
+      navigator.vibrate?.(15);
+      setSelecting(true);
+      setSelected(new Set([id]));
+    }, LONG_PRESS_MS);
+  };
+
+  const movePress = (event: React.PointerEvent) => {
+    const start = pressStart.current;
+    if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) cancelPress();
+  };
+
   const emptyText: Record<Filter, string> = {
     novas: 'Nenhuma conversa com mensagem nova.',
     recentes: 'Nenhuma conversa vinculada ainda.',
@@ -280,10 +375,52 @@ export function WhatsAppContactsPage() {
     <div ref={rootRef} className="mx-auto max-w-3xl pb-4">
       <StorageUsageAlert />
       <div className="sticky top-0 z-20 bg-neutral-100 pt-1">
+      {selecting ? (
+        <div className="mb-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={exitSelection}
+            disabled={marking}
+            aria-label="Cancelar seleção"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-600 hover:bg-neutral-200 disabled:opacity-50"
+          >
+            <X size={20} />
+          </button>
+          <p className="min-w-0 flex-1 truncate text-base font-black text-neutral-900">
+            {selected.size} {selected.size === 1 ? 'selecionada' : 'selecionadas'}
+          </p>
+          <button
+            type="button"
+            onClick={toggleAll}
+            disabled={marking || rows.length === 0}
+            className="min-h-[44px] shrink-0 rounded-xl px-3 text-sm font-black text-orange-600 hover:bg-orange-50 disabled:opacity-40"
+          >
+            {allVisibleSelected ? 'Nenhuma' : 'Todas'}
+          </button>
+          <button
+            type="button"
+            onClick={() => void markSelectedRead()}
+            disabled={marking || readMarks.length === 0}
+            className="inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl bg-green-600 px-4 text-sm font-black text-white disabled:bg-neutral-300"
+          >
+            {marking ? <Loader2 size={17} className="animate-spin" /> : <CheckCheck size={17} />} Marcar lidas
+          </button>
+        </div>
+      ) : (
       <div className="mb-3 flex items-center gap-2">
         <h1 className="flex flex-1 items-center gap-2 text-xl font-black text-neutral-900">
           <MessageCircle size={22} className="text-green-600" /> WhatsApp
         </h1>
+        {canSelect && counts.novas > 0 && (
+          <button
+            type="button"
+            onClick={() => setSelecting(true)}
+            aria-label="Selecionar conversas para marcar como lidas"
+            className="flex h-11 w-11 items-center justify-center rounded-xl text-green-700 hover:bg-neutral-100"
+          >
+            <CheckCheck size={20} />
+          </button>
+        )}
         <button
           type="button"
           onClick={() => void load(true)}
@@ -325,6 +462,7 @@ export function WhatsAppContactsPage() {
           )}
         </div>
       </div>
+      )}
 
       <div className="relative mb-3">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" size={17} />
@@ -386,21 +524,47 @@ export function WhatsAppContactsPage() {
             const unseen = summary?.unseen || 0;
             const busy = busyId === item.id;
             const linked = item.status === 'vinculado';
-            const open = () => linked && navigate(`/whatsapp/conversa/${item.id}`);
+            const checkable = selecting && linked;
+            const checked = checkable && selected.has(item.id);
+            const open = () => {
+              if (longPressed.current) {
+                longPressed.current = false;
+                return;
+              }
+              if (checkable) toggleSelected(item.id);
+              else if (linked && !selecting) navigate(`/whatsapp/conversa/${item.id}`);
+            };
             return (
-              <li key={item.id} className="p-3">
+              <li key={item.id} className={`p-3 transition-colors ${checked ? 'bg-green-50' : ''}`}>
                 <div
-                  role={linked ? 'button' : undefined}
+                  role={checkable ? 'checkbox' : linked ? 'button' : undefined}
+                  aria-checked={checkable ? checked : undefined}
                   tabIndex={linked ? 0 : undefined}
                   onClick={open}
+                  onPointerDown={linked ? event => startPress(item.id, event) : undefined}
+                  onPointerMove={linked ? movePress : undefined}
+                  onPointerUp={linked ? cancelPress : undefined}
+                  onPointerCancel={linked ? cancelPress : undefined}
+                  onPointerLeave={linked ? cancelPress : undefined}
+                  onContextMenu={linked && canSelect ? event => event.preventDefault() : undefined}
                   onKeyDown={event => {
                     if (linked && (event.key === 'Enter' || event.key === ' ')) {
                       event.preventDefault();
                       open();
                     }
                   }}
-                  className={`flex min-h-[56px] items-start gap-3 ${linked ? 'cursor-pointer' : ''}`}
+                  className={`flex min-h-[56px] items-start gap-3 ${linked ? 'cursor-pointer select-none [-webkit-touch-callout:none]' : ''}`}
                 >
+                  {checkable && (
+                    <span
+                      aria-hidden
+                      className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${
+                        checked ? 'border-green-600 bg-green-600 text-white' : 'border-neutral-300 bg-white'
+                      }`}
+                    >
+                      {checked && <Check size={15} strokeWidth={3} />}
+                    </span>
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
                       <h2 className={`truncate text-[15px] text-neutral-900 ${unseen > 0 ? 'font-black' : 'font-bold'}`}>{nameOf(item)}</h2>

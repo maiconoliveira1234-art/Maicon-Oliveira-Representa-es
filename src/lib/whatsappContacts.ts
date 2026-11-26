@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import type { ReadMark } from './whatsappUi';
 
 export type ContactStatus = 'pendente' | 'vinculado' | 'ignorado';
 
@@ -63,6 +64,26 @@ export async function markContactSeen(mapId: string): Promise<void> {
     .eq('contato_map_id', mapId)
     .is('visualizada_em', null);
   if (error) console.warn('Não foi possível marcar a conversa como vista:', error);
+}
+
+/** Marks several conversations as read at once (already read and answered on the phone). Each one only up to
+ *  `until`, so a message that arrives while the user is selecting stays new. */
+export async function markContactsSeen(marks: ReadMark[]): Promise<void> {
+  const now = new Date().toISOString();
+  for (let start = 0; start < marks.length; start += 8) {
+    const results = await Promise.all(
+      marks.slice(start, start + 8).map(mark => {
+        const query = supabase
+          .from('whatsapp_mensagens')
+          .update({ visualizada_em: now })
+          .eq('contato_map_id', mark.id)
+          .is('visualizada_em', null);
+        return mark.until ? query.lte('recebida_em', mark.until) : query;
+      }),
+    );
+    const failed = results.find(result => result.error);
+    if (failed?.error) throw failed.error;
+  }
 }
 
 /** WhatsApp numbers of each contact record, and what is waiting in the 48 h quarantine. */
